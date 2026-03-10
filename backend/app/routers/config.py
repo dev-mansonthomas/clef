@@ -8,6 +8,8 @@ from typing import Annotated
 from app.models.config import ConfigUpdate, ConfigResponse
 from app.services.config_service import ConfigService
 from app.cache import RedisCache, get_cache
+from app.auth.models import User
+from app.auth.dependencies import is_dt_manager
 
 
 router = APIRouter(
@@ -23,18 +25,15 @@ def get_config_service(
     return ConfigService(cache)
 
 
-# TODO: Add is_dt_manager dependency when auth module (2.1) is implemented
-# For now, endpoints are unprotected (development only)
-
-
 @router.get("", response_model=ConfigResponse)
 async def get_config(
-    config_service: Annotated[ConfigService, Depends(get_config_service)]
+    config_service: Annotated[ConfigService, Depends(get_config_service)],
+    current_user: User = Depends(is_dt_manager)
 ):
     """
     Get current configuration.
 
-    **Access**: DT manager only (TODO: add auth guard)
+    **Access**: DT manager only
 
     Returns:
         Current configuration including URLs and email settings
@@ -46,12 +45,13 @@ async def get_config(
 @router.patch("", response_model=ConfigResponse)
 async def update_config(
     updates: ConfigUpdate,
-    config_service: Annotated[ConfigService, Depends(get_config_service)]
+    config_service: Annotated[ConfigService, Depends(get_config_service)],
+    current_user: User = Depends(is_dt_manager)
 ):
     """
     Update configuration.
 
-    **Access**: DT manager only (TODO: add auth guard)
+    **Access**: DT manager only
 
     Args:
         updates: Configuration updates (only non-null fields will be updated)
@@ -60,7 +60,7 @@ async def update_config(
         Updated configuration
 
     Raises:
-        HTTPException: If validation fails
+        HTTPException: If validation fails or user is not DT manager
     """
     # Convert Pydantic model to dict, excluding None values
     updates_dict = updates.model_dump(exclude_none=True)

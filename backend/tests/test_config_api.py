@@ -4,11 +4,29 @@ Tests for configuration API endpoints.
 import pytest
 import os
 from httpx import AsyncClient, ASGITransport
+from fastapi.testclient import TestClient
 from unittest.mock import AsyncMock, MagicMock, patch
+
+# Set USE_MOCKS before importing app to avoid Google credentials error
+os.environ["USE_MOCKS"] = "true"
 
 from app.main import app
 from app.services.config_service import ConfigService
 from app.cache import RedisCache
+from app.auth.config import auth_settings
+
+# Ensure we're using mocks for auth tests
+auth_settings.use_mocks = True
+
+# Create a synchronous test client for auth tests
+sync_client = TestClient(app)
+
+# Import okta_mock from routes to use the same instance
+from app.auth import routes
+okta_mock = routes.okta_mock
+
+# Create a synchronous test client for auth tests
+sync_client = TestClient(app)
 
 
 @pytest.fixture
@@ -228,4 +246,68 @@ class TestConfigValidation:
 
         response = await client.patch("/api/config", json=update_data)
         assert response.status_code == 200
+
+
+class TestConfigAuthGuard:
+    """Tests for DT manager authentication guard on config endpoints."""
+
+    def _get_authenticated_client(self, email: str) -> TestClient:
+        """Helper to get an authenticated test client via OAuth flow."""
+        # Create a new client for this test with base_url
+        test_client = TestClient(app, base_url="http://testserver")
+
+        # Go through OAuth flow
+        code = okta_mock.create_mock_authorization_code(email)
+        response = test_client.get(
+            f"/auth/callback?code={code}&state=test-state",
+            follow_redirects=False
+        )
+
+        # The callback should set a cookie and redirect
+        assert response.status_code == 307, f"Callback failed: {response.status_code}"
+
+        # Extract and set the session cookie on the client
+        session_cookie = response.cookies.get(auth_settings.session_cookie_name)
+        if session_cookie:
+            test_client.cookies.set(auth_settings.session_cookie_name, session_cookie)
+
+        return test_client
+
+    def test_patch_config_without_auth(self, env_vars):
+        """Test that PATCH /api/config requires authentication."""
+        test_client = TestClient(app, base_url="http://testserver")
+        update_data = {
+            "email_destinataire_alertes": "new-alerts@croix-rouge.fr"
+        }
+
+        response = test_client.patch("/api/config", json=update_data)
+        assert response.status_code == 401
+        assert response.json()["detail"] == "Not authenticated"
+
+    def test_patch_config_as_non_dt_manager(self, env_vars):
+        """Test that PATCH /api/config rejects non-DT manager users."""
+        # Authenticate as UL responsible (not DT manager)
+        test_client = self._get_authenticated_client("claire.rousseau@croix-rouge.fr")
+
+        update_data = {
+            "email_destinataire_alertes": "new-alerts@croix-rouge.fr"
+        }
+
+        response = test_client.patch("/api/config", json=update_data)
+        assert response.status_code == 403
+        assert response.json()["detail"] == "DT manager access required"
+
+    def test_patch_config_as_dt_manager(self, env_vars):
+        """Test that PATCH /api/config allows DT manager users."""
+        # Authenticate as DT manager
+        test_client = self._get_authenticated_client("thomas.manson@croix-rouge.fr")
+
+        update_data = {
+            "email_destinataire_alertes": "new-alerts@croix-rouge.fr"
+        }
+
+        response = test_client.patch("/api/config", json=update_data)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["email_destinataire_alertes"] == "new-alerts@croix-rouge.fr"
 
