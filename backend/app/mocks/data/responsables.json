@@ -1,0 +1,39 @@
+[
+  {
+    "email": "thomas.manson@croix-rouge.fr",
+    "nom": "Manson",
+    "prenom": "Thomas",
+    "perimetre": "DT Paris",
+    "type_perimetre": "DT",
+    "role": "Gestionnaire DT",
+    "telephone": "+33 6 56 78 90 12"
+  },
+  {
+    "email": "claire.rousseau@croix-rouge.fr",
+    "nom": "Rousseau",
+    "prenom": "Claire",
+    "perimetre": "UL Paris 15",
+    "type_perimetre": "UL",
+    "role": "Responsable UL",
+    "telephone": "+33 6 67 89 01 23"
+  },
+  {
+    "email": "laurent.petit@croix-rouge.fr",
+    "nom": "Petit",
+    "prenom": "Laurent",
+    "perimetre": "UL Paris 16",
+    "type_perimetre": "UL",
+    "role": "Responsable UL",
+    "telephone": "+33 6 78 90 12 34"
+  },
+  {
+    "email": "isabelle.moreau@croix-rouge.fr",
+    "nom": "Moreau",
+    "prenom": "Isabelle",
+    "perimetre": "Secours d'Urgence",
+    "type_perimetre": "Activité Spécialisée",
+    "role": "Responsable Activité",
+    "telephone": "+33 6 89 01 23 45"
+  }
+]
+

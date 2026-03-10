@@ -1,0 +1,48 @@
+[
+  {
+    "email": "jean.dupont@croix-rouge.fr",
+    "nom": "Dupont",
+    "prenom": "Jean",
+    "ul": "UL Paris 15",
+    "role": "Bénévole",
+    "telephone": "+33 6 12 34 56 78",
+    "date_adhesion": "2020-01-15"
+  },
+  {
+    "email": "marie.martin@croix-rouge.fr",
+    "nom": "Martin",
+    "prenom": "Marie",
+    "ul": "UL Paris 15",
+    "role": "Bénévole",
+    "telephone": "+33 6 23 45 67 89",
+    "date_adhesion": "2019-06-20"
+  },
+  {
+    "email": "pierre.bernard@croix-rouge.fr",
+    "nom": "Bernard",
+    "prenom": "Pierre",
+    "ul": "UL Paris 16",
+    "role": "Bénévole",
+    "telephone": "+33 6 34 56 78 90",
+    "date_adhesion": "2021-03-10"
+  },
+  {
+    "email": "sophie.dubois@croix-rouge.fr",
+    "nom": "Dubois",
+    "prenom": "Sophie",
+    "ul": "UL Paris 16",
+    "role": "Bénévole",
+    "telephone": "+33 6 45 67 89 01",
+    "date_adhesion": "2018-09-05"
+  },
+  {
+    "email": "thomas.manson@croix-rouge.fr",
+    "nom": "Manson",
+    "prenom": "Thomas",
+    "ul": "DT Paris",
+    "role": "Gestionnaire DT",
+    "telephone": "+33 6 56 78 90 12",
+    "date_adhesion": "2015-01-01"
+  }
+]
+

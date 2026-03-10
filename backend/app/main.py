@@ -7,6 +7,11 @@ from fastapi.middleware.cors import CORSMiddleware
 import redis
 import os
 
+from app.mocks.service_factory import (
+    get_sheets_service,
+    use_mocks
+)
+
 app = FastAPI(
     title="CLEF API",
     description="Gestion des Véhicules Croix-Rouge",
@@ -72,6 +77,75 @@ async def test_endpoint():
     """Test endpoint for development"""
     return {
         "message": "Test endpoint working",
-        "environment": os.getenv("ENV", "unknown")
+        "environment": os.getenv("ENV", "unknown"),
+        "using_mocks": use_mocks()
+    }
+
+
+@app.get("/api/vehicles")
+async def get_vehicles():
+    """Get all vehicles from the referential"""
+    sheets_service = get_sheets_service()
+    vehicles = sheets_service.get_vehicules()
+    return {
+        "count": len(vehicles),
+        "vehicles": vehicles,
+        "using_mocks": use_mocks()
+    }
+
+
+@app.get("/api/vehicles/{nom_synthetique}")
+async def get_vehicle(nom_synthetique: str):
+    """Get a specific vehicle by synthetic name"""
+    sheets_service = get_sheets_service()
+    vehicle = sheets_service.get_vehicule_by_nom_synthetique(nom_synthetique)
+    if vehicle is None:
+        return {
+            "error": "Vehicle not found",
+            "nom_synthetique": nom_synthetique
+        }
+    return {
+        "vehicle": vehicle,
+        "using_mocks": use_mocks()
+    }
+
+
+@app.get("/api/benevoles")
+async def get_benevoles():
+    """Get all volunteers from the referential"""
+    sheets_service = get_sheets_service()
+    benevoles = sheets_service.get_benevoles()
+    return {
+        "count": len(benevoles),
+        "benevoles": benevoles,
+        "using_mocks": use_mocks()
+    }
+
+
+@app.get("/api/benevoles/{email}")
+async def get_benevole(email: str):
+    """Get a specific volunteer by email"""
+    sheets_service = get_sheets_service()
+    benevole = sheets_service.get_benevole_by_email(email)
+    if benevole is None:
+        return {
+            "error": "Volunteer not found",
+            "email": email
+        }
+    return {
+        "benevole": benevole,
+        "using_mocks": use_mocks()
+    }
+
+
+@app.get("/api/responsables")
+async def get_responsables():
+    """Get all managers from the referential"""
+    sheets_service = get_sheets_service()
+    responsables = sheets_service.get_responsables()
+    return {
+        "count": len(responsables),
+        "responsables": responsables,
+        "using_mocks": use_mocks()
     }
 
