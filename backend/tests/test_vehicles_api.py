@@ -1,0 +1,271 @@
+"""Tests for vehicle API endpoints."""
+import os
+import pytest
+from datetime import date, timedelta
+
+# Set USE_MOCKS before importing anything
+os.environ["USE_MOCKS"] = "true"
+
+# Import and configure auth settings BEFORE importing app
+from app.auth.config import auth_settings
+auth_settings.use_mocks = True
+
+from fastapi.testclient import TestClient
+from app.main import app
+from app.models.vehicle import StatusColor
+from app.auth import routes as auth_routes
+from app.auth.config import auth_settings
+
+client = TestClient(app)
+
+
+def get_authenticated_client(email: str) -> TestClient:
+    """Helper to get an authenticated test client via OAuth flow."""
+    # Use the same okta_mock instance that auth routes uses
+    okta_mock = auth_routes.okta_mock
+    if not okta_mock:
+        raise RuntimeError("okta_mock is None - ensure USE_MOCKS=true is set")
+
+    # Create a new client for this test
+    test_client = TestClient(app)
+
+    # Go through OAuth flow
+    code = okta_mock.create_mock_authorization_code(email)
+    response = test_client.get(
+        f"/auth/callback?code={code}&state=test-state",
+        follow_redirects=False
+    )
+
+    # The callback should set a cookie and redirect
+    assert response.status_code == 307, f"Callback failed: {response.status_code} - {response.json() if response.status_code != 307 else ''}"
+
+    # Extract and set the session cookie on the client
+    session_cookie = response.cookies.get(auth_settings.session_cookie_name)
+    if session_cookie:
+        test_client.cookies.set(auth_settings.session_cookie_name, session_cookie)
+
+    return test_client
+
+
+class TestVehicleStatusCalculation:
+    """Test status calculation logic."""
+    
+    def test_status_expired(self):
+        """Test that expired dates show red status."""
+        from app.services.vehicle_service import VehicleService
+        
+        # Date in the past
+        past_date = (date.today() - timedelta(days=10)).strftime("%Y-%m-%d")
+        status = VehicleService.calculate_status(past_date)
+        
+        assert status.color == StatusColor.RED
+        assert status.days_until_expiry < 0
+    
+    def test_status_expiring_soon(self):
+        """Test that dates < 60 days show orange status."""
+        from app.services.vehicle_service import VehicleService
+        
+        # Date in 30 days (< 60 days threshold)
+        soon_date = (date.today() + timedelta(days=30)).strftime("%Y-%m-%d")
+        status = VehicleService.calculate_status(soon_date)
+        
+        assert status.color == StatusColor.ORANGE
+        assert 0 <= status.days_until_expiry < 60
+    
+    def test_status_ok(self):
+        """Test that dates > 60 days show green status."""
+        from app.services.vehicle_service import VehicleService
+        
+        # Date in 100 days (> 60 days threshold)
+        future_date = (date.today() + timedelta(days=100)).strftime("%Y-%m-%d")
+        status = VehicleService.calculate_status(future_date)
+        
+        assert status.color == StatusColor.GREEN
+        assert status.days_until_expiry >= 60
+    
+    def test_status_missing_date(self):
+        """Test that missing dates show red status."""
+        from app.services.vehicle_service import VehicleService
+        
+        status = VehicleService.calculate_status(None)
+        
+        assert status.color == StatusColor.RED
+        assert status.value == "N/A"
+        assert status.days_until_expiry is None
+
+
+class TestVehicleListEndpoint:
+    """Test GET /api/vehicles endpoint."""
+    
+    def test_list_vehicles_gestionnaire_dt(self):
+        """Test that Gestionnaire DT sees all vehicles."""
+        cookies = get_authenticated_cookies("thomas.manson@croix-rouge.fr")
+        response = client.get("/api/vehicles", cookies=cookies)
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["count"] == 4  # All 4 mock vehicles
+        assert len(data["vehicles"]) == 4
+
+        # Check that status fields are present
+        vehicle = data["vehicles"][0]
+        assert "status_ct" in vehicle
+        assert "status_pollution" in vehicle
+        assert "status_disponibilite" in vehicle
+        assert "color" in vehicle["status_ct"]
+
+    def test_list_vehicles_responsable_ul(self):
+        """Test that Responsable UL sees only their UL vehicles."""
+        cookies = get_authenticated_cookies("claire.rousseau@croix-rouge.fr")
+        response = client.get("/api/vehicles", cookies=cookies)
+
+        assert response.status_code == 200
+        data = response.json()
+        # Claire is Responsable UL Paris 15, should see 2 vehicles
+        assert data["count"] == 2
+        assert all(v["dt_ul"] == "UL Paris 15" for v in data["vehicles"])
+
+    def test_list_vehicles_benevole(self):
+        """Test that Bénévole sees only their UL vehicles."""
+        cookies = get_authenticated_cookies("jean.dupont@croix-rouge.fr")
+        response = client.get("/api/vehicles", cookies=cookies)
+
+        assert response.status_code == 200
+        data = response.json()
+        # Jean is from UL Paris 15, should see 2 vehicles
+        assert data["count"] == 2
+        assert all(v["dt_ul"] == "UL Paris 15" for v in data["vehicles"])
+
+    def test_list_vehicles_unauthorized(self):
+        """Test that missing auth returns 401."""
+        response = client.get("/api/vehicles")
+
+        assert response.status_code == 401
+
+
+class TestVehicleDetailEndpoint:
+    """Test GET /api/vehicles/{nom_synthetique} endpoint."""
+    
+    def test_get_vehicle_success(self):
+        """Test getting a specific vehicle."""
+        cookies = get_authenticated_cookies("thomas.manson@croix-rouge.fr")
+        response = client.get("/api/vehicles/VSAV-PARIS15-01", cookies=cookies)
+
+        assert response.status_code == 200
+        vehicle = response.json()
+        assert vehicle["nom_synthetique"] == "VSAV-PARIS15-01"
+        assert vehicle["immat"] == "AB-123-CD"
+        assert "status_ct" in vehicle
+        assert "status_pollution" in vehicle
+
+    def test_get_vehicle_not_found(self):
+        """Test getting a non-existent vehicle."""
+        cookies = get_authenticated_cookies("thomas.manson@croix-rouge.fr")
+        response = client.get("/api/vehicles/NON-EXISTENT", cookies=cookies)
+
+        assert response.status_code == 404
+
+    def test_get_vehicle_forbidden(self):
+        """Test that user cannot access vehicle from another UL."""
+        # Jean is from UL Paris 15, trying to access UL Paris 16 vehicle
+        cookies = get_authenticated_cookies("jean.dupont@croix-rouge.fr")
+        response = client.get("/api/vehicles/VPSP-PARIS16-01", cookies=cookies)
+
+        assert response.status_code == 403
+
+
+class TestVehicleUpdateEndpoint:
+    """Test PATCH /api/vehicles/{nom_synthetique} endpoint."""
+
+    def test_update_vehicle_success(self):
+        """Test updating vehicle metadata."""
+        cookies = get_authenticated_cookies("thomas.manson@croix-rouge.fr")
+        response = client.patch(
+            "/api/vehicles/VSAV-PARIS15-01",
+            cookies=cookies,
+            json={
+                "commentaires": "Updated comment",
+                "couleur_calendrier": "#FF5733"
+            }
+        )
+
+        assert response.status_code == 200
+        vehicle = response.json()
+        assert vehicle["commentaires"] == "Updated comment"
+
+    def test_update_vehicle_not_found(self):
+        """Test updating a non-existent vehicle."""
+        cookies = get_authenticated_cookies("thomas.manson@croix-rouge.fr")
+        response = client.patch(
+            "/api/vehicles/NON-EXISTENT",
+            cookies=cookies,
+            json={"commentaires": "Test"}
+        )
+
+        assert response.status_code == 404
+
+    def test_update_vehicle_forbidden(self):
+        """Test that user cannot update vehicle from another UL."""
+        # Jean is from UL Paris 15, trying to update UL Paris 16 vehicle
+        cookies = get_authenticated_cookies("jean.dupont@croix-rouge.fr")
+        response = client.patch(
+            "/api/vehicles/VPSP-PARIS16-01",
+            cookies=cookies,
+            json={"commentaires": "Test"}
+        )
+
+        assert response.status_code == 403
+
+
+class TestVehicleFiltering:
+    """Test UL-based filtering logic."""
+
+    def test_filter_gestionnaire_dt_sees_all(self):
+        """Test that Gestionnaire DT sees all vehicles."""
+        from app.services.vehicle_service import VehicleService
+        from app.auth.models import User
+
+        user = User(
+            email="thomas.manson@croix-rouge.fr",
+            nom="Manson",
+            prenom="Thomas",
+            role="Gestionnaire DT",
+            ul="DT Paris",
+            perimetre="DT Paris",
+            type_perimetre="DT"
+        )
+
+        vehicles = [
+            {"dt_ul": "UL Paris 15"},
+            {"dt_ul": "UL Paris 16"},
+            {"dt_ul": "DT Paris"}
+        ]
+
+        filtered = VehicleService.filter_by_user_access(vehicles, user)
+        assert len(filtered) == 3
+
+    def test_filter_responsable_ul_sees_only_their_ul(self):
+        """Test that Responsable UL sees only their UL."""
+        from app.services.vehicle_service import VehicleService
+        from app.auth.models import User
+
+        user = User(
+            email="claire.rousseau@croix-rouge.fr",
+            nom="Rousseau",
+            prenom="Claire",
+            role="Responsable UL",
+            ul="UL Paris 15",
+            perimetre="UL Paris 15",
+            type_perimetre="UL"
+        )
+
+        vehicles = [
+            {"dt_ul": "UL Paris 15"},
+            {"dt_ul": "UL Paris 16"},
+            {"dt_ul": "DT Paris"}
+        ]
+
+        filtered = VehicleService.filter_by_user_access(vehicles, user)
+        assert len(filtered) == 1
+        assert filtered[0]["dt_ul"] == "UL Paris 15"
+

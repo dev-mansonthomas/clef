@@ -1,0 +1,2 @@
+"""Dependencies for FastAPI endpoints."""
+
