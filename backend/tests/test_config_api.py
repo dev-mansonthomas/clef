@@ -1,0 +1,231 @@
+"""
+Tests for configuration API endpoints.
+"""
+import pytest
+import os
+from httpx import AsyncClient, ASGITransport
+from unittest.mock import AsyncMock, MagicMock, patch
+
+from app.main import app
+from app.services.config_service import ConfigService
+from app.cache import RedisCache
+
+
+@pytest.fixture
+def mock_cache():
+    """Create a mock RedisCache."""
+    cache_mock = AsyncMock(spec=RedisCache)
+    cache_mock.get.return_value = None  # No stored config by default
+    cache_mock.set.return_value = True
+    cache_mock._connected = True
+    return cache_mock
+
+
+@pytest.fixture
+async def client(mock_cache):
+    """Create an async test client with mocked cache."""
+    # Override the dependency
+    from app.routers.config import get_config_service
+    from app.services.config_service import ConfigService
+
+    def override_get_config_service():
+        return ConfigService(mock_cache)
+
+    app.dependency_overrides[get_config_service] = override_get_config_service
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test"
+    ) as ac:
+        yield ac
+
+    # Clean up
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def env_vars():
+    """Set up environment variables for testing."""
+    original_env = os.environ.copy()
+
+    os.environ.update({
+        "USE_MOCKS": "true",
+        "REDIS_URL": "redis://localhost:6379/0",
+        "SHEETS_URL_VEHICULES": "https://docs.google.com/spreadsheets/d/test-vehicules",
+        "SHEETS_URL_BENEVOLES": "https://docs.google.com/spreadsheets/d/test-benevoles",
+        "SHEETS_URL_RESPONSABLES": "https://docs.google.com/spreadsheets/d/test-responsables",
+        "TEMPLATE_DOCUMENT_VEHICULE_URL": "https://docs.google.com/document/d/test-template",
+        "EMAIL_DESTINATAIRE_ALERTES": "alerts@croix-rouge.fr",
+        "EMAIL_GESTIONNAIRE_DT": "thomas.manson@croix-rouge.fr",
+    })
+
+    yield
+
+    # Restore original environment
+    os.environ.clear()
+    os.environ.update(original_env)
+
+
+class TestGetConfig:
+    """Tests for GET /api/config endpoint."""
+
+    @pytest.mark.asyncio
+    async def test_get_config_from_env(self, client, env_vars, mock_cache):
+        """Test getting configuration from environment variables."""
+        response = await client.get("/api/config")
+
+        assert response.status_code == 200
+        data = response.json()
+
+        assert data["sheets_url_vehicules"] == "https://docs.google.com/spreadsheets/d/test-vehicules"
+        assert data["sheets_url_benevoles"] == "https://docs.google.com/spreadsheets/d/test-benevoles"
+        assert data["sheets_url_responsables"] == "https://docs.google.com/spreadsheets/d/test-responsables"
+        assert data["template_doc_url"] == "https://docs.google.com/document/d/test-template"
+        assert data["email_destinataire_alertes"] == "alerts@croix-rouge.fr"
+        assert data["email_gestionnaire_dt"] == "thomas.manson@croix-rouge.fr"
+
+    @pytest.mark.asyncio
+    async def test_get_config_from_cache(self, client, env_vars, mock_cache):
+        """Test getting configuration from cache storage."""
+        stored_config = {
+            "sheets_url_vehicules": "https://docs.google.com/spreadsheets/d/cache-vehicules",
+            "sheets_url_benevoles": "https://docs.google.com/spreadsheets/d/cache-benevoles",
+            "sheets_url_responsables": "https://docs.google.com/spreadsheets/d/cache-responsables",
+            "template_doc_url": "https://docs.google.com/document/d/cache-template",
+            "email_destinataire_alertes": "cache-alerts@croix-rouge.fr",
+        }
+
+        mock_cache.get.return_value = stored_config
+
+        response = await client.get("/api/config")
+
+        assert response.status_code == 200
+        data = response.json()
+
+        # Should use cache values
+        assert data["sheets_url_vehicules"] == "https://docs.google.com/spreadsheets/d/cache-vehicules"
+        assert data["email_destinataire_alertes"] == "cache-alerts@croix-rouge.fr"
+        # email_gestionnaire_dt always comes from env
+        assert data["email_gestionnaire_dt"] == "thomas.manson@croix-rouge.fr"
+
+
+class TestUpdateConfig:
+    """Tests for PATCH /api/config endpoint."""
+
+    @pytest.mark.asyncio
+    async def test_update_single_field(self, client, env_vars, mock_cache):
+        """Test updating a single configuration field."""
+        update_data = {
+            "email_destinataire_alertes": "new-alerts@croix-rouge.fr"
+        }
+
+        response = await client.patch("/api/config", json=update_data)
+
+        assert response.status_code == 200
+        data = response.json()
+
+        assert data["email_destinataire_alertes"] == "new-alerts@croix-rouge.fr"
+        # Other fields should remain from env
+        assert data["sheets_url_vehicules"] == "https://docs.google.com/spreadsheets/d/test-vehicules"
+
+        # Verify cache was called to store the update
+        mock_cache.set.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_update_multiple_fields(self, client, env_vars, mock_cache):
+        """Test updating multiple configuration fields."""
+        update_data = {
+            "sheets_url_vehicules": "https://docs.google.com/spreadsheets/d/updated-vehicules",
+            "email_destinataire_alertes": "updated@croix-rouge.fr"
+        }
+
+        response = await client.patch("/api/config", json=update_data)
+
+        assert response.status_code == 200
+        data = response.json()
+
+        assert data["sheets_url_vehicules"] == "https://docs.google.com/spreadsheets/d/updated-vehicules"
+        assert data["email_destinataire_alertes"] == "updated@croix-rouge.fr"
+
+    @pytest.mark.asyncio
+    async def test_update_with_invalid_url(self, client, env_vars, mock_cache):
+        """Test that invalid URLs are rejected."""
+        update_data = {
+            "sheets_url_vehicules": "https://example.com/not-google-docs"
+        }
+
+        response = await client.patch("/api/config", json=update_data)
+
+        assert response.status_code == 422  # Validation error
+
+    @pytest.mark.asyncio
+    async def test_update_with_invalid_email(self, client, env_vars, mock_cache):
+        """Test that invalid emails are rejected."""
+        update_data = {
+            "email_destinataire_alertes": "not-an-email"
+        }
+
+        response = await client.patch("/api/config", json=update_data)
+
+        assert response.status_code == 422  # Validation error
+
+    @pytest.mark.asyncio
+    async def test_cannot_update_gestionnaire_dt_email(self, client, env_vars, mock_cache):
+        """Test that email_gestionnaire_dt cannot be updated (read-only)."""
+        update_data = {
+            "email_gestionnaire_dt": "hacker@example.com"
+        }
+
+        response = await client.patch("/api/config", json=update_data)
+
+        # Should succeed but ignore the field
+        assert response.status_code == 200
+        data = response.json()
+
+        # Should still be the original value from env
+        assert data["email_gestionnaire_dt"] == "thomas.manson@croix-rouge.fr"
+
+
+class TestConfigValidation:
+    """Tests for configuration validation."""
+
+    @pytest.mark.asyncio
+    async def test_valid_google_sheets_url(self, client, env_vars, mock_cache):
+        """Test that valid Google Sheets URLs are accepted."""
+        update_data = {
+            "sheets_url_vehicules": "https://docs.google.com/spreadsheets/d/abc123/edit"
+        }
+
+        response = await client.patch("/api/config", json=update_data)
+        assert response.status_code == 200
+
+    @pytest.mark.asyncio
+    async def test_valid_google_docs_url(self, client, env_vars, mock_cache):
+        """Test that valid Google Docs URLs are accepted."""
+        update_data = {
+            "template_doc_url": "https://docs.google.com/document/d/xyz789/edit"
+        }
+
+        response = await client.patch("/api/config", json=update_data)
+        assert response.status_code == 200
+
+    @pytest.mark.asyncio
+    async def test_invalid_url_scheme(self, client, env_vars, mock_cache):
+        """Test that non-HTTPS URLs are rejected."""
+        update_data = {
+            "sheets_url_vehicules": "http://docs.google.com/spreadsheets/d/abc123"
+        }
+
+        response = await client.patch("/api/config", json=update_data)
+        assert response.status_code == 422
+
+    @pytest.mark.asyncio
+    async def test_valid_email_format(self, client, env_vars, mock_cache):
+        """Test that valid email formats are accepted."""
+        update_data = {
+            "email_destinataire_alertes": "test.user@croix-rouge.fr"
+        }
+
+        response = await client.patch("/api/config", json=update_data)
+        assert response.status_code == 200
+
