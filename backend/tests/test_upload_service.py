@@ -1,8 +1,12 @@
 """Tests for photo upload service."""
+import os
 import pytest
 from datetime import datetime
 from io import BytesIO
 from PIL import Image
+
+# Set USE_MOCKS before any imports
+os.environ["USE_MOCKS"] = "true"
 
 from app.services.upload_service import UploadService
 from app.mocks.service_factory import get_drive_service

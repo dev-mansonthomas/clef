@@ -99,8 +99,8 @@ class TestVehicleListEndpoint:
     
     def test_list_vehicles_gestionnaire_dt(self):
         """Test that Gestionnaire DT sees all vehicles."""
-        cookies = get_authenticated_cookies("thomas.manson@croix-rouge.fr")
-        response = client.get("/api/vehicles", cookies=cookies)
+        auth_client = get_authenticated_client("thomas.manson@croix-rouge.fr")
+        response = auth_client.get("/api/vehicles")
 
         assert response.status_code == 200
         data = response.json()
@@ -116,8 +116,8 @@ class TestVehicleListEndpoint:
 
     def test_list_vehicles_responsable_ul(self):
         """Test that Responsable UL sees only their UL vehicles."""
-        cookies = get_authenticated_cookies("claire.rousseau@croix-rouge.fr")
-        response = client.get("/api/vehicles", cookies=cookies)
+        auth_client = get_authenticated_client("claire.rousseau@croix-rouge.fr")
+        response = auth_client.get("/api/vehicles")
 
         assert response.status_code == 200
         data = response.json()
@@ -127,8 +127,8 @@ class TestVehicleListEndpoint:
 
     def test_list_vehicles_benevole(self):
         """Test that Bénévole sees only their UL vehicles."""
-        cookies = get_authenticated_cookies("jean.dupont@croix-rouge.fr")
-        response = client.get("/api/vehicles", cookies=cookies)
+        auth_client = get_authenticated_client("jean.dupont@croix-rouge.fr")
+        response = auth_client.get("/api/vehicles")
 
         assert response.status_code == 200
         data = response.json()
@@ -148,8 +148,8 @@ class TestVehicleDetailEndpoint:
     
     def test_get_vehicle_success(self):
         """Test getting a specific vehicle."""
-        cookies = get_authenticated_cookies("thomas.manson@croix-rouge.fr")
-        response = client.get("/api/vehicles/VSAV-PARIS15-01", cookies=cookies)
+        auth_client = get_authenticated_client("thomas.manson@croix-rouge.fr")
+        response = auth_client.get("/api/vehicles/VSAV-PARIS15-01")
 
         assert response.status_code == 200
         vehicle = response.json()
@@ -160,16 +160,16 @@ class TestVehicleDetailEndpoint:
 
     def test_get_vehicle_not_found(self):
         """Test getting a non-existent vehicle."""
-        cookies = get_authenticated_cookies("thomas.manson@croix-rouge.fr")
-        response = client.get("/api/vehicles/NON-EXISTENT", cookies=cookies)
+        auth_client = get_authenticated_client("thomas.manson@croix-rouge.fr")
+        response = auth_client.get("/api/vehicles/NON-EXISTENT")
 
         assert response.status_code == 404
 
     def test_get_vehicle_forbidden(self):
         """Test that user cannot access vehicle from another UL."""
         # Jean is from UL Paris 15, trying to access UL Paris 16 vehicle
-        cookies = get_authenticated_cookies("jean.dupont@croix-rouge.fr")
-        response = client.get("/api/vehicles/VPSP-PARIS16-01", cookies=cookies)
+        auth_client = get_authenticated_client("jean.dupont@croix-rouge.fr")
+        response = auth_client.get("/api/vehicles/VPSP-PARIS16-01")
 
         assert response.status_code == 403
 
@@ -179,10 +179,9 @@ class TestVehicleUpdateEndpoint:
 
     def test_update_vehicle_success(self):
         """Test updating vehicle metadata."""
-        cookies = get_authenticated_cookies("thomas.manson@croix-rouge.fr")
-        response = client.patch(
+        auth_client = get_authenticated_client("thomas.manson@croix-rouge.fr")
+        response = auth_client.patch(
             "/api/vehicles/VSAV-PARIS15-01",
-            cookies=cookies,
             json={
                 "commentaires": "Updated comment",
                 "couleur_calendrier": "#FF5733"
@@ -195,10 +194,9 @@ class TestVehicleUpdateEndpoint:
 
     def test_update_vehicle_not_found(self):
         """Test updating a non-existent vehicle."""
-        cookies = get_authenticated_cookies("thomas.manson@croix-rouge.fr")
-        response = client.patch(
+        auth_client = get_authenticated_client("thomas.manson@croix-rouge.fr")
+        response = auth_client.patch(
             "/api/vehicles/NON-EXISTENT",
-            cookies=cookies,
             json={"commentaires": "Test"}
         )
 
@@ -207,10 +205,9 @@ class TestVehicleUpdateEndpoint:
     def test_update_vehicle_forbidden(self):
         """Test that user cannot update vehicle from another UL."""
         # Jean is from UL Paris 15, trying to update UL Paris 16 vehicle
-        cookies = get_authenticated_cookies("jean.dupont@croix-rouge.fr")
-        response = client.patch(
+        auth_client = get_authenticated_client("jean.dupont@croix-rouge.fr")
+        response = auth_client.patch(
             "/api/vehicles/VPSP-PARIS16-01",
-            cookies=cookies,
             json={"commentaires": "Test"}
         )
 
@@ -218,54 +215,27 @@ class TestVehicleUpdateEndpoint:
 
 
 class TestVehicleFiltering:
-    """Test UL-based filtering logic."""
+    """Test UL-based filtering logic via API endpoints."""
 
     def test_filter_gestionnaire_dt_sees_all(self):
-        """Test that Gestionnaire DT sees all vehicles."""
-        from app.services.vehicle_service import VehicleService
-        from app.auth.models import User
+        """Test that Gestionnaire DT sees all vehicles via API."""
+        auth_client = get_authenticated_client("thomas.manson@croix-rouge.fr")
+        response = auth_client.get("/api/vehicles")
 
-        user = User(
-            email="thomas.manson@croix-rouge.fr",
-            nom="Manson",
-            prenom="Thomas",
-            role="Gestionnaire DT",
-            ul="DT Paris",
-            perimetre="DT Paris",
-            type_perimetre="DT"
-        )
-
-        vehicles = [
-            {"dt_ul": "UL Paris 15"},
-            {"dt_ul": "UL Paris 16"},
-            {"dt_ul": "DT Paris"}
-        ]
-
-        filtered = VehicleService.filter_by_user_access(vehicles, user)
-        assert len(filtered) == 3
+        assert response.status_code == 200
+        data = response.json()
+        # DT manager should see all 4 vehicles
+        assert data["count"] == 4
 
     def test_filter_responsable_ul_sees_only_their_ul(self):
-        """Test that Responsable UL sees only their UL."""
-        from app.services.vehicle_service import VehicleService
-        from app.auth.models import User
+        """Test that Responsable UL sees only their UL via API."""
+        auth_client = get_authenticated_client("claire.rousseau@croix-rouge.fr")
+        response = auth_client.get("/api/vehicles")
 
-        user = User(
-            email="claire.rousseau@croix-rouge.fr",
-            nom="Rousseau",
-            prenom="Claire",
-            role="Responsable UL",
-            ul="UL Paris 15",
-            perimetre="UL Paris 15",
-            type_perimetre="UL"
-        )
-
-        vehicles = [
-            {"dt_ul": "UL Paris 15"},
-            {"dt_ul": "UL Paris 16"},
-            {"dt_ul": "DT Paris"}
-        ]
-
-        filtered = VehicleService.filter_by_user_access(vehicles, user)
-        assert len(filtered) == 1
-        assert filtered[0]["dt_ul"] == "UL Paris 15"
+        assert response.status_code == 200
+        data = response.json()
+        # UL Paris 15 responsible should see only their vehicles
+        assert data["count"] == 2
+        for vehicle in data["vehicles"]:
+            assert "Paris 15" in vehicle["dt_ul"]
 

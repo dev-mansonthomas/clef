@@ -55,7 +55,7 @@ class TestCreateReservation:
 
     def test_create_reservation_success(self):
         """Test creating a reservation successfully."""
-        cookies = get_authenticated_cookies("thomas.manson@croix-rouge.fr")
+        auth_client = get_authenticated_client("thomas.manson@croix-rouge.fr")
 
         start = datetime.now() + timedelta(days=1)
         end = start + timedelta(hours=4)
@@ -69,8 +69,8 @@ class TestCreateReservation:
             "description": "Test reservation"
         }
 
-        response = client.post("/api/reservations", json=reservation_data, cookies=cookies)
-        
+        response = auth_client.post("/api/reservations", json=reservation_data)
+
         assert response.status_code == 201
         data = response.json()
         assert data["indicatif"] == "VL75-01"
@@ -80,7 +80,7 @@ class TestCreateReservation:
 
     def test_create_reservation_invalid_dates(self):
         """Test that end date must be after start date."""
-        cookies = get_authenticated_cookies("thomas.manson@croix-rouge.fr")
+        auth_client = get_authenticated_client("thomas.manson@croix-rouge.fr")
 
         start = datetime.now() + timedelta(days=1)
         end = start - timedelta(hours=1)  # End before start
@@ -93,14 +93,14 @@ class TestCreateReservation:
             "end": end.isoformat()
         }
 
-        response = client.post("/api/reservations", json=reservation_data, cookies=cookies)
-        
+        response = auth_client.post("/api/reservations", json=reservation_data)
+
         assert response.status_code == 400
         assert "End date must be after start date" in response.json()["detail"]
 
     def test_create_reservation_vehicle_not_found(self):
         """Test creating reservation with non-existent vehicle."""
-        cookies = get_authenticated_cookies("thomas.manson@croix-rouge.fr")
+        auth_client = get_authenticated_client("thomas.manson@croix-rouge.fr")
 
         start = datetime.now() + timedelta(days=1)
         end = start + timedelta(hours=4)
@@ -113,8 +113,8 @@ class TestCreateReservation:
             "end": end.isoformat()
         }
 
-        response = client.post("/api/reservations", json=reservation_data, cookies=cookies)
-        
+        response = auth_client.post("/api/reservations", json=reservation_data)
+
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
 
@@ -141,46 +141,44 @@ class TestGetAvailableVehicles:
 
     def test_get_available_vehicles_success(self):
         """Test getting available vehicles for a time period."""
-        cookies = get_authenticated_cookies("thomas.manson@croix-rouge.fr")
+        auth_client = get_authenticated_client("thomas.manson@croix-rouge.fr")
 
         start = datetime.now() + timedelta(days=1)
         end = start + timedelta(hours=4)
 
-        response = client.get(
+        response = auth_client.get(
             "/api/vehicles/available",
             params={
                 "start": start.isoformat(),
                 "end": end.isoformat()
-            },
-            cookies=cookies
+            }
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         assert "count" in data
         assert "vehicles" in data
         assert isinstance(data["vehicles"], list)
-        
+
         # All returned vehicles should be mechanically available
         for vehicle in data["vehicles"]:
             assert vehicle["operationnel_mecanique"] == "Dispo"
 
     def test_get_available_vehicles_invalid_dates(self):
         """Test that end date must be after start date."""
-        cookies = get_authenticated_cookies("thomas.manson@croix-rouge.fr")
+        auth_client = get_authenticated_client("thomas.manson@croix-rouge.fr")
 
         start = datetime.now() + timedelta(days=1)
         end = start - timedelta(hours=1)
 
-        response = client.get(
+        response = auth_client.get(
             "/api/vehicles/available",
             params={
                 "start": start.isoformat(),
                 "end": end.isoformat()
-            },
-            cookies=cookies
+            }
         )
-        
+
         assert response.status_code == 400
         assert "End date must be after start date" in response.json()["detail"]
 

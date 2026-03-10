@@ -52,26 +52,27 @@ class TestAuthEndpoints:
         code = okta_mock.create_mock_authorization_code(email)
 
         # Step 3: Exchange code for token via callback
-        response = client.get(
+        # Create a new client to properly handle cookies
+        test_client = TestClient(app)
+        response = test_client.get(
             f"/auth/callback?code={code}&state=test-state",
             follow_redirects=False
         )
         if response.status_code != 307:
             print(f"Error: {response.json()}")
         assert response.status_code == 307  # Redirect
-        
+
         # Extract session cookie
         cookies = response.cookies
         assert auth_settings.session_cookie_name in cookies
         session_token = cookies[auth_settings.session_cookie_name]
 
         # Step 4: Access /auth/me with session cookie
-        # Set cookie directly in client
-        client.cookies.set(auth_settings.session_cookie_name, session_token)
-        response = client.get("/auth/me")
+        # Pass cookies in the request
+        response = test_client.get("/auth/me", cookies={auth_settings.session_cookie_name: session_token})
         assert response.status_code == 200
         user = response.json()
-        
+
         assert user["email"] == email
         assert user["role"] == "Gestionnaire DT"
         assert user["nom"] == "Manson"
@@ -83,38 +84,38 @@ class TestAuthEndpoints:
         email = "claire.rousseau@croix-rouge.fr"
         code = okta_mock.create_mock_authorization_code(email)
 
-        response = client.get(
+        test_client = TestClient(app)
+        response = test_client.get(
             f"/auth/callback?code={code}&state=test-state",
             follow_redirects=False
         )
         session_token = response.cookies[auth_settings.session_cookie_name]
-        client.cookies.set(auth_settings.session_cookie_name, session_token)
 
-        response = client.get("/auth/me")
+        response = test_client.get("/auth/me", cookies={auth_settings.session_cookie_name: session_token})
         assert response.status_code == 200
         user = response.json()
-        
+
         assert user["email"] == email
         assert user["role"] == "Responsable UL"
         assert user["perimetre"] == "UL Paris 15"
         assert user["type_perimetre"] == "UL"
-    
+
     def test_full_auth_flow_benevole(self):
         """Test complete authentication flow for regular volunteer."""
         email = "jean.dupont@croix-rouge.fr"
         code = okta_mock.create_mock_authorization_code(email)
 
-        response = client.get(
+        test_client = TestClient(app)
+        response = test_client.get(
             f"/auth/callback?code={code}&state=test-state",
             follow_redirects=False
         )
         session_token = response.cookies[auth_settings.session_cookie_name]
-        client.cookies.set(auth_settings.session_cookie_name, session_token)
 
-        response = client.get("/auth/me")
+        response = test_client.get("/auth/me", cookies={auth_settings.session_cookie_name: session_token})
         assert response.status_code == 200
         user = response.json()
-        
+
         assert user["email"] == email
         assert user["role"] == "Bénévole"
         assert user["ul"] == "UL Paris 15"
@@ -132,15 +133,17 @@ class TestAuthEndpoints:
 class TestAuthDependencies:
     """Test authentication dependencies and guards."""
 
-    def _get_authenticated_cookies(self, email: str):
-        """Helper to get authenticated session cookies."""
+    def _get_authenticated_client(self, email: str) -> TestClient:
+        """Helper to get authenticated test client."""
         code = okta_mock.create_mock_authorization_code(email)
-        response = client.get(
+        test_client = TestClient(app)
+        response = test_client.get(
             f"/auth/callback?code={code}&state=test-state",
             follow_redirects=False
         )
         session_token = response.cookies[auth_settings.session_cookie_name]
-        client.cookies.set(auth_settings.session_cookie_name, session_token)
+        test_client.cookies.set(auth_settings.session_cookie_name, session_token)
+        return test_client
 
     def test_require_authenticated_user(self):
         """Test is_authenticated dependency."""
@@ -157,13 +160,12 @@ class TestAuthDependencies:
         app.include_router(test_router)
 
         # Test without authentication
-        client.cookies.clear()
         response = client.get("/test-protected")
         assert response.status_code == 401
 
         # Test with authentication
-        self._get_authenticated_cookies("jean.dupont@croix-rouge.fr")
-        response = client.get("/test-protected")
+        auth_client = self._get_authenticated_client("jean.dupont@croix-rouge.fr")
+        response = auth_client.get("/test-protected")
         assert response.status_code == 200
         assert response.json()["user"] == "jean.dupont@croix-rouge.fr"
 
@@ -181,14 +183,14 @@ class TestAuthDependencies:
         app.include_router(test_router)
 
         # Test with regular user (should fail)
-        self._get_authenticated_cookies("jean.dupont@croix-rouge.fr")
-        response = client.get("/test-dt-only")
+        auth_client = self._get_authenticated_client("jean.dupont@croix-rouge.fr")
+        response = auth_client.get("/test-dt-only")
         assert response.status_code == 403
         assert "DT manager access required" in response.json()["detail"]
 
         # Test with DT manager (should succeed)
-        self._get_authenticated_cookies("thomas.manson@croix-rouge.fr")
-        response = client.get("/test-dt-only")
+        auth_client = self._get_authenticated_client("thomas.manson@croix-rouge.fr")
+        response = auth_client.get("/test-dt-only")
         assert response.status_code == 200
         assert response.json()["user"] == "thomas.manson@croix-rouge.fr"
 
@@ -206,18 +208,18 @@ class TestAuthDependencies:
         app.include_router(test_router)
 
         # Test with regular volunteer (should fail)
-        self._get_authenticated_cookies("jean.dupont@croix-rouge.fr")
-        response = client.get("/test-ul-responsible")
+        auth_client = self._get_authenticated_client("jean.dupont@croix-rouge.fr")
+        response = auth_client.get("/test-ul-responsible")
         assert response.status_code == 403
 
         # Test with UL responsible (should succeed)
-        self._get_authenticated_cookies("claire.rousseau@croix-rouge.fr")
-        response = client.get("/test-ul-responsible")
+        auth_client = self._get_authenticated_client("claire.rousseau@croix-rouge.fr")
+        response = auth_client.get("/test-ul-responsible")
         assert response.status_code == 200
 
         # Test with DT manager (should also succeed)
-        self._get_authenticated_cookies("thomas.manson@croix-rouge.fr")
-        response = client.get("/test-ul-responsible")
+        auth_client = self._get_authenticated_client("thomas.manson@croix-rouge.fr")
+        response = auth_client.get("/test-ul-responsible")
         assert response.status_code == 200
 
 

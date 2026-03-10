@@ -24,15 +24,18 @@ def qr_service():
     return QrCodeService()
 
 
-def get_authenticated_cookies(email: str) -> dict:
-    """Helper to get authenticated cookies for a user."""
+def get_authenticated_client(email: str) -> TestClient:
+    """Helper to get an authenticated test client via OAuth flow."""
     okta_mock = auth_routes.okta_mock
     if not okta_mock:
         raise RuntimeError("okta_mock is None - ensure USE_MOCKS=true is set")
 
-    # Go through OAuth flow using global client
+    # Create a new client for this test
+    test_client = TestClient(app)
+
+    # Go through OAuth flow
     code = okta_mock.create_mock_authorization_code(email)
-    response = client.get(
+    response = test_client.get(
         f"/auth/callback?code={code}&state=test-state",
         follow_redirects=False
     )
@@ -40,8 +43,12 @@ def get_authenticated_cookies(email: str) -> dict:
     # The callback should set a cookie and redirect
     assert response.status_code == 307
 
-    # Extract and return cookies
-    return response.cookies
+    # Extract and set the session cookie on the client
+    session_cookie = response.cookies.get(auth_settings.session_cookie_name)
+    if session_cookie:
+        test_client.cookies.set(auth_settings.session_cookie_name, session_cookie)
+
+    return test_client
 
 
 class TestQrCodeService:
@@ -152,11 +159,9 @@ class TestQrCodeEndpoints:
 
     def test_encode_endpoint(self):
         """Test encode endpoint."""
-        # Authenticate and set cookies on global client
-        cookies = get_authenticated_cookies("thomas.manson@croix-rouge.fr")
-        client.cookies.update(cookies)
+        auth_client = get_authenticated_client("thomas.manson@croix-rouge.fr")
 
-        response = client.post(
+        response = auth_client.post(
             "/api/vehicles/encode",
             json={"nom_synthetique": "VSAV-PARIS15-01"}
         )
@@ -167,9 +172,6 @@ class TestQrCodeEndpoints:
         assert "qr_url" in data
         assert '.' in data["encoded_id"]
         assert "/vehicle/" in data["qr_url"]
-
-        # Clear cookies
-        client.cookies.clear()
 
     def test_decode_endpoint(self):
         """Test decode endpoint (no auth required)."""
@@ -200,18 +202,13 @@ class TestQrCodeEndpoints:
 
     def test_encode_endpoint_empty(self):
         """Test encode endpoint with empty nom_synthetique."""
-        # Authenticate and set cookies on global client
-        cookies = get_authenticated_cookies("thomas.manson@croix-rouge.fr")
-        client.cookies.update(cookies)
+        auth_client = get_authenticated_client("thomas.manson@croix-rouge.fr")
 
-        response = client.post(
+        response = auth_client.post(
             "/api/vehicles/encode",
             json={"nom_synthetique": ""}
         )
 
         # Should fail validation
         assert response.status_code == 422
-
-        # Clear cookies
-        client.cookies.clear()
 

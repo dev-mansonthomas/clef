@@ -1,8 +1,12 @@
 """Tests for photo upload API endpoints."""
+import os
 import pytest
 from io import BytesIO
 from PIL import Image
 from fastapi.testclient import TestClient
+
+# Set USE_MOCKS before any imports
+os.environ["USE_MOCKS"] = "true"
 
 from app.main import app
 from app.auth.dependencies import require_authenticated_user

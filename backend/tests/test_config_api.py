@@ -41,15 +41,30 @@ def mock_cache():
 
 @pytest.fixture
 async def client(mock_cache):
-    """Create an async test client with mocked cache."""
-    # Override the dependency
+    """Create an async test client with mocked cache and auth."""
+    # Override the dependencies
     from app.routers.config import get_config_service
     from app.services.config_service import ConfigService
+    from app.auth.dependencies import is_dt_manager
+    from app.auth.models import User
 
     def override_get_config_service():
         return ConfigService(mock_cache)
 
+    def override_is_dt_manager():
+        """Mock DT manager user for tests."""
+        return User(
+            email="thomas.manson@croix-rouge.fr",
+            nom="Manson",
+            prenom="Thomas",
+            role="Gestionnaire DT",
+            ul="DT Paris",
+            perimetre="DT Paris",
+            type_perimetre="DT"
+        )
+
     app.dependency_overrides[get_config_service] = override_get_config_service
+    app.dependency_overrides[is_dt_manager] = override_is_dt_manager
 
     async with AsyncClient(
         transport=ASGITransport(app=app),
