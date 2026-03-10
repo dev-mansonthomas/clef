@@ -45,12 +45,15 @@ export class CarnetBordService {
    */
   uploadPhotosPrise(nomSynthetique: string, photos: File[]): Observable<{ urls: string[] }> {
     const formData = new FormData();
-    photos.forEach((photo, index) => {
-      formData.append(`photo_${index}`, photo);
+    formData.append('vehicle_nom_synthetique', nomSynthetique);
+    formData.append('photo_type', 'prise');
+    formData.append('compress', 'true');
+    photos.forEach((photo) => {
+      formData.append('photos', photo);
     });
 
     return this.http.post<{ urls: string[] }>(
-      `${this.apiUrl}/prise/${nomSynthetique}/photos`,
+      '/api/upload/photos',
       formData
     );
   }
@@ -60,12 +63,15 @@ export class CarnetBordService {
    */
   uploadPhotos(nomSynthetique: string, photos: File[]): Observable<{ urls: string[] }> {
     const formData = new FormData();
-    photos.forEach((photo, index) => {
-      formData.append(`photo_${index}`, photo);
+    formData.append('vehicle_nom_synthetique', nomSynthetique);
+    formData.append('photo_type', 'retour');
+    formData.append('compress', 'true');
+    photos.forEach((photo) => {
+      formData.append('photos', photo);
     });
 
     return this.http.post<{ urls: string[] }>(
-      `${this.apiUrl}/retour/${nomSynthetique}/photos`,
+      '/api/upload/photos',
       formData
     );
   }
