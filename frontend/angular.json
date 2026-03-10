@@ -115,7 +115,8 @@
                   "maximumError": "8kB"
                 }
               ],
-              "outputHashing": "all"
+              "outputHashing": "all",
+              "serviceWorker": "projects/admin/ngsw-config.json"
             },
             "development": {
               "optimization": false,
@@ -183,7 +184,8 @@
                   "maximumError": "8kB"
                 }
               ],
-              "outputHashing": "all"
+              "outputHashing": "all",
+              "serviceWorker": "projects/form/ngsw-config.json"
             },
             "development": {
               "optimization": false,

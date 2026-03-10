@@ -1,11 +1,11 @@
 {
-  "name": "CLEF - Formulaire Véhicule",
-  "short_name": "CLEF Form",
-  "description": "Application de prise et retour de véhicule pour les bénévoles de la Croix-Rouge Française",
+  "name": "CLEF - Administration",
+  "short_name": "CLEF Admin",
+  "description": "Interface d'administration pour la gestion des véhicules de la Croix-Rouge Française",
   "theme_color": "#e30613",
   "background_color": "#ffffff",
   "display": "standalone",
-  "orientation": "portrait",
+  "orientation": "any",
   "scope": "/",
   "start_url": "/",
   "icons": [
