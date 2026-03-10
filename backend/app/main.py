@@ -15,8 +15,9 @@ from app.auth.routes import router as auth_router
 from app.cache import get_cache, CacheService
 
 logger = logging.getLogger(__name__)
-from app.routers import config_router
+from app.routers import config_router, calendar_router
 from app.routers import vehicles
+from app.routers import reservations
 
 app = FastAPI(
     title="CLEF API",
@@ -36,7 +37,9 @@ app.add_middleware(
 # Include routers
 app.include_router(auth_router)
 app.include_router(config_router)
+app.include_router(calendar_router)
 app.include_router(vehicles.router)
+app.include_router(reservations.router)
 
 # Cache instances
 cache = get_cache()

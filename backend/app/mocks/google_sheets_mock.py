@@ -66,22 +66,42 @@ class GoogleSheetsMock(SheetsService):
         return self._responsables_data.copy()
     
     def get_vehicule_by_nom_synthetique(
-        self, 
+        self,
         nom_synthetique: str,
         spreadsheet_id: Optional[str] = None
     ) -> Optional[Dict[str, Any]]:
         """
         Get a specific vehicle by its synthetic name.
-        
+
         Args:
             nom_synthetique: The unique synthetic name of the vehicle
             spreadsheet_id: Ignored in mock, kept for interface compatibility
-            
+
         Returns:
             Vehicle dictionary or None if not found
         """
         for vehicule in self._vehicules_data:
             if vehicule.get("nom_synthetique") == nom_synthetique:
+                return vehicule.copy()
+        return None
+
+    def get_vehicule_by_indicatif(
+        self,
+        indicatif: str,
+        spreadsheet_id: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Get a specific vehicle by its radio code (indicatif).
+
+        Args:
+            indicatif: The radio code of the vehicle
+            spreadsheet_id: Ignored in mock, kept for interface compatibility
+
+        Returns:
+            Vehicle dictionary or None if not found
+        """
+        for vehicule in self._vehicules_data:
+            if vehicule.get("indicatif") == indicatif:
                 return vehicule.copy()
         return None
     

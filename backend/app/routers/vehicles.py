@@ -1,11 +1,14 @@
 """Vehicle API endpoints."""
-from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status
+from typing import List, Optional
+from fastapi import APIRouter, Depends, HTTPException, status, Query
+from datetime import datetime
 from app.models.vehicle import Vehicle, VehicleUpdate, VehicleListResponse
 from app.auth.models import User
 from app.auth.dependencies import require_authenticated_user
 from app.services.vehicle_service import VehicleService
+from app.services.calendar_service import CalendarService
 from app.mocks.service_factory import get_sheets_service
+from app.cache import get_cache
 
 
 router = APIRouter(
@@ -139,7 +142,103 @@ async def update_vehicle(
     
     # Note: couleur_calendrier would be stored in the "Metadata CLEF" tab
     # which is not yet implemented in the mock service
-    
+
     # Return enriched vehicle
     return VehicleService.enrich_vehicle(vehicle_data)
+
+
+@router.get("/available", response_model=VehicleListResponse)
+async def get_available_vehicles(
+    start: datetime = Query(..., description="Start datetime for availability check"),
+    end: datetime = Query(..., description="End datetime for availability check"),
+    current_user: User = Depends(require_authenticated_user)
+) -> VehicleListResponse:
+    """
+    Get list of available vehicles for a given time period.
+
+    A vehicle is available if:
+    - It is mechanically operational (operationnel_mecanique = "Dispo")
+    - It has no reservations overlapping with the requested time period
+    - User has access to it based on their UL
+
+    Args:
+        start: Start datetime for the reservation
+        end: End datetime for the reservation
+        current_user: Authenticated user
+
+    Returns:
+        List of available vehicles with computed status fields
+
+    Raises:
+        400: Invalid date range
+    """
+    # Validate date range
+    if end <= start:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="End date must be after start date"
+        )
+
+    # Get all vehicles
+    sheets_service = get_sheets_service()
+    all_vehicles = sheets_service.get_vehicules()
+
+    # Filter by user access
+    filtered_vehicles = VehicleService.filter_by_user_access(
+        all_vehicles,
+        current_user
+    )
+
+    # Filter by mechanical availability
+    mechanically_available = [
+        v for v in filtered_vehicles
+        if v.get("operationnel_mecanique") == "Dispo"
+    ]
+
+    # Get calendar service to check reservations
+    cache = get_cache()
+    redis_client = cache.client if cache._connected else None
+    calendar_service = CalendarService(redis_client=redis_client)
+
+    try:
+        # Get all events in the requested time period
+        events = calendar_service.get_events(
+            time_min=start,
+            time_max=end
+        )
+
+        # Extract indicatifs from reserved events
+        # Event summary format: "{indicatif} - {chauffeur} - {mission}"
+        reserved_indicatifs = set()
+        for event in events:
+            summary = event.get('summary', '')
+            if ' - ' in summary:
+                indicatif = summary.split(' - ')[0]
+                reserved_indicatifs.add(indicatif)
+
+        # Filter out reserved vehicles
+        available_vehicles = [
+            v for v in mechanically_available
+            if v.get("indicatif") not in reserved_indicatifs
+        ]
+
+    except ValueError:
+        # Calendar not configured yet - return all mechanically available vehicles
+        available_vehicles = mechanically_available
+    except Exception as e:
+        # Log error but don't fail - return mechanically available vehicles
+        import logging
+        logging.error(f"Error checking calendar availability: {e}")
+        available_vehicles = mechanically_available
+
+    # Enrich with status calculations
+    enriched_vehicles = [
+        VehicleService.enrich_vehicle(v)
+        for v in available_vehicles
+    ]
+
+    return VehicleListResponse(
+        count=len(enriched_vehicles),
+        vehicles=enriched_vehicles
+    )
 

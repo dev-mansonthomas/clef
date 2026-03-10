@@ -1,0 +1,127 @@
+<div class="reservation-form-container">
+  <h2>Nouvelle Réservation</h2>
+  
+  <form [formGroup]="reservationForm" (ngSubmit)="onSubmit()">
+    <!-- Date and Time Selection -->
+    <div class="date-time-section">
+      <h3>Période de réservation</h3>
+      
+      <div class="date-time-row">
+        <mat-form-field appearance="outline" class="date-field">
+          <mat-label>Date de début</mat-label>
+          <input matInput [matDatepicker]="startPicker" formControlName="startDate" required>
+          <mat-datepicker-toggle matIconSuffix [for]="startPicker"></mat-datepicker-toggle>
+          <mat-datepicker #startPicker></mat-datepicker>
+          <mat-error *ngIf="reservationForm.get('startDate')?.hasError('required')">
+            Date de début requise
+          </mat-error>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="time-field">
+          <mat-label>Heure de début</mat-label>
+          <input matInput type="time" formControlName="startTime" required>
+          <mat-error *ngIf="reservationForm.get('startTime')?.hasError('required')">
+            Heure requise
+          </mat-error>
+        </mat-form-field>
+      </div>
+
+      <div class="date-time-row">
+        <mat-form-field appearance="outline" class="date-field">
+          <mat-label>Date de fin</mat-label>
+          <input matInput [matDatepicker]="endPicker" formControlName="endDate" required>
+          <mat-datepicker-toggle matIconSuffix [for]="endPicker"></mat-datepicker-toggle>
+          <mat-datepicker #endPicker></mat-datepicker>
+          <mat-error *ngIf="reservationForm.get('endDate')?.hasError('required')">
+            Date de fin requise
+          </mat-error>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="time-field">
+          <mat-label>Heure de fin</mat-label>
+          <input matInput type="time" formControlName="endTime" required>
+          <mat-error *ngIf="reservationForm.get('endTime')?.hasError('required')">
+            Heure requise
+          </mat-error>
+        </mat-form-field>
+      </div>
+    </div>
+
+    <!-- Vehicle Selection -->
+    <div class="vehicle-section">
+      <h3>Véhicule</h3>
+      
+      <mat-form-field appearance="outline" class="full-width">
+        <mat-label>Véhicule disponible</mat-label>
+        <mat-select formControlName="vehicleIndicatif" required>
+          <mat-option *ngIf="loadingVehicles()" disabled>
+            <mat-spinner diameter="20"></mat-spinner> Chargement...
+          </mat-option>
+          <mat-option *ngIf="!loadingVehicles() && availableVehicles().length === 0" disabled>
+            Aucun véhicule disponible pour cette période
+          </mat-option>
+          <mat-option *ngFor="let vehicle of availableVehicles()" [value]="vehicle.indicatif">
+            {{ vehicle.indicatif }} - {{ vehicle.marque }} {{ vehicle.modele }} ({{ vehicle.immat }})
+          </mat-option>
+        </mat-select>
+        <mat-error *ngIf="reservationForm.get('vehicleIndicatif')?.hasError('required')">
+          Véhicule requis
+        </mat-error>
+      </mat-form-field>
+    </div>
+
+    <!-- Driver and Mission -->
+    <div class="details-section">
+      <h3>Détails de la réservation</h3>
+      
+      <mat-form-field appearance="outline" class="full-width">
+        <mat-label>Chauffeur</mat-label>
+        <input matInput 
+               formControlName="chauffeur" 
+               [matAutocomplete]="auto"
+               placeholder="Nom Prénom"
+               required>
+        <mat-autocomplete #auto="matAutocomplete" [displayWith]="displayBenevole">
+          <mat-option *ngFor="let benevole of filteredBenevoles | async" [value]="benevole">
+            {{ benevole.prenom }} {{ benevole.nom }} ({{ benevole.email }})
+          </mat-option>
+        </mat-autocomplete>
+        <mat-error *ngIf="reservationForm.get('chauffeur')?.hasError('required')">
+          Chauffeur requis
+        </mat-error>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="full-width">
+        <mat-label>Mission</mat-label>
+        <input matInput formControlName="mission" placeholder="Description de la mission" required>
+        <mat-error *ngIf="reservationForm.get('mission')?.hasError('required')">
+          Mission requise
+        </mat-error>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="full-width">
+        <mat-label>Commentaires (optionnel)</mat-label>
+        <textarea matInput 
+                  formControlName="description" 
+                  rows="3"
+                  placeholder="Informations techniques supplémentaires"></textarea>
+      </mat-form-field>
+    </div>
+
+    <!-- Actions -->
+    <div class="actions">
+      <button mat-raised-button 
+              type="submit" 
+              color="primary"
+              [disabled]="reservationForm.invalid || loading()">
+        <mat-spinner *ngIf="loading()" diameter="20"></mat-spinner>
+        <span *ngIf="!loading()">Créer la réservation</span>
+      </button>
+      
+      <button mat-button type="button" (click)="reservationForm.reset({ startTime: '09:00', endTime: '17:00' })">
+        Annuler
+      </button>
+    </div>
+  </form>
+</div>
+
