@@ -1,0 +1,85 @@
+<div class="vehicle-selector-container">
+  <mat-card class="selector-card">
+    <mat-card-header>
+      <mat-card-title>Sélection du Véhicule</mat-card-title>
+      <mat-card-subtitle>Scannez le QR code ou sélectionnez manuellement</mat-card-subtitle>
+    </mat-card-header>
+
+    <mat-card-content>
+      <!-- Error Messages -->
+      @if (error()) {
+        <div class="error-message">
+          <mat-icon>error</mat-icon>
+          <span>{{ error() }}</span>
+        </div>
+      }
+
+      @if (cameraError()) {
+        <div class="warning-message">
+          <mat-icon>warning</mat-icon>
+          <span>{{ cameraError() }}</span>
+        </div>
+      }
+
+      <!-- QR Scanner Section -->
+      <div class="scanner-section">
+        <h3>Scanner le QR Code</h3>
+        
+        @if (!scanning()) {
+          <button 
+            mat-raised-button 
+            color="primary" 
+            (click)="startScanning()"
+            class="scan-button">
+            <mat-icon>qr_code_scanner</mat-icon>
+            Démarrer le scan
+          </button>
+        } @else {
+          <div class="scanner-container">
+            <div id="qr-reader"></div>
+            <button 
+              mat-raised-button 
+              color="warn" 
+              (click)="stopScanning()"
+              class="stop-button">
+              <mat-icon>stop</mat-icon>
+              Arrêter le scan
+            </button>
+          </div>
+        }
+      </div>
+
+      <!-- Divider -->
+      <div class="divider">
+        <span>OU</span>
+      </div>
+
+      <!-- Manual Selection Section -->
+      <div class="manual-selection-section">
+        <h3>Sélection Manuelle</h3>
+        
+        @if (loading()) {
+          <div class="loading-container">
+            <mat-progress-spinner mode="indeterminate" diameter="40"></mat-progress-spinner>
+            <p>Chargement des véhicules...</p>
+          </div>
+        } @else {
+          <mat-form-field appearance="outline" class="vehicle-select">
+            <mat-label>Choisir un véhicule</mat-label>
+            <mat-select 
+              [(ngModel)]="selectedVehicle"
+              (selectionChange)="onVehicleSelected()">
+              @for (vehicle of vehicles(); track vehicle.nom_synthetique) {
+                <mat-option [value]="vehicle.nom_synthetique">
+                  {{ vehicle.indicatif }} - {{ vehicle.marque }} {{ vehicle.modele }} ({{ vehicle.immat }})
+                </mat-option>
+              }
+            </mat-select>
+            <mat-hint>Sélectionnez le véhicule que vous souhaitez prendre ou retourner</mat-hint>
+          </mat-form-field>
+        }
+      </div>
+    </mat-card-content>
+  </mat-card>
+</div>
+
