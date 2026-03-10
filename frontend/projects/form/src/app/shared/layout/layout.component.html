@@ -1,0 +1,21 @@
+<div class="layout-container">
+  <!-- Mobile-first header -->
+  <mat-toolbar color="primary" class="layout-toolbar">
+    <span class="app-title">Formulaire Véhicule</span>
+    
+    <span class="toolbar-spacer"></span>
+    
+    @if (currentUser$ | async; as user) {
+      <span class="user-info">{{ user.prenom }} {{ user.nom }}</span>
+      <button mat-icon-button (click)="logout()" aria-label="Déconnexion">
+        <mat-icon>logout</mat-icon>
+      </button>
+    }
+  </mat-toolbar>
+
+  <!-- Page content -->
+  <div class="layout-content">
+    <router-outlet></router-outlet>
+  </div>
+</div>
+
