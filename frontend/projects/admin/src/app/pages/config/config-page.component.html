@@ -1,0 +1,128 @@
+<div class="config-page">
+  <div class="container">
+    <h1>Configuration DT</h1>
+    <p class="subtitle">Gestion des URLs des référentiels et des alertes</p>
+
+    @if (loading()) {
+      <div class="loading">Chargement...</div>
+    }
+
+    @if (saveSuccess()) {
+      <div class="alert alert-success">
+        ✓ Configuration sauvegardée avec succès
+      </div>
+    }
+
+    @if (saveError()) {
+      <div class="alert alert-error">
+        ✗ {{ saveError() }}
+      </div>
+    }
+
+    <form [formGroup]="configForm" (ngSubmit)="onSubmit()" class="config-form">
+      <div class="form-section">
+        <h2>URLs des Référentiels Google Sheets</h2>
+
+        <div class="form-group">
+          <label for="sheets_url_vehicules">URL Référentiel Véhicules *</label>
+          <input
+            type="url"
+            id="sheets_url_vehicules"
+            formControlName="sheets_url_vehicules"
+            placeholder="https://docs.google.com/spreadsheets/d/..."
+            [class.error]="getFieldError('sheets_url_vehicules')"
+          />
+          @if (getFieldError('sheets_url_vehicules')) {
+            <span class="error-message">{{ getFieldError('sheets_url_vehicules') }}</span>
+          }
+        </div>
+
+        <div class="form-group">
+          <label for="sheets_url_benevoles">URL Référentiel Bénévoles *</label>
+          <input
+            type="url"
+            id="sheets_url_benevoles"
+            formControlName="sheets_url_benevoles"
+            placeholder="https://docs.google.com/spreadsheets/d/..."
+            [class.error]="getFieldError('sheets_url_benevoles')"
+          />
+          @if (getFieldError('sheets_url_benevoles')) {
+            <span class="error-message">{{ getFieldError('sheets_url_benevoles') }}</span>
+          }
+        </div>
+
+        <div class="form-group">
+          <label for="sheets_url_responsables">URL Référentiel Responsables *</label>
+          <input
+            type="url"
+            id="sheets_url_responsables"
+            formControlName="sheets_url_responsables"
+            placeholder="https://docs.google.com/spreadsheets/d/..."
+            [class.error]="getFieldError('sheets_url_responsables')"
+          />
+          @if (getFieldError('sheets_url_responsables')) {
+            <span class="error-message">{{ getFieldError('sheets_url_responsables') }}</span>
+          }
+        </div>
+      </div>
+
+      <div class="form-section">
+        <h2>Template de Document</h2>
+
+        <div class="form-group">
+          <label for="template_doc_url">URL Template Document Véhicule *</label>
+          <input
+            type="url"
+            id="template_doc_url"
+            formControlName="template_doc_url"
+            placeholder="https://docs.google.com/document/d/..."
+            [class.error]="getFieldError('template_doc_url')"
+          />
+          @if (getFieldError('template_doc_url')) {
+            <span class="error-message">{{ getFieldError('template_doc_url') }}</span>
+          }
+        </div>
+      </div>
+
+      <div class="form-section">
+        <h2>Alertes</h2>
+
+        <div class="form-group">
+          <label for="email_destinataire_alertes">Email Destinataire des Alertes *</label>
+          <input
+            type="email"
+            id="email_destinataire_alertes"
+            formControlName="email_destinataire_alertes"
+            placeholder="alertes@croix-rouge.fr"
+            [class.error]="getFieldError('email_destinataire_alertes')"
+          />
+          @if (getFieldError('email_destinataire_alertes')) {
+            <span class="error-message">{{ getFieldError('email_destinataire_alertes') }}</span>
+          }
+        </div>
+
+        <div class="form-group readonly">
+          <label>Email Gestionnaire DT (lecture seule)</label>
+          <input
+            type="email"
+            [value]="emailGestionnaireDT()"
+            readonly
+            disabled
+          />
+          <span class="help-text">Cette valeur est configurée dans les variables d'environnement</span>
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button
+          type="submit"
+          class="btn btn-primary"
+          [disabled]="loading() || configForm.invalid"
+        >
+          {{ loading() ? 'Sauvegarde...' : 'Sauvegarder' }}
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
