@@ -169,18 +169,58 @@ gcloud redis instances describe clef-cache \
 
 Configure the following secrets in your GitHub repository (Settings → Secrets and variables → Actions):
 
+### Automated Setup (Recommended)
+
+We provide a script to automate the GitHub secrets configuration using `gh` CLI:
+
+```bash
+cd backend
+./scripts/setup_github_secrets.sh dev
+```
+
+This script will:
+- ✅ Read values from `.env.{env}` file if available
+- ✅ Prompt interactively for missing values
+- ✅ Auto-generate `QR_CODE_SALT` and `JWT_SECRET_KEY` if not provided
+- ✅ Encode the service account JSON key as base64
+- ✅ Configure all required GitHub secrets
+- ✅ Verify the configuration with `gh secret list`
+
+**Prerequisites:**
+- Install `gh` CLI: https://cli.github.com/
+- Authenticate: `gh auth login`
+- Have the service account JSON key file ready
+
+**Usage for different environments:**
+```bash
+./scripts/setup_github_secrets.sh dev   # For development
+./scripts/setup_github_secrets.sh test  # For testing
+./scripts/setup_github_secrets.sh prod  # For production
+```
+
 ### Required Secrets
 
 | Secret Name | Description | Example |
 |-------------|-------------|---------|
-| `GCP_SERVICE_ACCOUNT_KEY` | Service account JSON key | Contents of `key.json` |
-| `GCP_PROJECT_DEV` | GCP project ID for dev | `rcq-fr-dev` |
-| `GCP_PROJECT_TEST` | GCP project ID for test | `rcq-fr-test` |
-| `GCP_PROJECT_PROD` | GCP project ID for prod | `rcq-fr-prod` |
+| `GCP_PROJECT_ID` | GCP project ID | `rcq-fr-dev` |
+| `GCP_SA_KEY` | Service account JSON key (base64 encoded) | Base64 of `key.json` |
+| `GOOGLE_CLIENT_ID` | Okta client ID | `0oa...` |
+| `GOOGLE_CLIENT_SECRET` | Okta client secret | `secret...` |
+| `QR_CODE_SALT` | Salt for QR code generation | Random 32-byte string |
+| `JWT_SECRET_KEY` | JWT signing key | Random 32-byte string |
 
-### GCP Secret Manager Secrets
+### Manual Setup (Alternative)
 
-Store sensitive configuration in GCP Secret Manager:
+If you prefer to configure secrets manually, use the GitHub web interface:
+
+1. Go to your repository → Settings → Secrets and variables → Actions
+2. Click "New repository secret" for each secret
+3. For `GCP_SA_KEY`, encode the JSON key file: `base64 -i key.json`
+4. For `QR_CODE_SALT` and `JWT_SECRET_KEY`, generate random values: `openssl rand -base64 32`
+
+### GCP Secret Manager Secrets (Optional)
+
+Alternatively, you can store sensitive configuration in GCP Secret Manager and reference them in Cloud Run:
 
 ```bash
 # Okta credentials
@@ -200,21 +240,19 @@ openssl rand -base64 32 | gcloud secrets create QR_CODE_SALT \
   --replication-policy="automatic" \
   --project=rcq-fr-dev
 
+# JWT Secret Key
+openssl rand -base64 32 | gcloud secrets create JWT_SECRET_KEY \
+  --data-file=- \
+  --replication-policy="automatic" \
+  --project=rcq-fr-dev
+
 # Grant Cloud Run access to secrets
-gcloud secrets add-iam-policy-binding OKTA_CLIENT_ID \
-  --member="serviceAccount:clef-backend@rcq-fr-dev.iam.gserviceaccount.com" \
-  --role="roles/secretmanager.secretAccessor" \
-  --project=rcq-fr-dev
-
-gcloud secrets add-iam-policy-binding OKTA_CLIENT_SECRET \
-  --member="serviceAccount:clef-backend@rcq-fr-dev.iam.gserviceaccount.com" \
-  --role="roles/secretmanager.secretAccessor" \
-  --project=rcq-fr-dev
-
-gcloud secrets add-iam-policy-binding QR_CODE_SALT \
-  --member="serviceAccount:clef-backend@rcq-fr-dev.iam.gserviceaccount.com" \
-  --role="roles/secretmanager.secretAccessor" \
-  --project=rcq-fr-dev
+for SECRET in OKTA_CLIENT_ID OKTA_CLIENT_SECRET QR_CODE_SALT JWT_SECRET_KEY; do
+  gcloud secrets add-iam-policy-binding $SECRET \
+    --member="serviceAccount:clef-backend@rcq-fr-dev.iam.gserviceaccount.com" \
+    --role="roles/secretmanager.secretAccessor" \
+    --project=rcq-fr-dev
+done
 ```
 
 ## CI/CD Workflow
