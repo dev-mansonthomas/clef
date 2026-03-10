@@ -1,0 +1,202 @@
+<div class="vehicle-edit-container">
+  <div class="header">
+    <h1>Édition Véhicule</h1>
+    <p *ngIf="vehicle">{{ vehicle.indicatif }} - {{ vehicle.marque }} {{ vehicle.modele }}</p>
+  </div>
+
+  <div *ngIf="loading" class="loading-container">
+    <mat-spinner></mat-spinner>
+    <p>Chargement du véhicule...</p>
+  </div>
+
+  <form *ngIf="!loading && vehicleForm" [formGroup]="vehicleForm" (ngSubmit)="onSubmit()">
+    <!-- Section: Identification -->
+    <mat-card>
+      <mat-card-header>
+        <mat-card-title>Identification</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <div class="form-row">
+          <mat-form-field appearance="outline">
+            <mat-label>DT / UL</mat-label>
+            <input matInput formControlName="dt_ul" readonly>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Immatriculation</mat-label>
+            <input matInput formControlName="immat" readonly>
+          </mat-form-field>
+        </div>
+
+        <div class="form-row">
+          <mat-form-field appearance="outline">
+            <mat-label>Indicatif Radio</mat-label>
+            <input matInput formControlName="indicatif" readonly>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Nom Synthétique</mat-label>
+            <input matInput formControlName="nom_synthetique" readonly>
+          </mat-form-field>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- Section: Caractéristiques -->
+    <mat-card>
+      <mat-card-header>
+        <mat-card-title>Caractéristiques</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <div class="form-row">
+          <mat-form-field appearance="outline">
+            <mat-label>Marque</mat-label>
+            <input matInput formControlName="marque" readonly>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Modèle</mat-label>
+            <input matInput formControlName="modele" readonly>
+          </mat-form-field>
+        </div>
+
+        <div class="form-row">
+          <mat-form-field appearance="outline">
+            <mat-label>Type</mat-label>
+            <input matInput formControlName="type" readonly>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Date de MEC</mat-label>
+            <input matInput formControlName="date_mec" type="date" readonly>
+          </mat-form-field>
+        </div>
+
+        <div class="form-row">
+          <mat-form-field appearance="outline">
+            <mat-label>Nombre de Places</mat-label>
+            <input matInput formControlName="nb_places" readonly>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Carte Grise</mat-label>
+            <input matInput formControlName="carte_grise" readonly>
+          </mat-form-field>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- Section: Disponibilité -->
+    <mat-card>
+      <mat-card-header>
+        <mat-card-title>Disponibilité</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <div class="form-row">
+          <mat-form-field appearance="outline">
+            <mat-label>Opérationnel Mécanique</mat-label>
+            <mat-select formControlName="operationnel_mecanique">
+              <mat-option *ngFor="let option of disponibiliteOptions" [value]="option.value">
+                {{ option.label }}
+              </mat-option>
+            </mat-select>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Raison Indisponibilité</mat-label>
+            <input matInput formControlName="raison_indispo" readonly>
+          </mat-form-field>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- Section: Contrôles -->
+    <mat-card>
+      <mat-card-header>
+        <mat-card-title>Contrôles Techniques</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <div class="form-row">
+          <mat-form-field appearance="outline">
+            <mat-label>Prochain Contrôle Technique</mat-label>
+            <input matInput formControlName="prochain_controle_technique" type="date" readonly>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Prochain Contrôle Pollution</mat-label>
+            <input matInput formControlName="prochain_controle_pollution" type="date" readonly>
+          </mat-form-field>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- Section: Localisation & Instructions -->
+    <mat-card>
+      <mat-card-header>
+        <mat-card-title>Localisation & Instructions</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Lieu de Stationnement</mat-label>
+          <input matInput formControlName="lieu_stationnement" readonly>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Instructions de Récupération (Lien Google Doc)</mat-label>
+          <input matInput formControlName="instructions_recuperation" type="url" readonly>
+        </mat-form-field>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- Section: Administratif -->
+    <mat-card>
+      <mat-card-header>
+        <mat-card-title>Informations Administratives</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <div class="form-row">
+          <mat-form-field appearance="outline">
+            <mat-label>Assurance 2026</mat-label>
+            <input matInput formControlName="assurance_2026" readonly>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>N° Série BAUS</mat-label>
+            <input matInput formControlName="numero_serie_baus" readonly>
+          </mat-form-field>
+        </div>
+
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Commentaires</mat-label>
+          <textarea matInput formControlName="commentaires" rows="4"></textarea>
+          <mat-hint>Commentaires libres sur le véhicule</mat-hint>
+        </mat-form-field>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- Section: Metadata CLEF -->
+    <mat-card>
+      <mat-card-header>
+        <mat-card-title>Metadata CLEF</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <mat-form-field appearance="outline">
+          <mat-label>Couleur Calendrier</mat-label>
+          <input matInput formControlName="couleur_calendrier" type="color">
+          <mat-hint>Couleur pour l'affichage dans le calendrier de réservations</mat-hint>
+        </mat-form-field>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- Actions -->
+    <div class="form-actions">
+      <button mat-raised-button type="button" (click)="onCancel()">
+        Annuler
+      </button>
+      <button mat-raised-button color="primary" type="submit" [disabled]="vehicleForm.invalid || saving">
+        <span *ngIf="!saving">Enregistrer</span>
+        <span *ngIf="saving">Enregistrement...</span>
+      </button>
+    </div>
+  </form>
+</div>
