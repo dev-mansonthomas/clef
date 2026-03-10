@@ -1,0 +1,16 @@
+README.md
+pyproject.toml
+app/__init__.py
+app/main.py
+app/mocks/__init__.py
+app/mocks/google_calendar_mock.py
+app/mocks/google_drive_mock.py
+app/mocks/google_gmail_mock.py
+app/mocks/google_sheets_mock.py
+app/mocks/service_factory.py
+clef_backend.egg-info/PKG-INFO
+clef_backend.egg-info/SOURCES.txt
+clef_backend.egg-info/dependency_links.txt
+clef_backend.egg-info/requires.txt
+clef_backend.egg-info/top_level.txt
+tests/test_mocks.py
