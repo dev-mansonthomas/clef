@@ -27,10 +27,13 @@ services:
     volumes:
       - ./backend:/app
       - backend-cache:/root/.cache
+    env_file:
+      - ./backend/.env
     environment:
       - PYTHONUNBUFFERED=1
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - REDIS_URL=redis://redis:6379/0
       - ENV=dev
     depends_on:
       redis:
