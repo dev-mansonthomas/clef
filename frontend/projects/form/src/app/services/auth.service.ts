@@ -30,12 +30,12 @@ export class AuthService {
   }
 
   /**
-   * Initiate login flow - redirects to Okta
+   * Initiate login flow - redirects to Google OAuth
    */
   login(): void {
     this.http.get<LoginResponse>(`${this.apiUrl}/auth/login`).subscribe({
       next: (response) => {
-        // Redirect to Okta authorization URL
+        // Redirect to Google OAuth authorization URL
         window.location.href = response.authorization_url;
       },
       error: (error) => {

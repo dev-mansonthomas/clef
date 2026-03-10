@@ -1,5 +1,5 @@
 """
-Authentication routes for Okta SSO.
+Authentication routes for Google OAuth SSO.
 """
 import secrets
 from typing import Optional
@@ -8,49 +8,50 @@ from fastapi.responses import RedirectResponse
 from .models import User, LoginResponse
 from .config import auth_settings
 from .dependencies import get_current_user
-from app.mocks.okta_mock import OktaMock
+from .google_oauth import GoogleOAuthService
+from .mock_instance import okta_mock
 
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
 
-# Mock Okta service for development
-okta_mock = OktaMock() if auth_settings.use_mocks else None
+# Google OAuth service for production
+google_oauth = GoogleOAuthService()
 
 
 @router.get("/login", response_model=LoginResponse)
 async def login():
     """
-    Initiate Okta OAuth2 login flow.
-    
+    Initiate Google OAuth2 login flow.
+
     Returns:
         Authorization URL to redirect user to
     """
     # Generate state for CSRF protection
     state = secrets.token_urlsafe(32)
-    
+
     if auth_settings.use_mocks and okta_mock:
-        # Mock mode: return simplified URL
+        # Mock mode: return simplified URL (for backward compatibility)
         auth_url = okta_mock.get_authorization_url(
-            redirect_uri=auth_settings.okta_redirect_uri,
+            redirect_uri=auth_settings.google_redirect_uri,
             state=state
         )
     else:
-        # TODO: Implement real Okta authorization URL generation
-        raise NotImplementedError("Real Okta integration not yet implemented")
-    
+        # Production: Use Google OAuth
+        auth_url = google_oauth.get_authorization_url(state=state)
+
     return LoginResponse(authorization_url=auth_url)
 
 
 @router.get("/callback")
 async def callback(
-    code: str = Query(..., description="Authorization code from Okta"),
+    code: str = Query(..., description="Authorization code from Google"),
     state: str = Query(..., description="State parameter for CSRF protection")
 ):
     """
-    Handle Okta OAuth2 callback.
+    Handle Google OAuth2 callback.
 
     Args:
-        code: Authorization code from Okta
+        code: Authorization code from Google
         state: State parameter for CSRF protection
 
     Returns:
@@ -58,17 +59,44 @@ async def callback(
     """
     try:
         if auth_settings.use_mocks and okta_mock:
-            # Exchange code for token
+            # Mock mode: use mock token exchange (for backward compatibility)
             token_response = okta_mock.exchange_code_for_token(
                 code=code,
-                redirect_uri=auth_settings.okta_redirect_uri
+                redirect_uri=auth_settings.google_redirect_uri
             )
-
             # Use id_token as session token
             session_token = token_response["id_token"]
         else:
-            # TODO: Implement real Okta token exchange
-            raise NotImplementedError("Real Okta integration not yet implemented")
+            # Production: Exchange code for token with Google
+            token_response = await google_oauth.exchange_code_for_token(code)
+
+            # Get ID token
+            id_token = token_response.get("id_token")
+            if not id_token:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="No ID token received from Google"
+                )
+
+            # Verify ID token
+            claims = google_oauth.verify_id_token(id_token)
+
+            # Validate email domain
+            email = claims.get("email")
+            if not email:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="No email in token claims"
+                )
+
+            if not google_oauth.validate_email_domain(email):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"Email domain not allowed. Must be {auth_settings.allowed_email_domain}"
+                )
+
+            # Use id_token as session token
+            session_token = id_token
 
         # Create redirect response
         redirect_response = RedirectResponse(url="http://localhost:4200/")
@@ -85,6 +113,8 @@ async def callback(
 
         return redirect_response
 
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -144,7 +174,7 @@ async def mock_login(
 ):
     """
     Mock login endpoint for development/testing.
-    Simulates Okta login by generating an authorization code.
+    Simulates Google OAuth login by generating an authorization code.
 
     Args:
         redirect_uri: Callback URL

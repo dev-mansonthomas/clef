@@ -1,5 +1,5 @@
 """
 Authentication module for CLEF application.
-Handles Okta SSO authentication and role-based access control.
+Handles Google OAuth SSO authentication and role-based access control.
 """
 

@@ -47,7 +47,7 @@ class TestAuthEndpoints:
         assert response.status_code == 200
         auth_url = response.json()["authorization_url"]
 
-        # Step 2: Simulate Okta login (get authorization code)
+        # Step 2: Simulate Google OAuth login (get authorization code)
         email = "thomas.manson@croix-rouge.fr"
         code = okta_mock.create_mock_authorization_code(email)
 

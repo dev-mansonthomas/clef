@@ -6,12 +6,13 @@ from fastapi import Depends, HTTPException, status, Cookie
 from .models import User, TokenData
 from .service import AuthService
 from .config import auth_settings
-from app.mocks.okta_mock import OktaMock
+from .google_oauth import GoogleOAuthService
+from .mock_instance import okta_mock
 
 
 # Global instances
 auth_service = AuthService()
-okta_mock = OktaMock() if auth_settings.use_mocks else None
+google_oauth = GoogleOAuthService()
 
 
 async def get_current_user(
@@ -28,15 +29,21 @@ async def get_current_user(
     """
     if not session_token:
         return None
-    
+
     try:
         # Verify token
         if auth_settings.use_mocks and okta_mock:
+            # Mock mode: use mock verification
             token_claims = okta_mock.verify_token(session_token)
         else:
-            # TODO: Implement real Okta token verification
-            raise NotImplementedError("Real Okta verification not yet implemented")
-        
+            # Production: Verify Google ID token
+            token_claims = google_oauth.verify_id_token(session_token)
+
+            # Validate email domain
+            email = token_claims.get("email")
+            if not email or not google_oauth.validate_email_domain(email):
+                return None
+
         # Extract token data
         token_data = TokenData(
             email=token_claims["email"],
@@ -45,11 +52,11 @@ async def get_current_user(
             family_name=token_claims.get("family_name"),
             sub=token_claims["sub"]
         )
-        
+
         # Get user with role information
         user = auth_service.get_user_from_token(token_data)
         return user
-        
+
     except Exception:
         return None
 

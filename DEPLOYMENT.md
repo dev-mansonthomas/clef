@@ -27,7 +27,57 @@ Create or use existing GCP projects:
 - `rcq-fr-test` (testing)
 - `rcq-fr-prod` (production)
 
-### 2. Automated GCP Setup (Recommended)
+### 2. Google OAuth Configuration
+
+The application uses Google OAuth for authentication. Configure OAuth credentials in Google Cloud Console:
+
+#### Step 1: Configure OAuth Consent Screen
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Select your project (e.g., `rcq-fr-dev`)
+3. Navigate to **APIs & Services** → **OAuth consent screen**
+4. Choose **Internal** (for Google Workspace users only) or **External**
+5. Fill in the required information:
+   - **App name**: CLEF Fleet Management
+   - **User support email**: Your support email
+   - **Developer contact information**: Your email
+6. Add scopes:
+   - `openid`
+   - `https://www.googleapis.com/auth/userinfo.email`
+   - `https://www.googleapis.com/auth/userinfo.profile`
+7. Save and continue
+
+#### Step 2: Create OAuth 2.0 Client ID
+
+1. Navigate to **APIs & Services** → **Credentials**
+2. Click **Create Credentials** → **OAuth 2.0 Client ID**
+3. Choose **Web application**
+4. Configure:
+   - **Name**: CLEF Backend
+   - **Authorized JavaScript origins**:
+     - `http://localhost:8000` (for development)
+     - `https://your-domain.com` (for production)
+   - **Authorized redirect URIs**:
+     - `http://localhost:8000/auth/callback` (for development)
+     - `https://your-domain.com/auth/callback` (for production)
+5. Click **Create**
+6. Save the **Client ID** and **Client Secret** - you'll need these for configuration
+
+#### Step 3: Configure Environment Variables
+
+Add the OAuth credentials to your `.env` file:
+
+```bash
+GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=your-client-secret
+GOOGLE_REDIRECT_URI=http://localhost:8000/auth/callback
+```
+
+For production, update the redirect URI to match your domain.
+
+**Important**: Only users with `@croix-rouge.fr` email addresses will be allowed to authenticate.
+
+### 3. Automated GCP Setup (Recommended)
 
 We provide two options for automating the GCP infrastructure setup:
 
@@ -80,7 +130,7 @@ See [infra/README.md](infra/README.md) for detailed Terraform usage.
 - **Bash script**: Simpler, interactive, good for one-time setup
 - **Terraform**: Better for version control, reproducibility, and team collaboration
 
-### 3. Manual Setup (Alternative)
+### 4. Manual Setup (Alternative)
 
 If you prefer manual setup or need to troubleshoot, here are the individual commands:
 
@@ -145,7 +195,7 @@ gcloud iam service-accounts keys create key.json \
   --project=rcq-fr-dev
 ```
 
-### 4. Create MemoryStore Redis Instance
+### 5. Create MemoryStore Redis Instance
 
 **Note:** This step is NOT automated by the setup scripts and must be done manually.
 
@@ -204,8 +254,8 @@ This script will:
 |-------------|-------------|---------|
 | `GCP_PROJECT_ID` | GCP project ID | `rcq-fr-dev` |
 | `GCP_SA_KEY` | Service account JSON key (base64 encoded) | Base64 of `key.json` |
-| `GOOGLE_CLIENT_ID` | Okta client ID | `0oa...` |
-| `GOOGLE_CLIENT_SECRET` | Okta client secret | `secret...` |
+| `GOOGLE_CLIENT_ID` | Google OAuth client ID | `xxx.apps.googleusercontent.com` |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth client secret | `GOCSPX-xxx...` |
 | `QR_CODE_SALT` | Salt for QR code generation | Random 32-byte string |
 | `JWT_SECRET_KEY` | JWT signing key | Random 32-byte string |
 
@@ -223,13 +273,13 @@ If you prefer to configure secrets manually, use the GitHub web interface:
 Alternatively, you can store sensitive configuration in GCP Secret Manager and reference them in Cloud Run:
 
 ```bash
-# Okta credentials
-echo -n "your-okta-client-id" | gcloud secrets create OKTA_CLIENT_ID \
+# Google OAuth credentials
+echo -n "your-client-id.apps.googleusercontent.com" | gcloud secrets create GOOGLE_CLIENT_ID \
   --data-file=- \
   --replication-policy="automatic" \
   --project=rcq-fr-dev
 
-echo -n "your-okta-client-secret" | gcloud secrets create OKTA_CLIENT_SECRET \
+echo -n "your-client-secret" | gcloud secrets create GOOGLE_CLIENT_SECRET \
   --data-file=- \
   --replication-policy="automatic" \
   --project=rcq-fr-dev
@@ -247,7 +297,7 @@ openssl rand -base64 32 | gcloud secrets create JWT_SECRET_KEY \
   --project=rcq-fr-dev
 
 # Grant Cloud Run access to secrets
-for SECRET in OKTA_CLIENT_ID OKTA_CLIENT_SECRET QR_CODE_SALT JWT_SECRET_KEY; do
+for SECRET in GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET QR_CODE_SALT JWT_SECRET_KEY; do
   gcloud secrets add-iam-policy-binding $SECRET \
     --member="serviceAccount:clef-backend@rcq-fr-dev.iam.gserviceaccount.com" \
     --role="roles/secretmanager.secretAccessor" \

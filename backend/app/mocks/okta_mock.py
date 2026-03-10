@@ -92,10 +92,10 @@ class OktaMock:
     def verify_token(self, token: str) -> Dict[str, Any]:
         """
         Verify and decode JWT token.
-        
+
         Args:
             token: JWT token to verify
-            
+
         Returns:
             Decoded token claims
         """
@@ -104,7 +104,11 @@ class OktaMock:
                 token,
                 self.mock_secret,
                 algorithms=["HS256"],
-                options={"verify_exp": True}
+                options={
+                    "verify_exp": True,
+                    "verify_aud": False  # Don't verify audience in mock mode
+                },
+                leeway=10  # Allow 10 seconds leeway for clock skew
             )
             return payload
         except jwt.ExpiredSignatureError:
