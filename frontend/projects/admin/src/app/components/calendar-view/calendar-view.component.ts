@@ -1,10 +1,14 @@
-import { Component, OnInit, OnDestroy, signal } from '@angular/core';
+import { Component, OnInit, OnDestroy, signal, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { MatButtonModule } from '@angular/material/button';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { FullCalendarModule } from '@fullcalendar/angular';
 import { CalendarOptions, EventInput } from '@fullcalendar/core';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import frLocale from '@fullcalendar/core/locales/fr';
+import { CalendarService } from '../../services/calendar.service';
 
 interface CalendarEvent {
   id: string;
@@ -22,12 +26,25 @@ interface VehicleMetadata {
 @Component({
   selector: 'app-calendar-view',
   standalone: true,
-  imports: [CommonModule, FullCalendarModule],
+  imports: [
+    CommonModule,
+    FullCalendarModule,
+    MatButtonModule,
+    MatSnackBarModule,
+    MatProgressSpinnerModule
+  ],
   templateUrl: './calendar-view.component.html',
   styleUrls: ['./calendar-view.component.scss']
 })
 export class CalendarViewComponent implements OnInit, OnDestroy {
+  private readonly calendarService = inject(CalendarService);
+  private readonly snackBar = inject(MatSnackBar);
   private refreshInterval?: number;
+
+  // Calendar status
+  calendarExists = signal<boolean>(false);
+  calendarLoading = signal<boolean>(true);
+  creatingCalendar = signal<boolean>(false);
   
   calendarOptions = signal<CalendarOptions>({
     plugins: [timeGridPlugin, interactionPlugin],
@@ -53,10 +70,10 @@ export class CalendarViewComponent implements OnInit, OnDestroy {
   });
 
   ngOnInit(): void {
-    this.loadEvents();
+    this.checkCalendarStatus();
     // Auto-refresh every 5 minutes
     this.refreshInterval = window.setInterval(() => {
-      this.loadEvents();
+      this.checkCalendarStatus();
     }, 5 * 60 * 1000);
   }
 
@@ -64,6 +81,57 @@ export class CalendarViewComponent implements OnInit, OnDestroy {
     if (this.refreshInterval) {
       clearInterval(this.refreshInterval);
     }
+  }
+
+  /**
+   * Check if calendar exists and load events if it does
+   */
+  private checkCalendarStatus(): void {
+    this.calendarLoading.set(true);
+    this.calendarService.getCalendarStatus().subscribe({
+      next: (status) => {
+        this.calendarExists.set(status.exists);
+        this.calendarLoading.set(false);
+        if (status.exists) {
+          this.loadEvents();
+        }
+      },
+      error: (error) => {
+        console.error('Error checking calendar status:', error);
+        this.calendarLoading.set(false);
+        this.snackBar.open('Erreur lors de la vérification du calendrier', 'Fermer', {
+          duration: 5000
+        });
+      }
+    });
+  }
+
+  /**
+   * Create a new calendar
+   */
+  createCalendar(): void {
+    this.creatingCalendar.set(true);
+    this.calendarService.createCalendar().subscribe({
+      next: (response) => {
+        this.creatingCalendar.set(false);
+        this.calendarExists.set(true);
+        this.snackBar.open(
+          `Calendrier "${response.summary}" créé avec succès !`,
+          'Fermer',
+          { duration: 5000 }
+        );
+        // Load events after calendar creation
+        this.loadEvents();
+      },
+      error: (error) => {
+        console.error('Error creating calendar:', error);
+        this.creatingCalendar.set(false);
+        const message = error.error?.detail || 'Erreur lors de la création du calendrier';
+        this.snackBar.open(message, 'Fermer', {
+          duration: 5000
+        });
+      }
+    });
   }
 
   private async loadEvents(): Promise<void> {
