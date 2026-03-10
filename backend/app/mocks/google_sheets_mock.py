@@ -3,8 +3,10 @@ import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from app.services.sheets import SheetsService
 
-class GoogleSheetsMock:
+
+class GoogleSheetsMock(SheetsService):
     """Mock Google Sheets service that returns data from JSON files."""
     
     def __init__(self):
@@ -22,37 +24,42 @@ class GoogleSheetsMock:
         with open(file_path, "r", encoding="utf-8") as f:
             return json.load(f)
     
-    def get_vehicules(self, spreadsheet_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    def get_vehicles(self, spreadsheet_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """
         Get all vehicles from the mock data.
-        
+
         Args:
             spreadsheet_id: Ignored in mock, kept for interface compatibility
-            
+
         Returns:
             List of vehicle dictionaries with 19 columns
         """
         return self._vehicules_data.copy()
-    
+
+    # Alias for backward compatibility
+    def get_vehicules(self, spreadsheet_id: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Alias for get_vehicles for backward compatibility."""
+        return self.get_vehicles(spreadsheet_id)
+
     def get_benevoles(self, spreadsheet_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """
         Get all volunteers from the mock data.
-        
+
         Args:
             spreadsheet_id: Ignored in mock, kept for interface compatibility
-            
+
         Returns:
             List of volunteer dictionaries
         """
         return self._benevoles_data.copy()
-    
+
     def get_responsables(self, spreadsheet_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """
         Get all managers from the mock data.
-        
+
         Args:
             spreadsheet_id: Ignored in mock, kept for interface compatibility
-            
+
         Returns:
             List of manager dictionaries
         """
@@ -98,20 +105,20 @@ class GoogleSheetsMock:
                 return benevole.copy()
         return None
     
-    def append_row(
+    def append_carnet_bord(
         self,
         spreadsheet_id: str,
-        range_name: str,
-        values: List[List[Any]]
+        values: List[List[Any]],
+        range_name: str = "Sheet1!A1"
     ) -> Dict[str, Any]:
         """
-        Mock append operation - returns success without actually writing.
-        
+        Mock append operation for carnet de bord - returns success without actually writing.
+
         Args:
             spreadsheet_id: The spreadsheet ID
-            range_name: The range to append to
             values: The values to append
-            
+            range_name: The range to append to
+
         Returns:
             Mock response indicating success
         """
@@ -124,4 +131,14 @@ class GoogleSheetsMock:
                 "updatedCells": len(values) * (len(values[0]) if values else 0)
             }
         }
+
+    # Alias for backward compatibility
+    def append_row(
+        self,
+        spreadsheet_id: str,
+        range_name: str,
+        values: List[List[Any]]
+    ) -> Dict[str, Any]:
+        """Alias for append_carnet_bord for backward compatibility."""
+        return self.append_carnet_bord(spreadsheet_id, values, range_name)
 
