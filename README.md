@@ -176,6 +176,40 @@ uvicorn app.main:app --reload
   - `GET /docs` - Swagger UI documentation
   - `GET /redoc` - ReDoc documentation
 
+## Testing
+
+### Frontend E2E Tests
+
+End-to-end tests using Playwright:
+
+```bash
+cd frontend
+
+# Run all E2E tests
+npm run e2e
+
+# Run in UI mode (interactive)
+npm run e2e:ui
+
+# Run in headed mode (see browser)
+npm run e2e:headed
+```
+
+**Test Coverage**:
+- Admin vehicle management flow
+- Form vehicle prise submission
+- Reservation and calendar management
+- 13 test scenarios across 3 critical user journeys
+
+See `frontend/e2e/README.md` for detailed documentation.
+
+### Backend Unit Tests
+
+```bash
+cd backend
+pytest
+```
+
 ## Technology Stack
 
 ### Frontend
@@ -183,6 +217,7 @@ uvicorn app.main:app --reload
 - Angular Material
 - TypeScript
 - SCSS
+- Playwright (E2E testing)
 
 ### Backend
 - Python 3.13
@@ -190,3 +225,4 @@ uvicorn app.main:app --reload
 - Pydantic
 - Uvicorn
 - Redis (optional)
+- pytest (testing)
