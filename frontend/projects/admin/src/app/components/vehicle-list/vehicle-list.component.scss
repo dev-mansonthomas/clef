@@ -1,0 +1,95 @@
+.vehicle-list-container {
+  padding: 24px;
+  max-width: 1400px;
+  margin: 0 auto;
+
+  h1 {
+    margin-bottom: 24px;
+    color: #333;
+  }
+
+  .filters {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+
+    mat-form-field {
+      min-width: 250px;
+    }
+  }
+
+  .loading {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 400px;
+  }
+
+  .table-container {
+    overflow-x: auto;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+
+    .vehicle-table {
+      width: 100%;
+
+      th {
+        font-weight: 600;
+        background-color: #f5f5f5;
+        padding: 16px;
+      }
+
+      td {
+        padding: 16px;
+      }
+
+      .clickable-row {
+        cursor: pointer;
+        transition: background-color 0.2s;
+
+        &:hover {
+          background-color: #f9f9f9;
+        }
+      }
+
+      // Status color classes
+      .status-red {
+        color: #d32f2f;
+        font-weight: 600;
+        padding: 4px 8px;
+        border-radius: 4px;
+        background-color: #ffebee;
+      }
+
+      .status-orange {
+        color: #f57c00;
+        font-weight: 600;
+        padding: 4px 8px;
+        border-radius: 4px;
+        background-color: #fff3e0;
+      }
+
+      .status-green {
+        color: #388e3c;
+        font-weight: 600;
+        padding: 4px 8px;
+        border-radius: 4px;
+        background-color: #e8f5e9;
+      }
+    }
+
+    .no-data {
+      padding: 48px;
+      text-align: center;
+      color: #666;
+
+      p {
+        margin: 0;
+        font-size: 16px;
+      }
+    }
+  }
+}
+
