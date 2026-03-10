@@ -127,10 +127,10 @@ class GoogleDriveMock:
     def delete_file(self, file_id: str) -> bool:
         """
         Delete a file.
-        
+
         Args:
             file_id: The file ID to delete
-            
+
         Returns:
             True if deleted, False if not found
         """
@@ -138,4 +138,29 @@ class GoogleDriveMock:
             del self._mock_files[file_id]
             return True
         return False
+
+    def find_or_create_folder(
+        self,
+        folder_name: str,
+        parent_id: str
+    ) -> Dict[str, Any]:
+        """
+        Find a folder by name in parent, or create it if it doesn't exist.
+
+        Args:
+            folder_name: Name of the folder to find or create
+            parent_id: Parent folder ID
+
+        Returns:
+            Folder metadata
+        """
+        # Search for existing folder
+        for file_data in self._mock_files.values():
+            if (file_data.get("name") == folder_name and
+                parent_id in file_data.get("parents", []) and
+                file_data.get("mimeType") == "application/vnd.google-apps.folder"):
+                return file_data
+
+        # Create if not found
+        return self.create_folder(folder_name, parent_id)
 

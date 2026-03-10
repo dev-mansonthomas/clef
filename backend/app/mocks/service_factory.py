@@ -34,15 +34,13 @@ def get_sheets_service():
 def get_drive_service():
     """
     Get Google Drive service (real or mock).
-    
+
     Returns:
         GoogleDriveMock if USE_MOCKS=true, otherwise real service
     """
-    if use_mocks():
-        return GoogleDriveMock()
-    
-    # TODO: Import and return real Google Drive service when implemented
-    raise NotImplementedError("Real Google Drive service not yet implemented")
+    # Use the new centralized factory from app.services.drive
+    from app.services.drive import get_drive_service as _get_drive_service
+    return _get_drive_service()
 
 
 def get_calendar_service(redis_client: Optional[redis.Redis] = None):
