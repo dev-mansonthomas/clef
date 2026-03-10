@@ -3,9 +3,11 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from datetime import datetime
 from app.models.vehicle import Vehicle, VehicleUpdate, VehicleListResponse
+from app.models.qr_code import QrEncodeRequest, QrEncodeResponse, QrDecodeRequest, QrDecodeResponse
 from app.auth.models import User
 from app.auth.dependencies import require_authenticated_user
 from app.services.vehicle_service import VehicleService
+from app.services.qr_code_service import QrCodeService
 from app.services.calendar_service import CalendarService
 from app.mocks.service_factory import get_sheets_service
 from app.cache import get_cache
@@ -242,3 +244,79 @@ async def get_available_vehicles(
         vehicles=enriched_vehicles
     )
 
+
+@router.post("/encode", response_model=QrEncodeResponse)
+async def encode_vehicle_qr(
+    request: QrEncodeRequest,
+    current_user: User = Depends(require_authenticated_user)
+) -> QrEncodeResponse:
+    """
+    Encode a vehicle nom_synthetique for QR code generation.
+
+    Uses HMAC-SHA256 with SALT to create a secure, tamper-proof encoded ID.
+    The encoded ID can be decoded back to the nom_synthetique.
+
+    Args:
+        request: Contains nom_synthetique to encode
+        current_user: Authenticated user (required)
+
+    Returns:
+        Encoded ID and full QR code URL
+
+    Raises:
+        500: If QR_CODE_SALT is not configured
+    """
+    try:
+        qr_service = QrCodeService()
+        encoded_id = qr_service.encode(request.nom_synthetique)
+        qr_url = qr_service.get_qr_url(encoded_id)
+
+        return QrEncodeResponse(
+            encoded_id=encoded_id,
+            qr_url=qr_url
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
+@router.post("/decode", response_model=QrDecodeResponse)
+async def decode_vehicle_qr(
+    request: QrDecodeRequest
+) -> QrDecodeResponse:
+    """
+    Decode a QR code encoded ID back to nom_synthetique.
+
+    Validates the HMAC signature to ensure the ID hasn't been tampered with.
+    This endpoint does NOT require authentication as it's used by the public
+    form application when scanning QR codes.
+
+    Args:
+        request: Contains encoded_id to decode
+
+    Returns:
+        Decoded nom_synthetique
+
+    Raises:
+        400: If encoded_id is invalid or signature verification fails
+        500: If QR_CODE_SALT is not configured
+    """
+    try:
+        qr_service = QrCodeService()
+        nom_synthetique = qr_service.decode(request.encoded_id)
+
+        if nom_synthetique is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid or tampered QR code"
+            )
+
+        return QrDecodeResponse(nom_synthetique=nom_synthetique)
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
