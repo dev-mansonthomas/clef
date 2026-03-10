@@ -16,22 +16,24 @@ class GoogleGmailMock:
         subject: str,
         body: str,
         from_email: Optional[str] = None,
+        reply_to: Optional[str] = None,
         cc: Optional[List[str]] = None,
         bcc: Optional[List[str]] = None,
         html: bool = False
     ) -> Dict[str, Any]:
         """
         Mock email sending.
-        
+
         Args:
             to: Recipient email address
             subject: Email subject
             body: Email body
             from_email: Sender email (optional)
+            reply_to: Reply-To email address (optional)
             cc: CC recipients (optional)
             bcc: BCC recipients (optional)
             html: Whether body is HTML
-            
+
         Returns:
             Mock message metadata
         """
@@ -41,6 +43,7 @@ class GoogleGmailMock:
             "threadId": f"mock-thread-{datetime.now().timestamp()}",
             "to": to,
             "from": from_email or "noreply@croix-rouge.fr",
+            "reply_to": reply_to,
             "subject": subject,
             "body": body,
             "cc": cc or [],
@@ -72,18 +75,20 @@ class GoogleGmailMock:
         vehicle_name: str,
         alert_type: str,
         expiry_date: str,
-        from_email: Optional[str] = None
+        from_email: Optional[str] = None,
+        reply_to: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Send a vehicle alert email (CT or pollution expiry).
-        
+
         Args:
             to: Recipient email
             vehicle_name: Vehicle name
             alert_type: Type of alert (CT or Pollution)
             expiry_date: Expiry date
             from_email: Sender email (optional)
-            
+            reply_to: Reply-To email address (optional)
+
         Returns:
             Mock message metadata
         """
@@ -106,6 +111,8 @@ Système CLEF - Gestion des Véhicules
             to=to,
             subject=subject,
             body=body,
-            from_email=from_email
+            from_email=from_email,
+            reply_to=reply_to,
+            html=True
         )
 

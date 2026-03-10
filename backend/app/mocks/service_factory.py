@@ -63,13 +63,13 @@ def get_calendar_service(redis_client: Optional[redis.Redis] = None):
 def get_gmail_service():
     """
     Get Gmail service (real or mock).
-    
+
     Returns:
         GoogleGmailMock if USE_MOCKS=true, otherwise real service
     """
     if use_mocks():
         return GoogleGmailMock()
-    
-    # TODO: Import and return real Gmail service when implemented
-    raise NotImplementedError("Real Gmail service not yet implemented")
+
+    from app.services.gmail_real import GoogleGmailService
+    return GoogleGmailService()
 

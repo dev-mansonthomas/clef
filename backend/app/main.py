@@ -20,6 +20,8 @@ from app.routers import vehicles
 from app.routers import reservations
 from app.routers import carnet_bord
 from app.routers import upload
+from app.routers import alerts
+from app.scheduler import start_scheduler, stop_scheduler
 
 app = FastAPI(
     title="CLEF API",
@@ -44,6 +46,7 @@ app.include_router(vehicles.router)
 app.include_router(reservations.router)
 app.include_router(carnet_bord.router)
 app.include_router(upload.router)
+app.include_router(alerts.router)
 
 # Cache instances
 cache = get_cache()
@@ -76,6 +79,10 @@ async def startup_event():
         await cache_service.preload_responsables(responsables)
         logger.info(f"Preloaded {len(responsables)} responsables into cache")
 
+        # Start scheduler for alerts
+        start_scheduler()
+        logger.info("Scheduler started for periodic alerts")
+
     except Exception as e:
         logger.error(f"Error during startup: {e}")
         raise
@@ -83,8 +90,13 @@ async def startup_event():
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    """Close Redis connection on shutdown"""
+    """Close Redis connection and stop scheduler on shutdown"""
     try:
+        # Stop scheduler
+        stop_scheduler()
+        logger.info("Scheduler stopped")
+
+        # Close Redis connection
         await cache.disconnect()
         logger.info("Redis connection closed")
     except Exception as e:
