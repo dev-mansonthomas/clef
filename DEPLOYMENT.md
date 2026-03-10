@@ -27,7 +27,64 @@ Create or use existing GCP projects:
 - `rcq-fr-test` (testing)
 - `rcq-fr-prod` (production)
 
-### 2. Enable Required APIs
+### 2. Automated GCP Setup (Recommended)
+
+We provide two options for automating the GCP infrastructure setup:
+
+#### Option A: Bash Script (Interactive)
+
+The bash script provides an interactive setup experience with prompts and confirmations:
+
+```bash
+cd backend
+./scripts/setup_gcp.sh dev
+```
+
+This script will:
+- ✅ Set the active GCP project
+- ✅ Enable all required APIs (Sheets, Drive, Calendar, Gmail, Cloud Run, Artifact Registry, Redis, Secret Manager)
+- ✅ Create the `clef-backend` service account
+- ✅ Assign necessary IAM roles
+- ✅ Generate a service account JSON key (with confirmation)
+- ✅ Create Artifact Registry repository
+- ✅ Optionally create Secret Manager secrets
+- ✅ Generate a partial `.env.{env}` file with configuration
+
+**Usage for different environments:**
+```bash
+./scripts/setup_gcp.sh dev   # For development
+./scripts/setup_gcp.sh test  # For testing
+./scripts/setup_gcp.sh prod  # For production
+```
+
+#### Option B: Terraform (Infrastructure as Code)
+
+For teams preferring Infrastructure as Code:
+
+```bash
+cd infra
+
+# Initialize Terraform
+terraform init
+
+# Preview changes
+terraform plan -var="environment=dev"
+
+# Apply configuration
+terraform apply -var="environment=dev"
+```
+
+See [infra/README.md](infra/README.md) for detailed Terraform usage.
+
+**Both options create the same infrastructure.** Choose based on your preference:
+- **Bash script**: Simpler, interactive, good for one-time setup
+- **Terraform**: Better for version control, reproducibility, and team collaboration
+
+### 3. Manual Setup (Alternative)
+
+If you prefer manual setup or need to troubleshoot, here are the individual commands:
+
+#### Enable Required APIs
 
 ```bash
 gcloud services enable \
@@ -38,10 +95,12 @@ gcloud services enable \
   drive.googleapis.com \
   calendar.googleapis.com \
   gmail.googleapis.com \
+  secretmanager.googleapis.com \
+  iam.googleapis.com \
   --project=rcq-fr-dev
 ```
 
-### 3. Create Artifact Registry Repository
+#### Create Artifact Registry Repository
 
 ```bash
 gcloud artifacts repositories create clef-images \
@@ -51,19 +110,7 @@ gcloud artifacts repositories create clef-images \
   --project=rcq-fr-dev
 ```
 
-### 4. Create MemoryStore Redis Instance
-
-```bash
-gcloud redis instances create clef-cache \
-  --size=1 \
-  --region=europe-west1 \
-  --redis-version=redis_7_0 \
-  --enable-auth \
-  --persistence-mode=rdb \
-  --project=rcq-fr-dev
-```
-
-### 5. Create Service Account
+#### Create Service Account
 
 ```bash
 # Create service account
@@ -74,16 +121,48 @@ gcloud iam service-accounts create clef-backend \
 # Grant necessary roles
 gcloud projects add-iam-policy-binding rcq-fr-dev \
   --member="serviceAccount:clef-backend@rcq-fr-dev.iam.gserviceaccount.com" \
-  --role="roles/run.invoker"
+  --role="roles/run.admin"
+
+gcloud projects add-iam-policy-binding rcq-fr-dev \
+  --member="serviceAccount:clef-backend@rcq-fr-dev.iam.gserviceaccount.com" \
+  --role="roles/artifactregistry.writer"
 
 gcloud projects add-iam-policy-binding rcq-fr-dev \
   --member="serviceAccount:clef-backend@rcq-fr-dev.iam.gserviceaccount.com" \
   --role="roles/redis.editor"
 
+gcloud projects add-iam-policy-binding rcq-fr-dev \
+  --member="serviceAccount:clef-backend@rcq-fr-dev.iam.gserviceaccount.com" \
+  --role="roles/secretmanager.secretAccessor"
+
+gcloud projects add-iam-policy-binding rcq-fr-dev \
+  --member="serviceAccount:clef-backend@rcq-fr-dev.iam.gserviceaccount.com" \
+  --role="roles/iam.serviceAccountUser"
+
 # Generate key for GitHub Actions
 gcloud iam service-accounts keys create key.json \
   --iam-account=clef-backend@rcq-fr-dev.iam.gserviceaccount.com \
   --project=rcq-fr-dev
+```
+
+### 4. Create MemoryStore Redis Instance
+
+**Note:** This step is NOT automated by the setup scripts and must be done manually.
+
+```bash
+gcloud redis instances create clef-cache \
+  --size=1 \
+  --region=europe-west1 \
+  --redis-version=redis_7_0 \
+  --enable-auth \
+  --persistence-mode=rdb \
+  --project=rcq-fr-dev
+
+# Get the Redis instance IP for your .env file
+gcloud redis instances describe clef-cache \
+  --region=europe-west1 \
+  --project=rcq-fr-dev \
+  --format="value(host)"
 ```
 
 ## GitHub Secrets Configuration
