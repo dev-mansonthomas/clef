@@ -1,0 +1,77 @@
+services:
+  # Redis - Mock MemoryStore for local development
+  redis:
+    image: redis:7-alpine
+    container_name: clef-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - clef-network
+
+  # Backend - FastAPI with Python 3.13
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: clef-backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - backend-cache:/root/.cache
+    environment:
+      - PYTHONUNBUFFERED=1
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - ENV=dev
+    depends_on:
+      redis:
+        condition: service_healthy
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - clef-network
+
+  # Frontend - Angular 21
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: clef-frontend
+    ports:
+      - "4200:4200"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - frontend-cache:/root/.npm
+    environment:
+      - NODE_ENV=development
+      - API_URL=http://localhost:8000
+    depends_on:
+      backend:
+        condition: service_healthy
+    command: npm run start -- --host 0.0.0.0 --poll 2000
+    networks:
+      - clef-network
+
+networks:
+  clef-network:
+    driver: bridge
+
+volumes:
+  redis-data:
+  backend-cache:
+  frontend-cache:
+
