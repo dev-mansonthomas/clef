@@ -1,0 +1,148 @@
+.form-container {
+  padding: 1rem;
+  max-width: 800px;
+  margin: 0 auto;
+  min-height: 100vh;
+  background-color: var(--mat-sys-surface-container-low);
+
+  @media (max-width: 600px) {
+    padding: 0.5rem;
+  }
+}
+
+mat-card {
+  margin-bottom: 1rem;
+}
+
+mat-card-header {
+  margin-bottom: 1.5rem;
+}
+
+.full-width {
+  width: 100%;
+  margin-bottom: 1rem;
+}
+
+.form-section {
+  margin-bottom: 1.5rem;
+
+  .section-label {
+    display: block;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--mat-sys-on-surface-variant);
+    margin-bottom: 0.5rem;
+  }
+}
+
+// Slider styling
+.slider-container {
+  padding: 0 1rem;
+
+  .slider-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: var(--mat-sys-on-surface-variant);
+    margin-top: 0.5rem;
+  }
+}
+
+// Photo upload
+.photo-upload {
+  margin-bottom: 1rem;
+
+  button {
+    mat-icon {
+      margin-right: 0.5rem;
+    }
+  }
+}
+
+.photo-previews {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+
+  .photo-preview {
+    position: relative;
+    aspect-ratio: 1;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 2px solid var(--mat-sys-outline-variant);
+
+    img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .remove-photo {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      background-color: rgba(0, 0, 0, 0.6);
+      color: white;
+
+      &:hover {
+        background-color: rgba(0, 0, 0, 0.8);
+      }
+    }
+  }
+}
+
+// Signature pad
+.signature-container {
+  position: relative;
+  border: 2px solid var(--mat-sys-outline-variant);
+  border-radius: 8px;
+  background-color: white;
+  padding: 0.5rem;
+
+  .signature-canvas {
+    width: 100%;
+    height: 200px;
+    touch-action: none;
+    cursor: crosshair;
+
+    @media (max-width: 600px) {
+      height: 150px;
+    }
+  }
+
+  .clear-signature {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    background-color: rgba(255, 255, 255, 0.9);
+  }
+}
+
+// Form actions
+.form-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--mat-sys-outline-variant);
+
+  button {
+    min-width: 120px;
+
+    mat-spinner {
+      display: inline-block;
+      margin-right: 0.5rem;
+    }
+  }
+
+  @media (max-width: 600px) {
+    flex-direction: column-reverse;
+
+    button {
+      width: 100%;
+    }
+  }
+}
+
