@@ -1,0 +1,65 @@
+<mat-sidenav-container class="layout-container">
+  <!-- Sidebar -->
+  <mat-sidenav
+    #sidenav
+    mode="side"
+    [opened]="sidenavOpened()"
+    class="layout-sidenav"
+  >
+    <div class="sidenav-header">
+      <h2>Gestion de Flotte</h2>
+    </div>
+    
+    <mat-nav-list>
+      <a mat-list-item routerLink="/dashboard" routerLinkActive="active">
+        <mat-icon matListItemIcon>dashboard</mat-icon>
+        <span matListItemTitle>Tableau de bord</span>
+      </a>
+
+      <a mat-list-item routerLink="/vehicles" routerLinkActive="active">
+        <mat-icon matListItemIcon>directions_car</mat-icon>
+        <span matListItemTitle>Véhicules</span>
+      </a>
+
+      <a mat-list-item routerLink="/calendar" routerLinkActive="active">
+        <mat-icon matListItemIcon>calendar_today</mat-icon>
+        <span matListItemTitle>Calendrier</span>
+      </a>
+
+      <a mat-list-item routerLink="/qr-codes" routerLinkActive="active">
+        <mat-icon matListItemIcon>qr_code</mat-icon>
+        <span matListItemTitle>QR Codes</span>
+      </a>
+
+      <a mat-list-item routerLink="/config" routerLinkActive="active">
+        <mat-icon matListItemIcon>settings</mat-icon>
+        <span matListItemTitle>Configuration</span>
+      </a>
+    </mat-nav-list>
+  </mat-sidenav>
+
+  <!-- Main content -->
+  <mat-sidenav-content>
+    <!-- Toolbar -->
+    <mat-toolbar color="primary" class="layout-toolbar">
+      <button mat-icon-button (click)="toggleSidenav()">
+        <mat-icon>menu</mat-icon>
+      </button>
+      
+      <span class="toolbar-spacer"></span>
+      
+      @if (currentUser$ | async; as user) {
+        <span class="user-info">{{ user.prenom }} {{ user.nom }}</span>
+        <button mat-icon-button (click)="logout()">
+          <mat-icon>logout</mat-icon>
+        </button>
+      }
+    </mat-toolbar>
+
+    <!-- Page content -->
+    <div class="layout-content">
+      <router-outlet></router-outlet>
+    </div>
+  </mat-sidenav-content>
+</mat-sidenav-container>
+
