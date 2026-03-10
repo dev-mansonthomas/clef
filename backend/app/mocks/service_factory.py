@@ -1,6 +1,7 @@
 """Factory for creating Google API services (real or mock based on environment)."""
 import os
-from typing import Union
+import redis
+from typing import Union, Optional
 
 from .google_sheets_mock import GoogleSheetsMock
 from .google_drive_mock import GoogleDriveMock
@@ -21,15 +22,13 @@ def use_mocks() -> bool:
 def get_sheets_service():
     """
     Get Google Sheets service (real or mock).
-    
+
     Returns:
         GoogleSheetsMock if USE_MOCKS=true, otherwise real service
     """
-    if use_mocks():
-        return GoogleSheetsMock()
-    
-    # TODO: Import and return real Google Sheets service when implemented
-    raise NotImplementedError("Real Google Sheets service not yet implemented")
+    # Use the new centralized factory from app.services.sheets
+    from app.services.sheets import get_sheets_service as _get_sheets_service
+    return _get_sheets_service()
 
 
 def get_drive_service():
@@ -46,18 +45,21 @@ def get_drive_service():
     raise NotImplementedError("Real Google Drive service not yet implemented")
 
 
-def get_calendar_service():
+def get_calendar_service(redis_client: Optional[redis.Redis] = None):
     """
     Get Google Calendar service (real or mock).
-    
+
+    Args:
+        redis_client: Redis client for storing calendar IDs (optional)
+
     Returns:
-        GoogleCalendarMock if USE_MOCKS=true, otherwise real service
+        GoogleCalendarMock if USE_MOCKS=true, otherwise real CalendarService
     """
     if use_mocks():
         return GoogleCalendarMock()
-    
-    # TODO: Import and return real Google Calendar service when implemented
-    raise NotImplementedError("Real Google Calendar service not yet implemented")
+
+    from app.services.calendar_service import CalendarService
+    return CalendarService(redis_client=redis_client)
 
 
 def get_gmail_service():
