@@ -33,7 +33,12 @@ export class AuthService {
    * Initiate login flow - redirects to Google OAuth
    */
   login(): void {
-    this.http.get<LoginResponse>(`${this.apiUrl}/auth/login`).subscribe({
+    // Get current origin for redirect_to parameter
+    const redirectTo = window.location.origin;
+
+    this.http.get<LoginResponse>(`${this.apiUrl}/auth/login`, {
+      params: { redirect_to: redirectTo }
+    }).subscribe({
       next: (response) => {
         // Redirect to Google OAuth authorization URL
         window.location.href = response.authorization_url;

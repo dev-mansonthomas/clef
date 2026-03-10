@@ -2,6 +2,8 @@
 Authentication routes for Google OAuth SSO.
 """
 import secrets
+import json
+import base64
 from typing import Optional
 from fastapi import APIRouter, HTTPException, status, Response, Query, Depends
 from fastapi.responses import RedirectResponse
@@ -18,16 +20,52 @@ router = APIRouter(prefix="/auth", tags=["authentication"])
 google_oauth = GoogleOAuthService()
 
 
+def validate_redirect_url(url: str) -> bool:
+    """
+    Validate that the redirect URL is in the allowed list.
+
+    Args:
+        url: URL to validate
+
+    Returns:
+        True if URL is allowed, False otherwise
+    """
+    # Strip trailing slashes for comparison
+    url_normalized = url.rstrip("/")
+
+    for allowed_url in auth_settings.allowed_frontend_urls:
+        allowed_normalized = allowed_url.strip().rstrip("/")
+        if url_normalized == allowed_normalized or url_normalized.startswith(allowed_normalized + "/"):
+            return True
+
+    return False
+
+
 @router.get("/login", response_model=LoginResponse)
-async def login():
+async def login(redirect_to: Optional[str] = Query(None, description="URL to redirect to after login")):
     """
     Initiate Google OAuth2 login flow.
+
+    Args:
+        redirect_to: Optional URL to redirect to after successful login.
+                     Must be in the allowed frontend URLs list.
 
     Returns:
         Authorization URL to redirect user to
     """
-    # Generate state for CSRF protection
-    state = secrets.token_urlsafe(32)
+    # Validate redirect_to if provided
+    if redirect_to and not validate_redirect_url(redirect_to):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid redirect URL. Must be one of: {', '.join(auth_settings.allowed_frontend_urls)}"
+        )
+
+    # Generate state for CSRF protection with optional redirect_to
+    state_data = {
+        "csrf": secrets.token_urlsafe(32),
+        "redirect_to": redirect_to or auth_settings.allowed_frontend_urls[0]  # Default to first allowed URL
+    }
+    state = base64.urlsafe_b64encode(json.dumps(state_data).encode()).decode()
 
     if auth_settings.use_mocks and okta_mock:
         # Mock mode: return simplified URL (for backward compatibility)
@@ -52,12 +90,23 @@ async def callback(
 
     Args:
         code: Authorization code from Google
-        state: State parameter for CSRF protection
+        state: State parameter for CSRF protection (contains redirect_to URL)
 
     Returns:
         Redirect to frontend with session cookie set
     """
     try:
+        # Decode state to get redirect URL
+        try:
+            state_data = json.loads(base64.urlsafe_b64decode(state))
+            redirect_url = state_data.get("redirect_to", auth_settings.allowed_frontend_urls[0])
+        except (json.JSONDecodeError, ValueError):
+            # Fallback for old-style state (just CSRF token)
+            redirect_url = auth_settings.allowed_frontend_urls[0]
+
+        # Validate redirect URL
+        if not validate_redirect_url(redirect_url):
+            redirect_url = auth_settings.allowed_frontend_urls[0]
         if auth_settings.use_mocks and okta_mock:
             # Mock mode: use mock token exchange (for backward compatibility)
             token_response = okta_mock.exchange_code_for_token(
@@ -98,8 +147,8 @@ async def callback(
             # Use id_token as session token
             session_token = id_token
 
-        # Create redirect response
-        redirect_response = RedirectResponse(url="http://localhost:4200/")
+        # Create redirect response with dynamic URL
+        redirect_response = RedirectResponse(url=redirect_url)
 
         # Set session cookie
         redirect_response.set_cookie(

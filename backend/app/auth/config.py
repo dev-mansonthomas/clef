@@ -36,6 +36,12 @@ class AuthSettings(BaseSettings):
     # Mock mode
     use_mocks: bool = os.getenv("USE_MOCKS", "false").lower() == "true"
 
+    # Allowed frontend URLs for redirect (comma-separated)
+    allowed_frontend_urls: list[str] = os.getenv(
+        "ALLOWED_FRONTEND_URLS",
+        "http://localhost:4200,http://localhost:4202"
+    ).split(",")
+
     class Config:
         env_file = ".env"
         case_sensitive = False

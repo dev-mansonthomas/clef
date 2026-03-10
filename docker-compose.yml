@@ -44,12 +44,12 @@ services:
     networks:
       - clef-network
 
-  # Frontend - Angular 21
+  # Frontend Admin - Angular 21
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile.dev
-    container_name: clef-frontend
+    container_name: clef-frontend-admin
     ports:
       - "4200:4200"
     volumes:
@@ -62,7 +62,29 @@ services:
     depends_on:
       backend:
         condition: service_healthy
-    command: npm run start -- --host 0.0.0.0 --poll 2000
+    command: npm run start -- --project=admin --host 0.0.0.0 --port 4200 --poll 2000
+    networks:
+      - clef-network
+
+  # Frontend Form - Angular 21
+  frontend-form:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: clef-frontend-form
+    ports:
+      - "4202:4200"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - frontend-form-cache:/root/.npm
+    environment:
+      - NODE_ENV=development
+      - API_URL=http://localhost:8000
+    depends_on:
+      backend:
+        condition: service_healthy
+    command: npm run start -- --project=form --host 0.0.0.0 --port 4200 --poll 2000
     networks:
       - clef-network
 
@@ -74,4 +96,5 @@ volumes:
   redis-data:
   backend-cache:
   frontend-cache:
+  frontend-form-cache:
 
