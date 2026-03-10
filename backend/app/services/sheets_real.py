@@ -128,6 +128,27 @@ class GoogleSheetsService(SheetsService):
 
         return self._read_sheet(sheet_id)
 
+    def get_vehicule_by_nom_synthetique(
+        self,
+        nom_synthetique: str,
+        spreadsheet_id: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Get a specific vehicle by its synthetic name.
+
+        Args:
+            nom_synthetique: The unique synthetic name of the vehicle
+            spreadsheet_id: Optional spreadsheet ID (uses env var if not provided)
+
+        Returns:
+            Vehicle dictionary or None if not found
+        """
+        vehicles = self.get_vehicles(spreadsheet_id)
+        for vehicle in vehicles:
+            if vehicle.get("nom_synthetique") == nom_synthetique:
+                return vehicle
+        return None
+
     def append_carnet_bord(
         self,
         spreadsheet_id: str,

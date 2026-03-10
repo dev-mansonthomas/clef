@@ -47,6 +47,24 @@ class SheetsService(ABC):
         pass
     
     @abstractmethod
+    def get_vehicule_by_nom_synthetique(
+        self,
+        nom_synthetique: str,
+        spreadsheet_id: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Get a specific vehicle by its synthetic name.
+
+        Args:
+            nom_synthetique: The unique synthetic name of the vehicle
+            spreadsheet_id: Optional spreadsheet ID (uses env var if not provided)
+
+        Returns:
+            Vehicle dictionary or None if not found
+        """
+        pass
+
+    @abstractmethod
     def append_carnet_bord(
         self,
         spreadsheet_id: str,
@@ -55,12 +73,12 @@ class SheetsService(ABC):
     ) -> Dict[str, Any]:
         """
         Append rows to a logbook (carnet de bord) spreadsheet.
-        
+
         Args:
             spreadsheet_id: The spreadsheet ID to append to
             values: List of rows to append (each row is a list of values)
             range_name: The range to append to (default: "Sheet1!A1")
-            
+
         Returns:
             Response with update information
         """

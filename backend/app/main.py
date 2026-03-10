@@ -18,6 +18,8 @@ logger = logging.getLogger(__name__)
 from app.routers import config_router, calendar_router
 from app.routers import vehicles
 from app.routers import reservations
+from app.routers import carnet_bord
+from app.routers import upload
 
 app = FastAPI(
     title="CLEF API",
@@ -40,6 +42,8 @@ app.include_router(config_router)
 app.include_router(calendar_router)
 app.include_router(vehicles.router)
 app.include_router(reservations.router)
+app.include_router(carnet_bord.router)
+app.include_router(upload.router)
 
 # Cache instances
 cache = get_cache()
