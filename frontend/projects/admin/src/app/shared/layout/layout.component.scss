@@ -111,9 +111,5 @@
     border-right: none; // Remove border that could create visual gap
     box-shadow: none; // Remove shadow
   }
-
-  mat-sidenav-content {
-    margin-left: 0 !important; // Ensure no gap
-  }
 }
 
