@@ -7,6 +7,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSortModule } from '@angular/material/sort';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatButtonModule } from '@angular/material/button';
 import { FormsModule } from '@angular/forms';
 import { VehicleService } from '../../services/vehicle.service';
 import { Vehicle, DisponibiliteStatus } from '../../models/vehicle.model';
@@ -22,6 +23,7 @@ import { Vehicle, DisponibiliteStatus } from '../../models/vehicle.model';
     MatSelectModule,
     MatSortModule,
     MatProgressSpinnerModule,
+    MatButtonModule,
     FormsModule
   ],
   templateUrl: './vehicle-list.component.html',
@@ -34,12 +36,16 @@ export class VehicleListComponent implements OnInit {
   availabilityFilter = signal<'all' | DisponibiliteStatus>('all');
 
   displayedColumns: string[] = [
+    'dt_ul',
     'indicatif',
     'immat',
+    'type',
     'marque_modele',
     'status_ct',
     'status_pollution',
-    'status_disponibilite'
+    'assurance',
+    'status_disponibilite',
+    'responsable'
   ];
 
   filteredVehicles = computed(() => {
@@ -90,6 +96,12 @@ export class VehicleListComponent implements OnInit {
 
   onRowClick(vehicle: Vehicle): void {
     this.router.navigate(['/vehicles', vehicle.nom_synthetique, 'edit']);
+  }
+
+  onAddVehicle(): void {
+    // Navigate to vehicle creation form
+    // Using 'new' as a placeholder for creation mode
+    this.router.navigate(['/vehicles', 'new', 'edit']);
   }
 
   getStatusClass(color: string): string {

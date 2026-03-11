@@ -1,5 +1,10 @@
 <div class="vehicle-list-container">
-  <h1>Liste des Véhicules</h1>
+  <div class="header-section">
+    <h1>Liste des Véhicules</h1>
+    <button mat-raised-button color="primary" (click)="onAddVehicle()">
+      Ajouter un véhicule
+    </button>
+  </div>
 
   <!-- Filters -->
   <div class="filters">
@@ -37,6 +42,12 @@
   @if (!loading()) {
     <div class="table-container">
       <table mat-table [dataSource]="filteredVehicles()" class="vehicle-table">
+        <!-- DT/UL Column -->
+        <ng-container matColumnDef="dt_ul">
+          <th mat-header-cell *matHeaderCellDef>DT/UL</th>
+          <td mat-cell *matCellDef="let vehicle">{{ vehicle.dt_ul }}</td>
+        </ng-container>
+
         <!-- Indicatif Column -->
         <ng-container matColumnDef="indicatif">
           <th mat-header-cell *matHeaderCellDef>Indicatif</th>
@@ -49,6 +60,12 @@
           <td mat-cell *matCellDef="let vehicle">{{ vehicle.immat }}</td>
         </ng-container>
 
+        <!-- Type Column -->
+        <ng-container matColumnDef="type">
+          <th mat-header-cell *matHeaderCellDef>Type</th>
+          <td mat-cell *matCellDef="let vehicle">{{ vehicle.type }}</td>
+        </ng-container>
+
         <!-- Marque/Modèle Column -->
         <ng-container matColumnDef="marque_modele">
           <th mat-header-cell *matHeaderCellDef>Marque / Modèle</th>
@@ -57,7 +74,7 @@
 
         <!-- CT Status Column -->
         <ng-container matColumnDef="status_ct">
-          <th mat-header-cell *matHeaderCellDef>Contrôle Technique</th>
+          <th mat-header-cell *matHeaderCellDef>CT</th>
           <td mat-cell *matCellDef="let vehicle">
             <span [class]="getStatusClass(vehicle.status_ct.color)">
               {{ vehicle.status_ct.value }}
@@ -67,12 +84,18 @@
 
         <!-- Pollution Status Column -->
         <ng-container matColumnDef="status_pollution">
-          <th mat-header-cell *matHeaderCellDef>Contrôle Pollution</th>
+          <th mat-header-cell *matHeaderCellDef>Pollution</th>
           <td mat-cell *matCellDef="let vehicle">
             <span [class]="getStatusClass(vehicle.status_pollution.color)">
               {{ vehicle.status_pollution.value }}
             </span>
           </td>
+        </ng-container>
+
+        <!-- Assurance Column -->
+        <ng-container matColumnDef="assurance">
+          <th mat-header-cell *matHeaderCellDef>Assurance</th>
+          <td mat-cell *matCellDef="let vehicle">{{ vehicle.assurance_2026 }}</td>
         </ng-container>
 
         <!-- Disponibilité Status Column -->
@@ -83,6 +106,12 @@
               {{ vehicle.status_disponibilite.value }}
             </span>
           </td>
+        </ng-container>
+
+        <!-- Responsable Column -->
+        <ng-container matColumnDef="responsable">
+          <th mat-header-cell *matHeaderCellDef>Responsable</th>
+          <td mat-cell *matCellDef="let vehicle">{{ vehicle.dt_ul }}</td>
         </ng-container>
 
         <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>

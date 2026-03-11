@@ -3,9 +3,16 @@
   max-width: 1400px;
   margin: 0 auto;
 
-  h1 {
+  .header-section {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     margin-bottom: 24px;
-    color: #333;
+
+    h1 {
+      margin: 0;
+      color: #333;
+    }
   }
 
   .filters {
