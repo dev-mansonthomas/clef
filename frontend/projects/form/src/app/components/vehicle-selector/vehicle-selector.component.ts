@@ -102,7 +102,17 @@ export class VehicleSelectorComponent implements OnInit, OnDestroy {
     this.cameraError.set(null);
     this.error.set(null);
 
+    // Wait for Angular to render the qr-reader element
+    // Using setTimeout to allow the next change detection cycle
+    await new Promise(resolve => setTimeout(resolve, 100));
+
     try {
+      // Verify the element exists
+      const element = document.getElementById(this.qrCodeRegionId);
+      if (!element) {
+        throw new Error(`HTML Element with id=${this.qrCodeRegionId} not found`);
+      }
+
       this.html5QrCode = new Html5Qrcode(this.qrCodeRegionId);
 
       await this.html5QrCode.start(
