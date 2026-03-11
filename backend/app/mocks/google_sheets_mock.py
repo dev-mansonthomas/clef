@@ -1,28 +1,127 @@
 """Mock implementation of Google Sheets API service."""
-import json
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from app.services.sheets import SheetsService
 
 
 class GoogleSheetsMock(SheetsService):
-    """Mock Google Sheets service that returns data from JSON files."""
-    
+    """Mock Google Sheets service that returns hardcoded test data."""
+
     def __init__(self):
-        """Initialize the mock service with data from JSON files."""
-        self.data_dir = Path(__file__).parent / "data"
-        self._vehicules_data = self._load_json("vehicules.json")
-        self._benevoles_data = self._load_json("benevoles.json")
-        self._responsables_data = self._load_json("responsables.json")
-    
-    def _load_json(self, filename: str) -> List[Dict[str, Any]]:
-        """Load JSON data from file."""
-        file_path = self.data_dir / filename
-        if not file_path.exists():
-            return []
-        with open(file_path, "r", encoding="utf-8") as f:
-            return json.load(f)
+        """Initialize the mock service with hardcoded test data."""
+        self._vehicules_data = self._get_test_vehicules()
+        self._benevoles_data = self._get_test_benevoles()
+        self._responsables_data = self._get_test_responsables()
+
+    def _get_test_vehicules(self) -> List[Dict[str, Any]]:
+        """Return hardcoded test vehicle data."""
+        return [
+            {
+                "dt_ul": "DT75",
+                "immat": "AB-123-CD",
+                "indicatif": "VL 001",
+                "operationnel_mecanique": "Dispo",
+                "raison_indispo": "",
+                "prochain_controle_technique": "2027-06-15",
+                "prochain_controle_pollution": "2027-06-15",
+                "marque": "DACIA",
+                "modele": "Duster",
+                "type": "VL",
+                "date_mec": "2020-06-24",
+                "nom_synthetique": "DT75 - VL 001 - AB-123-CD",
+                "carte_grise": "OK",
+                "nb_places": "5",
+                "commentaires": "Véhicule de test 1",
+                "lieu_stationnement": "Siège DT75",
+                "instructions_recuperation": "Clés au bureau",
+                "assurance": "Tous Risques",
+                "numero_serie_baus": ""
+            },
+            {
+                "dt_ul": "DT75",
+                "immat": "EF-456-GH",
+                "indicatif": "VL 002",
+                "operationnel_mecanique": "Dispo",
+                "raison_indispo": "",
+                "prochain_controle_technique": "2026-12-20",
+                "prochain_controle_pollution": "2026-12-20",
+                "marque": "RENAULT",
+                "modele": "Kangoo",
+                "type": "VL",
+                "date_mec": "2019-03-15",
+                "nom_synthetique": "DT75 - VL 002 - EF-456-GH",
+                "carte_grise": "OK",
+                "nb_places": "5",
+                "commentaires": "Véhicule de test 2",
+                "lieu_stationnement": "UL Paris 15",
+                "instructions_recuperation": "Contacter le responsable",
+                "assurance": "Tous Risques",
+                "numero_serie_baus": ""
+            },
+            {
+                "dt_ul": "DT75",
+                "immat": "IJ-789-KL",
+                "indicatif": "VPSP 001",
+                "operationnel_mecanique": "Indispo",
+                "raison_indispo": "Révision en cours",
+                "prochain_controle_technique": "2026-08-10",
+                "prochain_controle_pollution": "2026-08-10",
+                "marque": "PEUGEOT",
+                "modele": "Partner",
+                "type": "VPSP",
+                "date_mec": "2018-11-05",
+                "nom_synthetique": "DT75 - VPSP 001 - IJ-789-KL",
+                "carte_grise": "OK",
+                "nb_places": "3",
+                "commentaires": "Véhicule de test 3 - En maintenance",
+                "lieu_stationnement": "Garage DT75",
+                "instructions_recuperation": "",
+                "assurance": "Tous Risques",
+                "numero_serie_baus": "BAUS-12345"
+            }
+        ]
+
+    def _get_test_benevoles(self) -> List[Dict[str, Any]]:
+        """Return hardcoded test volunteer data."""
+        return [
+            {
+                "email": "test.benevole1@croix-rouge.fr",
+                "nom": "Dupont",
+                "prenom": "Jean",
+                "ul": "UL Paris 15",
+                "dt": "DT75",
+                "statut": "Actif"
+            },
+            {
+                "email": "test.benevole2@croix-rouge.fr",
+                "nom": "Martin",
+                "prenom": "Marie",
+                "ul": "UL Paris 16",
+                "dt": "DT75",
+                "statut": "Actif"
+            }
+        ]
+
+    def _get_test_responsables(self) -> List[Dict[str, Any]]:
+        """Return hardcoded test manager data."""
+        return [
+            {
+                "email": "test.responsable1@croix-rouge.fr",
+                "nom": "Durand",
+                "prenom": "Pierre",
+                "role": "Responsable UL",
+                "ul": "UL Paris 15",
+                "dt": "DT75"
+            },
+            {
+                "email": "test.responsable2@croix-rouge.fr",
+                "nom": "Bernard",
+                "prenom": "Sophie",
+                "role": "Responsable DT",
+                "ul": "",
+                "dt": "DT75"
+            }
+        ]
     
     def get_vehicles(self, spreadsheet_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """
