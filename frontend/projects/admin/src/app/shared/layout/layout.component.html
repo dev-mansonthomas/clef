@@ -40,14 +40,26 @@
 
   <!-- Main content -->
   <mat-sidenav-content>
+    <!-- Header with logo -->
+    <header class="app-header">
+      <div class="header-content">
+        <img
+          src="assets/images/logo-CLEF-Admin.png"
+          alt="Logo CLEF Admin"
+          class="app-logo"
+        />
+        <h1 class="app-title">Administration - C.L.E.F. - Carnet de Liaison et d'Entretien de la Flotte</h1>
+      </div>
+    </header>
+
     <!-- Toolbar -->
     <mat-toolbar color="primary" class="layout-toolbar">
       <button mat-icon-button (click)="toggleSidenav()">
         <mat-icon>menu</mat-icon>
       </button>
-      
+
       <span class="toolbar-spacer"></span>
-      
+
       @if (currentUser$ | async; as user) {
         <span class="user-info">{{ user.prenom }} {{ user.nom }}</span>
         <button mat-icon-button (click)="logout()">

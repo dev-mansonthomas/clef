@@ -1,10 +1,20 @@
 <div class="layout-container">
-  <!-- Mobile-first header -->
+  <!-- Header with logo -->
+  <header class="app-header">
+    <div class="header-content">
+      <img
+        src="assets/images/logo-CLEF-Carnet-Suivi.png"
+        alt="Logo CLEF Carnet de Suivi"
+        class="app-logo"
+      />
+      <h1 class="app-title-header">C.L.E.F. - Carnet de Suivi Véhicule</h1>
+    </div>
+  </header>
+
+  <!-- Mobile-first toolbar -->
   <mat-toolbar color="primary" class="layout-toolbar">
-    <span class="app-title">Formulaire Véhicule</span>
-    
     <span class="toolbar-spacer"></span>
-    
+
     @if (currentUser$ | async; as user) {
       <span class="user-info">{{ user.prenom }} {{ user.nom }}</span>
       <button mat-icon-button (click)="logout()" aria-label="Déconnexion">

@@ -95,6 +95,11 @@
               {
                 "glob": "**/*",
                 "input": "projects/admin/public"
+              },
+              {
+                "glob": "**/*",
+                "input": "projects/admin/src/assets",
+                "output": "/assets"
               }
             ],
             "styles": [
@@ -164,6 +169,11 @@
               {
                 "glob": "**/*",
                 "input": "projects/form/public"
+              },
+              {
+                "glob": "**/*",
+                "input": "projects/form/src/assets",
+                "output": "/assets"
               }
             ],
             "styles": [
