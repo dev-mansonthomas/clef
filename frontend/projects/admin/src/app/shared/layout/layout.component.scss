@@ -8,15 +8,18 @@
   padding: 0;
   
   .sidenav-header {
-    padding: 1rem;
-    background-color: var(--mat-sys-primary);
-    color: var(--mat-sys-on-primary);
-    
-    h2 {
-      margin: 0;
-      font-size: 1.25rem;
-      font-weight: 500;
-    }
+    background-color: #E0F2F1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    min-height: 80px;
+  }
+
+  .sidenav-logo {
+    max-width: 200px;
+    max-height: 60px;
+    object-fit: contain;
   }
   
   mat-nav-list {
