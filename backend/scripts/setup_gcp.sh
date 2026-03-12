@@ -55,6 +55,21 @@ esac
 print_info "Setting up GCP for environment: $ENV"
 echo ""
 
+# Read .env file if exists
+ENV_FILE="$SCRIPT_DIR/../.env.${ENV}"
+if [ -f "$ENV_FILE" ]; then
+    print_info "Loading configuration from $ENV_FILE"
+    # Source the env file to get variables
+    set -a
+    source "$ENV_FILE"
+    set +a
+fi
+
+# Default values
+VALKEY_MEMORY_GB="${VALKEY_MEMORY_GB:-1}"
+print_info "Valkey memory size: ${VALKEY_MEMORY_GB}GB"
+echo ""
+
 # Check if OpenTofu is installed
 if ! command -v tofu &> /dev/null; then
     print_error "OpenTofu not found. Please install it:"
@@ -85,7 +100,7 @@ tofu init -upgrade
 
 # Plan
 print_info "Planning infrastructure for $ENV..."
-tofu plan -var-file="environments/$ENV.tfvars" -out="tfplan-$ENV"
+tofu plan -var-file="environments/$ENV.tfvars" -var="valkey_memory_gb=${VALKEY_MEMORY_GB}" -out="tfplan-$ENV"
 
 # Confirm
 read -p "Apply this plan? (yes/no): " confirm
