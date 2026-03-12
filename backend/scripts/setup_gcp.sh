@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # CLEF - GCP Setup Script
-# Automates GCP project configuration with gcloud CLI
+# Automates GCP project configuration with OpenTofu
 # Usage: ./setup_gcp.sh [dev|test|prod]
 
 set -e  # Exit on error
@@ -38,18 +38,13 @@ if [ -z "$1" ]; then
 fi
 
 ENV=$1
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TERRAFORM_DIR="$SCRIPT_DIR/../terraform"
+CREDS_DIR="$HOME/.cred/CLEF"
 
-# Map environment to GCP project
+# Validate environment
 case $ENV in
-    dev)
-        PROJECT_ID="rcq-fr-dev"
-        ;;
-    test)
-        PROJECT_ID="rcq-fr-test"
-        ;;
-    prod)
-        PROJECT_ID="rcq-fr-prod"
-        ;;
+    dev|test|prod) ;;
     *)
         print_error "Invalid environment: $ENV"
         echo "Valid options: dev, test, prod"
@@ -58,262 +53,102 @@ case $ENV in
 esac
 
 print_info "Setting up GCP for environment: $ENV"
-print_info "GCP Project: $PROJECT_ID"
 echo ""
 
-# Check if gcloud is installed
-if ! command -v gcloud &> /dev/null; then
-    print_error "gcloud CLI not found. Please install it first:"
-    echo "https://cloud.google.com/sdk/docs/install"
+# Check if OpenTofu is installed
+if ! command -v tofu &> /dev/null; then
+    print_error "OpenTofu not found. Please install it:"
+    echo "  brew install opentofu"
+    echo "  OR: https://opentofu.org/docs/intro/install/"
     exit 1
 fi
 
-# Check if user is authenticated
-if ! gcloud auth list --filter=status:ACTIVE --format="value(account)" &> /dev/null; then
-    print_error "Not authenticated with gcloud. Please run:"
-    echo "gcloud auth login"
-    exit 1
+print_success "OpenTofu found"
+
+# Check if gcloud is authenticated (needed for Terraform Google provider)
+if ! gcloud auth application-default print-access-token &> /dev/null; then
+    print_warning "Not authenticated to GCP"
+    print_info "Running: gcloud auth application-default login"
+    gcloud auth application-default login
 fi
 
-print_success "gcloud CLI found and authenticated"
+print_success "GCP authentication verified"
 
-# Step 1: Set active project
-print_info "Step 1/7: Setting active GCP project..."
-gcloud config set project $PROJECT_ID
-print_success "Active project set to $PROJECT_ID"
-echo ""
+# Create credentials directory
+mkdir -p "$CREDS_DIR"
+chmod 700 "$CREDS_DIR"
 
-# Step 2: Enable required APIs
-print_info "Step 2/7: Enabling required APIs..."
-APIS=(
-    "run.googleapis.com"
-    "artifactregistry.googleapis.com"
-    "redis.googleapis.com"
-    "sheets.googleapis.com"
-    "drive.googleapis.com"
-    "calendar.googleapis.com"
-    "gmail.googleapis.com"
-    "secretmanager.googleapis.com"
-    "iam.googleapis.com"
-)
+# Initialize Terraform
+print_info "Initializing OpenTofu..."
+cd "$TERRAFORM_DIR"
+tofu init -upgrade
 
-for API in "${APIS[@]}"; do
-    print_info "  Enabling $API..."
-    gcloud services enable $API --project=$PROJECT_ID
-done
-print_success "All APIs enabled"
-echo ""
+# Plan
+print_info "Planning infrastructure for $ENV..."
+tofu plan -var-file="environments/$ENV.tfvars" -out="tfplan-$ENV"
 
-# Credentials directory
-CREDS_DIR="$HOME/.cred/CLEF"
+# Confirm
+read -p "Apply this plan? (yes/no): " confirm
+if [ "$confirm" != "yes" ]; then
+    print_warning "Aborted"
+    exit 0
+fi
+
+# Apply
+print_info "Applying infrastructure..."
+tofu apply "tfplan-$ENV"
+
+# Extract service account key
+print_info "Extracting service account key..."
 KEY_FILE="$CREDS_DIR/clef-backend-${ENV}-key.json"
+tofu output -raw service_account_key > "$KEY_FILE"
+chmod 600 "$KEY_FILE"
+print_success "Key saved to: $KEY_FILE"
 
-# Step 3: Create Service Account
-SERVICE_ACCOUNT_NAME="clef-backend"
-SERVICE_ACCOUNT_EMAIL="${SERVICE_ACCOUNT_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
-
-print_info "Step 3/7: Creating Service Account..."
-if gcloud iam service-accounts describe $SERVICE_ACCOUNT_EMAIL --project=$PROJECT_ID &> /dev/null; then
-    print_warning "Service Account $SERVICE_ACCOUNT_EMAIL already exists"
-else
-    gcloud iam service-accounts create $SERVICE_ACCOUNT_NAME \
-        --display-name="CLEF Backend Service Account" \
-        --description="Service account for CLEF application backend" \
-        --project=$PROJECT_ID
-    print_success "Service Account created: $SERVICE_ACCOUNT_EMAIL"
-fi
-echo ""
-
-# Step 4: Assign IAM roles
-print_info "Step 4/7: Assigning IAM roles to Service Account..."
-ROLES=(
-    "roles/run.admin"
-    "roles/artifactregistry.writer"
-    "roles/redis.editor"
-    "roles/secretmanager.secretAccessor"
-    "roles/iam.serviceAccountUser"
-)
-
-for ROLE in "${ROLES[@]}"; do
-    print_info "  Assigning $ROLE..."
-    gcloud projects add-iam-policy-binding $PROJECT_ID \
-        --member="serviceAccount:$SERVICE_ACCOUNT_EMAIL" \
-        --role="$ROLE" \
-        --condition=None \
-        --quiet
-done
-print_success "IAM roles assigned"
-echo ""
-
-# Step 5: Generate Service Account Key
-print_info "Step 5/7: Generating Service Account JSON key..."
-
-# Create credentials directory if it doesn't exist
-if [ ! -d "$CREDS_DIR" ]; then
-    mkdir -p "$CREDS_DIR"
-    chmod 700 "$CREDS_DIR"
-    print_success "Created credentials directory: $CREDS_DIR"
-fi
-
-if [ -f "$KEY_FILE" ]; then
-    print_warning "Key file $KEY_FILE already exists"
-    read -p "Do you want to generate a new key? This will overwrite the existing file. (y/N): " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        print_info "Skipping key generation"
-    else
-        gcloud iam service-accounts keys create $KEY_FILE \
-            --iam-account=$SERVICE_ACCOUNT_EMAIL \
-            --project=$PROJECT_ID
-        chmod 600 "$KEY_FILE"
-        print_success "New key generated: $KEY_FILE"
-        print_warning "IMPORTANT: Store this key securely and never commit it to version control!"
-    fi
-else
-    read -p "Generate Service Account JSON key? (Y/n): " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Nn]$ ]]; then
-        gcloud iam service-accounts keys create $KEY_FILE \
-            --iam-account=$SERVICE_ACCOUNT_EMAIL \
-            --project=$PROJECT_ID
-        chmod 600 "$KEY_FILE"
-        print_success "Key generated: $KEY_FILE"
-        print_warning "IMPORTANT: Store this key securely and never commit it to version control!"
-    else
-        print_info "Skipping key generation"
-    fi
-fi
-echo ""
-
-# Step 6: Create Artifact Registry repository
-print_info "Step 6/7: Creating Artifact Registry repository..."
-REPO_NAME="clef-images"
-REGION="europe-west1"
-
-if gcloud artifacts repositories describe $REPO_NAME \
-    --location=$REGION \
-    --project=$PROJECT_ID &> /dev/null; then
-    print_warning "Artifact Registry repository $REPO_NAME already exists"
-else
-    gcloud artifacts repositories create $REPO_NAME \
-        --repository-format=docker \
-        --location=$REGION \
-        --description="CLEF container images" \
-        --project=$PROJECT_ID
-    print_success "Artifact Registry repository created: $REPO_NAME"
-fi
-echo ""
-
-# Step 7: Optional - Create Secret Manager secrets
-print_info "Step 7/7: Secret Manager setup (optional)..."
-read -p "Do you want to create Secret Manager secrets now? (y/N): " -n 1 -r
-echo
-
-if [[ $REPLY =~ ^[Yy]$ ]]; then
-    print_info "Creating Secret Manager secrets..."
-
-    # List of secrets to create
-    SECRETS=(
-        "OKTA_CLIENT_ID"
-        "OKTA_CLIENT_SECRET"
-        "QR_CODE_SALT"
-        "JWT_SECRET_KEY"
-    )
-
-    for SECRET in "${SECRETS[@]}"; do
-        if gcloud secrets describe $SECRET --project=$PROJECT_ID &> /dev/null; then
-            print_warning "  Secret $SECRET already exists"
-        else
-            print_info "  Creating secret: $SECRET"
-            echo -n "Enter value for $SECRET: "
-            read -s SECRET_VALUE
-            echo
-            echo -n "$SECRET_VALUE" | gcloud secrets create $SECRET \
-                --data-file=- \
-                --replication-policy="automatic" \
-                --project=$PROJECT_ID
-
-            # Grant access to service account
-            gcloud secrets add-iam-policy-binding $SECRET \
-                --member="serviceAccount:$SERVICE_ACCOUNT_EMAIL" \
-                --role="roles/secretmanager.secretAccessor" \
-                --project=$PROJECT_ID \
-                --quiet
-
-            print_success "  Secret $SECRET created and access granted"
-        fi
-    done
-else
-    print_info "Skipping Secret Manager setup"
-    print_info "You can create secrets later using the commands in SECRETS_SETUP.md"
-fi
-echo ""
-
-# Generate partial .env file
-print_info "Generating partial .env.$ENV file..."
-ENV_FILE=".env.$ENV"
-
-cat > $ENV_FILE << EOF
-# CLEF - Environment Configuration for $ENV
+# Generate .env file
+print_info "Generating .env.$ENV..."
+cat > "$SCRIPT_DIR/../.env.$ENV" << EOF
 # Generated by setup_gcp.sh on $(date)
-
-# GCP Configuration
-GCP_PROJECT_ID=$PROJECT_ID
-GCP_REGION=europe-west1
-GCP_SERVICE_ACCOUNT_EMAIL=$SERVICE_ACCOUNT_EMAIL
-
-# Service Account Key Path (update with actual path)
-GOOGLE_APPLICATION_CREDENTIALS=$HOME/.cred/CLEF/clef-backend-${ENV}-key.json
-
-# Redis (MemoryStore)
-# Update with actual MemoryStore instance IP after creation
-REDIS_URL=redis://localhost:6379/0
-
-# Okta Configuration (update with actual values)
-OKTA_DOMAIN=your-domain.okta.com
-OKTA_CLIENT_ID=your-client-id
-OKTA_CLIENT_SECRET=your-client-secret
-OKTA_REDIRECT_URI=https://admin.clef.example.com/auth/callback
-
-# Email Configuration
-EMAIL_GESTIONNAIRE_DT=thomas.manson@croix-rouge.fr
-EMAIL_DESTINATAIRE_ALERTES=Magalie.WERNER@s2hgroup.com
-
-# Google Sheets URLs (update with actual URLs)
-SHEETS_URL_VEHICULES=https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID
-SHEETS_URL_BENEVOLES=https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID
-SHEETS_URL_RESPONSABLES=https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID
-
-# Application Configuration
 ENVIRONMENT=$ENV
-DOMAIN=clef.example.com
+PROJECT_ID=$(tofu output -raw project_id)
+
+# Service Account
+GOOGLE_APPLICATION_CREDENTIALS=$KEY_FILE
+
+# Memorystore Redis
+REDIS_HOST=$(tofu output -raw memorystore_host)
+REDIS_PORT=$(tofu output -raw memorystore_port)
+REDIS_URL=redis://$(tofu output -raw memorystore_host):$(tofu output -raw memorystore_port)/0
+
+# Google OAuth (to be filled manually)
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+GOOGLE_REDIRECT_URI=http://localhost:8000/auth/callback
+
+# Application
 USE_MOCKS=false
+CORS_ORIGINS=http://localhost:4200,http://localhost:4202,http://localhost:8000
+
+# Session
+SESSION_SECRET_KEY=$(openssl rand -hex 32)
+
+# QR Code
+QR_CODE_SALT=$(openssl rand -hex 16)
 EOF
 
-print_success "Environment file created: $ENV_FILE"
-print_warning "Please update the placeholder values in $ENV_FILE"
-echo ""
+print_success ".env.$ENV generated"
 
 # Summary
+echo ""
 print_success "========================================="
-print_success "GCP Setup Complete for $ENV environment!"
+print_success "GCP Setup Complete for $ENV!"
 print_success "========================================="
 echo ""
-print_info "Summary:"
-echo "  • Project: $PROJECT_ID"
-echo "  • Service Account: $SERVICE_ACCOUNT_EMAIL"
-echo "  • Artifact Registry: $REGION/$REPO_NAME"
-if [ -f "$KEY_FILE" ]; then
-    echo "  • Key File: $KEY_FILE"
-fi
-echo "  • Environment File: $ENV_FILE"
+echo "Service Account: $(tofu output -raw service_account_email)"
+echo "Key File: $KEY_FILE"
+echo "Memorystore: $(tofu output -raw memorystore_host):$(tofu output -raw memorystore_port)"
 echo ""
 print_info "Next steps:"
-echo "  1. Review and update $ENV_FILE with actual values"
-echo "  2. Store the service account key securely"
-echo "  3. Create MemoryStore Redis instance (see DEPLOYMENT.md)"
-echo "  4. Configure Okta application (see DEPLOYMENT.md)"
-echo "  5. Share Google Sheets with the service account"
-echo ""
-print_info "For more information, see DEPLOYMENT.md and SECRETS_SETUP.md"
-
+echo "  1. Copy .env.$ENV to backend/.env"
+echo "  2. Add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET"
+echo "  3. Share Google Sheets with the service account"
