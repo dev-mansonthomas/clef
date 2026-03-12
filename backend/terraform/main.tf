@@ -1,6 +1,6 @@
 # CLEF - GCP Infrastructure with OpenTofu
 # Main configuration file
-# 
+#
 # This file serves as the entry point for the Terraform configuration.
 # The actual resources are defined in separate files:
 # - providers.tf: Provider configuration
@@ -8,7 +8,7 @@
 # - outputs.tf: Output values
 # - apis.tf: GCP API enablement
 # - service_account.tf: Service account and IAM
-# - memorystore.tf: Redis/Valkey instance
+# - valkey.tf: Valkey 8 instance on Compute Engine
 #
 # Usage:
 #   tofu init

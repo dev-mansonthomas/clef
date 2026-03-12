@@ -4,7 +4,7 @@ resource "google_project_service" "apis" {
     "drive.googleapis.com",
     "calendar-json.googleapis.com",
     "gmail.googleapis.com",
-    "redis.googleapis.com",
+    "compute.googleapis.com",
     "iam.googleapis.com",
     "cloudresourcemanager.googleapis.com",
   ])

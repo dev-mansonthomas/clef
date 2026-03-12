@@ -1,5 +1,5 @@
-environment           = "prod"
-project_id            = "rcq-fr-prod"
-region                = "europe-west9"
-memorystore_memory_gb = 1
+environment          = "prod"
+project_id           = "rcq-fr-prod"
+region               = "europe-west9"
+valkey_machine_type  = "e2-micro"
 

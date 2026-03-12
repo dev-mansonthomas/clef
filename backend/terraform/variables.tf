@@ -14,9 +14,9 @@ variable "region" {
   default     = "europe-west9"
 }
 
-variable "memorystore_memory_gb" {
-  description = "Memorystore memory size in GB"
-  type        = number
-  default     = 1
+variable "valkey_machine_type" {
+  description = "Machine type for Valkey VM"
+  type        = string
+  default     = "e2-micro"
 }
 

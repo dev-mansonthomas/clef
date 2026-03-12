@@ -17,9 +17,9 @@ resource "google_service_account_key" "clef_backend" {
 # IAM roles for the service account
 resource "google_project_iam_member" "service_account_roles" {
   for_each = toset([
-    "roles/redis.editor",
+    "roles/compute.instanceAdmin.v1",
   ])
-  
+
   project = var.project_id
   role    = each.key
   member  = "serviceAccount:${google_service_account.clef_backend.email}"

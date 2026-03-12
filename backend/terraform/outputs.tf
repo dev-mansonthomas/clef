@@ -11,11 +11,18 @@ output "service_account_key" {
   sensitive = true
 }
 
-output "memorystore_host" {
-  value = google_redis_instance.clef_cache.host
+output "valkey_host" {
+  description = "Valkey VM external IP"
+  value       = google_compute_instance.valkey.network_interface[0].access_config[0].nat_ip
 }
 
-output "memorystore_port" {
-  value = google_redis_instance.clef_cache.port
+output "valkey_internal_ip" {
+  description = "Valkey VM internal IP (for use within GCP)"
+  value       = google_compute_instance.valkey.network_interface[0].network_ip
+}
+
+output "valkey_port" {
+  description = "Valkey port"
+  value       = 6379
 }
 
