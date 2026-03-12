@@ -104,6 +104,10 @@ done
 print_success "All APIs enabled"
 echo ""
 
+# Credentials directory
+CREDS_DIR="$HOME/.cred/CLEF"
+KEY_FILE="$CREDS_DIR/clef-backend-${ENV}-key.json"
+
 # Step 3: Create Service Account
 SERVICE_ACCOUNT_NAME="clef-backend"
 SERVICE_ACCOUNT_EMAIL="${SERVICE_ACCOUNT_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
@@ -143,7 +147,13 @@ echo ""
 
 # Step 5: Generate Service Account Key
 print_info "Step 5/7: Generating Service Account JSON key..."
-KEY_FILE="clef-backend-${ENV}-key.json"
+
+# Create credentials directory if it doesn't exist
+if [ ! -d "$CREDS_DIR" ]; then
+    mkdir -p "$CREDS_DIR"
+    chmod 700 "$CREDS_DIR"
+    print_success "Created credentials directory: $CREDS_DIR"
+fi
 
 if [ -f "$KEY_FILE" ]; then
     print_warning "Key file $KEY_FILE already exists"
@@ -155,6 +165,7 @@ if [ -f "$KEY_FILE" ]; then
         gcloud iam service-accounts keys create $KEY_FILE \
             --iam-account=$SERVICE_ACCOUNT_EMAIL \
             --project=$PROJECT_ID
+        chmod 600 "$KEY_FILE"
         print_success "New key generated: $KEY_FILE"
         print_warning "IMPORTANT: Store this key securely and never commit it to version control!"
     fi
@@ -165,6 +176,7 @@ else
         gcloud iam service-accounts keys create $KEY_FILE \
             --iam-account=$SERVICE_ACCOUNT_EMAIL \
             --project=$PROJECT_ID
+        chmod 600 "$KEY_FILE"
         print_success "Key generated: $KEY_FILE"
         print_warning "IMPORTANT: Store this key securely and never commit it to version control!"
     else
@@ -251,7 +263,7 @@ GCP_REGION=europe-west1
 GCP_SERVICE_ACCOUNT_EMAIL=$SERVICE_ACCOUNT_EMAIL
 
 # Service Account Key Path (update with actual path)
-GOOGLE_APPLICATION_CREDENTIALS=./clef-backend-${ENV}-key.json
+GOOGLE_APPLICATION_CREDENTIALS=$HOME/.cred/CLEF/clef-backend-${ENV}-key.json
 
 # Redis (MemoryStore)
 # Update with actual MemoryStore instance IP after creation
