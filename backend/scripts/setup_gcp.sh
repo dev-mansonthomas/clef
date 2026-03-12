@@ -63,6 +63,13 @@ if [ -f "$ENV_FILE" ]; then
     set -a
     source "$ENV_FILE"
     set +a
+
+    # Unset GOOGLE_APPLICATION_CREDENTIALS to use ADC for Terraform
+    # The script will create this file later and update .env
+    if [ -n "$GOOGLE_APPLICATION_CREDENTIALS" ]; then
+        print_info "Temporarily unsetting GOOGLE_APPLICATION_CREDENTIALS (will be created by Terraform)"
+        unset GOOGLE_APPLICATION_CREDENTIALS
+    fi
 fi
 
 # Default values
