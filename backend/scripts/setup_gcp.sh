@@ -67,7 +67,17 @@ fi
 
 # Default values
 VALKEY_MEMORY_GB="${VALKEY_MEMORY_GB:-1}"
-print_info "Valkey memory size: ${VALKEY_MEMORY_GB}GB"
+VALKEY_NODE_TYPE="${VALKEY_NODE_TYPE:-SHARED_CORE_NANO}"
+VALKEY_REPLICA_COUNT="${VALKEY_REPLICA_COUNT:-1}"
+VALKEY_VERSION="${VALKEY_VERSION:-VALKEY_8_0}"
+VALKEY_ZONE_MODE="${VALKEY_ZONE_MODE:-MULTI_ZONE}"
+
+print_info "Valkey configuration:"
+echo "  Memory: ${VALKEY_MEMORY_GB}GB"
+echo "  Node Type: ${VALKEY_NODE_TYPE}"
+echo "  Replicas: ${VALKEY_REPLICA_COUNT}"
+echo "  Version: ${VALKEY_VERSION}"
+echo "  Zone Mode: ${VALKEY_ZONE_MODE}"
 echo ""
 
 # Check if OpenTofu is installed
@@ -100,7 +110,13 @@ tofu init -upgrade
 
 # Plan
 print_info "Planning infrastructure for $ENV..."
-tofu plan -var-file="environments/$ENV.tfvars" -var="valkey_memory_gb=${VALKEY_MEMORY_GB}" -out="tfplan-$ENV"
+tofu plan -var-file="environments/$ENV.tfvars" \
+  -var="valkey_memory_gb=${VALKEY_MEMORY_GB}" \
+  -var="valkey_node_type=${VALKEY_NODE_TYPE}" \
+  -var="valkey_replica_count=${VALKEY_REPLICA_COUNT}" \
+  -var="valkey_version=${VALKEY_VERSION}" \
+  -var="valkey_zone_mode=${VALKEY_ZONE_MODE}" \
+  -out="tfplan-$ENV"
 
 # Confirm
 read -p "Apply this plan? (yes/no): " confirm
