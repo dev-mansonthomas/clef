@@ -210,6 +210,74 @@ cd backend
 pytest
 ```
 
+## Accès à Valkey (Cache)
+
+L'application utilise **Memorystore for Valkey** (service managé Google Cloud) pour le cache.
+
+### Configuration
+
+| Environnement | Instance | Région |
+|---------------|----------|--------|
+| dev | clef-valkey-dev | europe-west9 |
+| test | clef-valkey-test | europe-west9 |
+| prod | clef-valkey-prod | europe-west9 |
+
+### Connexion depuis le backend
+
+Le backend se connecte automatiquement via le réseau VPC interne. La variable d'environnement `REDIS_URL` est configurée par Terraform.
+
+### Connexion depuis votre machine locale (Redis Insight)
+
+Memorystore for Valkey n'est accessible que depuis le réseau VPC Google Cloud. Pour vous connecter localement avec Redis Insight ou redis-cli :
+
+#### 1. Via IAP Tunnel (recommandé)
+
+```bash
+# Créer un tunnel SSH via IAP vers une VM bastion
+gcloud compute ssh BASTION_VM \
+  --zone=europe-west9-b \
+  --tunnel-through-iap \
+  -- -N -L 6379:VALKEY_INTERNAL_IP:6379
+```
+
+Remplacez :
+- `BASTION_VM` : nom d'une VM dans le même VPC
+- `VALKEY_INTERNAL_IP` : IP interne de Valkey (visible dans la console GCP ou via `tofu output`)
+
+#### 2. Via Cloud Shell
+
+Cloud Shell est dans le même réseau que Memorystore :
+
+```bash
+# Depuis Cloud Shell
+redis-cli -h VALKEY_INTERNAL_IP -p 6379
+```
+
+#### 3. Connexion avec Redis Insight
+
+1. Créer le tunnel IAP (voir ci-dessus)
+2. Ouvrir Redis Insight
+3. Ajouter une connexion :
+   - **Host** : `localhost`
+   - **Port** : `6379`
+   - **Name** : `CLEF Dev` (ou Test/Prod)
+
+### Authentification
+
+Memorystore for Valkey utilise **IAM** pour l'authentification. Le Service Account `clef-backend@{project}.iam.gserviceaccount.com` a le rôle `roles/memorystore.dbConnectionUser`.
+
+### Commandes utiles
+
+```bash
+# Voir les endpoints Valkey
+cd backend/terraform
+tofu output valkey_endpoints
+
+# Vérifier la connexion (depuis Cloud Shell ou via tunnel)
+redis-cli -h VALKEY_IP ping
+# Réponse attendue: PONG
+```
+
 ## Technology Stack
 
 ### Frontend
@@ -224,5 +292,5 @@ pytest
 - FastAPI
 - Pydantic
 - Uvicorn
-- Redis (optional)
+- Memorystore for Valkey (cache)
 - pytest (testing)
