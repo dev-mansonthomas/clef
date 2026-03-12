@@ -38,7 +38,11 @@ resource "google_redis_instance" "clef_cache" {
     environment = var.environment
     app         = "clef"
   }
-  
+
+  lifecycle {
+    prevent_destroy = true
+  }
+
   depends_on = [google_project_service.apis]
 }
 
