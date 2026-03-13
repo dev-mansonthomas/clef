@@ -10,6 +10,7 @@ class User(BaseModel):
     email: EmailStr
     nom: str
     prenom: str
+    dt: str = "DT75"  # Délégation Territoriale (e.g., "DT75" for Paris)
     ul: Optional[str] = None
     role: str  # "Gestionnaire DT", "Responsable UL", "Bénévole"
     perimetre: Optional[str] = None  # For responsables: their UL or activity

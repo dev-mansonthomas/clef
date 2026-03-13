@@ -36,6 +36,7 @@ class AuthService:
                 email=email,
                 nom=nom,
                 prenom=prenom,
+                dt="DT75",  # Paris
                 ul="DT Paris",
                 role="Gestionnaire DT",
                 perimetre="DT Paris",
@@ -49,6 +50,7 @@ class AuthService:
                 email=email,
                 nom=responsable.get("nom", nom),
                 prenom=responsable.get("prenom", prenom),
+                dt=responsable.get("dt", "DT75"),  # Default to DT75 if not specified
                 ul=responsable.get("perimetre"),
                 role=responsable.get("role", "Responsable"),
                 perimetre=responsable.get("perimetre"),
@@ -62,6 +64,7 @@ class AuthService:
                 email=email,
                 nom=benevole.get("nom", nom),
                 prenom=benevole.get("prenom", prenom),
+                dt=benevole.get("dt", "DT75"),  # Default to DT75 if not specified
                 ul=benevole.get("ul"),
                 role=benevole.get("role", "Bénévole"),
                 perimetre=benevole.get("ul"),
@@ -73,6 +76,7 @@ class AuthService:
             email=email,
             nom=nom,
             prenom=prenom,
+            dt="DT75",  # Default to DT75
             ul=None,
             role="Bénévole",
             perimetre=None,
