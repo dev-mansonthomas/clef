@@ -292,6 +292,23 @@ async def import_csv(
         if mapping.target_field != "skip":
             mapping_dict[mapping.target_field] = mapping.csv_column
 
+    # Mapping frontend IDs to backend field names
+    FIELD_ID_MAPPING = {
+        "prochain_ct": "prochain_controle_technique",
+        "prochain_pollution": "prochain_controle_pollution",
+        "assurance": "assurance_2026",
+        "instructions": "instructions_recuperation",
+        "num_baus": "numero_serie_baus",
+        "statut": "operationnel_mecanique",
+    }
+
+    # Convert frontend IDs to backend field names
+    converted_mapping: Dict[str, int] = {}
+    for field, col_idx in mapping_dict.items():
+        backend_field = FIELD_ID_MAPPING.get(field, field)
+        converted_mapping[backend_field] = col_idx
+    mapping_dict = converted_mapping
+
     # Validate required fields are mapped
     missing_fields = REQUIRED_FIELDS - set(mapping_dict.keys())
     if missing_fields:
