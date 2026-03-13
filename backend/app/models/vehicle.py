@@ -1,8 +1,8 @@
 """Vehicle data models and schemas."""
 from datetime import date, datetime
 from enum import Enum
-from typing import Optional
-from pydantic import BaseModel, Field
+from typing import Optional, Any
+from pydantic import BaseModel, Field, field_validator
 
 
 class StatusColor(str, Enum):
@@ -16,6 +16,34 @@ class DisponibiliteStatus(str, Enum):
     """Vehicle availability status."""
     DISPO = "Dispo"
     INDISPO = "Indispo"
+
+    @staticmethod
+    def normalize(value: str) -> "DisponibiliteStatus":
+        """
+        Normalize disponibilite value to enum.
+
+        Handles various input formats:
+        - "Dispo", "Disponible", "Opérationnel Mécanique" → DISPO
+        - "Indispo", "Indisponible" → INDISPO
+        - Case-insensitive matching
+
+        Args:
+            value: Raw disponibilite value from CSV/Sheets
+
+        Returns:
+            DisponibiliteStatus enum value
+        """
+        if not value:
+            return DisponibiliteStatus.INDISPO
+
+        value_lower = value.lower().strip()
+
+        # Map various "available" values to DISPO
+        if value_lower in ("dispo", "disponible", "opérationnel mécanique", "operationnel mecanique"):
+            return DisponibiliteStatus.DISPO
+        # Everything else maps to INDISPO
+        else:
+            return DisponibiliteStatus.INDISPO
 
 
 class StatusInfo(BaseModel):
@@ -46,6 +74,16 @@ class VehicleBase(BaseModel):
     instructions_recuperation: str = Field(default="", description="Lien vers instructions de récupération")
     assurance_2026: str = Field(default="", description="Informations assurance")
     numero_serie_baus: str = Field(default="", description="Numéro de série BAUS")
+
+    @field_validator('operationnel_mecanique', mode='before')
+    @classmethod
+    def normalize_operationnel_mecanique(cls, v: Any) -> DisponibiliteStatus:
+        """Normalize operationnel_mecanique to DisponibiliteStatus enum."""
+        if isinstance(v, DisponibiliteStatus):
+            return v
+        if isinstance(v, str):
+            return DisponibiliteStatus.normalize(v)
+        return DisponibiliteStatus.INDISPO
 
 
 class Vehicle(VehicleBase):
