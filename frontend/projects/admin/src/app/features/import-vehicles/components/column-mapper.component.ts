@@ -122,13 +122,19 @@ export class ColumnMapperComponent implements OnChanges {
       const allRows = parseResult.data as string[][];
 
       // Get header line (after skipping configured lines)
+      // skipLines = 6 means we skip lines 1-6 (indices 0-5)
+      // The header row is the line JUST BEFORE the data starts
+      // So header is at index (skipLines - 1) and data starts at index skipLines
       if (allRows.length <= this.skipLines) {
         console.error('Not enough lines in CSV file');
         return;
       }
 
-      const headerRow = allRows[this.skipLines];
-      const dataRow = allRows[this.skipLines + 1] || [];
+      const headerRowIndex = this.skipLines - 1;  // Line 6 = index 5
+      const dataRowIndex = this.skipLines;        // Line 7 = index 6
+
+      const headerRow = allRows[headerRowIndex];
+      const dataRow = allRows[dataRowIndex] || [];
 
       // Create CSV columns in file order
       const columns: CsvColumn[] = headerRow.map((name, index) => ({
