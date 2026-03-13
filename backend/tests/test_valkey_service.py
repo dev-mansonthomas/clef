@@ -68,11 +68,16 @@ class TestValkeyServiceVehicles:
         vehicle = VehicleData(
             immat="AB-123-CD",
             dt="DT75",
-            dt_ul="81",
+            dt_ul="UL Paris 15",
             marque="Renault",
             modele="Master",
             indicatif="VPSU 81",
-            nom_synthetique="vpsu-81"
+            nom_synthetique="vpsu-81",
+            operationnel_mecanique="Dispo",
+            type="VSAV",
+            carte_grise="CG123456",
+            nb_places="3",
+            lieu_stationnement="Garage UL"
         )
         
         success = await valkey_dt75.set_vehicle(vehicle)
@@ -87,22 +92,38 @@ class TestValkeyServiceVehicles:
     @pytest.mark.asyncio
     async def test_list_vehicles(self, valkey_dt75):
         """Test listing vehicles."""
-        vehicle1 = VehicleData(immat="AB-123-CD", dt="DT75", marque="Renault")
-        vehicle2 = VehicleData(immat="EF-456-GH", dt="DT75", marque="Peugeot")
-        
+        vehicle1 = VehicleData(
+            immat="AB-123-CD", dt="DT75", dt_ul="UL Paris 15", marque="Renault", modele="Kangoo",
+            indicatif="VL-01", nom_synthetique="vl-01", operationnel_mecanique="Dispo",
+            type="VL", carte_grise="CG123", nb_places="5", lieu_stationnement="Garage"
+        )
+        vehicle2 = VehicleData(
+            immat="EF-456-GH", dt="DT75", dt_ul="UL Paris 16", marque="Peugeot", modele="Partner",
+            indicatif="VL-02", nom_synthetique="vl-02", operationnel_mecanique="Dispo",
+            type="VL", carte_grise="CG456", nb_places="5", lieu_stationnement="Garage"
+        )
+
         await valkey_dt75.set_vehicle(vehicle1)
         await valkey_dt75.set_vehicle(vehicle2)
-        
+
         vehicles = await valkey_dt75.list_vehicles()
         assert len(vehicles) == 2
         assert "AB-123-CD" in vehicles
         assert "EF-456-GH" in vehicles
-    
+
     @pytest.mark.asyncio
     async def test_multi_tenant_isolation(self, valkey_dt75, valkey_dt92):
         """Test that DT75 and DT92 data are isolated."""
-        vehicle_dt75 = VehicleData(immat="AB-123-CD", dt="DT75", marque="Renault")
-        vehicle_dt92 = VehicleData(immat="IJ-789-KL", dt="DT92", marque="Peugeot")
+        vehicle_dt75 = VehicleData(
+            immat="AB-123-CD", dt="DT75", dt_ul="UL Paris 15", marque="Renault", modele="Kangoo",
+            indicatif="VL-01", nom_synthetique="vl-01", operationnel_mecanique="Dispo",
+            type="VL", carte_grise="CG123", nb_places="5", lieu_stationnement="Garage"
+        )
+        vehicle_dt92 = VehicleData(
+            immat="IJ-789-KL", dt="DT92", dt_ul="UL Nanterre", marque="Peugeot", modele="Partner",
+            indicatif="VL-02", nom_synthetique="vl-02", operationnel_mecanique="Dispo",
+            type="VL", carte_grise="CG789", nb_places="5", lieu_stationnement="Garage"
+        )
         
         await valkey_dt75.set_vehicle(vehicle_dt75)
         await valkey_dt92.set_vehicle(vehicle_dt92)

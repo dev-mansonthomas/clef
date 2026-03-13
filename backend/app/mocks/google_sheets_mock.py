@@ -17,67 +17,88 @@ class GoogleSheetsMock(SheetsService):
         """Return hardcoded test vehicle data."""
         return [
             {
-                "dt_ul": "DT75",
+                "dt_ul": "UL Paris 15",
                 "immat": "AB-123-CD",
-                "indicatif": "VL 001",
+                "indicatif": "PARIS-15-01",
                 "operationnel_mecanique": "Dispo",
                 "raison_indispo": "",
-                "prochain_controle_technique": "2027-06-15",
-                "prochain_controle_pollution": "2027-06-15",
-                "marque": "DACIA",
-                "modele": "Duster",
-                "type": "VL",
+                "prochain_controle_technique": "2026-08-15",
+                "prochain_controle_pollution": "2026-08-15",
+                "marque": "RENAULT",
+                "modele": "Master",
+                "type": "VSAV",
                 "date_mec": "2020-06-24",
-                "nom_synthetique": "DT75 - VL 001 - AB-123-CD",
+                "nom_synthetique": "VSAV-PARIS15-01",
                 "carte_grise": "OK",
                 "nb_places": "5",
-                "commentaires": "Véhicule de test 1",
-                "lieu_stationnement": "Siège DT75",
+                "commentaires": "VSAV principal UL Paris 15",
+                "lieu_stationnement": "Siège UL Paris 15",
                 "instructions_recuperation": "Clés au bureau",
-                "assurance": "Tous Risques",
+                "assurance_2026": "OK",
                 "numero_serie_baus": ""
             },
             {
-                "dt_ul": "DT75",
+                "dt_ul": "UL Paris 15",
                 "immat": "EF-456-GH",
-                "indicatif": "VL 002",
+                "indicatif": "PARIS-15-02",
                 "operationnel_mecanique": "Dispo",
                 "raison_indispo": "",
-                "prochain_controle_technique": "2026-12-20",
-                "prochain_controle_pollution": "2026-12-20",
+                "prochain_controle_technique": "2026-03-20",
+                "prochain_controle_pollution": "2026-03-20",
                 "marque": "RENAULT",
                 "modele": "Kangoo",
                 "type": "VL",
                 "date_mec": "2019-03-15",
-                "nom_synthetique": "DT75 - VL 002 - EF-456-GH",
+                "nom_synthetique": "VL-PARIS15-02",
                 "carte_grise": "OK",
                 "nb_places": "5",
-                "commentaires": "Véhicule de test 2",
+                "commentaires": "VL de liaison",
                 "lieu_stationnement": "UL Paris 15",
                 "instructions_recuperation": "Contacter le responsable",
-                "assurance": "Tous Risques",
+                "assurance_2026": "OK",
                 "numero_serie_baus": ""
             },
             {
-                "dt_ul": "DT75",
+                "dt_ul": "UL Paris 16",
                 "immat": "IJ-789-KL",
-                "indicatif": "VPSP 001",
+                "indicatif": "PARIS-16-01",
                 "operationnel_mecanique": "Indispo",
                 "raison_indispo": "Révision en cours",
-                "prochain_controle_technique": "2026-08-10",
-                "prochain_controle_pollution": "2026-08-10",
+                "prochain_controle_technique": "2025-08-10",
+                "prochain_controle_pollution": "2025-08-10",
                 "marque": "PEUGEOT",
                 "modele": "Partner",
                 "type": "VPSP",
                 "date_mec": "2018-11-05",
-                "nom_synthetique": "DT75 - VPSP 001 - IJ-789-KL",
+                "nom_synthetique": "VPSP-PARIS16-01",
                 "carte_grise": "OK",
                 "nb_places": "3",
-                "commentaires": "Véhicule de test 3 - En maintenance",
-                "lieu_stationnement": "Garage DT75",
+                "commentaires": "VPSP - En maintenance",
+                "lieu_stationnement": "Garage UL Paris 16",
                 "instructions_recuperation": "",
-                "assurance": "Tous Risques",
+                "assurance_2026": "OK",
                 "numero_serie_baus": "BAUS-12345"
+            },
+            {
+                "dt_ul": "DT Paris",
+                "immat": "MN-012-OP",
+                "indicatif": "DT-PARIS-01",
+                "operationnel_mecanique": "Dispo",
+                "raison_indispo": "",
+                "prochain_controle_technique": "2027-01-15",
+                "prochain_controle_pollution": "2027-01-15",
+                "marque": "CITROEN",
+                "modele": "Jumper",
+                "type": "VL",
+                "date_mec": "2021-02-10",
+                "nom_synthetique": "VL-DT-PARIS-01",
+                "carte_grise": "OK",
+                "nb_places": "7",
+                "commentaires": "Véhicule DT",
+                "lieu_stationnement": "Siège DT Paris",
+                "instructions_recuperation": "Clés au secrétariat DT",
+                "assurance_2026": "OK",
+                "numero_serie_baus": ""
             }
         ]
 
@@ -85,7 +106,7 @@ class GoogleSheetsMock(SheetsService):
         """Return hardcoded test volunteer data."""
         return [
             {
-                "email": "test.benevole1@croix-rouge.fr",
+                "email": "jean.dupont@croix-rouge.fr",
                 "nom": "Dupont",
                 "prenom": "Jean",
                 "ul": "UL Paris 15",
@@ -93,11 +114,36 @@ class GoogleSheetsMock(SheetsService):
                 "statut": "Actif"
             },
             {
-                "email": "test.benevole2@croix-rouge.fr",
+                "email": "marie.martin@croix-rouge.fr",
                 "nom": "Martin",
                 "prenom": "Marie",
+                "ul": "UL Paris 15",
+                "dt": "DT75",
+                "statut": "Actif"
+            },
+            {
+                "email": "pierre.bernard@croix-rouge.fr",
+                "nom": "Bernard",
+                "prenom": "Pierre",
                 "ul": "UL Paris 16",
                 "dt": "DT75",
+                "statut": "Actif"
+            },
+            {
+                "email": "sophie.dubois@croix-rouge.fr",
+                "nom": "Dubois",
+                "prenom": "Sophie",
+                "ul": "UL Paris 16",
+                "dt": "DT75",
+                "statut": "Actif"
+            },
+            {
+                "email": "thomas.manson@croix-rouge.fr",
+                "nom": "Manson",
+                "prenom": "Thomas",
+                "ul": "DT Paris",
+                "dt": "DT75",
+                "role": "Gestionnaire DT",
                 "statut": "Actif"
             }
         ]
@@ -106,18 +152,42 @@ class GoogleSheetsMock(SheetsService):
         """Return hardcoded test manager data."""
         return [
             {
-                "email": "test.responsable1@croix-rouge.fr",
-                "nom": "Durand",
-                "prenom": "Pierre",
+                "email": "thomas.manson@croix-rouge.fr",
+                "nom": "Manson",
+                "prenom": "Thomas",
+                "role": "Gestionnaire DT",
+                "perimetre": "DT Paris",
+                "type_perimetre": "DT",
+                "ul": "DT Paris",
+                "dt": "DT75"
+            },
+            {
+                "email": "claire.rousseau@croix-rouge.fr",
+                "nom": "Rousseau",
+                "prenom": "Claire",
                 "role": "Responsable UL",
+                "perimetre": "UL Paris 15",
+                "type_perimetre": "UL",
                 "ul": "UL Paris 15",
                 "dt": "DT75"
             },
             {
-                "email": "test.responsable2@croix-rouge.fr",
+                "email": "marc.durand@croix-rouge.fr",
+                "nom": "Durand",
+                "prenom": "Marc",
+                "role": "Responsable UL",
+                "perimetre": "UL Paris 16",
+                "type_perimetre": "UL",
+                "ul": "UL Paris 16",
+                "dt": "DT75"
+            },
+            {
+                "email": "sophie.bernard@croix-rouge.fr",
                 "nom": "Bernard",
                 "prenom": "Sophie",
-                "role": "Responsable DT",
+                "role": "Responsable Activité",
+                "perimetre": "Secours",
+                "type_perimetre": "ACTIVITE",
                 "ul": "",
                 "dt": "DT75"
             }
