@@ -1,6 +1,6 @@
-import { Component, signal, computed, inject } from '@angular/core';
+import { Component, signal, computed, inject, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { MatStepperModule } from '@angular/material/stepper';
+import { MatStepper, MatStepperModule } from '@angular/material/stepper';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
@@ -43,8 +43,10 @@ export class ImportWizardComponent {
   private readonly router = inject(Router);
   private readonly importService = inject(VehicleImportService);
   private readonly snackBar = inject(MatSnackBar);
+
+  @ViewChild('stepper') stepper!: MatStepper;
+
   // Wizard state
-  currentStep = signal(0);
   uploadedFile = signal<File | null>(null);
   skipLines = signal(4);
   columnMapping = signal<Map<string, string>>(new Map());
@@ -74,21 +76,7 @@ export class ImportWizardComponent {
   onMappingChange(mapping: Map<string, string>): void {
     this.columnMapping.set(mapping);
   }
-  
-  /**
-   * Navigate to next step
-   */
-  nextStep(): void {
-    this.currentStep.update(step => step + 1);
-  }
-  
-  /**
-   * Navigate to previous step
-   */
-  previousStep(): void {
-    this.currentStep.update(step => Math.max(0, step - 1));
-  }
-  
+
   /**
    * Cancel import and return to vehicles list
    */
@@ -116,7 +104,7 @@ export class ImportWizardComponent {
       this.importService.importVehicles(file, config).subscribe({
         next: (result) => {
           this.importResult.set(result);
-          this.nextStep();
+          this.stepper.next();
           this.snackBar.open(
             `Import terminé: ${result.created} créés, ${result.updated} mis à jour`,
             'Fermer',
