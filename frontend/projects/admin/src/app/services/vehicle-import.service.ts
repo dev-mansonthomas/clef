@@ -19,31 +19,52 @@ export interface ImportConfig {
 }
 
 /**
- * Import error detail
+ * Import error detail (matches backend ImportError)
  */
 export interface ImportError {
-  ligne: number;
-  raison: string;
+  line_number: number;
+  reason: string;
+  values?: string[];
 }
 
 /**
- * Import result
+ * Import result (matches backend ImportResult)
  */
 export interface ImportResult {
-  total_lignes: number;
-  lignes_ignorees: number;
-  vehicules_crees: number;
-  vehicules_maj: number;
-  erreurs: ImportError[];
+  total_lines: number;
+  ignored_lines: number;
+  created: number;
+  updated: number;
+  errors: ImportError[];
 }
 
 /**
- * CSV preview response
+ * Column info from preview
+ */
+export interface ColumnInfo {
+  index: number;
+  header: string | null;
+  sample_values: string[];
+  suggested_field: string | null;
+}
+
+/**
+ * Preview row
+ */
+export interface PreviewRow {
+  line_number: number;
+  values: string[];
+}
+
+/**
+ * CSV preview response (matches backend PreviewResponse)
  */
 export interface CsvPreviewResponse {
-  columns: string[];
-  preview_data: string[][];
-  suggested_mapping: Record<string, number>;
+  total_lines: number;
+  skip_lines: number;
+  columns: ColumnInfo[];
+  preview_rows: PreviewRow[];
+  suggested_mappings: ColumnMapping[];
 }
 
 /**
