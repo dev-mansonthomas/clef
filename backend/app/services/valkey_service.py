@@ -2,6 +2,7 @@
 import json
 import logging
 import uuid
+import secrets
 from typing import Optional, List, Dict, Any, Set
 from datetime import datetime, date
 from redis.asyncio import Redis
@@ -64,7 +65,232 @@ class ValkeyService:
         except Exception as e:
             logger.error(f"Error setting configuration for {self.dt}: {e}")
             return False
-    
+
+    # ========== API Keys ==========
+
+    async def generate_api_key_dt(self, name: str, created_by: str) -> Dict[str, Any]:
+        """
+        Generate and store a new API key for DT level.
+
+        Args:
+            name: Name/description of the API key
+            created_by: Email of the user creating the key
+
+        Returns:
+            Dictionary with the new API key data including the full key
+        """
+        key = f"clef_sk_{secrets.token_hex(16)}"
+        api_key_data = {
+            "id": str(uuid.uuid4()),
+            "name": name,
+            "key": key,
+            "created_at": datetime.utcnow().isoformat(),
+            "created_by": created_by,
+            "last_used": None
+        }
+
+        # Get current config
+        config_data = await self.redis.get(self._key("configuration"))
+        config = json.loads(config_data) if config_data else {}
+
+        # Add API key to config
+        if "api_keys" not in config:
+            config["api_keys"] = []
+        config["api_keys"].append(api_key_data)
+
+        # Save updated config
+        await self.redis.set(self._key("configuration"), json.dumps(config))
+
+        return api_key_data
+
+    async def generate_api_key_ul(self, ul_id: str, name: str, created_by: str) -> Dict[str, Any]:
+        """
+        Generate and store a new API key for UL level.
+
+        Args:
+            ul_id: UL identifier
+            name: Name/description of the API key
+            created_by: Email of the user creating the key
+
+        Returns:
+            Dictionary with the new API key data including the full key
+        """
+        key = f"clef_sk_{secrets.token_hex(16)}"
+        api_key_data = {
+            "id": str(uuid.uuid4()),
+            "name": name,
+            "key": key,
+            "created_at": datetime.utcnow().isoformat(),
+            "created_by": created_by,
+            "last_used": None
+        }
+
+        # Get current UL data
+        ul_data_raw = await self.redis.get(self._key("unite_locale", ul_id))
+        if not ul_data_raw:
+            raise ValueError(f"UL {ul_id} not found")
+
+        ul_data = json.loads(ul_data_raw)
+
+        # Add API key to UL data
+        if "api_keys" not in ul_data:
+            ul_data["api_keys"] = []
+        ul_data["api_keys"].append(api_key_data)
+
+        # Save updated UL data
+        await self.redis.set(self._key("unite_locale", ul_id), json.dumps(ul_data))
+
+        return api_key_data
+
+    async def validate_api_key(self, key: str, ul_id: Optional[str] = None) -> bool:
+        """
+        Validate an API key (DT level or UL level).
+
+        Args:
+            key: The API key to validate
+            ul_id: Optional UL identifier. If provided, validates UL-level key.
+                   If None, validates DT-level key.
+
+        Returns:
+            True if key is valid, False otherwise
+        """
+        if ul_id:
+            # Validate UL-level key
+            ul_data_raw = await self.redis.get(self._key("unite_locale", ul_id))
+            if not ul_data_raw:
+                return False
+
+            ul_data = json.loads(ul_data_raw)
+            api_keys = ul_data.get("api_keys", [])
+
+            for api_key in api_keys:
+                if api_key["key"] == key:
+                    # Update last_used timestamp
+                    api_key["last_used"] = datetime.utcnow().isoformat()
+                    await self.redis.set(self._key("unite_locale", ul_id), json.dumps(ul_data))
+                    return True
+            return False
+        else:
+            # Validate DT-level key
+            config_data = await self.redis.get(self._key("configuration"))
+            if not config_data:
+                return False
+
+            config = json.loads(config_data)
+            api_keys = config.get("api_keys", [])
+
+            for api_key in api_keys:
+                if api_key["key"] == key:
+                    # Update last_used timestamp
+                    api_key["last_used"] = datetime.utcnow().isoformat()
+                    await self.redis.set(self._key("configuration"), json.dumps(config))
+                    return True
+            return False
+
+    async def list_api_keys_dt(self, mask_keys: bool = True) -> List[Dict[str, Any]]:
+        """
+        List all API keys for DT level.
+
+        Args:
+            mask_keys: If True, mask the key values for security
+
+        Returns:
+            List of API key dictionaries
+        """
+        config_data = await self.redis.get(self._key("configuration"))
+        if not config_data:
+            return []
+
+        config = json.loads(config_data)
+        api_keys = config.get("api_keys", [])
+
+        if mask_keys:
+            return [
+                {**key, "key": f"clef_sk_{'●' * 16}"}
+                for key in api_keys
+            ]
+        return api_keys
+
+    async def list_api_keys_ul(self, ul_id: str, mask_keys: bool = True) -> List[Dict[str, Any]]:
+        """
+        List all API keys for UL level.
+
+        Args:
+            ul_id: UL identifier
+            mask_keys: If True, mask the key values for security
+
+        Returns:
+            List of API key dictionaries
+        """
+        ul_data_raw = await self.redis.get(self._key("unite_locale", ul_id))
+        if not ul_data_raw:
+            return []
+
+        ul_data = json.loads(ul_data_raw)
+        api_keys = ul_data.get("api_keys", [])
+
+        if mask_keys:
+            return [
+                {**key, "key": f"clef_sk_{'●' * 16}"}
+                for key in api_keys
+            ]
+        return api_keys
+
+    async def delete_api_key_dt(self, key_id: str) -> bool:
+        """
+        Delete an API key at DT level.
+
+        Args:
+            key_id: ID of the API key to delete
+
+        Returns:
+            True if deleted, False if not found
+        """
+        config_data = await self.redis.get(self._key("configuration"))
+        if not config_data:
+            return False
+
+        config = json.loads(config_data)
+        api_keys = config.get("api_keys", [])
+
+        # Filter out the key to delete
+        new_keys = [key for key in api_keys if key["id"] != key_id]
+
+        if len(new_keys) == len(api_keys):
+            return False  # Key not found
+
+        config["api_keys"] = new_keys
+        await self.redis.set(self._key("configuration"), json.dumps(config))
+        return True
+
+    async def delete_api_key_ul(self, ul_id: str, key_id: str) -> bool:
+        """
+        Delete an API key at UL level.
+
+        Args:
+            ul_id: UL identifier
+            key_id: ID of the API key to delete
+
+        Returns:
+            True if deleted, False if not found
+        """
+        ul_data_raw = await self.redis.get(self._key("unite_locale", ul_id))
+        if not ul_data_raw:
+            return False
+
+        ul_data = json.loads(ul_data_raw)
+        api_keys = ul_data.get("api_keys", [])
+
+        # Filter out the key to delete
+        new_keys = [key for key in api_keys if key["id"] != key_id]
+
+        if len(new_keys) == len(api_keys):
+            return False  # Key not found
+
+        ul_data["api_keys"] = new_keys
+        await self.redis.set(self._key("unite_locale", ul_id), json.dumps(ul_data))
+        return True
+
     # ========== Vehicles ==========
     
     async def get_vehicle(self, immat: str) -> Optional[VehicleData]:

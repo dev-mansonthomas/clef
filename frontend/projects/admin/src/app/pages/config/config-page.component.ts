@@ -3,16 +3,19 @@ import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ConfigService } from '../../services/config.service';
 import { ConfigResponse } from '../../models/config.model';
+import { ApiKeysManagerComponent } from '../../components/api-keys-manager/api-keys-manager.component';
+import { ApiKeysService } from '../../services/api-keys.service';
 
 @Component({
   selector: 'app-config-page',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule, ReactiveFormsModule, ApiKeysManagerComponent],
   templateUrl: './config-page.component.html',
   styleUrl: './config-page.component.scss'
 })
 export class ConfigPageComponent implements OnInit {
   private readonly configService = inject(ConfigService);
+  private readonly apiKeysService = inject(ApiKeysService);
   private readonly fb = inject(FormBuilder);
 
   configForm!: FormGroup;
@@ -20,10 +23,12 @@ export class ConfigPageComponent implements OnInit {
   saveSuccess = signal(false);
   saveError = signal<string | null>(null);
   emailGestionnaireDT = signal<string>('');
+  syncUrl = signal<string>('');
 
   ngOnInit(): void {
     this.initForm();
     this.loadConfig();
+    this.syncUrl.set(this.apiKeysService.getSyncUrlDT());
   }
 
   private initForm(): void {

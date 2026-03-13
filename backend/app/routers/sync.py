@@ -94,26 +94,79 @@ async def get_vehicules_for_sync(
 ) -> List[Dict[str, Any]]:
     """
     Get all vehicles for a DT (for Apps Script sync).
-    
+
     Args:
         dt: DT identifier (e.g., "DT75")
-        
+
     Returns:
         List of vehicle dictionaries
     """
     valkey = await get_valkey_for_dt(dt)
-    
+
     # Get all vehicle IDs
     vehicle_ids = await valkey.list_vehicles()
-    
+
     # Fetch all vehicles
     vehicles = []
     for immat in vehicle_ids:
         vehicle = await valkey.get_vehicle(immat)
         if vehicle:
             vehicles.append(vehicle.model_dump())
-    
+
     logger.info(f"Sync API: Retrieved {len(vehicles)} vehicles for {dt}")
+    return vehicles
+
+
+@router.get("/{dt}/vehicules/{ul_id}")
+async def get_vehicules_for_ul(
+    dt: str,
+    ul_id: str,
+    x_api_key: str = Header(...)
+) -> List[Dict[str, Any]]:
+    """
+    Get vehicles for a specific UL (for Apps Script sync at UL level).
+
+    Args:
+        dt: DT identifier (e.g., "DT75")
+        ul_id: UL identifier (e.g., "81")
+        x_api_key: API key from X-API-Key header
+
+    Returns:
+        List of vehicle dictionaries filtered by UL
+    """
+    valkey = await get_valkey_for_dt(dt)
+
+    # Validate API key for this UL
+    if not await valkey.validate_api_key(x_api_key, ul_id=ul_id):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid API key for this UL"
+        )
+
+    # Get UL name to match against vehicle dt_ul field
+    ul_data_raw = await valkey.redis.get(valkey._key("unite_locale", ul_id))
+    if not ul_data_raw:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"UL {ul_id} not found"
+        )
+
+    import json
+    ul_data = json.loads(ul_data_raw)
+    ul_name = ul_data.get("nom")
+
+    # Get all vehicle IDs
+    vehicle_ids = await valkey.list_vehicles()
+
+    # Fetch and filter vehicles by UL name
+    vehicles = []
+    for immat in vehicle_ids:
+        vehicle = await valkey.get_vehicle(immat)
+        # Match by UL name (dt_ul field contains the full UL name)
+        if vehicle and vehicle.dt_ul == ul_name:
+            vehicles.append(vehicle.model_dump())
+
+    logger.info(f"Sync API: Retrieved {len(vehicles)} vehicles for {dt} UL {ul_id} ({ul_name})")
     return vehicles
 
 

@@ -1,0 +1,144 @@
+<div class="api-keys-manager">
+  <!-- Sync URL Section -->
+  <div class="sync-url-section">
+    <h3>🔗 URL de synchronisation (Google Apps Script)</h3>
+    <div class="url-display">
+      <input type="text" [value]="syncUrl" readonly class="url-input" />
+      <button type="button" (click)="copyToClipboard(syncUrl)" class="copy-btn" title="Copier">
+        📋
+      </button>
+    </div>
+  </div>
+
+  <!-- API Keys Section -->
+  <div class="api-keys-section">
+    <div class="section-header">
+      <h3>🔑 API Keys</h3>
+      <button type="button" (click)="showNewKeyDialog.set(true)" class="btn-primary">
+        + Générer
+      </button>
+    </div>
+
+    @if (error()) {
+      <div class="alert alert-error">
+        ✗ {{ error() }}
+      </div>
+    }
+
+    @if (newlyCreatedKey()) {
+      <div class="alert alert-success">
+        <strong>✓ Clé créée avec succès !</strong>
+        <p>Copiez cette clé maintenant, elle ne sera plus affichée en clair :</p>
+        <div class="new-key-display">
+          <code>{{ newlyCreatedKey()!.key }}</code>
+          <button type="button" (click)="copyToClipboard(newlyCreatedKey()!.key)" class="copy-btn">
+            📋
+          </button>
+        </div>
+        <button type="button" (click)="newlyCreatedKey.set(null)" class="btn-secondary">
+          OK, j'ai copié la clé
+        </button>
+      </div>
+    }
+
+    @if (loading()) {
+      <div class="loading">Chargement...</div>
+    }
+
+    @if (!loading() && apiKeys().length === 0) {
+      <p class="no-keys">Aucune clé API configurée</p>
+    }
+
+    @if (!loading() && apiKeys().length > 0) {
+      <table class="api-keys-table">
+        <thead>
+          <tr>
+            <th>Nom</th>
+            <th>Clé</th>
+            <th>Dernière utilisation</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (key of apiKeys(); track key.id) {
+            <tr>
+              <td>{{ key.name }}</td>
+              <td>
+                <code class="api-key-value">
+                  {{ isRevealed(key.id) ? key.key : 'clef_sk_●●●●●●●●●●●●●●●●' }}
+                </code>
+              </td>
+              <td>{{ formatDate(key.last_used) }}</td>
+              <td class="actions">
+                <button
+                  type="button"
+                  (click)="toggleReveal(key.id)"
+                  class="btn-icon"
+                  [title]="isRevealed(key.id) ? 'Masquer' : 'Révéler'"
+                >
+                  {{ isRevealed(key.id) ? '🙈' : '👁️' }}
+                </button>
+                <button
+                  type="button"
+                  (click)="copyToClipboard(key.key)"
+                  class="btn-icon"
+                  title="Copier"
+                >
+                  📋
+                </button>
+                <button
+                  type="button"
+                  (click)="onDeleteKey(key.id)"
+                  class="btn-icon btn-danger"
+                  title="Révoquer"
+                >
+                  🗑️
+                </button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    }
+  </div>
+
+  <!-- New Key Dialog -->
+  @if (showNewKeyDialog()) {
+    <div class="dialog-overlay" (click)="showNewKeyDialog.set(false)">
+      <div class="dialog" (click)="$event.stopPropagation()">
+        <h3>Générer une nouvelle clé API</h3>
+        <form [formGroup]="newKeyForm" (ngSubmit)="onCreateKey()">
+          <div class="form-group">
+            <label for="keyName">Nom de la clé *</label>
+            <input
+              type="text"
+              id="keyName"
+              formControlName="name"
+              placeholder="Ex: Apps Script Production"
+            />
+            @if (newKeyForm.get('name')?.touched && newKeyForm.get('name')?.errors) {
+              <span class="error-message">
+                @if (newKeyForm.get('name')?.errors?.['required']) {
+                  Le nom est requis
+                }
+                @if (newKeyForm.get('name')?.errors?.['minlength']) {
+                  Le nom doit contenir au moins 3 caractères
+                }
+              </span>
+            }
+          </div>
+
+          <div class="dialog-actions">
+            <button type="button" (click)="showNewKeyDialog.set(false)" class="btn-secondary">
+              Annuler
+            </button>
+            <button type="submit" class="btn-primary" [disabled]="newKeyForm.invalid || loading()">
+              Générer
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  }
+</div>
+
