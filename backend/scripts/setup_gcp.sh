@@ -165,7 +165,7 @@ update_env_var() {
 }
 
 # Get Terraform outputs
-VALKEY_HOST=$(tofu output -raw valkey_host 2>/dev/null || echo "")
+VALKEY_HOST=$(tofu output -raw valkey_primary_ip 2>/dev/null || echo "")
 VALKEY_PORT=$(tofu output -raw valkey_port 2>/dev/null || echo "6379")
 SA_EMAIL=$(tofu output -raw service_account_email)
 PROJECT_ID=$(tofu output -raw project_id)
@@ -178,7 +178,7 @@ if [ -f "$ENV_FILE" ]; then
         print_success "Updated REDIS_URL with Valkey endpoint"
     else
         print_warning "Valkey endpoint not yet available (may still be provisioning)"
-        print_info "Run 'cd backend/terraform && tofu output valkey_host' later to get the endpoint"
+        print_info "Run 'cd backend/terraform && tofu output valkey_primary_ip' later to get the endpoint"
     fi
     update_env_var "GOOGLE_APPLICATION_CREDENTIALS" "$KEY_FILE" "$ENV_FILE"
     update_env_var "GCP_PROJECT" "$PROJECT_ID" "$ENV_FILE"
@@ -238,3 +238,13 @@ print_info "Next steps:"
 echo "  1. Add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET to .env.$ENV"
 echo "  2. Copy .env.$ENV to backend/.env"
 echo "  3. Share Google Sheets with: $SA_EMAIL"
+echo ""
+
+# Ask to copy .env.$ENV to .env
+read -p "Copy .env.$ENV to backend/.env? (y/N): " copy_env
+if [ "$copy_env" = "y" ] || [ "$copy_env" = "Y" ]; then
+    cp "$ENV_FILE" "$SCRIPT_DIR/../.env"
+    print_success ".env.$ENV copied to backend/.env"
+else
+    print_info "Skipped. Run 'cp backend/.env.$ENV backend/.env' when ready"
+fi
