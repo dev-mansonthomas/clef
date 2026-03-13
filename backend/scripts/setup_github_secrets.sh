@@ -157,15 +157,15 @@ GCP_SA_KEY=$(base64 -i "$KEY_FILE")
 print_success "GCP_SA_KEY loaded and encoded from $KEY_FILE"
 echo ""
 
-# 3. GOOGLE_CLIENT_ID (Okta)
-print_info "3/6: GOOGLE_CLIENT_ID (Okta Client ID)"
-GOOGLE_CLIENT_ID=$(get_value "OKTA_CLIENT_ID" "Enter Okta Client ID")
+# 3. GOOGLE_CLIENT_ID (Google OAuth)
+print_info "3/6: GOOGLE_CLIENT_ID (Google OAuth Client ID)"
+GOOGLE_CLIENT_ID=$(get_value "GOOGLE_CLIENT_ID" "Enter Google OAuth Client ID")
 print_success "GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:0:10}..."
 echo ""
 
-# 4. GOOGLE_CLIENT_SECRET (Okta)
-print_info "4/6: GOOGLE_CLIENT_SECRET (Okta Client Secret)"
-GOOGLE_CLIENT_SECRET=$(get_secret_value "OKTA_CLIENT_SECRET" "Enter Okta Client Secret")
+# 4. GOOGLE_CLIENT_SECRET (Google OAuth)
+print_info "4/6: GOOGLE_CLIENT_SECRET (Google OAuth Client Secret)"
+GOOGLE_CLIENT_SECRET=$(get_secret_value "GOOGLE_CLIENT_SECRET" "Enter Google OAuth Client Secret")
 print_success "GOOGLE_CLIENT_SECRET: [hidden]"
 echo ""
 

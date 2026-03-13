@@ -23,9 +23,9 @@ class EnvValidator {
       'ENVIRONMENT',
       'API_URL',
       'DOMAIN',
-      'OKTA_DOMAIN',
-      'OKTA_CLIENT_ID',
-      'OKTA_ISSUER',
+      'GOOGLE_DOMAIN',
+      'GOOGLE_CLIENT_ID',
+      'GOOGLE_ISSUER',
       'GCP_PROJECT',
     ];
 
@@ -48,8 +48,8 @@ class EnvValidator {
       ENVIRONMENT: (v) => ['dev', 'test', 'prod'].includes(v),
       GCP_PROJECT: (v) => ['rcq-fr-dev', 'rcq-fr-test', 'rcq-fr-prod'].includes(v),
       API_URL: (v) => v.startsWith('http://') || v.startsWith('https://'),
-      OKTA_DOMAIN: (v) => v.includes('.okta.com'),
-      OKTA_ISSUER: (v) => v.startsWith('https://'),
+      GOOGLE_DOMAIN: (v) => v.includes('.okta.com'),
+      GOOGLE_ISSUER: (v) => v.startsWith('https://'),
       MAX_PHOTO_SIZE_MB: (v) => !isNaN(parseInt(v)) && parseInt(v) > 0,
       MAX_PHOTOS_PER_FORM: (v) => !isNaN(parseInt(v)) && parseInt(v) > 0,
     };

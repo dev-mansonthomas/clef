@@ -39,14 +39,14 @@ These secrets are accessed by Cloud Run services at runtime.
 # Set project
 export PROJECT_ID=rcq-fr-dev
 
-# 1. Okta Client ID
-echo -n "YOUR_OKTA_CLIENT_ID" | gcloud secrets create OKTA_CLIENT_ID \
+# 1. Google OAuth Client ID
+echo -n "YOUR_GOOGLE_CLIENT_ID" | gcloud secrets create GOOGLE_CLIENT_ID \
   --data-file=- \
   --replication-policy="automatic" \
   --project=$PROJECT_ID
 
-# 2. Okta Client Secret
-echo -n "YOUR_OKTA_CLIENT_SECRET" | gcloud secrets create OKTA_CLIENT_SECRET \
+# 2. Google OAuth Client Secret
+echo -n "YOUR_GOOGLE_CLIENT_SECRET" | gcloud secrets create GOOGLE_CLIENT_SECRET \
   --data-file=- \
   --replication-policy="automatic" \
   --project=$PROJECT_ID
@@ -111,7 +111,7 @@ export PROJECT_ID=rcq-fr-dev
 export SERVICE_ACCOUNT=clef-backend@rcq-fr-dev.iam.gserviceaccount.com
 
 # Grant access to all secrets
-for SECRET in OKTA_CLIENT_ID OKTA_CLIENT_SECRET QR_CODE_SALT JWT_SECRET_KEY \
+for SECRET in GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET QR_CODE_SALT JWT_SECRET_KEY \
               REDIS_URL SHEETS_URL_VEHICULES SHEETS_URL_BENEVOLES \
               SHEETS_URL_RESPONSABLES EMAIL_GESTIONNAIRE_DT EMAIL_DESTINATAIRE_ALERTES
 do
@@ -132,9 +132,9 @@ GCP_PROJECT: rcq-fr-dev
 GCP_REGION: europe-west1
 GCP_RESOURCE_PREFIX: clef-
 DOMAIN: clef.example.com
-OKTA_DOMAIN: croix-rouge.okta.com
-OKTA_ISSUER: https://croix-rouge.okta.com/oauth2/default
-OKTA_REDIRECT_URI: https://clef.example.com/auth/callback
+GOOGLE_DOMAIN: croix-rouge.okta.com
+GOOGLE_ISSUER: https://croix-rouge.okta.com/oauth2/default
+GOOGLE_REDIRECT_URI: https://clef.example.com/auth/callback
 SERVICE_ACCOUNT_EMAIL: clef-backend@rcq-fr-dev.iam.gserviceaccount.com
 CORS_ORIGINS: https://clef.example.com,https://admin.clef.example.com
 ```
@@ -154,10 +154,10 @@ CORS_ORIGINS: https://clef.example.com,https://admin.clef.example.com
 gcloud secrets list --project=rcq-fr-dev
 
 # View secret metadata (not the value)
-gcloud secrets describe OKTA_CLIENT_ID --project=rcq-fr-dev
+gcloud secrets describe GOOGLE_CLIENT_ID --project=rcq-fr-dev
 
 # Access a secret value (for testing)
-gcloud secrets versions access latest --secret=OKTA_CLIENT_ID --project=rcq-fr-dev
+gcloud secrets versions access latest --secret=GOOGLE_CLIENT_ID --project=rcq-fr-dev
 ```
 
 ### Test Secret Access from Cloud Run
@@ -166,7 +166,7 @@ gcloud secrets versions access latest --secret=OKTA_CLIENT_ID --project=rcq-fr-d
 # Deploy a test service
 gcloud run deploy test-secrets \
   --image=gcr.io/cloudrun/hello \
-  --set-secrets="OKTA_CLIENT_ID=OKTA_CLIENT_ID:latest" \
+  --set-secrets="GOOGLE_CLIENT_ID=GOOGLE_CLIENT_ID:latest" \
   --region=europe-west1 \
   --project=rcq-fr-dev
 
@@ -192,17 +192,17 @@ gcloud run services describe test-secrets \
 
 ```bash
 # Verify secret exists
-gcloud secrets list --project=rcq-fr-dev | grep OKTA_CLIENT_ID
+gcloud secrets list --project=rcq-fr-dev | grep GOOGLE_CLIENT_ID
 
 # Check IAM permissions
-gcloud secrets get-iam-policy OKTA_CLIENT_ID --project=rcq-fr-dev
+gcloud secrets get-iam-policy GOOGLE_CLIENT_ID --project=rcq-fr-dev
 ```
 
 ### Access Denied
 
 ```bash
 # Grant access to service account
-gcloud secrets add-iam-policy-binding OKTA_CLIENT_ID \
+gcloud secrets add-iam-policy-binding GOOGLE_CLIENT_ID \
   --member="serviceAccount:clef-backend@rcq-fr-dev.iam.gserviceaccount.com" \
   --role="roles/secretmanager.secretAccessor" \
   --project=rcq-fr-dev
@@ -212,7 +212,7 @@ gcloud secrets add-iam-policy-binding OKTA_CLIENT_ID \
 
 ```bash
 # Add new version
-echo -n "NEW_VALUE" | gcloud secrets versions add OKTA_CLIENT_ID \
+echo -n "NEW_VALUE" | gcloud secrets versions add GOOGLE_CLIENT_ID \
   --data-file=- \
   --project=rcq-fr-dev
 
@@ -237,13 +237,13 @@ gcloud auth list
 gcloud services enable secretmanager.googleapis.com --project=$PROJECT_ID
 
 # Create secrets (you'll be prompted for values)
-read -p "Enter OKTA_CLIENT_ID: " OKTA_CLIENT_ID
-echo -n "$OKTA_CLIENT_ID" | gcloud secrets create OKTA_CLIENT_ID \
+read -p "Enter GOOGLE_CLIENT_ID: " GOOGLE_CLIENT_ID
+echo -n "$GOOGLE_CLIENT_ID" | gcloud secrets create GOOGLE_CLIENT_ID \
   --data-file=- --replication-policy="automatic" --project=$PROJECT_ID
 
-read -sp "Enter OKTA_CLIENT_SECRET: " OKTA_CLIENT_SECRET
+read -sp "Enter GOOGLE_CLIENT_SECRET: " GOOGLE_CLIENT_SECRET
 echo
-echo -n "$OKTA_CLIENT_SECRET" | gcloud secrets create OKTA_CLIENT_SECRET \
+echo -n "$GOOGLE_CLIENT_SECRET" | gcloud secrets create GOOGLE_CLIENT_SECRET \
   --data-file=- --replication-policy="automatic" --project=$PROJECT_ID
 
 # Generate random secrets

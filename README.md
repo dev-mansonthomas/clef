@@ -52,9 +52,9 @@ Key variables:
 | `SHEETS_URL_VEHICULES` | Vehicles registry | Google Sheets URL |
 | `SHEETS_URL_BENEVOLES` | Volunteers registry | Google Sheets URL |
 | `SHEETS_URL_RESPONSABLES` | Managers registry | Google Sheets URL |
-| `OKTA_DOMAIN` | Okta domain | `croix-rouge.okta.com` |
-| `OKTA_CLIENT_ID` | Okta client ID | Provided by Okta |
-| `OKTA_CLIENT_SECRET` | Okta client secret | Provided by Okta |
+| `GOOGLE_DOMAIN` | Google OAuth domain | `croix-rouge.okta.com` |
+| `GOOGLE_CLIENT_ID` | Google OAuth client ID | Provided by Google OAuth |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth client secret | Provided by Google OAuth |
 | `EMAIL_GESTIONNAIRE_DT` | DT manager email | `thomas.manson@croix-rouge.fr` |
 | `QR_CODE_SALT` | QR code salt | Unique random string |
 
@@ -88,8 +88,8 @@ Key variables:
 | `API_URL` | Backend API URL | `http://localhost:8000` (dev) |
 | `DOMAIN` | Main domain | `clef.example.com` |
 | `GCP_PROJECT` | GCP project | `rcq-fr-dev`, `rcq-fr-test`, `rcq-fr-prod` |
-| `OKTA_DOMAIN` | Okta domain | `croix-rouge.okta.com` |
-| `OKTA_CLIENT_ID` | Okta client ID | Provided by Okta |
+| `GOOGLE_DOMAIN` | Google OAuth domain | `croix-rouge.okta.com` |
+| `GOOGLE_CLIENT_ID` | Google OAuth client ID | Provided by Google OAuth |
 | `THEME_COLOR` | Theme color | `#E30613` (Red Cross red) |
 
 Validate configuration:

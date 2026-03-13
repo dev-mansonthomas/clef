@@ -7,9 +7,9 @@ from unittest.mock import Mock, AsyncMock, patch
 
 # Set USE_MOCKS before importing app
 os.environ["USE_MOCKS"] = "true"
-os.environ["OKTA_DOMAIN"] = "test.okta.com"
-os.environ["OKTA_CLIENT_ID"] = "test_client_id"
-os.environ["OKTA_CLIENT_SECRET"] = "test_client_secret"
+os.environ["GOOGLE_DOMAIN"] = "test.okta.com"
+os.environ["GOOGLE_CLIENT_ID"] = "test_client_id"
+os.environ["GOOGLE_CLIENT_SECRET"] = "test_client_secret"
 os.environ["JWT_SECRET_KEY"] = "test_secret_key_for_testing_only_min_32_chars"
 
 from app.main import app

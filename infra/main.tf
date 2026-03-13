@@ -111,8 +111,8 @@ resource "google_artifact_registry_repository" "clef_images" {
 }
 
 # Create Secret Manager secrets (optional - values must be set manually)
-resource "google_secret_manager_secret" "okta_client_id" {
-  secret_id = "OKTA_CLIENT_ID"
+resource "google_secret_manager_secret" "google_client_id" {
+  secret_id = "GOOGLE_CLIENT_ID"
   project   = local.project_id
 
   replication {
@@ -122,8 +122,8 @@ resource "google_secret_manager_secret" "okta_client_id" {
   depends_on = [google_project_service.apis]
 }
 
-resource "google_secret_manager_secret" "okta_client_secret" {
-  secret_id = "OKTA_CLIENT_SECRET"
+resource "google_secret_manager_secret" "google_client_secret" {
+  secret_id = "GOOGLE_CLIENT_SECRET"
   project   = local.project_id
 
   replication {
@@ -220,13 +220,13 @@ output "next_steps" {
            --project=${local.project_id}
 
       2. Set secret values in Secret Manager:
-         gcloud secrets versions add OKTA_CLIENT_ID --data-file=- --project=${local.project_id}
-         gcloud secrets versions add OKTA_CLIENT_SECRET --data-file=- --project=${local.project_id}
+         gcloud secrets versions add GOOGLE_CLIENT_ID --data-file=- --project=${local.project_id}
+         gcloud secrets versions add GOOGLE_CLIENT_SECRET --data-file=- --project=${local.project_id}
          gcloud secrets versions add QR_CODE_SALT --data-file=- --project=${local.project_id}
          gcloud secrets versions add JWT_SECRET_KEY --data-file=- --project=${local.project_id}
 
       3. Create MemoryStore Redis instance (see DEPLOYMENT.md)
-      4. Configure Okta application (see DEPLOYMENT.md)
+      4. Configure Google OAuth application (see DEPLOYMENT.md)
       5. Share Google Sheets with the service account
 
     For more information, see DEPLOYMENT.md and SECRETS_SETUP.md
