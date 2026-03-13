@@ -6,6 +6,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatTableModule } from '@angular/material/table';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import Papa from 'papaparse';
 
 interface ClefField {
   id: string;
@@ -102,32 +103,39 @@ export class ColumnMapperComponent implements OnInit {
     this.loading.set(true);
     try {
       const text = await this.file.text();
-      const lines = text.split('\n').filter(l => l.trim());
+
+      // Parse CSV with PapaParse
+      const parseResult = Papa.parse(text, {
+        skipEmptyLines: true,
+        header: false
+      });
+
+      if (parseResult.errors.length > 0) {
+        console.warn('CSV parsing warnings:', parseResult.errors);
+      }
+
+      const allRows = parseResult.data as string[][];
 
       // Get header line (after skipping configured lines)
-      const headerLine = lines[this.skipLines];
-      if (!headerLine) {
-        console.error('No header line found');
+      if (allRows.length <= this.skipLines) {
+        console.error('Not enough lines in CSV file');
         return;
       }
 
-      const headers = headerLine.split(',').map(h => h.trim());
-
-      // Get first data line for example values
-      const dataLine = lines[this.skipLines + 1];
-      const examples = dataLine ? dataLine.split(',').map(s => s.trim()) : [];
+      const headerRow = allRows[this.skipLines];
+      const dataRow = allRows[this.skipLines + 1] || [];
 
       // Create CSV columns in file order
-      const columns: CsvColumn[] = headers.map((name, index) => ({
+      const columns: CsvColumn[] = headerRow.map((name, index) => ({
         index,
-        name,
-        exampleValue: examples[index] || ''
+        name: name || `Column ${index + 1}`,
+        exampleValue: dataRow[index] || ''
       }));
 
       this.csvColumns.set(columns);
 
       // Auto-suggest mapping based on column names
-      this.autoSuggestMapping(headers);
+      this.autoSuggestMapping(headerRow);
 
     } catch (error) {
       console.error('Error loading CSV columns:', error);

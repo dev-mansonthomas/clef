@@ -5,6 +5,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatTableModule } from '@angular/material/table';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import Papa from 'papaparse';
 
 /**
  * Import Configuration Component
@@ -163,30 +164,36 @@ export class ImportConfigComponent implements OnInit {
   
   private async loadPreview(): Promise<void> {
     if (!this.file) return;
-    
+
     this.loading.set(true);
     try {
       const text = await this.file.text();
-      const lines = text.split('\n');
-      
-      // Skip configured lines and take next 5
-      const dataLines = lines
+
+      // Parse CSV with PapaParse
+      const parseResult = Papa.parse(text, {
+        skipEmptyLines: true,
+        header: false
+      });
+
+      if (parseResult.errors.length > 0) {
+        console.warn('CSV parsing warnings:', parseResult.errors);
+      }
+
+      const allRows = parseResult.data as string[][];
+
+      // Skip configured lines and take next 5 for preview
+      const previewRows = allRows
         .slice(this.skipLinesValue, this.skipLinesValue + 5)
-        .filter(line => line.trim().length > 0);
-      
-      // Parse CSV (simple split by comma - TODO: handle quoted values)
-      const rows = dataLines.map(line => 
-        line.split(',').map(cell => cell.trim())
-      );
-      
-      if (rows.length > 0) {
-        const columnCount = Math.max(...rows.map(r => r.length));
+        .filter(row => row.some(cell => cell && cell.trim().length > 0));
+
+      if (previewRows.length > 0) {
+        const columnCount = Math.max(...previewRows.map(r => r.length));
         this.displayedColumns.set(
           Array.from({ length: columnCount }, (_, i) => `col${i}`)
         );
       }
-      
-      this.previewData.set(rows);
+
+      this.previewData.set(previewRows);
     } catch (error) {
       console.error('Error loading preview:', error);
     } finally {
