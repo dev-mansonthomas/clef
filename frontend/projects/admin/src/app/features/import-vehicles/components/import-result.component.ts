@@ -6,16 +6,17 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatTableModule } from '@angular/material/table';
 
 interface ImportError {
-  ligne: number;
-  raison: string;
+  line_number: number;
+  reason: string;
+  values?: string[];
 }
 
 interface ImportResult {
-  total_lignes: number;
-  lignes_ignorees: number;
-  vehicules_crees: number;
-  vehicules_maj: number;
-  erreurs: ImportError[];
+  total_lines: number;
+  ignored_lines: number;
+  created: number;
+  updated: number;
+  errors: ImportError[];
 }
 
 /**
@@ -47,61 +48,61 @@ interface ImportResult {
         <div class="stats-grid">
           <mat-card class="stat-card">
             <mat-card-content>
-              <div class="stat-value">{{ result.total_lignes }}</div>
+              <div class="stat-value">{{ result.total_lines }}</div>
               <div class="stat-label">Lignes traitées</div>
             </mat-card-content>
           </mat-card>
-          
+
           <mat-card class="stat-card success">
             <mat-card-content>
-              <div class="stat-value">{{ result.vehicules_crees }}</div>
+              <div class="stat-value">{{ result.created }}</div>
               <div class="stat-label">Véhicules créés</div>
             </mat-card-content>
           </mat-card>
-          
+
           <mat-card class="stat-card info">
             <mat-card-content>
-              <div class="stat-value">{{ result.vehicules_maj }}</div>
+              <div class="stat-value">{{ result.updated }}</div>
               <div class="stat-label">Véhicules mis à jour</div>
             </mat-card-content>
           </mat-card>
-          
+
           <mat-card class="stat-card warning">
             <mat-card-content>
-              <div class="stat-value">{{ result.lignes_ignorees }}</div>
+              <div class="stat-value">{{ result.ignored_lines }}</div>
               <div class="stat-label">Lignes ignorées</div>
             </mat-card-content>
           </mat-card>
-          
+
           <mat-card class="stat-card error">
             <mat-card-content>
-              <div class="stat-value">{{ result.erreurs.length }}</div>
+              <div class="stat-value">{{ result.errors.length }}</div>
               <div class="stat-label">Erreurs</div>
             </mat-card-content>
           </mat-card>
         </div>
         
-        @if (result.erreurs.length > 0) {
+        @if (result.errors.length > 0) {
           <div class="errors-section">
             <h4>
               <mat-icon>error</mat-icon>
               Erreurs rencontrées
             </h4>
-            
+
             <div class="table-container">
-              <table mat-table [dataSource]="result.erreurs" class="errors-table">
-                <ng-container matColumnDef="ligne">
+              <table mat-table [dataSource]="result.errors" class="errors-table">
+                <ng-container matColumnDef="line_number">
                   <th mat-header-cell *matHeaderCellDef>Ligne</th>
-                  <td mat-cell *matCellDef="let error">{{ error.ligne }}</td>
+                  <td mat-cell *matCellDef="let error">{{ error.line_number }}</td>
                 </ng-container>
-                
-                <ng-container matColumnDef="raison">
+
+                <ng-container matColumnDef="reason">
                   <th mat-header-cell *matHeaderCellDef>Raison</th>
-                  <td mat-cell *matCellDef="let error">{{ error.raison }}</td>
+                  <td mat-cell *matCellDef="let error">{{ error.reason }}</td>
                 </ng-container>
-                
-                <tr mat-header-row *matHeaderRowDef="['ligne', 'raison']"></tr>
-                <tr mat-row *matRowDef="let row; columns: ['ligne', 'raison']"></tr>
+
+                <tr mat-header-row *matHeaderRowDef="['line_number', 'reason']"></tr>
+                <tr mat-row *matRowDef="let row; columns: ['line_number', 'reason']"></tr>
               </table>
             </div>
           </div>
@@ -261,15 +262,15 @@ export class ImportResultComponent {
     const lines = [
       'Rapport d\'import de véhicules',
       '',
-      `Total lignes: ${this.result.total_lignes}`,
-      `Véhicules créés: ${this.result.vehicules_crees}`,
-      `Véhicules mis à jour: ${this.result.vehicules_maj}`,
-      `Lignes ignorées: ${this.result.lignes_ignorees}`,
-      `Erreurs: ${this.result.erreurs.length}`,
+      `Total lignes: ${this.result.total_lines}`,
+      `Véhicules créés: ${this.result.created}`,
+      `Véhicules mis à jour: ${this.result.updated}`,
+      `Lignes ignorées: ${this.result.ignored_lines}`,
+      `Erreurs: ${this.result.errors.length}`,
       '',
       'Détail des erreurs:',
       'Ligne,Raison',
-      ...this.result.erreurs.map(e => `${e.ligne},"${e.raison}"`)
+      ...this.result.errors.map(e => `${e.line_number},"${e.reason}"`)
     ];
     
     const csv = lines.join('\n');

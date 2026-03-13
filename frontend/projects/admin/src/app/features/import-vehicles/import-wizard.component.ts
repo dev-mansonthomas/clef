@@ -118,7 +118,7 @@ export class ImportWizardComponent {
           this.importResult.set(result);
           this.nextStep();
           this.snackBar.open(
-            `Import terminé: ${result.vehicules_crees} créés, ${result.vehicules_maj} mis à jour`,
+            `Import terminé: ${result.created} créés, ${result.updated} mis à jour`,
             'Fermer',
             { duration: 5000 }
           );
