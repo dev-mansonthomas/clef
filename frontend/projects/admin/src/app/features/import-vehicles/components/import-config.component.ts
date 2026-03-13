@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, OnInit, signal } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnChanges, SimpleChanges, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -142,7 +142,7 @@ import Papa from 'papaparse';
     }
   `]
 })
-export class ImportConfigComponent implements OnInit {
+export class ImportConfigComponent implements OnChanges {
   @Input() file!: File;
   @Input() skipLines = 0;
   @Output() skipLinesChange = new EventEmitter<number>();
@@ -151,10 +151,17 @@ export class ImportConfigComponent implements OnInit {
   loading = signal(false);
   previewData = signal<string[][]>([]);
   displayedColumns = signal<string[]>([]);
-  
-  ngOnInit(): void {
-    this.skipLinesValue = this.skipLines;
-    this.loadPreview();
+
+  ngOnChanges(changes: SimpleChanges): void {
+    if (changes['file'] && this.file) {
+      this.loadPreview();
+    }
+    if (changes['skipLines']) {
+      this.skipLinesValue = this.skipLines;
+      if (this.file) {
+        this.loadPreview();
+      }
+    }
   }
   
   onSkipLinesChange(value: number): void {

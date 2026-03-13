@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, OnInit, signal, computed } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnChanges, SimpleChanges, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -43,7 +43,7 @@ interface CsvColumn {
   templateUrl: './column-mapper.component.html',
   styleUrl: './column-mapper.component.scss'
 })
-export class ColumnMapperComponent implements OnInit {
+export class ColumnMapperComponent implements OnChanges {
   @Input() file!: File;
   @Input() skipLines = 4;
   @Output() mappingChange = new EventEmitter<Map<string, string>>();
@@ -89,9 +89,14 @@ export class ColumnMapperComponent implements OnInit {
       .filter(f => f.required)
       .every(f => mappedFields.has(f.id));
   });
-  
-  ngOnInit(): void {
-    this.loadCsvColumns();
+
+  ngOnChanges(changes: SimpleChanges): void {
+    if (changes['file'] && this.file) {
+      this.loadCsvColumns();
+    }
+    if (changes['skipLines'] && this.file) {
+      this.loadCsvColumns();
+    }
   }
 
   /**
