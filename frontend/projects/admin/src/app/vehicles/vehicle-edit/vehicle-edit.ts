@@ -16,6 +16,7 @@ import { Vehicle, DisponibiliteStatus } from '../../models/vehicle.model';
 
 @Component({
   selector: 'app-vehicle-edit',
+  standalone: true,
   imports: [
     CommonModule,
     ReactiveFormsModule,
