@@ -121,8 +121,12 @@ async def get_vehicle(
     Raises:
         404: Vehicle not found or user doesn't have access
     """
-    # Get vehicle from Valkey
+    # Try by nom_synthetique first
     vehicle_data = await get_vehicle_by_nom_synthetique(valkey_service, nom_synthetique)
+
+    # If not found, try as immat (fallback)
+    if not vehicle_data:
+        vehicle_data = await valkey_service.get_vehicle(nom_synthetique)
 
     if not vehicle_data:
         raise HTTPException(

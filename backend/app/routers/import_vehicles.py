@@ -82,6 +82,26 @@ def is_na_value(value: str) -> bool:
     return value.strip().lower() in NA_VALUES
 
 
+def parse_date(date_str: str) -> str:
+    """Convert DD/MM/YYYY to YYYY-MM-DD format."""
+    if not date_str or is_na_value(date_str):
+        return ""
+    # Try DD/MM/YYYY format
+    try:
+        dt = datetime.strptime(date_str.strip(), "%d/%m/%Y")
+        return dt.strftime("%Y-%m-%d")
+    except ValueError:
+        pass
+    # Try DD/MM/YY format
+    try:
+        dt = datetime.strptime(date_str.strip(), "%d/%m/%y")
+        return dt.strftime("%Y-%m-%d")
+    except ValueError:
+        pass
+    # Return as-is if can't parse
+    return date_str
+
+
 def suggest_field_mapping(header: str) -> Optional[str]:
     """Suggest a target field based on CSV header."""
     normalized = header.strip().lower()
@@ -336,10 +356,10 @@ async def import_csv(
                 "nom_synthetique": values.get("nom_synthetique", ""),
                 "operationnel_mecanique": values.get("operationnel_mecanique", "Dispo"),
                 "raison_indispo": values.get("raison_indispo", ""),
-                "prochain_controle_technique": values.get("prochain_controle_technique", ""),
-                "prochain_controle_pollution": values.get("prochain_controle_pollution", ""),
+                "prochain_controle_technique": parse_date(values.get("prochain_controle_technique", "")),
+                "prochain_controle_pollution": parse_date(values.get("prochain_controle_pollution", "")),
                 "type": values.get("type", ""),
-                "date_mec": values.get("date_mec", ""),
+                "date_mec": parse_date(values.get("date_mec", "")),
                 "carte_grise": values.get("carte_grise", ""),
                 "nb_places": values.get("nb_places", ""),
                 "commentaires": values.get("commentaires", ""),
@@ -353,6 +373,10 @@ async def import_csv(
             for key, value in vehicle_dict.items():
                 if isinstance(value, str) and is_na_value(value):
                     vehicle_dict[key] = ""
+
+            # Auto-generate nom_synthetique if empty
+            if not vehicle_dict.get("nom_synthetique") or is_na_value(vehicle_dict.get("nom_synthetique", "")):
+                vehicle_dict["nom_synthetique"] = f"{vehicle_dict['dt_ul']} - {vehicle_dict['indicatif']} - {vehicle_dict['immat']}"
 
             # Check if vehicle already exists
             existing = await valkey_service.get_vehicle(immat)
