@@ -150,23 +150,15 @@ async def callback(
         # Create redirect response with dynamic URL
         redirect_response = RedirectResponse(url=redirect_url)
 
-        # In development with mocks, use SameSite=None to allow cross-origin requests
-        # Note: Modern browsers require Secure=True for SameSite=None, but localhost is exempt
-        if auth_settings.use_mocks:
-            samesite_policy = "none"
-            secure_cookie = False  # localhost is exempt from Secure requirement
-        else:
-            samesite_policy = "lax"
-            secure_cookie = True
-
-        # Set session cookie
+        # Use SameSite=Lax for all environments
+        # Frontend uses Vite proxy in dev, so requests are same-origin
         redirect_response.set_cookie(
             key=auth_settings.session_cookie_name,
             value=session_token,
             max_age=auth_settings.session_max_age,
             httponly=True,
-            secure=secure_cookie,
-            samesite=samesite_policy
+            secure=False,  # Set to True in production with HTTPS
+            samesite="lax"
         )
 
         return redirect_response
@@ -191,19 +183,12 @@ async def logout(response: Response):
     Returns:
         Success message
     """
-    # Use same SameSite policy as login
-    if auth_settings.use_mocks:
-        samesite_policy = "none"
-        secure_cookie = False
-    else:
-        samesite_policy = "lax"
-        secure_cookie = True
-
+    # Use SameSite=Lax for all environments (matches login cookie)
     response.delete_cookie(
         key=auth_settings.session_cookie_name,
         httponly=True,
-        secure=secure_cookie,
-        samesite=samesite_policy
+        secure=False,  # Set to True in production with HTTPS
+        samesite="lax"
     )
 
     return {"message": "Logged out successfully"}
