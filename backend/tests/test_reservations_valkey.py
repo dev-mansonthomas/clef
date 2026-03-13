@@ -23,16 +23,21 @@ async def redis_client() -> AsyncGenerator:
 async def valkey_dt75(redis_client) -> ValkeyService:
     """Create ValkeyService for DT75 with test data."""
     service = ValkeyService(redis_client=redis_client, dt="DT75")
-    
+
     # Add test vehicle
     vehicle = VehicleData(
         immat="AB-123-CD",
         dt="DT75",
-        dt_ul="81",
+        dt_ul="UL Paris 15",
         marque="Renault",
         modele="Master",
         indicatif="VPSU 81",
-        nom_synthetique="vpsu-81"
+        nom_synthetique="vpsu-81",
+        operationnel_mecanique="Dispo",
+        type="VSAV",
+        carte_grise="CG123456",
+        nb_places="3",
+        lieu_stationnement="Garage UL"
     )
     await service.set_vehicle(vehicle)
     
@@ -178,11 +183,16 @@ class TestReservationCRUD:
         vehicle2 = VehicleData(
             immat="EF-456-GH",
             dt="DT75",
-            dt_ul="81",
+            dt_ul="UL Paris 16",
             marque="Peugeot",
             modele="Boxer",
             indicatif="VPSU 82",
-            nom_synthetique="vpsu-82"
+            nom_synthetique="vpsu-82",
+            operationnel_mecanique="Dispo",
+            type="VPSP",
+            carte_grise="CG456789",
+            nb_places="3",
+            lieu_stationnement="Garage UL"
         )
         await valkey_dt75.set_vehicle(vehicle2)
 
@@ -466,11 +476,16 @@ class TestReservationOverlapValidation:
         vehicle2 = VehicleData(
             immat="EF-456-GH",
             dt="DT75",
-            dt_ul="81",
+            dt_ul="UL Paris 16",
             marque="Peugeot",
             modele="Boxer",
             indicatif="VPSU 82",
-            nom_synthetique="vpsu-82"
+            nom_synthetique="vpsu-82",
+            operationnel_mecanique="Dispo",
+            type="VPSP",
+            carte_grise="CG456789",
+            nb_places="3",
+            lieu_stationnement="Garage UL"
         )
         await valkey_dt75.set_vehicle(vehicle2)
 
