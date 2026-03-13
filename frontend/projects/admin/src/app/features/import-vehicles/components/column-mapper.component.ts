@@ -122,16 +122,17 @@ export class ColumnMapperComponent implements OnChanges {
       const allRows = parseResult.data as string[][];
 
       // Get header line (after skipping configured lines)
-      // skipLines = 6 means we skip lines 1-6 (indices 0-5)
-      // The header row is the line JUST BEFORE the data starts
-      // So header is at index (skipLines - 1) and data starts at index skipLines
+      // skipLines = 6 means we skip lines 1-6 for import
+      // The CSV headers are at the line BEFORE the first data line
+      // Example: skipLines=6 → headers at line 5 (index 4), data starts at line 6 (index 5)
       if (allRows.length <= this.skipLines) {
         console.error('Not enough lines in CSV file');
         return;
       }
 
-      const headerRowIndex = this.skipLines - 1;  // Line 6 = index 5
-      const dataRowIndex = this.skipLines;        // Line 7 = index 6
+      // Headers are 2 lines before skipLines, data is 1 line before
+      const headerRowIndex = this.skipLines >= 2 ? this.skipLines - 2 : 0;  // Line 5 = index 4
+      const dataRowIndex = this.skipLines >= 1 ? this.skipLines - 1 : 0;    // Line 6 = index 5
 
       const headerRow = allRows[headerRowIndex];
       const dataRow = allRows[dataRowIndex] || [];
