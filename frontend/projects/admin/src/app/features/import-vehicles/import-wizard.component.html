@@ -1,0 +1,87 @@
+<div class="import-wizard-container">
+  <h2>Import de Véhicules (CSV)</h2>
+  
+  <mat-stepper [linear]="true" #stepper>
+    <!-- Step 1: Upload File -->
+    <mat-step label="Upload fichier">
+      <div class="step-content">
+        <app-file-upload
+          (fileSelected)="onFileSelected($event)"
+          [acceptedTypes]="'.csv'"
+        ></app-file-upload>
+        
+        <div class="step-actions">
+          <button mat-button (click)="cancel()">Annuler</button>
+          <button 
+            mat-raised-button 
+            color="primary" 
+            (click)="nextStep()"
+            [disabled]="!uploadedFile()"
+          >
+            Suivant
+          </button>
+        </div>
+      </div>
+    </mat-step>
+    
+    <!-- Step 2: Configuration -->
+    <mat-step label="Configuration">
+      <div class="step-content">
+        <app-import-config
+          [file]="uploadedFile()!"
+          [skipLines]="skipLines()"
+          (skipLinesChange)="onSkipLinesChange($event)"
+        ></app-import-config>
+        
+        <div class="step-actions">
+          <button mat-button (click)="previousStep()">Précédent</button>
+          <button mat-raised-button color="primary" (click)="nextStep()">
+            Suivant
+          </button>
+        </div>
+      </div>
+    </mat-step>
+    
+    <!-- Step 3: Column Mapping -->
+    <mat-step label="Mapping colonnes">
+      <div class="step-content">
+        <app-column-mapper
+          [file]="uploadedFile()!"
+          [skipLines]="skipLines()"
+          (mappingChange)="onMappingChange($event)"
+        ></app-column-mapper>
+        
+        <div class="step-actions">
+          <button mat-button (click)="previousStep()">Précédent</button>
+          <button 
+            mat-raised-button 
+            color="primary" 
+            (click)="startImport()"
+            [disabled]="importing()"
+          >
+            @if (importing()) {
+              <mat-spinner diameter="20"></mat-spinner>
+            }
+            Importer
+          </button>
+        </div>
+      </div>
+    </mat-step>
+    
+    <!-- Step 4: Result -->
+    <mat-step label="Résultat">
+      <div class="step-content">
+        <app-import-result
+          [result]="importResult()"
+        ></app-import-result>
+        
+        <div class="step-actions">
+          <button mat-raised-button color="primary" (click)="finish()">
+            Terminer
+          </button>
+        </div>
+      </div>
+    </mat-step>
+  </mat-stepper>
+</div>
+

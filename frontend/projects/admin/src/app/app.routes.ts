@@ -7,6 +7,7 @@ import { ConfigPageComponent } from './pages/config/config-page.component';
 import { LoginComponent } from './features/auth/login/login.component';
 import { LayoutComponent } from './shared/layout/layout.component';
 import { DashboardComponent } from './features/dashboard/dashboard.component';
+import { ImportWizardComponent } from './features/import-vehicles/import-wizard.component';
 import { authGuard } from './core/guards/auth.guard';
 import { dtManagerGuard } from './guards/dt-manager.guard';
 
@@ -31,6 +32,10 @@ export const routes: Routes = [
       {
         path: 'vehicles/:nomSynthetique/edit',
         component: VehicleEdit
+      },
+      {
+        path: 'vehicles/import',
+        component: ImportWizardComponent
       },
       {
         path: 'calendar',
