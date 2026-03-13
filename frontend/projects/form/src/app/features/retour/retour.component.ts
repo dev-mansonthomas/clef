@@ -7,6 +7,7 @@ import { MatCardModule } from '@angular/material/card';
  */
 @Component({
   selector: 'app-retour',
+  standalone: true,
   imports: [CommonModule, MatCardModule],
   templateUrl: './retour.component.html',
   styleUrl: './retour.component.scss'

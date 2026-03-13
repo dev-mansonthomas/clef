@@ -7,6 +7,7 @@ import { MatCardModule } from '@angular/material/card';
  */
 @Component({
   selector: 'app-vehicle-selection',
+  standalone: true,
   imports: [CommonModule, MatCardModule],
   templateUrl: './vehicle-selection.component.html',
   styleUrl: './vehicle-selection.component.scss'

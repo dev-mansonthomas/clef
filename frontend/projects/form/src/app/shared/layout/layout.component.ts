@@ -11,6 +11,7 @@ import { AuthService } from '../../services/auth.service';
  */
 @Component({
   selector: 'app-layout',
+  standalone: true,
   imports: [
     CommonModule,
     RouterOutlet,
