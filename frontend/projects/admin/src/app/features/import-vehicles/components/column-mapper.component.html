@@ -1,6 +1,6 @@
 <div class="mapper-container">
   <h3>Mapping des colonnes</h3>
-  
+
   @if (loading()) {
     <div class="loading">
       <mat-spinner diameter="40"></mat-spinner>
@@ -8,84 +8,59 @@
     </div>
   } @else {
     <div class="mapping-section">
-      <p class="info-text">
+      <div class="info-banner">
         <mat-icon>info</mat-icon>
-        Associez chaque champ CLEF à une colonne de votre fichier CSV.
-        Les champs marqués d'un astérisque (*) sont obligatoires.
-      </p>
-      
+        <span>
+          Associez chaque colonne de votre fichier CSV à un champ CLEF.
+          Les champs marqués (*) sont obligatoires.
+        </span>
+      </div>
+
       <div class="mapping-table">
         <div class="mapping-header">
-          <div class="field-column">Champ CLEF</div>
-          <div class="csv-column">Colonne CSV</div>
-          <div class="sample-column">Exemple</div>
+          <div class="csv-column-header">Colonne CSV</div>
+          <div class="clef-field-header">Champ CLEF</div>
+          <div class="example-header">Exemple</div>
         </div>
-        
-        @for (field of targetFields; track field.key) {
+
+        @for (col of csvColumns(); track col.index) {
           <div class="mapping-row">
-            <div class="field-column">
-              <span class="field-label">
-                {{ field.label }}
-                @if (field.required) {
-                  <span class="required">*</span>
-                }
-              </span>
+            <div class="csv-column-cell">
+              <span class="column-letter">{{ getColumnLetter(col.index) }}</span>
+              <span class="column-name">{{ col.name }}</span>
             </div>
-            
-            <div class="csv-column">
+
+            <div class="clef-field-cell">
               <mat-form-field appearance="outline">
-                <mat-select 
-                  [value]="mapping().get(field.key) ?? -1"
-                  (valueChange)="onMappingChange(field.key, $event)"
+                <mat-select
+                  [value]="getMapping(col.index)"
+                  (selectionChange)="onMappingChange(col.index, $event.value)"
                 >
-                  <mat-option [value]="-1">Ne pas importer</mat-option>
-                  @for (column of csvColumns(); track column.index) {
-                    <mat-option 
-                      [value]="column.index"
-                      [disabled]="isColumnUsed(column.index, field.key)"
-                    >
-                      Colonne {{ column.index + 1 }}: {{ column.name }}
-                      @if (isColumnUsed(column.index, field.key)) {
-                        <span class="used-indicator">(déjà utilisée)</span>
-                      }
+                  <mat-option value="skip">Ne pas importer</mat-option>
+                  @for (field of getAvailableFields(col.index); track field.id) {
+                    <mat-option [value]="field.id">
+                      {{ field.label }}
                     </mat-option>
                   }
                 </mat-select>
               </mat-form-field>
             </div>
-            
-            <div class="sample-column">
-              @if (mapping().has(field.key) && mapping().get(field.key)! >= 0) {
-                <span class="sample-text">
-                  {{ csvColumns()[mapping().get(field.key)!]?.sample || '-' }}
-                </span>
-              } @else {
-                <span class="sample-text empty">-</span>
-              }
+
+            <div class="example-cell">
+              <span class="example-value">{{ col.exampleValue || '-' }}</span>
             </div>
           </div>
         }
       </div>
-      
-      @if (!isValid()) {
-        <div class="validation-error">
-          <mat-icon>error</mat-icon>
-          <span>Veuillez mapper tous les champs obligatoires (*)</span>
+
+      @if (!allRequiredFieldsMapped()) {
+        <div class="warning-banner">
+          <mat-icon>warning</mat-icon>
+          <span>
+            Champs obligatoires non mappés : {{ getMissingRequiredFields().join(', ') }}
+          </span>
         </div>
       }
-    </div>
-    
-    <div class="preview-section">
-      <h4>Aperçu des données transformées</h4>
-      <p class="preview-info">
-        Voici comment les 5 premières lignes seront importées :
-      </p>
-      
-      <!-- TODO: Add preview table showing transformed data -->
-      <div class="preview-placeholder">
-        <mat-icon>visibility</mat-icon>
-        <p>L'aperçu sera disponible après avoir mappé les colonnes</p>
-      </div>
     </div>
   }
 </div>
