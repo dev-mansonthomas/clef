@@ -12,10 +12,10 @@
         
         <div class="step-actions">
           <button mat-button (click)="cancel()">Annuler</button>
-          <button 
-            mat-raised-button 
-            color="primary" 
-            (click)="nextStep()"
+          <button
+            mat-raised-button
+            color="primary"
+            matStepperNext
             [disabled]="!uploadedFile()"
           >
             Suivant
@@ -34,8 +34,8 @@
         ></app-import-config>
         
         <div class="step-actions">
-          <button mat-button (click)="previousStep()">Précédent</button>
-          <button mat-raised-button color="primary" (click)="nextStep()">
+          <button mat-button matStepperPrevious>Précédent</button>
+          <button mat-raised-button color="primary" matStepperNext>
             Suivant
           </button>
         </div>
@@ -52,10 +52,10 @@
         ></app-column-mapper>
         
         <div class="step-actions">
-          <button mat-button (click)="previousStep()">Précédent</button>
-          <button 
-            mat-raised-button 
-            color="primary" 
+          <button mat-button matStepperPrevious>Précédent</button>
+          <button
+            mat-raised-button
+            color="primary"
             (click)="startImport()"
             [disabled]="importing()"
           >
