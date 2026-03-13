@@ -57,6 +57,33 @@
   top: 61px; // Adjusted to account for header height
   z-index: 1000;
 
+  .nav-menu {
+    display: flex;
+    gap: 0.5rem;
+
+    a {
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+
+      &.active {
+        background-color: rgba(255, 255, 255, 0.1);
+      }
+
+      mat-icon {
+        font-size: 20px;
+        width: 20px;
+        height: 20px;
+      }
+
+      .nav-label {
+        @media (max-width: 600px) {
+          display: none;
+        }
+      }
+    }
+  }
+
   .toolbar-spacer {
     flex: 1 1 auto;
   }

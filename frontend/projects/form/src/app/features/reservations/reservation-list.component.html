@@ -1,0 +1,102 @@
+<div class="reservation-list-container">
+  <div class="header">
+    <h2>Réservations</h2>
+    
+    <div class="header-actions">
+      <!-- UL/DT Toggle -->
+      <mat-button-toggle-group 
+        [value]="view()" 
+        (change)="onViewChange($event.value)"
+        aria-label="Vue">
+        <mat-button-toggle value="ul">Mon UL</mat-button-toggle>
+        <mat-button-toggle value="dt">Toute la DT</mat-button-toggle>
+      </mat-button-toggle-group>
+
+      <!-- New Reservation Button -->
+      <button mat-raised-button color="primary" (click)="createReservation()">
+        <mat-icon>add</mat-icon>
+        Nouvelle réservation
+      </button>
+    </div>
+  </div>
+
+  <!-- Loading State -->
+  @if (loading()) {
+    <div class="loading-container">
+      <mat-spinner diameter="40"></mat-spinner>
+      <p>Chargement des réservations...</p>
+    </div>
+  }
+
+  <!-- Empty State -->
+  @else if (reservations().length === 0) {
+    <mat-card class="empty-state">
+      <mat-card-content>
+        <mat-icon>event_busy</mat-icon>
+        <p>Aucune réservation trouvée</p>
+        <button mat-raised-button color="primary" (click)="createReservation()">
+          Créer une réservation
+        </button>
+      </mat-card-content>
+    </mat-card>
+  }
+
+  <!-- Reservation List -->
+  @else {
+    <div class="reservation-grid">
+      @for (reservation of reservations(); track reservation.id) {
+        <mat-card class="reservation-card" (click)="viewReservation(reservation.id)">
+          <mat-card-header>
+            <mat-card-title>{{ reservation.vehicule_immat }}</mat-card-title>
+            <mat-card-subtitle>{{ reservation.chauffeur_nom }}</mat-card-subtitle>
+          </mat-card-header>
+          
+          <mat-card-content>
+            <div class="reservation-info">
+              <div class="info-row">
+                <mat-icon>event</mat-icon>
+                <span>{{ reservation.debut | date:'short' }} - {{ reservation.fin | date:'short' }}</span>
+              </div>
+              
+              <div class="info-row">
+                <mat-icon>assignment</mat-icon>
+                <span>{{ reservation.mission }}</span>
+              </div>
+              
+              @if (reservation.lieu_depart) {
+                <div class="info-row">
+                  <mat-icon>place</mat-icon>
+                  <span>{{ reservation.lieu_depart }}</span>
+                </div>
+              }
+              
+              @if (reservation.commentaire) {
+                <div class="info-row">
+                  <mat-icon>comment</mat-icon>
+                  <span>{{ reservation.commentaire }}</span>
+                </div>
+              }
+            </div>
+          </mat-card-content>
+          
+          <mat-card-actions>
+            @if (canEdit(reservation)) {
+              <button mat-button color="primary" [routerLink]="['/reservations', reservation.id]">
+                <mat-icon>edit</mat-icon>
+                Modifier
+              </button>
+            }
+            
+            @if (canDelete(reservation)) {
+              <button mat-button color="warn" (click)="deleteReservation(reservation, $event)">
+                <mat-icon>delete</mat-icon>
+                Annuler
+              </button>
+            }
+          </mat-card-actions>
+        </mat-card>
+      }
+    </div>
+  }
+</div>
+

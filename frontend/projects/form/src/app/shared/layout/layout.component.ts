@@ -1,6 +1,6 @@
 import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterOutlet, Router } from '@angular/router';
+import { RouterOutlet, Router, RouterLink, RouterLinkActive } from '@angular/router';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
@@ -14,6 +14,8 @@ import { AuthService } from '../../services/auth.service';
   imports: [
     CommonModule,
     RouterOutlet,
+    RouterLink,
+    RouterLinkActive,
     MatToolbarModule,
     MatIconModule,
     MatButtonModule
