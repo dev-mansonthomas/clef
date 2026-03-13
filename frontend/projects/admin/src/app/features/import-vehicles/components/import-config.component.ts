@@ -2,7 +2,7 @@ import { Component, Input, Output, EventEmitter, OnInit, signal } from '@angular
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatSelectModule } from '@angular/material/select';
+import { MatInputModule } from '@angular/material/input';
 import { MatTableModule } from '@angular/material/table';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 
@@ -20,7 +20,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
     CommonModule,
     FormsModule,
     MatFormFieldModule,
-    MatSelectModule,
+    MatInputModule,
     MatTableModule,
     MatProgressSpinnerModule
   ],
@@ -30,18 +30,21 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
       
       <mat-form-field appearance="outline">
         <mat-label>Ignorer les premières lignes</mat-label>
-        <mat-select 
+        <input
+          matInput
+          type="number"
+          min="0"
+          max="50"
           [(ngModel)]="skipLinesValue"
           (ngModelChange)="onSkipLinesChange($event)"
         >
-          <mat-option [value]="0">0 (aucune)</mat-option>
-          <mat-option [value]="1">1</mat-option>
-          <mat-option [value]="2">2</mat-option>
-          <mat-option [value]="3">3</mat-option>
-          <mat-option [value]="4">4 (défaut)</mat-option>
-          <mat-option [value]="5">5</mat-option>
-          <mat-option [value]="10">10</mat-option>
-        </mat-select>
+        <mat-hint>
+          @if (skipLinesValue > 0) {
+            Les lignes 1 à {{ skipLinesValue }} seront ignorées (en-têtes, titres, etc.)
+          } @else {
+            Aucune ligne ne sera ignorée
+          }
+        </mat-hint>
       </mat-form-field>
       
       <div class="preview-section">
@@ -140,10 +143,10 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 })
 export class ImportConfigComponent implements OnInit {
   @Input() file!: File;
-  @Input() skipLines = 4;
+  @Input() skipLines = 0;
   @Output() skipLinesChange = new EventEmitter<number>();
-  
-  skipLinesValue = 4;
+
+  skipLinesValue = 0;
   loading = signal(false);
   previewData = signal<string[][]>([]);
   displayedColumns = signal<string[]>([]);
