@@ -1,4 +1,4 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, inject, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -39,6 +39,7 @@ export class VehicleEdit implements OnInit {
   private readonly router = inject(Router);
   private readonly vehicleService = inject(VehicleService);
   private readonly snackBar = inject(MatSnackBar);
+  private readonly cdr = inject(ChangeDetectorRef);
 
   vehicleForm!: FormGroup;
   loading = false;
@@ -107,6 +108,7 @@ export class VehicleEdit implements OnInit {
         this.vehicle = vehicle;
         this.populateForm(vehicle);
         this.loading = false;
+        this.cdr.detectChanges();
       },
       error: (error) => {
         console.error('Error loading vehicle:', error);
@@ -114,6 +116,7 @@ export class VehicleEdit implements OnInit {
           duration: 5000
         });
         this.loading = false;
+        this.cdr.detectChanges();
         this.router.navigate(['/vehicles']);
       }
     });
