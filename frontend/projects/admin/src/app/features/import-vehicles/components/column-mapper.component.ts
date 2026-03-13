@@ -122,17 +122,18 @@ export class ColumnMapperComponent implements OnChanges {
       const allRows = parseResult.data as string[][];
 
       // Get header line (after skipping configured lines)
-      // skipLines = 6 means we skip lines 1-6 for import
-      // The CSV headers are at the line BEFORE the first data line
-      // Example: skipLines=6 → headers at line 5 (index 4), data starts at line 6 (index 5)
-      if (allRows.length <= this.skipLines) {
+      // skipLines = 5 means we skip lines 0-4 (indices 0-4)
+      // The CSV headers are at index skipLines (line skipLines+1)
+      // Data starts at index skipLines+1 (line skipLines+2)
+      // Example: skipLines=5 → headers at index 5 (line 6), data starts at index 6 (line 7)
+      if (allRows.length <= this.skipLines + 1) {
         console.error('Not enough lines in CSV file');
         return;
       }
 
-      // Headers are 2 lines before skipLines, data is 1 line before
-      const headerRowIndex = this.skipLines >= 2 ? this.skipLines - 2 : 0;  // Line 5 = index 4
-      const dataRowIndex = this.skipLines >= 1 ? this.skipLines - 1 : 0;    // Line 6 = index 5
+      // Headers are at skipLines index, data is at skipLines+1 index
+      const headerRowIndex = this.skipLines;      // skipLines=5 → index 5 (line 6)
+      const dataRowIndex = this.skipLines + 1;    // skipLines=5 → index 6 (line 7)
 
       const headerRow = allRows[headerRowIndex];
       const dataRow = allRows[dataRowIndex] || [];
@@ -166,20 +167,96 @@ export class ColumnMapperComponent implements OnChanges {
     // Normalize string for comparison
     const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
 
+    // Define explicit mappings for common CSV column names
+    const explicitMappings: Record<string, string> = {
+      // DT/UL variations
+      'dt75ul': 'dt_ul',
+      'dt75': 'dt_ul',
+      'dtul': 'dt_ul',
+      'dt': 'dt_ul',
+      'ul': 'dt_ul',
+      // Immatriculation variations
+      'immat': 'immat',
+      'immatriculation': 'immat',
+      // Indicatif variations
+      'indicatif': 'indicatif',
+      // Statut variations
+      'operationnelmecanique': 'statut',
+      'operationnel': 'statut',
+      'statut': 'statut',
+      'disponibilite': 'statut',
+      'dispo': 'statut',
+      // Marque/Modèle
+      'marque': 'marque',
+      'modele': 'modele',
+      'model': 'modele',
+      // Type
+      'type': 'type',
+      // Raison indispo
+      'raisonindispo': 'raison_indispo',
+      'raison': 'raison_indispo',
+      // Contrôle technique
+      'prochaincontroletechnique': 'prochain_ct',
+      'prochainct': 'prochain_ct',
+      'controletechnique': 'prochain_ct',
+      'ct': 'prochain_ct',
+      // Contrôle pollution
+      'prochaincontrolepollution': 'prochain_pollution',
+      'prochainpollution': 'prochain_pollution',
+      'controlepollution': 'prochain_pollution',
+      'pollution': 'prochain_pollution',
+      // Date MEC
+      'datemec': 'date_mec',
+      'mec': 'date_mec',
+      'miseencirculation': 'date_mec',
+      // Nom synthétique
+      'nomsynthetique': 'nom_synthetique',
+      'nom': 'nom_synthetique',
+      // Carte grise
+      'cartegrise': 'carte_grise',
+      // Nombre de places
+      'nbplaces': 'nb_places',
+      'nombreplaces': 'nb_places',
+      'places': 'nb_places',
+      // Commentaires
+      'commentaires': 'commentaires',
+      'commentaire': 'commentaires',
+      'comment': 'commentaires',
+      // Lieu de stationnement
+      'lieustationnement': 'lieu_stationnement',
+      'lieu': 'lieu_stationnement',
+      'stationnement': 'lieu_stationnement',
+      // Instructions
+      'instructions': 'instructions',
+      'instruction': 'instructions',
+      // Assurance
+      'assurance': 'assurance',
+      // Numéro BAUS
+      'numbaus': 'num_baus',
+      'numerobaus': 'num_baus',
+      'baus': 'num_baus'
+    };
+
     // Try to match each CSV column to a CLEF field
     headers.forEach((header, csvIndex) => {
       const headerNorm = normalize(header);
 
-      // Find best matching CLEF field
-      const match = this.CLEF_FIELDS.find(field => {
-        const fieldNorm = normalize(field.label);
-        // Check if header contains field name or vice versa
-        return headerNorm.includes(fieldNorm) || fieldNorm.includes(headerNorm);
-      });
+      // First, try explicit mappings
+      let matchedFieldId: string | undefined = explicitMappings[headerNorm];
 
-      if (match && !Array.from(newMapping.values()).includes(match.id)) {
-        // Only map if this CLEF field hasn't been used yet
-        newMapping.set(csvIndex, match.id);
+      // If no explicit match, try fuzzy matching with CLEF field labels
+      if (!matchedFieldId) {
+        const match = this.CLEF_FIELDS.find(field => {
+          const fieldNorm = normalize(field.label);
+          // Check if header contains field name or vice versa
+          return headerNorm.includes(fieldNorm) || fieldNorm.includes(headerNorm);
+        });
+        matchedFieldId = match?.id;
+      }
+
+      // Only map if we found a match and this CLEF field hasn't been used yet
+      if (matchedFieldId && !Array.from(newMapping.values()).includes(matchedFieldId)) {
+        newMapping.set(csvIndex, matchedFieldId);
       }
     });
 
