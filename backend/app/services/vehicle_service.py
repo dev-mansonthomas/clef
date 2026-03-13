@@ -90,10 +90,10 @@ class VehicleService:
     def enrich_vehicle(vehicle_data: Dict[str, Any]) -> Vehicle:
         """
         Enrich vehicle data with computed status fields.
-        
+
         Args:
             vehicle_data: Raw vehicle data from sheets
-            
+
         Returns:
             Vehicle model with status fields
         """
@@ -104,10 +104,15 @@ class VehicleService:
         status_pollution = VehicleService.calculate_status(
             vehicle_data.get("prochain_controle_pollution")
         )
-        status_disponibilite = VehicleService.calculate_disponibilite_status(
-            DisponibiliteStatus(vehicle_data.get("operationnel_mecanique", "Indispo"))
-        )
-        
+
+        # Normalize disponibilite value before creating enum
+        raw_dispo = vehicle_data.get("operationnel_mecanique", "Indispo")
+        dispo_status = DisponibiliteStatus.normalize(raw_dispo)
+        status_disponibilite = VehicleService.calculate_disponibilite_status(dispo_status)
+
+        # Update vehicle_data with normalized value
+        vehicle_data["operationnel_mecanique"] = dispo_status
+
         # Create vehicle model
         return Vehicle(
             **vehicle_data,
