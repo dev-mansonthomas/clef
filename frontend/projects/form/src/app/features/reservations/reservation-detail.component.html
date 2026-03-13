@@ -1,0 +1,110 @@
+<div class="reservation-detail-container">
+  @if (loading()) {
+    <div class="loading-container">
+      <mat-spinner diameter="40"></mat-spinner>
+      <p>Chargement...</p>
+    </div>
+  } @else if (reservation(); as res) {
+    <mat-card>
+      <mat-card-header>
+        <mat-card-title>Détails de la réservation</mat-card-title>
+      </mat-card-header>
+
+      <mat-card-content>
+        <div class="detail-grid">
+          <div class="detail-item">
+            <mat-icon>directions_car</mat-icon>
+            <div class="detail-content">
+              <span class="detail-label">Véhicule</span>
+              <span class="detail-value">{{ res.vehicule_immat }}</span>
+            </div>
+          </div>
+
+          <div class="detail-item">
+            <mat-icon>person</mat-icon>
+            <div class="detail-content">
+              <span class="detail-label">Chauffeur</span>
+              <span class="detail-value">{{ res.chauffeur_nom }}</span>
+              <span class="detail-sublabel">NIVOL: {{ res.chauffeur_nivol }}</span>
+            </div>
+          </div>
+
+          <div class="detail-item">
+            <mat-icon>assignment</mat-icon>
+            <div class="detail-content">
+              <span class="detail-label">Mission</span>
+              <span class="detail-value">{{ res.mission }}</span>
+            </div>
+          </div>
+
+          <div class="detail-item">
+            <mat-icon>event</mat-icon>
+            <div class="detail-content">
+              <span class="detail-label">Début</span>
+              <span class="detail-value">{{ res.debut | date:'full' }}</span>
+            </div>
+          </div>
+
+          <div class="detail-item">
+            <mat-icon>event</mat-icon>
+            <div class="detail-content">
+              <span class="detail-label">Fin</span>
+              <span class="detail-value">{{ res.fin | date:'full' }}</span>
+            </div>
+          </div>
+
+          @if (res.lieu_depart) {
+            <div class="detail-item">
+              <mat-icon>place</mat-icon>
+              <div class="detail-content">
+                <span class="detail-label">Lieu de départ</span>
+                <span class="detail-value">{{ res.lieu_depart }}</span>
+              </div>
+            </div>
+          }
+
+          @if (res.commentaire) {
+            <div class="detail-item">
+              <mat-icon>comment</mat-icon>
+              <div class="detail-content">
+                <span class="detail-label">Commentaire</span>
+                <span class="detail-value">{{ res.commentaire }}</span>
+              </div>
+            </div>
+          }
+
+          <div class="detail-item">
+            <mat-icon>person_outline</mat-icon>
+            <div class="detail-content">
+              <span class="detail-label">Créée par</span>
+              <span class="detail-value">{{ res.created_by }}</span>
+              <span class="detail-sublabel">{{ res.created_at | date:'short' }}</span>
+            </div>
+          </div>
+        </div>
+      </mat-card-content>
+
+      <mat-card-actions>
+        <button mat-button (click)="goBack()">
+          <mat-icon>arrow_back</mat-icon>
+          Retour
+        </button>
+        
+        @if (canEdit()) {
+          <button mat-raised-button color="primary" [routerLink]="['/reservations', res.id, 'edit']">
+            <mat-icon>edit</mat-icon>
+            Modifier
+          </button>
+        }
+        
+        @if (canDelete()) {
+          <button mat-raised-button color="warn" (click)="deleteReservation()">
+            <mat-icon>delete</mat-icon>
+            Annuler
+          </button>
+        }
+      </mat-card-actions>
+    </mat-card>
+  }
+</div>
+
