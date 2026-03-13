@@ -9,7 +9,7 @@ import { environment } from '../../environments/environment';
 })
 export class ApiKeysService {
   private readonly http = inject(HttpClient);
-  private readonly apiUrl = environment.apiUrl || 'http://localhost:8000';
+  private readonly apiUrl = environment.apiUrl;
   private readonly dt = 'DT75'; // TODO: Get from user context
 
   // DT-level API keys

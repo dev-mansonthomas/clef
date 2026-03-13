@@ -17,7 +17,7 @@ import {
 })
 export class ReservationService {
   private readonly http = inject(HttpClient);
-  private readonly apiUrl = environment.apiUrl || 'http://localhost:8000';
+  private readonly apiUrl = environment.apiUrl;
 
   /**
    * Get list of reservations for a DT
