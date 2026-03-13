@@ -22,12 +22,12 @@ pip install -e ".[dev]"
 uvicorn app.main:app --reload
 ```
 
-The API will be available at http://localhost:8000
+The API will be available at [http://localhost:8000](http://localhost:8000)
 
 ## API Documentation
 
-- Swagger UI: http://localhost:8000/docs
-- ReDoc: http://localhost:8000/redoc
+- Swagger UI: [http://localhost:8000/docs](http://localhost:8000/docs)
+- ReDoc: [http://localhost:8000/redoc](http://localhost:8000/redoc)
 
 ## Project Structure
 
@@ -39,4 +39,3 @@ backend/
 ├── pyproject.toml       # Project dependencies
 └── README.md
 ```
-
