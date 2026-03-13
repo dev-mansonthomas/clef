@@ -324,7 +324,7 @@ async def import_csv(
     updated = 0
     errors: List[ImportError] = []
 
-    data_rows = all_rows[config.skip_lines:]
+    data_rows = all_rows[config.skip_lines + 1:]
 
     for idx, row in enumerate(data_rows, start=config.skip_lines):
         total_lines += 1
@@ -345,13 +345,6 @@ async def import_csv(
                     reason=f"Immatriculation N/A or empty: '{immat}'",
                     values=row
                 ))
-                continue
-
-            # Skip header row (contains column names like "Immat", "Indicatif", etc.)
-            HEADER_VALUES = {"immat", "indicatif", "dt 75 / ul", "type", "marque", "modèle", "immatriculation"}
-            immat_lower = immat.lower().strip()
-            if immat_lower in HEADER_VALUES:
-                ignored_lines += 1
                 continue
 
             # Check required fields
