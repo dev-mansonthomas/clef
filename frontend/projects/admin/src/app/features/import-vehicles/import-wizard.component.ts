@@ -48,7 +48,7 @@ export class ImportWizardComponent {
 
   // Wizard state
   uploadedFile = signal<File | null>(null);
-  skipLines = signal(4);
+  skipLines = signal(0);
   columnMapping = signal<Map<string, string>>(new Map());
   importResult = signal<ImportResult | null>(null);
 
