@@ -89,7 +89,25 @@ class ValkeyService:
         """List all vehicle license plates for this DT."""
         members = await self.redis.smembers(self._key("vehicules", "index"))
         return list(members) if members else []
-    
+
+    async def get_vehicle_by_nom_synthetique(self, nom_synthetique: str) -> Optional[VehicleData]:
+        """
+        Get vehicle by synthetic name.
+
+        Args:
+            nom_synthetique: Synthetic name of the vehicle
+
+        Returns:
+            VehicleData or None if not found
+        """
+        # Get all vehicle IDs and search for matching nom_synthetique
+        vehicle_ids = await self.list_vehicles()
+        for immat in vehicle_ids:
+            vehicle = await self.get_vehicle(immat)
+            if vehicle and vehicle.nom_synthetique == nom_synthetique:
+                return vehicle
+        return None
+
     async def delete_vehicle(self, immat: str) -> bool:
         """Delete vehicle and remove from index."""
         try:
@@ -297,6 +315,149 @@ class ValkeyService:
             entries = [e for e in entries if e.type == entry_type]
 
         return entries[0] if entries else None
+
+    async def enregistrer_prise(
+        self,
+        immat: str,
+        benevole_nom: str,
+        benevole_prenom: str,
+        benevole_email: str,
+        kilometrage: int,
+        niveau_carburant: str,
+        etat_general: str,
+        observations: str = ""
+    ) -> str:
+        """
+        Enregistrer une prise de véhicule.
+
+        Args:
+            immat: Vehicle license plate
+            benevole_nom: Volunteer last name
+            benevole_prenom: Volunteer first name
+            benevole_email: Volunteer email
+            kilometrage: Odometer reading
+            niveau_carburant: Fuel level
+            etat_general: General condition
+            observations: Additional observations
+
+        Returns:
+            Timestamp of the entry (ISO format)
+        """
+        timestamp = datetime.now()
+
+        entry = CarnetBordEntry(
+            immat=immat,
+            dt=self.dt,
+            timestamp=timestamp,
+            type="Prise",
+            benevole_nom=benevole_nom,
+            benevole_prenom=benevole_prenom,
+            benevole_email=benevole_email,
+            kilometrage=kilometrage,
+            niveau_carburant=niveau_carburant,
+            etat_general=etat_general,
+            observations=observations
+        )
+
+        await self.add_carnet_entry(entry)
+
+        # Store as derniere_prise for quick lookup
+        derniere_prise_key = self._key("carnet", "derniere_prise", immat)
+        prise_data = {
+            "benevole_nom": benevole_nom,
+            "benevole_prenom": benevole_prenom,
+            "benevole_email": benevole_email,
+            "kilometrage": kilometrage,
+            "niveau_carburant": niveau_carburant,
+            "etat_general": etat_general,
+            "observations": observations,
+            "timestamp": timestamp.isoformat()
+        }
+        await self.redis.set(derniere_prise_key, json.dumps(prise_data))
+
+        return timestamp.isoformat()
+
+    async def enregistrer_retour(
+        self,
+        immat: str,
+        benevole_nom: str,
+        benevole_prenom: str,
+        benevole_email: str,
+        kilometrage: int,
+        niveau_carburant: str,
+        etat_general: str,
+        problemes_signales: str = "",
+        observations: str = ""
+    ) -> str:
+        """
+        Enregistrer un retour de véhicule.
+
+        Args:
+            immat: Vehicle license plate
+            benevole_nom: Volunteer last name
+            benevole_prenom: Volunteer first name
+            benevole_email: Volunteer email
+            kilometrage: Odometer reading
+            niveau_carburant: Fuel level
+            etat_general: General condition
+            problemes_signales: Reported problems
+            observations: Additional observations
+
+        Returns:
+            Timestamp of the entry (ISO format)
+        """
+        timestamp = datetime.now()
+
+        entry = CarnetBordEntry(
+            immat=immat,
+            dt=self.dt,
+            timestamp=timestamp,
+            type="Retour",
+            benevole_nom=benevole_nom,
+            benevole_prenom=benevole_prenom,
+            benevole_email=benevole_email,
+            kilometrage=kilometrage,
+            niveau_carburant=niveau_carburant,
+            etat_general=etat_general,
+            observations=observations,
+            problemes_signales=problemes_signales
+        )
+
+        await self.add_carnet_entry(entry)
+
+        # Remove derniere_prise since vehicle is returned
+        derniere_prise_key = self._key("carnet", "derniere_prise", immat)
+        await self.redis.delete(derniere_prise_key)
+
+        return timestamp.isoformat()
+
+    async def get_derniere_prise(self, immat: str) -> Optional[Dict[str, Any]]:
+        """
+        Récupérer la dernière prise d'un véhicule (véhicule en cours d'utilisation).
+
+        Args:
+            immat: Vehicle license plate
+
+        Returns:
+            Last prise data or None if vehicle is not currently taken
+        """
+        derniere_prise_key = self._key("carnet", "derniere_prise", immat)
+        data = await self.redis.get(derniere_prise_key)
+        return json.loads(data) if data else None
+
+    async def get_historique_carnet(self, immat: str, limit: int = 50) -> List[Dict[str, Any]]:
+        """
+        Récupérer l'historique du carnet de bord d'un véhicule.
+
+        Args:
+            immat: Vehicle license plate
+            limit: Maximum number of entries to return
+
+        Returns:
+            List of carnet entries (most recent first)
+        """
+        entries = await self.get_carnet_entries(immat, limit=limit)
+        return [entry.model_dump() for entry in entries]
 
     # ========== Reservations ==========
 
