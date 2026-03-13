@@ -15,7 +15,7 @@ from app.auth.routes import router as auth_router
 from app.cache import get_cache, CacheService
 
 logger = logging.getLogger(__name__)
-from app.routers import config_router, calendar_router
+from app.routers import config_router, calendar_router, unites_locales_router
 from app.routers import vehicles
 from app.routers import reservations
 from app.routers import carnet_bord
@@ -43,6 +43,7 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(config_router)
 app.include_router(calendar_router)
+app.include_router(unites_locales_router)
 app.include_router(vehicles.router)
 app.include_router(reservations.router)
 app.include_router(carnet_bord.router)
