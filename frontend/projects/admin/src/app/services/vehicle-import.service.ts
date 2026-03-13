@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
+import { environment } from '../../environments/environment';
 
 /**
  * Column mapping for CSV import
@@ -76,7 +77,7 @@ export interface CsvPreviewResponse {
   providedIn: 'root'
 })
 export class VehicleImportService {
-  private readonly apiUrl = '/api';
+  private readonly apiUrl = environment.apiUrl;
   
   constructor(private http: HttpClient) {}
   
@@ -96,8 +97,9 @@ export class VehicleImportService {
     const dt = 'DT75';
     
     return this.http.post<CsvPreviewResponse>(
-      `${this.apiUrl}/${dt}/import/vehicles/preview`,
-      formData
+      `${this.apiUrl}/api/${dt}/import/vehicles/preview`,
+      formData,
+      { withCredentials: true }
     );
   }
   
@@ -117,8 +119,9 @@ export class VehicleImportService {
     const dt = 'DT75';
     
     return this.http.post<ImportResult>(
-      `${this.apiUrl}/${dt}/import/vehicles`,
-      formData
+      `${this.apiUrl}/api/${dt}/import/vehicles`,
+      formData,
+      { withCredentials: true }
     );
   }
   
