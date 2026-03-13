@@ -150,14 +150,23 @@ async def callback(
         # Create redirect response with dynamic URL
         redirect_response = RedirectResponse(url=redirect_url)
 
+        # In development with mocks, use SameSite=None to allow cross-origin requests
+        # Note: Modern browsers require Secure=True for SameSite=None, but localhost is exempt
+        if auth_settings.use_mocks:
+            samesite_policy = "none"
+            secure_cookie = False  # localhost is exempt from Secure requirement
+        else:
+            samesite_policy = "lax"
+            secure_cookie = True
+
         # Set session cookie
         redirect_response.set_cookie(
             key=auth_settings.session_cookie_name,
             value=session_token,
             max_age=auth_settings.session_max_age,
             httponly=True,
-            secure=not auth_settings.use_mocks,  # HTTPS only in production
-            samesite="lax"
+            secure=secure_cookie,
+            samesite=samesite_policy
         )
 
         return redirect_response
@@ -175,20 +184,28 @@ async def callback(
 async def logout(response: Response):
     """
     Logout user by clearing session cookie.
-    
+
     Args:
         response: FastAPI response object
-        
+
     Returns:
         Success message
     """
+    # Use same SameSite policy as login
+    if auth_settings.use_mocks:
+        samesite_policy = "none"
+        secure_cookie = False
+    else:
+        samesite_policy = "lax"
+        secure_cookie = True
+
     response.delete_cookie(
         key=auth_settings.session_cookie_name,
         httponly=True,
-        secure=not auth_settings.use_mocks,
-        samesite="lax"
+        secure=secure_cookie,
+        samesite=samesite_policy
     )
-    
+
     return {"message": "Logged out successfully"}
 
 
