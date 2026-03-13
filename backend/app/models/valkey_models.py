@@ -67,6 +67,33 @@ class BenevoleData(BaseModel):
     )
 
 
+class ResponsableData(BaseModel):
+    """Responsable data stored in Valkey."""
+    email: str = Field(..., description="Email address")
+    dt: str = Field(..., description="DT identifier")
+    nom: str = Field(..., description="Last name")
+    prenom: str = Field(..., description="First name")
+    role: str = Field(..., description="Role (e.g., 'Responsable UL', 'Gestionnaire DT')")
+    perimetre: Optional[str] = Field(None, description="Scope (UL or activity)")
+    type_perimetre: Optional[str] = Field(None, description="Scope type: 'DT', 'UL', 'Activité Spécialisée'")
+    ul: Optional[str] = Field(None, description="UL identifier if applicable")
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "email": "responsable@croix-rouge.fr",
+                "dt": "DT75",
+                "nom": "Durand",
+                "prenom": "Pierre",
+                "role": "Responsable UL",
+                "perimetre": "UL Paris 15",
+                "type_perimetre": "UL",
+                "ul": "UL Paris 15"
+            }
+        }
+    )
+
+
 class CarnetBordEntry(BaseModel):
     """Carnet de bord entry stored in Valkey."""
     immat: str = Field(..., description="Vehicle license plate")
