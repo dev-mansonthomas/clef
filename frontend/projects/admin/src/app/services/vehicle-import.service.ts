@@ -111,7 +111,7 @@ export class VehicleImportService {
   importVehicles(file: File, config: ImportConfig): Observable<ImportResult> {
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('config', JSON.stringify(config));
+    formData.append('config_json', JSON.stringify(config));
     
     // TODO: Replace with actual DT from user context
     const dt = 'DT75';
