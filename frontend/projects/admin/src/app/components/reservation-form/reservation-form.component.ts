@@ -18,6 +18,7 @@ import { Observable } from 'rxjs';
 
 @Component({
   selector: 'app-reservation-form',
+  standalone: true,
   imports: [
     CommonModule,
     ReactiveFormsModule,
