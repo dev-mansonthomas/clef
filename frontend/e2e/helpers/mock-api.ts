@@ -121,6 +121,24 @@ export async function setupApiMocks(page: Page) {
       }),
     });
   });
+
+  // Mock vehicle import endpoint
+  await page.route('**/api/vehicles/import', async (route) => {
+    if (route.request().method() === 'POST') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          created: 2,
+          updated: 1,
+          errors: [],
+          warnings: []
+        }),
+      });
+    } else {
+      await route.continue();
+    }
+  });
 }
 
 /**

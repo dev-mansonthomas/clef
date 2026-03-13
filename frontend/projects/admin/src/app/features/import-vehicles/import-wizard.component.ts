@@ -48,7 +48,7 @@ export class ImportWizardComponent {
 
   // Wizard state
   uploadedFile = signal<File | null>(null);
-  skipLines = signal(0);
+  skipLines = signal(6);  // Default to 6 to skip header lines in CSV
   columnMapping = signal<Map<string, string>>(new Map());
   importResult = signal<ImportResult | null>(null);
 

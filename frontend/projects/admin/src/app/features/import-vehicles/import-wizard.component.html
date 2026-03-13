@@ -3,13 +3,13 @@
   
   <mat-stepper [linear]="true" #stepper>
     <!-- Step 1: Upload File -->
-    <mat-step label="Upload fichier">
+    <mat-step label="Upload fichier" [editable]="true" [completed]="!!uploadedFile()">
       <div class="step-content">
         <app-file-upload
           (fileSelected)="onFileSelected($event)"
           [acceptedTypes]="'.csv'"
         ></app-file-upload>
-        
+
         <div class="step-actions">
           <button mat-button (click)="cancel()">Annuler</button>
           <button
@@ -23,16 +23,16 @@
         </div>
       </div>
     </mat-step>
-    
+
     <!-- Step 2: Configuration -->
-    <mat-step label="Configuration">
+    <mat-step label="Configuration" [editable]="true">
       <div class="step-content">
         <app-import-config
           [file]="uploadedFile()!"
           [skipLines]="skipLines()"
           (skipLinesChange)="onSkipLinesChange($event)"
         ></app-import-config>
-        
+
         <div class="step-actions">
           <button mat-button matStepperPrevious>Précédent</button>
           <button mat-raised-button color="primary" matStepperNext>
@@ -41,9 +41,9 @@
         </div>
       </div>
     </mat-step>
-    
+
     <!-- Step 3: Column Mapping -->
-    <mat-step label="Mapping colonnes">
+    <mat-step label="Mapping colonnes" [editable]="true">
       <div class="step-content">
         <app-column-mapper
           [file]="uploadedFile()!"
