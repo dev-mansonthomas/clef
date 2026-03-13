@@ -347,6 +347,13 @@ async def import_csv(
                 ))
                 continue
 
+            # Skip header row (contains column names like "Immat", "Indicatif", etc.)
+            HEADER_VALUES = {"immat", "indicatif", "dt 75 / ul", "type", "marque", "modèle", "immatriculation"}
+            immat_lower = immat.lower().strip()
+            if immat_lower in HEADER_VALUES:
+                ignored_lines += 1
+                continue
+
             # Check required fields
             missing = []
             for field in REQUIRED_FIELDS:
