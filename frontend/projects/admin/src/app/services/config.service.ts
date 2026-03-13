@@ -9,7 +9,7 @@ import { environment } from '../../environments/environment';
 })
 export class ConfigService {
   private readonly http = inject(HttpClient);
-  private readonly apiUrl = environment.apiUrl || 'http://localhost:8000';
+  private readonly apiUrl = environment.apiUrl;
 
   getConfig(): Observable<ConfigResponse> {
     return this.http.get<ConfigResponse>(`${this.apiUrl}/api/config`);

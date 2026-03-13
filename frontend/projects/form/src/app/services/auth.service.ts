@@ -15,7 +15,7 @@ interface LoginResponse {
 export class AuthService {
   private readonly http = inject(HttpClient);
   private readonly router = inject(Router);
-  private readonly apiUrl = environment.apiUrl || 'http://localhost:8000';
+  private readonly apiUrl = environment.apiUrl;
 
   // Current user state
   private currentUserSubject = new BehaviorSubject<User | null>(null);

@@ -21,7 +21,7 @@ export interface CalendarCreateResponse {
 })
 export class CalendarService {
   private readonly http = inject(HttpClient);
-  private readonly apiUrl = environment.apiUrl || 'http://localhost:8000';
+  private readonly apiUrl = environment.apiUrl;
 
   /**
    * Check if the calendar exists
