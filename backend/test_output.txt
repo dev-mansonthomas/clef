@@ -1,0 +1,1861 @@
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/pytest_asyncio/plugin.py:208: PytestDeprecationWarning: The configuration option "asyncio_default_fixture_loop_scope" is unset.
+The event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: "function", "class", "module", "package", "session"
+
+  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))
+============================= test session starts ==============================
+platform darwin -- Python 3.13.7, pytest-8.3.4, pluggy-1.6.0 -- /Users/tom/.pyenv/versions/3.13.7/bin/python3.13
+cachedir: .pytest_cache
+rootdir: /Users/tom/intent/workspaces/prod-test/repo/backend
+configfile: pyproject.toml
+plugins: asyncio-0.24.0, anyio-4.11.0
+asyncio: mode=Mode.AUTO, default_loop_scope=None
+collecting ... collected 205 items
+
+tests/test_alerts.py::TestAlertService::test_parse_date_valid_formats PASSED [  0%]
+tests/test_alerts.py::TestAlertService::test_parse_date_invalid PASSED   [  0%]
+tests/test_alerts.py::TestAlertService::test_check_expiry_within_delay PASSED [  1%]
+tests/test_alerts.py::TestAlertService::test_check_expiry_none PASSED    [  1%]
+tests/test_alerts.py::TestAlertService::test_check_and_send_alerts_no_config PASSED [  2%]
+tests/test_alerts.py::TestAlertService::test_check_and_send_alerts_with_expiring_vehicles PASSED [  2%]
+tests/test_alerts.py::TestAlertService::test_check_and_send_alerts_no_expiring_vehicles PASSED [  3%]
+tests/test_auth.py::TestAuthEndpoints::test_login_endpoint PASSED        [  3%]
+tests/test_auth.py::TestAuthEndpoints::test_me_endpoint_without_auth PASSED [  4%]
+tests/test_auth.py::TestAuthEndpoints::test_logout_endpoint PASSED       [  4%]
+tests/test_auth.py::TestAuthEndpoints::test_full_auth_flow_dt_manager PASSED [  5%]
+tests/test_auth.py::TestAuthEndpoints::test_full_auth_flow_ul_responsible FAILED [  5%]
+tests/test_auth.py::TestAuthEndpoints::test_full_auth_flow_benevole FAILED [  6%]
+tests/test_auth.py::TestAuthEndpoints::test_invalid_authorization_code PASSED [  6%]
+tests/test_auth.py::TestAuthDependencies::test_require_authenticated_user FAILED [  7%]
+tests/test_auth.py::TestAuthDependencies::test_require_dt_manager FAILED [  7%]
+tests/test_auth.py::TestAuthDependencies::test_require_ul_responsible FAILED [  8%]
+tests/test_auth.py::TestAuthService::test_user_role_determination_dt_manager PASSED [  8%]
+tests/test_auth.py::TestAuthService::test_user_role_determination_ul_responsible FAILED [  9%]
+tests/test_auth.py::TestAuthService::test_user_role_determination_benevole FAILED [  9%]
+tests/test_cache.py::TestRedisCache::test_connection PASSED              [ 10%]
+tests/test_cache.py::TestRedisCache::test_set_and_get PASSED             [ 10%]
+tests/test_cache.py::TestRedisCache::test_get_nonexistent PASSED         [ 11%]
+tests/test_cache.py::TestRedisCache::test_delete PASSED                  [ 11%]
+tests/test_cache.py::TestRedisCache::test_exists PASSED                  [ 12%]
+tests/test_cache.py::TestRedisCache::test_ttl PASSED                     [ 12%]
+tests/test_cache.py::TestRedisCache::test_persistent_no_ttl PASSED       [ 13%]
+tests/test_cache.py::TestCacheService::test_preload_benevoles PASSED     [ 13%]
+tests/test_cache.py::TestCacheService::test_preload_responsables PASSED  [ 14%]
+tests/test_cache.py::TestCacheService::test_calendar_id_persistence PASSED [ 14%]
+tests/test_cache.py::TestCacheService::test_get_nonexistent_benevole PASSED [ 15%]
+tests/test_cache.py::TestCacheService::test_get_nonexistent_responsable PASSED [ 15%]
+tests/test_cache.py::TestCacheService::test_get_nonexistent_calendar_id PASSED [ 16%]
+tests/test_calendar_router.py::test_get_calendar_status_not_exists PASSED [ 16%]
+tests/test_calendar_router.py::test_get_calendar_status_exists PASSED    [ 17%]
+tests/test_calendar_router.py::test_create_calendar_success PASSED       [ 17%]
+tests/test_calendar_router.py::test_create_calendar_already_exists PASSED [ 18%]
+tests/test_calendar_router.py::test_create_calendar_failure PASSED       [ 18%]
+tests/test_calendar_service.py::TestCalendarService::test_init PASSED    [ 19%]
+tests/test_calendar_service.py::TestCalendarService::test_get_calendar_name_dev PASSED [ 19%]
+tests/test_calendar_service.py::TestCalendarService::test_get_calendar_name_prod PASSED [ 20%]
+tests/test_calendar_service.py::TestCalendarService::test_get_stored_calendar_id_from_redis PASSED [ 20%]
+tests/test_calendar_service.py::TestCalendarService::test_get_stored_calendar_id_cache PASSED [ 20%]
+tests/test_calendar_service.py::TestCalendarService::test_store_calendar_id PASSED [ 21%]
+tests/test_calendar_service.py::TestCalendarService::test_create_calendar PASSED [ 21%]
+tests/test_calendar_service.py::TestCalendarService::test_get_events PASSED [ 22%]
+tests/test_calendar_service.py::TestCalendarService::test_create_reservation PASSED [ 22%]
+tests/test_calendar_service.py::TestCalendarService::test_delete_reservation PASSED [ 23%]
+tests/test_calendar_service.py::TestCalendarService::test_get_events_no_calendar_id PASSED [ 23%]
+tests/test_calendar_service.py::TestCalendarService::test_create_reservation_no_calendar_id PASSED [ 24%]
+tests/test_calendar_service.py::TestCalendarService::test_delete_reservation_no_calendar_id PASSED [ 24%]
+tests/test_calendar_service.py::TestCalendarService::test_get_calendar_id PASSED [ 25%]
+tests/test_carnet_de_bord.py::TestCarnetDeBordAPI::test_enregistrer_prise_success FAILED [ 25%]
+tests/test_carnet_de_bord.py::TestCarnetDeBordAPI::test_enregistrer_prise_vehicule_not_found PASSED [ 26%]
+tests/test_carnet_de_bord.py::TestCarnetDeBordAPI::test_enregistrer_retour_success FAILED [ 26%]
+tests/test_carnet_de_bord.py::TestCarnetDeBordAPI::test_enregistrer_retour_vehicule_not_found PASSED [ 27%]
+tests/test_carnet_de_bord.py::TestCarnetDeBordAPI::test_get_derniere_prise_vehicule_not_found PASSED [ 27%]
+tests/test_carnet_de_bord.py::TestCarnetDeBordAPI::test_get_derniere_prise_no_data FAILED [ 28%]
+tests/test_carnet_de_bord.py::TestCarnetDeBordAPI::test_prise_validation_negative_kilometrage PASSED [ 28%]
+tests/test_carnet_de_bord.py::TestCarnetBordService::test_determine_perimetre_ul PASSED [ 29%]
+tests/test_carnet_de_bord.py::TestCarnetBordService::test_determine_perimetre_dt PASSED [ 29%]
+tests/test_carnet_de_bord.py::TestCarnetBordService::test_determine_perimetre_activite PASSED [ 30%]
+tests/test_carnet_de_bord.py::TestCarnetBordService::test_append_prise PASSED [ 30%]
+tests/test_carnet_de_bord.py::TestCarnetBordService::test_append_retour PASSED [ 31%]
+tests/test_config_api.py::TestGetConfig::test_get_config_from_env PASSED [ 31%]
+tests/test_config_api.py::TestGetConfig::test_get_config_from_cache PASSED [ 32%]
+tests/test_config_api.py::TestUpdateConfig::test_update_single_field PASSED [ 32%]
+tests/test_config_api.py::TestUpdateConfig::test_update_multiple_fields PASSED [ 33%]
+tests/test_config_api.py::TestUpdateConfig::test_update_with_invalid_url PASSED [ 33%]
+tests/test_config_api.py::TestUpdateConfig::test_update_with_invalid_email PASSED [ 34%]
+tests/test_config_api.py::TestUpdateConfig::test_cannot_update_gestionnaire_dt_email PASSED [ 34%]
+tests/test_config_api.py::TestConfigValidation::test_valid_google_sheets_url PASSED [ 35%]
+tests/test_config_api.py::TestConfigValidation::test_valid_google_docs_url PASSED [ 35%]
+tests/test_config_api.py::TestConfigValidation::test_invalid_url_scheme PASSED [ 36%]
+tests/test_config_api.py::TestConfigValidation::test_valid_email_format PASSED [ 36%]
+tests/test_config_api.py::TestConfigAuthGuard::test_patch_config_without_auth PASSED [ 37%]
+tests/test_config_api.py::TestConfigAuthGuard::test_patch_config_as_non_dt_manager PASSED [ 37%]
+tests/test_config_api.py::TestConfigAuthGuard::test_patch_config_as_dt_manager PASSED [ 38%]
+tests/test_ical.py::test_extract_indicatif_from_summary PASSED           [ 38%]
+tests/test_ical.py::test_parse_event_datetime PASSED                     [ 39%]
+tests/test_ical.py::test_create_ical_from_events PASSED                  [ 39%]
+tests/test_ical.py::test_get_reservations_ical_endpoint PASSED           [ 40%]
+tests/test_ical.py::test_get_vehicle_ical_endpoint PASSED                [ 40%]
+tests/test_mocks.py::TestServiceFactory::test_use_mocks_enabled PASSED   [ 40%]
+tests/test_mocks.py::TestServiceFactory::test_get_sheets_service PASSED  [ 41%]
+tests/test_mocks.py::TestServiceFactory::test_get_drive_service PASSED   [ 41%]
+tests/test_mocks.py::TestServiceFactory::test_get_calendar_service PASSED [ 42%]
+tests/test_mocks.py::TestServiceFactory::test_get_gmail_service PASSED   [ 42%]
+tests/test_mocks.py::TestGoogleSheetsMock::test_get_vehicules FAILED     [ 43%]
+tests/test_mocks.py::TestGoogleSheetsMock::test_get_vehicule_by_nom_synthetique FAILED [ 43%]
+tests/test_mocks.py::TestGoogleSheetsMock::test_get_vehicule_not_found PASSED [ 44%]
+tests/test_mocks.py::TestGoogleSheetsMock::test_get_benevoles FAILED     [ 44%]
+tests/test_mocks.py::TestGoogleSheetsMock::test_get_benevole_by_email FAILED [ 45%]
+tests/test_mocks.py::TestGoogleSheetsMock::test_get_responsables FAILED  [ 45%]
+tests/test_mocks.py::TestGoogleSheetsMock::test_append_row PASSED        [ 46%]
+tests/test_mocks.py::TestGoogleDriveMock::test_create_folder PASSED      [ 46%]
+tests/test_mocks.py::TestGoogleDriveMock::test_upload_file PASSED        [ 47%]
+tests/test_mocks.py::TestGoogleDriveMock::test_list_files PASSED         [ 47%]
+tests/test_mocks.py::TestGoogleCalendarMock::test_create_calendar PASSED [ 48%]
+tests/test_mocks.py::TestGoogleCalendarMock::test_create_event PASSED    [ 48%]
+tests/test_mocks.py::TestGoogleGmailMock::test_send_email PASSED         [ 49%]
+tests/test_mocks.py::TestGoogleGmailMock::test_send_alert_email PASSED   [ 49%]
+tests/test_qr_encode.py::TestQrCodeService::test_encode_basic PASSED     [ 50%]
+tests/test_qr_encode.py::TestQrCodeService::test_encode_empty_raises PASSED [ 50%]
+tests/test_qr_encode.py::TestQrCodeService::test_encode_deterministic PASSED [ 51%]
+tests/test_qr_encode.py::TestQrCodeService::test_decode_valid PASSED     [ 51%]
+tests/test_qr_encode.py::TestQrCodeService::test_decode_invalid_format PASSED [ 52%]
+tests/test_qr_encode.py::TestQrCodeService::test_decode_tampered PASSED  [ 52%]
+tests/test_qr_encode.py::TestQrCodeService::test_verify_valid PASSED     [ 53%]
+tests/test_qr_encode.py::TestQrCodeService::test_verify_invalid PASSED   [ 53%]
+tests/test_qr_encode.py::TestQrCodeService::test_get_qr_url PASSED       [ 54%]
+tests/test_qr_encode.py::TestQrCodeService::test_salt_required PASSED    [ 54%]
+tests/test_qr_encode.py::TestQrCodeService::test_salt_minimum_length PASSED [ 55%]
+tests/test_qr_encode.py::TestQrCodeEndpoints::test_encode_endpoint PASSED [ 55%]
+tests/test_qr_encode.py::TestQrCodeEndpoints::test_decode_endpoint PASSED [ 56%]
+tests/test_qr_encode.py::TestQrCodeEndpoints::test_decode_endpoint_invalid PASSED [ 56%]
+tests/test_qr_encode.py::TestQrCodeEndpoints::test_encode_endpoint_empty PASSED [ 57%]
+tests/test_reservations_api.py::TestCreateReservation::test_create_reservation_success FAILED [ 57%]
+tests/test_reservations_api.py::TestCreateReservation::test_create_reservation_invalid_dates PASSED [ 58%]
+tests/test_reservations_api.py::TestCreateReservation::test_create_reservation_vehicle_not_found PASSED [ 58%]
+tests/test_reservations_api.py::TestCreateReservation::test_create_reservation_unauthorized PASSED [ 59%]
+tests/test_reservations_api.py::TestGetAvailableVehicles::test_get_available_vehicles_success FAILED [ 59%]
+tests/test_reservations_api.py::TestGetAvailableVehicles::test_get_available_vehicles_invalid_dates FAILED [ 60%]
+tests/test_reservations_api.py::TestGetAvailableVehicles::test_get_available_vehicles_unauthorized PASSED [ 60%]
+tests/test_reservations_valkey.py::TestReservationCRUD::test_create_reservation PASSED [ 60%]
+tests/test_reservations_valkey.py::TestReservationCRUD::test_get_reservation PASSED [ 61%]
+tests/test_reservations_valkey.py::TestReservationCRUD::test_get_nonexistent_reservation PASSED [ 61%]
+tests/test_reservations_valkey.py::TestReservationCRUD::test_list_reservations PASSED [ 62%]
+tests/test_reservations_valkey.py::TestReservationCRUD::test_list_reservations_by_date_range PASSED [ 62%]
+tests/test_reservations_valkey.py::TestReservationCRUD::test_list_reservations_by_vehicle PASSED [ 63%]
+tests/test_reservations_valkey.py::TestReservationCRUD::test_update_reservation PASSED [ 63%]
+tests/test_reservations_valkey.py::TestReservationCRUD::test_delete_reservation PASSED [ 64%]
+tests/test_reservations_valkey.py::TestReservationOverlapValidation::test_no_overlap_different_times PASSED [ 64%]
+tests/test_reservations_valkey.py::TestReservationOverlapValidation::test_overlap_same_time PASSED [ 65%]
+tests/test_reservations_valkey.py::TestReservationOverlapValidation::test_overlap_partial_start PASSED [ 65%]
+tests/test_reservations_valkey.py::TestReservationOverlapValidation::test_overlap_partial_end PASSED [ 66%]
+tests/test_reservations_valkey.py::TestReservationOverlapValidation::test_update_no_overlap_with_self PASSED [ 66%]
+tests/test_reservations_valkey.py::TestReservationOverlapValidation::test_overlap_different_vehicles PASSED [ 67%]
+tests/test_sheets_service.py::TestSheetsServiceInterface::test_get_sheets_service_returns_mock_when_use_mocks_true PASSED [ 67%]
+tests/test_sheets_service.py::TestSheetsServiceInterface::test_sheets_service_has_required_methods PASSED [ 68%]
+tests/test_sheets_service.py::TestGoogleSheetsMock::test_get_vehicles FAILED [ 68%]
+tests/test_sheets_service.py::TestGoogleSheetsMock::test_get_vehicles_backward_compatibility FAILED [ 69%]
+tests/test_sheets_service.py::TestGoogleSheetsMock::test_get_benevoles FAILED [ 69%]
+tests/test_sheets_service.py::TestGoogleSheetsMock::test_get_responsables FAILED [ 70%]
+tests/test_sheets_service.py::TestGoogleSheetsMock::test_append_carnet_bord PASSED [ 70%]
+tests/test_sheets_service.py::TestGoogleSheetsMock::test_append_carnet_bord_multiple_rows PASSED [ 71%]
+tests/test_sheets_service.py::TestGoogleSheetsMock::test_append_row_backward_compatibility PASSED [ 71%]
+tests/test_sheets_service.py::TestGoogleSheetsServiceReal::test_initialization PASSED [ 72%]
+tests/test_sheets_service.py::TestGoogleSheetsServiceReal::test_get_vehicles PASSED [ 72%]
+tests/test_sheets_service.py::TestGoogleSheetsServiceReal::test_retry_with_backoff_on_429 PASSED [ 73%]
+tests/test_sheets_service.py::TestGoogleSheetsServiceReal::test_append_carnet_bord PASSED [ 73%]
+tests/test_sync_api.py::TestSyncAPIAuthentication::test_missing_api_key PASSED [ 74%]
+tests/test_sync_api.py::TestSyncAPIAuthentication::test_invalid_api_key PASSED [ 74%]
+tests/test_sync_api.py::TestSyncAPIAuthentication::test_valid_api_key FAILED [ 75%]
+tests/test_sync_api.py::TestSyncVehicules::test_get_empty_vehicules PASSED [ 75%]
+tests/test_sync_api.py::TestSyncVehicules::test_get_vehicules_with_data PASSED [ 76%]
+tests/test_sync_api.py::TestSyncResponsables::test_get_empty_responsables PASSED [ 76%]
+tests/test_sync_api.py::TestSyncResponsables::test_get_responsables_with_data PASSED [ 77%]
+tests/test_sync_api.py::TestSyncBenevoles::test_sync_benevoles_empty_list PASSED [ 77%]
+tests/test_sync_api.py::TestSyncBenevoles::test_sync_benevoles_with_data PASSED [ 78%]
+tests/test_sync_api.py::TestSyncBenevoles::test_sync_benevoles_upsert PASSED [ 78%]
+tests/test_unites_locales.py::TestListUnitesLocales::test_list_empty PASSED [ 79%]
+tests/test_unites_locales.py::TestListUnitesLocales::test_list_with_data PASSED [ 79%]
+tests/test_unites_locales.py::TestGetUniteLocale::test_get_existing_ul PASSED [ 80%]
+tests/test_unites_locales.py::TestGetUniteLocale::test_get_nonexistent_ul PASSED [ 80%]
+tests/test_unites_locales.py::TestCreateUniteLocale::test_create_ul PASSED [ 80%]
+tests/test_unites_locales.py::TestCreateUniteLocale::test_create_duplicate_ul PASSED [ 81%]
+tests/test_unites_locales.py::TestUpdateUniteLocale::test_update_ul PASSED [ 81%]
+tests/test_unites_locales.py::TestUpdateUniteLocale::test_update_nonexistent_ul PASSED [ 82%]
+tests/test_upload_api.py::TestUploadAPI::test_upload_single_photo FAILED [ 82%]
+tests/test_upload_api.py::TestUploadAPI::test_upload_multiple_photos FAILED [ 83%]
+tests/test_upload_api.py::TestUploadAPI::test_upload_photo_vehicle_not_found FAILED [ 83%]
+tests/test_upload_api.py::TestUploadAPI::test_upload_photo_invalid_format FAILED [ 84%]
+tests/test_upload_api.py::TestUploadAPI::test_upload_photo_no_files PASSED [ 84%]
+tests/test_upload_api.py::TestUploadAPI::test_upload_png_photo FAILED    [ 85%]
+tests/test_upload_service.py::TestUploadService::test_generate_photo_filename PASSED [ 85%]
+tests/test_upload_service.py::TestUploadService::test_compress_image_jpeg PASSED [ 86%]
+tests/test_upload_service.py::TestUploadService::test_compress_image_png_with_transparency PASSED [ 86%]
+tests/test_upload_service.py::TestUploadService::test_upload_photos FAILED [ 87%]
+tests/test_upload_service.py::TestUploadService::test_upload_photos_creates_folder_structure FAILED [ 87%]
+tests/test_upload_service.py::TestUploadService::test_upload_photos_without_compression FAILED [ 88%]
+tests/test_valkey_service.py::TestValkeyServiceConfiguration::test_set_and_get_configuration PASSED [ 88%]
+tests/test_valkey_service.py::TestValkeyServiceVehicles::test_set_and_get_vehicle PASSED [ 89%]
+tests/test_valkey_service.py::TestValkeyServiceVehicles::test_list_vehicles PASSED [ 89%]
+tests/test_valkey_service.py::TestValkeyServiceVehicles::test_multi_tenant_isolation PASSED [ 90%]
+tests/test_valkey_service.py::TestValkeyServiceBenevoles::test_set_and_get_benevole PASSED [ 90%]
+tests/test_valkey_service.py::TestValkeyServiceBenevoles::test_list_benevoles_by_ul PASSED [ 91%]
+tests/test_valkey_service.py::TestValkeyServiceCarnet::test_add_and_get_carnet_entries PASSED [ 91%]
+tests/test_valkey_service.py::TestValkeyServiceCarnet::test_get_latest_carnet_entry PASSED [ 92%]
+tests/test_vehicles_api.py::TestVehicleStatusCalculation::test_status_expired PASSED [ 92%]
+tests/test_vehicles_api.py::TestVehicleStatusCalculation::test_status_expiring_soon PASSED [ 93%]
+tests/test_vehicles_api.py::TestVehicleStatusCalculation::test_status_ok PASSED [ 93%]
+tests/test_vehicles_api.py::TestVehicleStatusCalculation::test_status_missing_date PASSED [ 94%]
+tests/test_vehicles_api.py::TestVehicleListEndpoint::test_list_vehicles_gestionnaire_dt FAILED [ 94%]
+tests/test_vehicles_api.py::TestVehicleListEndpoint::test_list_vehicles_responsable_ul FAILED [ 95%]
+tests/test_vehicles_api.py::TestVehicleListEndpoint::test_list_vehicles_benevole FAILED [ 95%]
+tests/test_vehicles_api.py::TestVehicleListEndpoint::test_list_vehicles_unauthorized PASSED [ 96%]
+tests/test_vehicles_api.py::TestVehicleDetailEndpoint::test_get_vehicle_success FAILED [ 96%]
+tests/test_vehicles_api.py::TestVehicleDetailEndpoint::test_get_vehicle_not_found FAILED [ 97%]
+tests/test_vehicles_api.py::TestVehicleDetailEndpoint::test_get_vehicle_forbidden FAILED [ 97%]
+tests/test_vehicles_api.py::TestVehicleUpdateEndpoint::test_update_vehicle_success FAILED [ 98%]
+tests/test_vehicles_api.py::TestVehicleUpdateEndpoint::test_update_vehicle_not_found FAILED [ 98%]
+tests/test_vehicles_api.py::TestVehicleUpdateEndpoint::test_update_vehicle_forbidden FAILED [ 99%]
+tests/test_vehicles_api.py::TestVehicleFiltering::test_filter_gestionnaire_dt_sees_all FAILED [ 99%]
+tests/test_vehicles_api.py::TestVehicleFiltering::test_filter_responsable_ul_sees_only_their_ul FAILED [100%]
+
+=================================== FAILURES ===================================
+_____________ TestAuthEndpoints.test_full_auth_flow_ul_responsible _____________
+tests/test_auth.py:99: in test_full_auth_flow_ul_responsible
+    assert user["role"] == "Responsable UL"
+E   AssertionError: assert 'Bénévole' == 'Responsable UL'
+E     
+E     - Responsable UL
+E     + Bénévole
+________________ TestAuthEndpoints.test_full_auth_flow_benevole ________________
+tests/test_auth.py:121: in test_full_auth_flow_benevole
+    assert user["ul"] == "UL Paris 15"
+E   AssertionError: assert None == 'UL Paris 15'
+_____________ TestAuthDependencies.test_require_authenticated_user _____________
+tests/test_auth.py:164: in test_require_authenticated_user
+    assert response.status_code == 401
+E   assert 200 == 401
+E    +  where 200 = <Response [200 OK]>.status_code
+_________________ TestAuthDependencies.test_require_dt_manager _________________
+tests/test_auth.py:194: in test_require_dt_manager
+    assert response.status_code == 200
+E   assert 403 == 200
+E    +  where 403 = <Response [403 Forbidden]>.status_code
+_______________ TestAuthDependencies.test_require_ul_responsible _______________
+tests/test_auth.py:218: in test_require_ul_responsible
+    assert response.status_code == 200
+E   assert 403 == 200
+E    +  where 403 = <Response [403 Forbidden]>.status_code
+_________ TestAuthService.test_user_role_determination_ul_responsible __________
+tests/test_auth.py:262: in test_user_role_determination_ul_responsible
+    assert user.role == "Responsable UL"
+E   AssertionError: assert 'Bénévole' == 'Responsable UL'
+E     
+E     - Responsable UL
+E     + Bénévole
+____________ TestAuthService.test_user_role_determination_benevole _____________
+tests/test_auth.py:282: in test_user_role_determination_benevole
+    assert user.ul == "UL Paris 15"
+E   AssertionError: assert None == 'UL Paris 15'
+E    +  where None = User(email='jean.dupont@croix-rouge.fr', nom='Dupont', prenom='Jean', dt='DT75', ul=None, role='Bénévole', perimetre=None, type_perimetre=None).ul
+______________ TestCarnetDeBordAPI.test_enregistrer_prise_success ______________
+tests/test_carnet_de_bord.py:63: in test_enregistrer_prise_success
+    assert response.status_code == 201
+E   assert 404 == 201
+E    +  where 404 = <Response [404 Not Found]>.status_code
+_____________ TestCarnetDeBordAPI.test_enregistrer_retour_success ______________
+tests/test_carnet_de_bord.py:111: in test_enregistrer_retour_success
+    assert response.status_code == 201
+E   assert 404 == 201
+E    +  where 404 = <Response [404 Not Found]>.status_code
+_____________ TestCarnetDeBordAPI.test_get_derniere_prise_no_data ______________
+tests/test_carnet_de_bord.py:147: in test_get_derniere_prise_no_data
+    assert response.status_code == 200
+E   assert 404 == 200
+E    +  where 404 = <Response [404 Not Found]>.status_code
+___________________ TestGoogleSheetsMock.test_get_vehicules ____________________
+tests/test_mocks.py:58: in test_get_vehicules
+    assert len(vehicules) == 4
+E   AssertionError: assert 3 == 4
+E    +  where 3 = len([{'assurance': 'Tous Risques', 'carte_grise': 'OK', 'commentaires': 'Véhicule de test 1', 'date_mec': '2020-06-24', ...}, {'assurance': 'Tous Risques', 'carte_grise': 'OK', 'commentaires': 'Véhicule de test 2', 'date_mec': '2019-03-15', ...}, {'assurance': 'Tous Risques', 'carte_grise': 'OK', 'commentaires': 'Véhicule de test 3 - En maintenance', 'date_mec': '2018-11-05', ...}])
+__________ TestGoogleSheetsMock.test_get_vehicule_by_nom_synthetique ___________
+tests/test_mocks.py:67: in test_get_vehicule_by_nom_synthetique
+    assert vehicule is not None
+E   assert None is not None
+___________________ TestGoogleSheetsMock.test_get_benevoles ____________________
+tests/test_mocks.py:83: in test_get_benevoles
+    assert len(benevoles) == 5
+E   AssertionError: assert 2 == 5
+E    +  where 2 = len([{'dt': 'DT75', 'email': 'test.benevole1@croix-rouge.fr', 'nom': 'Dupont', 'prenom': 'Jean', ...}, {'dt': 'DT75', 'email': 'test.benevole2@croix-rouge.fr', 'nom': 'Martin', 'prenom': 'Marie', ...}])
+_______________ TestGoogleSheetsMock.test_get_benevole_by_email ________________
+tests/test_mocks.py:91: in test_get_benevole_by_email
+    assert benevole is not None
+E   assert None is not None
+__________________ TestGoogleSheetsMock.test_get_responsables __________________
+tests/test_mocks.py:100: in test_get_responsables
+    assert len(responsables) == 4
+E   AssertionError: assert 2 == 4
+E    +  where 2 = len([{'dt': 'DT75', 'email': 'test.responsable1@croix-rouge.fr', 'nom': 'Durand', 'prenom': 'Pierre', ...}, {'dt': 'DT75', 'email': 'test.responsable2@croix-rouge.fr', 'nom': 'Bernard', 'prenom': 'Sophie', ...}])
+____________ TestCreateReservation.test_create_reservation_success _____________
+tests/test_reservations_api.py:74: in test_create_reservation_success
+    assert response.status_code == 201
+E   assert 404 == 201
+E    +  where 404 = <Response [404 Not Found]>.status_code
+_________ TestGetAvailableVehicles.test_get_available_vehicles_success _________
+tests/test_reservations_api.py:157: in test_get_available_vehicles_success
+    assert response.status_code == 200
+E   assert 404 == 200
+E    +  where 404 = <Response [404 Not Found]>.status_code
+______ TestGetAvailableVehicles.test_get_available_vehicles_invalid_dates ______
+tests/test_reservations_api.py:182: in test_get_available_vehicles_invalid_dates
+    assert response.status_code == 400
+E   assert 404 == 400
+E    +  where 404 = <Response [404 Not Found]>.status_code
+____________________ TestGoogleSheetsMock.test_get_vehicles ____________________
+tests/test_sheets_service.py:40: in test_get_vehicles
+    assert len(vehicles) == 4
+E   AssertionError: assert 3 == 4
+E    +  where 3 = len([{'assurance': 'Tous Risques', 'carte_grise': 'OK', 'commentaires': 'Véhicule de test 1', 'date_mec': '2020-06-24', ...}, {'assurance': 'Tous Risques', 'carte_grise': 'OK', 'commentaires': 'Véhicule de test 2', 'date_mec': '2019-03-15', ...}, {'assurance': 'Tous Risques', 'carte_grise': 'OK', 'commentaires': 'Véhicule de test 3 - En maintenance', 'date_mec': '2018-11-05', ...}])
+________ TestGoogleSheetsMock.test_get_vehicles_backward_compatibility _________
+tests/test_sheets_service.py:60: in test_get_vehicles_backward_compatibility
+    assert len(vehicles) == 4
+E   AssertionError: assert 3 == 4
+E    +  where 3 = len([{'assurance': 'Tous Risques', 'carte_grise': 'OK', 'commentaires': 'Véhicule de test 1', 'date_mec': '2020-06-24', ...}, {'assurance': 'Tous Risques', 'carte_grise': 'OK', 'commentaires': 'Véhicule de test 2', 'date_mec': '2019-03-15', ...}, {'assurance': 'Tous Risques', 'carte_grise': 'OK', 'commentaires': 'Véhicule de test 3 - En maintenance', 'date_mec': '2018-11-05', ...}])
+___________________ TestGoogleSheetsMock.test_get_benevoles ____________________
+tests/test_sheets_service.py:67: in test_get_benevoles
+    assert len(benevoles) == 5
+E   AssertionError: assert 2 == 5
+E    +  where 2 = len([{'dt': 'DT75', 'email': 'test.benevole1@croix-rouge.fr', 'nom': 'Dupont', 'prenom': 'Jean', ...}, {'dt': 'DT75', 'email': 'test.benevole2@croix-rouge.fr', 'nom': 'Martin', 'prenom': 'Marie', ...}])
+__________________ TestGoogleSheetsMock.test_get_responsables __________________
+tests/test_sheets_service.py:76: in test_get_responsables
+    assert len(responsables) == 4
+E   AssertionError: assert 2 == 4
+E    +  where 2 = len([{'dt': 'DT75', 'email': 'test.responsable1@croix-rouge.fr', 'nom': 'Durand', 'prenom': 'Pierre', ...}, {'dt': 'DT75', 'email': 'test.responsable2@croix-rouge.fr', 'nom': 'Bernard', 'prenom': 'Sophie', ...}])
+_________________ TestSyncAPIAuthentication.test_valid_api_key _________________
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/redis/asyncio/connection.py:543: in read_response
+    response = await self._parser.read_response(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/redis/_parsers/resp2.py:82: in read_response
+    response = await self._read_response(disable_decoding=disable_decoding)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/redis/_parsers/resp2.py:90: in _read_response
+    raw = await self._readline()
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/redis/_parsers/base.py:219: in _readline
+    data = await self._stream.readline()
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/asyncio/streams.py:562: in readline
+    line = await self.readuntil(sep)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/asyncio/streams.py:677: in readuntil
+    await self._wait_for_data('readuntil')
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/asyncio/streams.py:539: in _wait_for_data
+    await self._waiter
+E   RuntimeError: Task <Task pending name='anyio.from_thread.BlockingPortal._call_func' coro=<BlockingPortal._call_func() running at /Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/anyio/from_thread.py:252> cb=[TaskGroup._spawn.<locals>.task_done() at /Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/anyio/_backends/_asyncio.py:803]> got Future <Future pending> attached to a different loop
+
+During handling of the above exception, another exception occurred:
+tests/test_sync_api.py:71: in test_valid_api_key
+    response = client.get("/api/sync/DT75/vehicules", headers=auth_headers)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/testclient.py:518: in get
+    return super().get(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:1066: in get
+    return self.request(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/testclient.py:488: in request
+    return super().request(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:837: in request
+    return self.send(request, auth=auth, follow_redirects=follow_redirects)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:926: in send
+    response = self._send_handling_auth(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:954: in _send_handling_auth
+    response = self._send_handling_redirects(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:991: in _send_handling_redirects
+    response = self._send_single_request(request)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:1027: in _send_single_request
+    response = transport.handle_request(request)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/testclient.py:381: in handle_request
+    raise exc
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/testclient.py:378: in handle_request
+    portal.call(self.app, scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/anyio/from_thread.py:321: in call
+    return cast(T_Retval, self.start_task_soon(func, *args).result())
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/concurrent/futures/_base.py:456: in result
+    return self.__get_result()
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/concurrent/futures/_base.py:401: in __get_result
+    raise self._exception
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/anyio/from_thread.py:252: in _call_func
+    retval = await retval_or_awaitable
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/fastapi/applications.py:1054: in __call__
+    await super().__call__(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/applications.py:113: in __call__
+    await self.middleware_stack(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/middleware/errors.py:187: in __call__
+    raise exc
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/middleware/errors.py:165: in __call__
+    await self.app(scope, receive, _send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/middleware/cors.py:85: in __call__
+    await self.app(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/middleware/exceptions.py:62: in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/_exception_handler.py:62: in wrapped_app
+    raise exc
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/_exception_handler.py:51: in wrapped_app
+    await app(scope, receive, sender)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:715: in __call__
+    await self.middleware_stack(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:735: in app
+    await route.handle(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:288: in handle
+    await self.app(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:76: in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/_exception_handler.py:62: in wrapped_app
+    raise exc
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/_exception_handler.py:51: in wrapped_app
+    await app(scope, receive, sender)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:73: in app
+    response = await f(request)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/fastapi/routing.py:301: in app
+    raw_response = await run_endpoint_function(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/fastapi/routing.py:212: in run_endpoint_function
+    return await dependant.call(**values)
+app/routers/sync.py:107: in get_vehicules_for_sync
+    vehicle_ids = await valkey.list_vehicles()
+app/services/valkey_service.py:90: in list_vehicles
+    members = await self.redis.smembers(self._key("vehicules", "index"))
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/redis/asyncio/client.py:616: in execute_command
+    return await conn.retry.call_with_retry(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/redis/asyncio/retry.py:59: in call_with_retry
+    return await do()
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/redis/asyncio/client.py:590: in _send_command_parse_response
+    return await self.parse_response(conn, command_name, **options)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/redis/asyncio/client.py:637: in parse_response
+    response = await connection.read_response()
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/redis/asyncio/connection.py:563: in read_response
+    await self.disconnect(nowait=True)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/redis/asyncio/connection.py:419: in disconnect
+    self._writer.close()  # type: ignore[union-attr]
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/asyncio/streams.py:352: in close
+    return self._transport.close()
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/asyncio/selector_events.py:1205: in close
+    super().close()
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/asyncio/selector_events.py:865: in close
+    self._loop.call_soon(self._call_connection_lost, None)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/asyncio/base_events.py:833: in call_soon
+    self._check_closed()
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/asyncio/base_events.py:556: in _check_closed
+    raise RuntimeError('Event loop is closed')
+E   RuntimeError: Event loop is closed
+____________________ TestUploadAPI.test_upload_single_photo ____________________
+tests/test_upload_api.py:57: in test_upload_single_photo
+    response = client.post(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/testclient.py:597: in post
+    return super().post(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:1157: in post
+    return self.request(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/testclient.py:488: in request
+    return super().request(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:837: in request
+    return self.send(request, auth=auth, follow_redirects=follow_redirects)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:926: in send
+    response = self._send_handling_auth(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:954: in _send_handling_auth
+    response = self._send_handling_redirects(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:991: in _send_handling_redirects
+    response = self._send_single_request(request)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:1027: in _send_single_request
+    response = transport.handle_request(request)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/testclient.py:381: in handle_request
+    raise exc
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/testclient.py:378: in handle_request
+    portal.call(self.app, scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/anyio/from_thread.py:321: in call
+    return cast(T_Retval, self.start_task_soon(func, *args).result())
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/concurrent/futures/_base.py:456: in result
+    return self.__get_result()
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/concurrent/futures/_base.py:401: in __get_result
+    raise self._exception
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/anyio/from_thread.py:252: in _call_func
+    retval = await retval_or_awaitable
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/fastapi/applications.py:1054: in __call__
+    await super().__call__(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/applications.py:113: in __call__
+    await self.middleware_stack(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/middleware/errors.py:187: in __call__
+    raise exc
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/middleware/errors.py:165: in __call__
+    await self.app(scope, receive, _send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/middleware/cors.py:85: in __call__
+    await self.app(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/middleware/exceptions.py:62: in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/_exception_handler.py:62: in wrapped_app
+    raise exc
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/_exception_handler.py:51: in wrapped_app
+    await app(scope, receive, sender)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:715: in __call__
+    await self.middleware_stack(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:735: in app
+    await route.handle(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:288: in handle
+    await self.app(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:76: in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/_exception_handler.py:62: in wrapped_app
+    raise exc
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/_exception_handler.py:51: in wrapped_app
+    await app(scope, receive, sender)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:73: in app
+    response = await f(request)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/fastapi/routing.py:301: in app
+    raw_response = await run_endpoint_function(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/fastapi/routing.py:212: in run_endpoint_function
+    return await dependant.call(**values)
+app/routers/upload.py:54: in upload_photos
+    sheets_service = get_sheets_service()
+app/mocks/service_factory.py:31: in get_sheets_service
+    return _get_sheets_service()
+app/services/sheets.py:102: in get_sheets_service
+    return GoogleSheetsService()
+app/services/sheets_real.py:17: in __init__
+    self.credentials = self._get_credentials()
+app/services/sheets_real.py:36: in _get_credentials
+    return service_account.Credentials.from_service_account_file(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/google/oauth2/service_account.py:260: in from_service_account_file
+    info, signer = _service_account_info.from_filename(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/google/auth/_service_account_info.py:78: in from_filename
+    with io.open(filename, "r", encoding="utf-8") as json_file:
+E   FileNotFoundError: [Errno 2] No such file or directory: '/path/to/creds.json'
+__________________ TestUploadAPI.test_upload_multiple_photos ___________________
+tests/test_upload_api.py:91: in test_upload_multiple_photos
+    response = client.post(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/testclient.py:597: in post
+    return super().post(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:1157: in post
+    return self.request(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/testclient.py:488: in request
+    return super().request(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:837: in request
+    return self.send(request, auth=auth, follow_redirects=follow_redirects)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:926: in send
+    response = self._send_handling_auth(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:954: in _send_handling_auth
+    response = self._send_handling_redirects(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:991: in _send_handling_redirects
+    response = self._send_single_request(request)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:1027: in _send_single_request
+    response = transport.handle_request(request)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/testclient.py:381: in handle_request
+    raise exc
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/testclient.py:378: in handle_request
+    portal.call(self.app, scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/anyio/from_thread.py:321: in call
+    return cast(T_Retval, self.start_task_soon(func, *args).result())
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/concurrent/futures/_base.py:456: in result
+    return self.__get_result()
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/concurrent/futures/_base.py:401: in __get_result
+    raise self._exception
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/anyio/from_thread.py:252: in _call_func
+    retval = await retval_or_awaitable
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/fastapi/applications.py:1054: in __call__
+    await super().__call__(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/applications.py:113: in __call__
+    await self.middleware_stack(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/middleware/errors.py:187: in __call__
+    raise exc
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/middleware/errors.py:165: in __call__
+    await self.app(scope, receive, _send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/middleware/cors.py:85: in __call__
+    await self.app(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/middleware/exceptions.py:62: in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/_exception_handler.py:62: in wrapped_app
+    raise exc
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/_exception_handler.py:51: in wrapped_app
+    await app(scope, receive, sender)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:715: in __call__
+    await self.middleware_stack(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:735: in app
+    await route.handle(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:288: in handle
+    await self.app(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:76: in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/_exception_handler.py:62: in wrapped_app
+    raise exc
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/_exception_handler.py:51: in wrapped_app
+    await app(scope, receive, sender)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:73: in app
+    response = await f(request)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/fastapi/routing.py:301: in app
+    raw_response = await run_endpoint_function(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/fastapi/routing.py:212: in run_endpoint_function
+    return await dependant.call(**values)
+app/routers/upload.py:54: in upload_photos
+    sheets_service = get_sheets_service()
+app/mocks/service_factory.py:31: in get_sheets_service
+    return _get_sheets_service()
+app/services/sheets.py:102: in get_sheets_service
+    return GoogleSheetsService()
+app/services/sheets_real.py:17: in __init__
+    self.credentials = self._get_credentials()
+app/services/sheets_real.py:36: in _get_credentials
+    return service_account.Credentials.from_service_account_file(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/google/oauth2/service_account.py:260: in from_service_account_file
+    info, signer = _service_account_info.from_filename(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/google/auth/_service_account_info.py:78: in from_filename
+    with io.open(filename, "r", encoding="utf-8") as json_file:
+E   FileNotFoundError: [Errno 2] No such file or directory: '/path/to/creds.json'
+______________ TestUploadAPI.test_upload_photo_vehicle_not_found _______________
+tests/test_upload_api.py:114: in test_upload_photo_vehicle_not_found
+    response = client.post(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/testclient.py:597: in post
+    return super().post(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:1157: in post
+    return self.request(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/testclient.py:488: in request
+    return super().request(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:837: in request
+    return self.send(request, auth=auth, follow_redirects=follow_redirects)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:926: in send
+    response = self._send_handling_auth(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:954: in _send_handling_auth
+    response = self._send_handling_redirects(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:991: in _send_handling_redirects
+    response = self._send_single_request(request)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:1027: in _send_single_request
+    response = transport.handle_request(request)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/testclient.py:381: in handle_request
+    raise exc
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/testclient.py:378: in handle_request
+    portal.call(self.app, scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/anyio/from_thread.py:321: in call
+    return cast(T_Retval, self.start_task_soon(func, *args).result())
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/concurrent/futures/_base.py:456: in result
+    return self.__get_result()
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/concurrent/futures/_base.py:401: in __get_result
+    raise self._exception
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/anyio/from_thread.py:252: in _call_func
+    retval = await retval_or_awaitable
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/fastapi/applications.py:1054: in __call__
+    await super().__call__(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/applications.py:113: in __call__
+    await self.middleware_stack(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/middleware/errors.py:187: in __call__
+    raise exc
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/middleware/errors.py:165: in __call__
+    await self.app(scope, receive, _send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/middleware/cors.py:85: in __call__
+    await self.app(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/middleware/exceptions.py:62: in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/_exception_handler.py:62: in wrapped_app
+    raise exc
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/_exception_handler.py:51: in wrapped_app
+    await app(scope, receive, sender)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:715: in __call__
+    await self.middleware_stack(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:735: in app
+    await route.handle(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:288: in handle
+    await self.app(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:76: in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/_exception_handler.py:62: in wrapped_app
+    raise exc
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/_exception_handler.py:51: in wrapped_app
+    await app(scope, receive, sender)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:73: in app
+    response = await f(request)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/fastapi/routing.py:301: in app
+    raw_response = await run_endpoint_function(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/fastapi/routing.py:212: in run_endpoint_function
+    return await dependant.call(**values)
+app/routers/upload.py:54: in upload_photos
+    sheets_service = get_sheets_service()
+app/mocks/service_factory.py:31: in get_sheets_service
+    return _get_sheets_service()
+app/services/sheets.py:102: in get_sheets_service
+    return GoogleSheetsService()
+app/services/sheets_real.py:17: in __init__
+    self.credentials = self._get_credentials()
+app/services/sheets_real.py:36: in _get_credentials
+    return service_account.Credentials.from_service_account_file(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/google/oauth2/service_account.py:260: in from_service_account_file
+    info, signer = _service_account_info.from_filename(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/google/auth/_service_account_info.py:78: in from_filename
+    with io.open(filename, "r", encoding="utf-8") as json_file:
+E   FileNotFoundError: [Errno 2] No such file or directory: '/path/to/creds.json'
+________________ TestUploadAPI.test_upload_photo_invalid_format ________________
+tests/test_upload_api.py:134: in test_upload_photo_invalid_format
+    response = client.post(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/testclient.py:597: in post
+    return super().post(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:1157: in post
+    return self.request(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/testclient.py:488: in request
+    return super().request(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:837: in request
+    return self.send(request, auth=auth, follow_redirects=follow_redirects)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:926: in send
+    response = self._send_handling_auth(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:954: in _send_handling_auth
+    response = self._send_handling_redirects(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:991: in _send_handling_redirects
+    response = self._send_single_request(request)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:1027: in _send_single_request
+    response = transport.handle_request(request)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/testclient.py:381: in handle_request
+    raise exc
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/testclient.py:378: in handle_request
+    portal.call(self.app, scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/anyio/from_thread.py:321: in call
+    return cast(T_Retval, self.start_task_soon(func, *args).result())
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/concurrent/futures/_base.py:456: in result
+    return self.__get_result()
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/concurrent/futures/_base.py:401: in __get_result
+    raise self._exception
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/anyio/from_thread.py:252: in _call_func
+    retval = await retval_or_awaitable
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/fastapi/applications.py:1054: in __call__
+    await super().__call__(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/applications.py:113: in __call__
+    await self.middleware_stack(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/middleware/errors.py:187: in __call__
+    raise exc
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/middleware/errors.py:165: in __call__
+    await self.app(scope, receive, _send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/middleware/cors.py:85: in __call__
+    await self.app(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/middleware/exceptions.py:62: in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/_exception_handler.py:62: in wrapped_app
+    raise exc
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/_exception_handler.py:51: in wrapped_app
+    await app(scope, receive, sender)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:715: in __call__
+    await self.middleware_stack(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:735: in app
+    await route.handle(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:288: in handle
+    await self.app(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:76: in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/_exception_handler.py:62: in wrapped_app
+    raise exc
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/_exception_handler.py:51: in wrapped_app
+    await app(scope, receive, sender)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:73: in app
+    response = await f(request)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/fastapi/routing.py:301: in app
+    raw_response = await run_endpoint_function(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/fastapi/routing.py:212: in run_endpoint_function
+    return await dependant.call(**values)
+app/routers/upload.py:54: in upload_photos
+    sheets_service = get_sheets_service()
+app/mocks/service_factory.py:31: in get_sheets_service
+    return _get_sheets_service()
+app/services/sheets.py:102: in get_sheets_service
+    return GoogleSheetsService()
+app/services/sheets_real.py:17: in __init__
+    self.credentials = self._get_credentials()
+app/services/sheets_real.py:36: in _get_credentials
+    return service_account.Credentials.from_service_account_file(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/google/oauth2/service_account.py:260: in from_service_account_file
+    info, signer = _service_account_info.from_filename(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/google/auth/_service_account_info.py:78: in from_filename
+    with io.open(filename, "r", encoding="utf-8") as json_file:
+E   FileNotFoundError: [Errno 2] No such file or directory: '/path/to/creds.json'
+_____________________ TestUploadAPI.test_upload_png_photo ______________________
+tests/test_upload_api.py:169: in test_upload_png_photo
+    response = client.post(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/testclient.py:597: in post
+    return super().post(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:1157: in post
+    return self.request(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/testclient.py:488: in request
+    return super().request(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:837: in request
+    return self.send(request, auth=auth, follow_redirects=follow_redirects)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:926: in send
+    response = self._send_handling_auth(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:954: in _send_handling_auth
+    response = self._send_handling_redirects(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:991: in _send_handling_redirects
+    response = self._send_single_request(request)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:1027: in _send_single_request
+    response = transport.handle_request(request)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/testclient.py:381: in handle_request
+    raise exc
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/testclient.py:378: in handle_request
+    portal.call(self.app, scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/anyio/from_thread.py:321: in call
+    return cast(T_Retval, self.start_task_soon(func, *args).result())
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/concurrent/futures/_base.py:456: in result
+    return self.__get_result()
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/concurrent/futures/_base.py:401: in __get_result
+    raise self._exception
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/anyio/from_thread.py:252: in _call_func
+    retval = await retval_or_awaitable
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/fastapi/applications.py:1054: in __call__
+    await super().__call__(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/applications.py:113: in __call__
+    await self.middleware_stack(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/middleware/errors.py:187: in __call__
+    raise exc
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/middleware/errors.py:165: in __call__
+    await self.app(scope, receive, _send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/middleware/cors.py:85: in __call__
+    await self.app(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/middleware/exceptions.py:62: in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/_exception_handler.py:62: in wrapped_app
+    raise exc
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/_exception_handler.py:51: in wrapped_app
+    await app(scope, receive, sender)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:715: in __call__
+    await self.middleware_stack(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:735: in app
+    await route.handle(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:288: in handle
+    await self.app(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:76: in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/_exception_handler.py:62: in wrapped_app
+    raise exc
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/_exception_handler.py:51: in wrapped_app
+    await app(scope, receive, sender)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:73: in app
+    response = await f(request)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/fastapi/routing.py:301: in app
+    raw_response = await run_endpoint_function(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/fastapi/routing.py:212: in run_endpoint_function
+    return await dependant.call(**values)
+app/routers/upload.py:54: in upload_photos
+    sheets_service = get_sheets_service()
+app/mocks/service_factory.py:31: in get_sheets_service
+    return _get_sheets_service()
+app/services/sheets.py:102: in get_sheets_service
+    return GoogleSheetsService()
+app/services/sheets_real.py:17: in __init__
+    self.credentials = self._get_credentials()
+app/services/sheets_real.py:36: in _get_credentials
+    return service_account.Credentials.from_service_account_file(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/google/oauth2/service_account.py:260: in from_service_account_file
+    info, signer = _service_account_info.from_filename(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/google/auth/_service_account_info.py:78: in from_filename
+    with io.open(filename, "r", encoding="utf-8") as json_file:
+E   FileNotFoundError: [Errno 2] No such file or directory: '/path/to/creds.json'
+_____________________ TestUploadService.test_upload_photos _____________________
+tests/test_upload_service.py:68: in test_upload_photos
+    drive_service = get_drive_service()
+app/mocks/service_factory.py:43: in get_drive_service
+    return _get_drive_service()
+app/services/drive.py:127: in get_drive_service
+    return GoogleDriveService()
+app/services/drive_real.py:18: in __init__
+    self.credentials = self._get_credentials()
+app/services/drive_real.py:32: in _get_credentials
+    return service_account.Credentials.from_service_account_file(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/google/oauth2/service_account.py:260: in from_service_account_file
+    info, signer = _service_account_info.from_filename(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/google/auth/_service_account_info.py:78: in from_filename
+    with io.open(filename, "r", encoding="utf-8") as json_file:
+E   FileNotFoundError: [Errno 2] No such file or directory: '/path/to/creds.json'
+________ TestUploadService.test_upload_photos_creates_folder_structure _________
+tests/test_upload_service.py:99: in test_upload_photos_creates_folder_structure
+    drive_service = get_drive_service()
+app/mocks/service_factory.py:43: in get_drive_service
+    return _get_drive_service()
+app/services/drive.py:127: in get_drive_service
+    return GoogleDriveService()
+app/services/drive_real.py:18: in __init__
+    self.credentials = self._get_credentials()
+app/services/drive_real.py:32: in _get_credentials
+    return service_account.Credentials.from_service_account_file(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/google/oauth2/service_account.py:260: in from_service_account_file
+    info, signer = _service_account_info.from_filename(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/google/auth/_service_account_info.py:78: in from_filename
+    with io.open(filename, "r", encoding="utf-8") as json_file:
+E   FileNotFoundError: [Errno 2] No such file or directory: '/path/to/creds.json'
+___________ TestUploadService.test_upload_photos_without_compression ___________
+tests/test_upload_service.py:140: in test_upload_photos_without_compression
+    drive_service = get_drive_service()
+app/mocks/service_factory.py:43: in get_drive_service
+    return _get_drive_service()
+app/services/drive.py:127: in get_drive_service
+    return GoogleDriveService()
+app/services/drive_real.py:18: in __init__
+    self.credentials = self._get_credentials()
+app/services/drive_real.py:32: in _get_credentials
+    return service_account.Credentials.from_service_account_file(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/google/oauth2/service_account.py:260: in from_service_account_file
+    info, signer = _service_account_info.from_filename(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/google/auth/_service_account_info.py:78: in from_filename
+    with io.open(filename, "r", encoding="utf-8") as json_file:
+E   FileNotFoundError: [Errno 2] No such file or directory: '/path/to/creds.json'
+__________ TestVehicleListEndpoint.test_list_vehicles_gestionnaire_dt __________
+tests/test_vehicles_api.py:103: in test_list_vehicles_gestionnaire_dt
+    response = auth_client.get("/api/vehicles")
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/testclient.py:518: in get
+    return super().get(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:1066: in get
+    return self.request(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/testclient.py:488: in request
+    return super().request(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:837: in request
+    return self.send(request, auth=auth, follow_redirects=follow_redirects)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:926: in send
+    response = self._send_handling_auth(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:954: in _send_handling_auth
+    response = self._send_handling_redirects(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:991: in _send_handling_redirects
+    response = self._send_single_request(request)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:1027: in _send_single_request
+    response = transport.handle_request(request)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/testclient.py:381: in handle_request
+    raise exc
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/testclient.py:378: in handle_request
+    portal.call(self.app, scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/anyio/from_thread.py:321: in call
+    return cast(T_Retval, self.start_task_soon(func, *args).result())
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/concurrent/futures/_base.py:456: in result
+    return self.__get_result()
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/concurrent/futures/_base.py:401: in __get_result
+    raise self._exception
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/anyio/from_thread.py:252: in _call_func
+    retval = await retval_or_awaitable
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/fastapi/applications.py:1054: in __call__
+    await super().__call__(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/applications.py:113: in __call__
+    await self.middleware_stack(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/middleware/errors.py:187: in __call__
+    raise exc
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/middleware/errors.py:165: in __call__
+    await self.app(scope, receive, _send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/middleware/cors.py:85: in __call__
+    await self.app(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/middleware/exceptions.py:62: in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/_exception_handler.py:62: in wrapped_app
+    raise exc
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/_exception_handler.py:51: in wrapped_app
+    await app(scope, receive, sender)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:715: in __call__
+    await self.middleware_stack(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:735: in app
+    await route.handle(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:288: in handle
+    await self.app(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:76: in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/_exception_handler.py:62: in wrapped_app
+    raise exc
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/_exception_handler.py:51: in wrapped_app
+    await app(scope, receive, sender)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:73: in app
+    response = await f(request)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/fastapi/routing.py:301: in app
+    raw_response = await run_endpoint_function(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/fastapi/routing.py:212: in run_endpoint_function
+    return await dependant.call(**values)
+app/routers/vehicles.py:37: in list_vehicles
+    sheets_service = get_sheets_service()
+app/mocks/service_factory.py:31: in get_sheets_service
+    return _get_sheets_service()
+app/services/sheets.py:102: in get_sheets_service
+    return GoogleSheetsService()
+app/services/sheets_real.py:17: in __init__
+    self.credentials = self._get_credentials()
+app/services/sheets_real.py:36: in _get_credentials
+    return service_account.Credentials.from_service_account_file(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/google/oauth2/service_account.py:260: in from_service_account_file
+    info, signer = _service_account_info.from_filename(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/google/auth/_service_account_info.py:78: in from_filename
+    with io.open(filename, "r", encoding="utf-8") as json_file:
+E   FileNotFoundError: [Errno 2] No such file or directory: '/path/to/creds.json'
+__________ TestVehicleListEndpoint.test_list_vehicles_responsable_ul ___________
+tests/test_vehicles_api.py:120: in test_list_vehicles_responsable_ul
+    response = auth_client.get("/api/vehicles")
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/testclient.py:518: in get
+    return super().get(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:1066: in get
+    return self.request(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/testclient.py:488: in request
+    return super().request(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:837: in request
+    return self.send(request, auth=auth, follow_redirects=follow_redirects)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:926: in send
+    response = self._send_handling_auth(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:954: in _send_handling_auth
+    response = self._send_handling_redirects(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:991: in _send_handling_redirects
+    response = self._send_single_request(request)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:1027: in _send_single_request
+    response = transport.handle_request(request)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/testclient.py:381: in handle_request
+    raise exc
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/testclient.py:378: in handle_request
+    portal.call(self.app, scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/anyio/from_thread.py:321: in call
+    return cast(T_Retval, self.start_task_soon(func, *args).result())
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/concurrent/futures/_base.py:456: in result
+    return self.__get_result()
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/concurrent/futures/_base.py:401: in __get_result
+    raise self._exception
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/anyio/from_thread.py:252: in _call_func
+    retval = await retval_or_awaitable
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/fastapi/applications.py:1054: in __call__
+    await super().__call__(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/applications.py:113: in __call__
+    await self.middleware_stack(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/middleware/errors.py:187: in __call__
+    raise exc
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/middleware/errors.py:165: in __call__
+    await self.app(scope, receive, _send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/middleware/cors.py:85: in __call__
+    await self.app(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/middleware/exceptions.py:62: in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/_exception_handler.py:62: in wrapped_app
+    raise exc
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/_exception_handler.py:51: in wrapped_app
+    await app(scope, receive, sender)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:715: in __call__
+    await self.middleware_stack(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:735: in app
+    await route.handle(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:288: in handle
+    await self.app(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:76: in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/_exception_handler.py:62: in wrapped_app
+    raise exc
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/_exception_handler.py:51: in wrapped_app
+    await app(scope, receive, sender)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:73: in app
+    response = await f(request)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/fastapi/routing.py:301: in app
+    raw_response = await run_endpoint_function(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/fastapi/routing.py:212: in run_endpoint_function
+    return await dependant.call(**values)
+app/routers/vehicles.py:37: in list_vehicles
+    sheets_service = get_sheets_service()
+app/mocks/service_factory.py:31: in get_sheets_service
+    return _get_sheets_service()
+app/services/sheets.py:102: in get_sheets_service
+    return GoogleSheetsService()
+app/services/sheets_real.py:17: in __init__
+    self.credentials = self._get_credentials()
+app/services/sheets_real.py:36: in _get_credentials
+    return service_account.Credentials.from_service_account_file(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/google/oauth2/service_account.py:260: in from_service_account_file
+    info, signer = _service_account_info.from_filename(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/google/auth/_service_account_info.py:78: in from_filename
+    with io.open(filename, "r", encoding="utf-8") as json_file:
+E   FileNotFoundError: [Errno 2] No such file or directory: '/path/to/creds.json'
+_____________ TestVehicleListEndpoint.test_list_vehicles_benevole ______________
+tests/test_vehicles_api.py:131: in test_list_vehicles_benevole
+    response = auth_client.get("/api/vehicles")
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/testclient.py:518: in get
+    return super().get(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:1066: in get
+    return self.request(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/testclient.py:488: in request
+    return super().request(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:837: in request
+    return self.send(request, auth=auth, follow_redirects=follow_redirects)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:926: in send
+    response = self._send_handling_auth(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:954: in _send_handling_auth
+    response = self._send_handling_redirects(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:991: in _send_handling_redirects
+    response = self._send_single_request(request)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:1027: in _send_single_request
+    response = transport.handle_request(request)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/testclient.py:381: in handle_request
+    raise exc
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/testclient.py:378: in handle_request
+    portal.call(self.app, scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/anyio/from_thread.py:321: in call
+    return cast(T_Retval, self.start_task_soon(func, *args).result())
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/concurrent/futures/_base.py:456: in result
+    return self.__get_result()
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/concurrent/futures/_base.py:401: in __get_result
+    raise self._exception
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/anyio/from_thread.py:252: in _call_func
+    retval = await retval_or_awaitable
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/fastapi/applications.py:1054: in __call__
+    await super().__call__(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/applications.py:113: in __call__
+    await self.middleware_stack(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/middleware/errors.py:187: in __call__
+    raise exc
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/middleware/errors.py:165: in __call__
+    await self.app(scope, receive, _send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/middleware/cors.py:85: in __call__
+    await self.app(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/middleware/exceptions.py:62: in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/_exception_handler.py:62: in wrapped_app
+    raise exc
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/_exception_handler.py:51: in wrapped_app
+    await app(scope, receive, sender)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:715: in __call__
+    await self.middleware_stack(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:735: in app
+    await route.handle(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:288: in handle
+    await self.app(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:76: in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/_exception_handler.py:62: in wrapped_app
+    raise exc
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/_exception_handler.py:51: in wrapped_app
+    await app(scope, receive, sender)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:73: in app
+    response = await f(request)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/fastapi/routing.py:301: in app
+    raw_response = await run_endpoint_function(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/fastapi/routing.py:212: in run_endpoint_function
+    return await dependant.call(**values)
+app/routers/vehicles.py:37: in list_vehicles
+    sheets_service = get_sheets_service()
+app/mocks/service_factory.py:31: in get_sheets_service
+    return _get_sheets_service()
+app/services/sheets.py:102: in get_sheets_service
+    return GoogleSheetsService()
+app/services/sheets_real.py:17: in __init__
+    self.credentials = self._get_credentials()
+app/services/sheets_real.py:36: in _get_credentials
+    return service_account.Credentials.from_service_account_file(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/google/oauth2/service_account.py:260: in from_service_account_file
+    info, signer = _service_account_info.from_filename(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/google/auth/_service_account_info.py:78: in from_filename
+    with io.open(filename, "r", encoding="utf-8") as json_file:
+E   FileNotFoundError: [Errno 2] No such file or directory: '/path/to/creds.json'
+______________ TestVehicleDetailEndpoint.test_get_vehicle_success ______________
+tests/test_vehicles_api.py:152: in test_get_vehicle_success
+    response = auth_client.get("/api/vehicles/VSAV-PARIS15-01")
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/testclient.py:518: in get
+    return super().get(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:1066: in get
+    return self.request(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/testclient.py:488: in request
+    return super().request(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:837: in request
+    return self.send(request, auth=auth, follow_redirects=follow_redirects)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:926: in send
+    response = self._send_handling_auth(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:954: in _send_handling_auth
+    response = self._send_handling_redirects(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:991: in _send_handling_redirects
+    response = self._send_single_request(request)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:1027: in _send_single_request
+    response = transport.handle_request(request)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/testclient.py:381: in handle_request
+    raise exc
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/testclient.py:378: in handle_request
+    portal.call(self.app, scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/anyio/from_thread.py:321: in call
+    return cast(T_Retval, self.start_task_soon(func, *args).result())
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/concurrent/futures/_base.py:449: in result
+    return self.__get_result()
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/concurrent/futures/_base.py:401: in __get_result
+    raise self._exception
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/anyio/from_thread.py:252: in _call_func
+    retval = await retval_or_awaitable
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/fastapi/applications.py:1054: in __call__
+    await super().__call__(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/applications.py:113: in __call__
+    await self.middleware_stack(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/middleware/errors.py:187: in __call__
+    raise exc
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/middleware/errors.py:165: in __call__
+    await self.app(scope, receive, _send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/middleware/cors.py:85: in __call__
+    await self.app(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/middleware/exceptions.py:62: in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/_exception_handler.py:62: in wrapped_app
+    raise exc
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/_exception_handler.py:51: in wrapped_app
+    await app(scope, receive, sender)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:715: in __call__
+    await self.middleware_stack(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:735: in app
+    await route.handle(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:288: in handle
+    await self.app(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:76: in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/_exception_handler.py:62: in wrapped_app
+    raise exc
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/_exception_handler.py:51: in wrapped_app
+    await app(scope, receive, sender)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:73: in app
+    response = await f(request)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/fastapi/routing.py:301: in app
+    raw_response = await run_endpoint_function(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/fastapi/routing.py:212: in run_endpoint_function
+    return await dependant.call(**values)
+app/routers/vehicles.py:76: in get_vehicle
+    sheets_service = get_sheets_service()
+app/mocks/service_factory.py:31: in get_sheets_service
+    return _get_sheets_service()
+app/services/sheets.py:102: in get_sheets_service
+    return GoogleSheetsService()
+app/services/sheets_real.py:17: in __init__
+    self.credentials = self._get_credentials()
+app/services/sheets_real.py:36: in _get_credentials
+    return service_account.Credentials.from_service_account_file(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/google/oauth2/service_account.py:260: in from_service_account_file
+    info, signer = _service_account_info.from_filename(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/google/auth/_service_account_info.py:78: in from_filename
+    with io.open(filename, "r", encoding="utf-8") as json_file:
+E   FileNotFoundError: [Errno 2] No such file or directory: '/path/to/creds.json'
+_____________ TestVehicleDetailEndpoint.test_get_vehicle_not_found _____________
+tests/test_vehicles_api.py:164: in test_get_vehicle_not_found
+    response = auth_client.get("/api/vehicles/NON-EXISTENT")
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/testclient.py:518: in get
+    return super().get(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:1066: in get
+    return self.request(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/testclient.py:488: in request
+    return super().request(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:837: in request
+    return self.send(request, auth=auth, follow_redirects=follow_redirects)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:926: in send
+    response = self._send_handling_auth(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:954: in _send_handling_auth
+    response = self._send_handling_redirects(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:991: in _send_handling_redirects
+    response = self._send_single_request(request)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:1027: in _send_single_request
+    response = transport.handle_request(request)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/testclient.py:381: in handle_request
+    raise exc
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/testclient.py:378: in handle_request
+    portal.call(self.app, scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/anyio/from_thread.py:321: in call
+    return cast(T_Retval, self.start_task_soon(func, *args).result())
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/concurrent/futures/_base.py:449: in result
+    return self.__get_result()
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/concurrent/futures/_base.py:401: in __get_result
+    raise self._exception
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/anyio/from_thread.py:252: in _call_func
+    retval = await retval_or_awaitable
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/fastapi/applications.py:1054: in __call__
+    await super().__call__(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/applications.py:113: in __call__
+    await self.middleware_stack(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/middleware/errors.py:187: in __call__
+    raise exc
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/middleware/errors.py:165: in __call__
+    await self.app(scope, receive, _send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/middleware/cors.py:85: in __call__
+    await self.app(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/middleware/exceptions.py:62: in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/_exception_handler.py:62: in wrapped_app
+    raise exc
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/_exception_handler.py:51: in wrapped_app
+    await app(scope, receive, sender)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:715: in __call__
+    await self.middleware_stack(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:735: in app
+    await route.handle(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:288: in handle
+    await self.app(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:76: in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/_exception_handler.py:62: in wrapped_app
+    raise exc
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/_exception_handler.py:51: in wrapped_app
+    await app(scope, receive, sender)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:73: in app
+    response = await f(request)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/fastapi/routing.py:301: in app
+    raw_response = await run_endpoint_function(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/fastapi/routing.py:212: in run_endpoint_function
+    return await dependant.call(**values)
+app/routers/vehicles.py:76: in get_vehicle
+    sheets_service = get_sheets_service()
+app/mocks/service_factory.py:31: in get_sheets_service
+    return _get_sheets_service()
+app/services/sheets.py:102: in get_sheets_service
+    return GoogleSheetsService()
+app/services/sheets_real.py:17: in __init__
+    self.credentials = self._get_credentials()
+app/services/sheets_real.py:36: in _get_credentials
+    return service_account.Credentials.from_service_account_file(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/google/oauth2/service_account.py:260: in from_service_account_file
+    info, signer = _service_account_info.from_filename(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/google/auth/_service_account_info.py:78: in from_filename
+    with io.open(filename, "r", encoding="utf-8") as json_file:
+E   FileNotFoundError: [Errno 2] No such file or directory: '/path/to/creds.json'
+_____________ TestVehicleDetailEndpoint.test_get_vehicle_forbidden _____________
+tests/test_vehicles_api.py:172: in test_get_vehicle_forbidden
+    response = auth_client.get("/api/vehicles/VPSP-PARIS16-01")
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/testclient.py:518: in get
+    return super().get(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:1066: in get
+    return self.request(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/testclient.py:488: in request
+    return super().request(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:837: in request
+    return self.send(request, auth=auth, follow_redirects=follow_redirects)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:926: in send
+    response = self._send_handling_auth(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:954: in _send_handling_auth
+    response = self._send_handling_redirects(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:991: in _send_handling_redirects
+    response = self._send_single_request(request)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:1027: in _send_single_request
+    response = transport.handle_request(request)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/testclient.py:381: in handle_request
+    raise exc
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/testclient.py:378: in handle_request
+    portal.call(self.app, scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/anyio/from_thread.py:321: in call
+    return cast(T_Retval, self.start_task_soon(func, *args).result())
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/concurrent/futures/_base.py:456: in result
+    return self.__get_result()
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/concurrent/futures/_base.py:401: in __get_result
+    raise self._exception
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/anyio/from_thread.py:252: in _call_func
+    retval = await retval_or_awaitable
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/fastapi/applications.py:1054: in __call__
+    await super().__call__(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/applications.py:113: in __call__
+    await self.middleware_stack(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/middleware/errors.py:187: in __call__
+    raise exc
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/middleware/errors.py:165: in __call__
+    await self.app(scope, receive, _send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/middleware/cors.py:85: in __call__
+    await self.app(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/middleware/exceptions.py:62: in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/_exception_handler.py:62: in wrapped_app
+    raise exc
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/_exception_handler.py:51: in wrapped_app
+    await app(scope, receive, sender)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:715: in __call__
+    await self.middleware_stack(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:735: in app
+    await route.handle(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:288: in handle
+    await self.app(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:76: in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/_exception_handler.py:62: in wrapped_app
+    raise exc
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/_exception_handler.py:51: in wrapped_app
+    await app(scope, receive, sender)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:73: in app
+    response = await f(request)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/fastapi/routing.py:301: in app
+    raw_response = await run_endpoint_function(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/fastapi/routing.py:212: in run_endpoint_function
+    return await dependant.call(**values)
+app/routers/vehicles.py:76: in get_vehicle
+    sheets_service = get_sheets_service()
+app/mocks/service_factory.py:31: in get_sheets_service
+    return _get_sheets_service()
+app/services/sheets.py:102: in get_sheets_service
+    return GoogleSheetsService()
+app/services/sheets_real.py:17: in __init__
+    self.credentials = self._get_credentials()
+app/services/sheets_real.py:36: in _get_credentials
+    return service_account.Credentials.from_service_account_file(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/google/oauth2/service_account.py:260: in from_service_account_file
+    info, signer = _service_account_info.from_filename(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/google/auth/_service_account_info.py:78: in from_filename
+    with io.open(filename, "r", encoding="utf-8") as json_file:
+E   FileNotFoundError: [Errno 2] No such file or directory: '/path/to/creds.json'
+____________ TestVehicleUpdateEndpoint.test_update_vehicle_success _____________
+tests/test_vehicles_api.py:183: in test_update_vehicle_success
+    response = auth_client.patch(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/testclient.py:663: in patch
+    return super().patch(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:1231: in patch
+    return self.request(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/testclient.py:488: in request
+    return super().request(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:837: in request
+    return self.send(request, auth=auth, follow_redirects=follow_redirects)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:926: in send
+    response = self._send_handling_auth(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:954: in _send_handling_auth
+    response = self._send_handling_redirects(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:991: in _send_handling_redirects
+    response = self._send_single_request(request)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:1027: in _send_single_request
+    response = transport.handle_request(request)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/testclient.py:381: in handle_request
+    raise exc
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/testclient.py:378: in handle_request
+    portal.call(self.app, scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/anyio/from_thread.py:321: in call
+    return cast(T_Retval, self.start_task_soon(func, *args).result())
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/concurrent/futures/_base.py:449: in result
+    return self.__get_result()
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/concurrent/futures/_base.py:401: in __get_result
+    raise self._exception
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/anyio/from_thread.py:252: in _call_func
+    retval = await retval_or_awaitable
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/fastapi/applications.py:1054: in __call__
+    await super().__call__(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/applications.py:113: in __call__
+    await self.middleware_stack(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/middleware/errors.py:187: in __call__
+    raise exc
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/middleware/errors.py:165: in __call__
+    await self.app(scope, receive, _send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/middleware/cors.py:85: in __call__
+    await self.app(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/middleware/exceptions.py:62: in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/_exception_handler.py:62: in wrapped_app
+    raise exc
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/_exception_handler.py:51: in wrapped_app
+    await app(scope, receive, sender)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:715: in __call__
+    await self.middleware_stack(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:735: in app
+    await route.handle(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:288: in handle
+    await self.app(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:76: in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/_exception_handler.py:62: in wrapped_app
+    raise exc
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/_exception_handler.py:51: in wrapped_app
+    await app(scope, receive, sender)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:73: in app
+    response = await f(request)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/fastapi/routing.py:301: in app
+    raw_response = await run_endpoint_function(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/fastapi/routing.py:212: in run_endpoint_function
+    return await dependant.call(**values)
+app/routers/vehicles.py:121: in update_vehicle
+    sheets_service = get_sheets_service()
+app/mocks/service_factory.py:31: in get_sheets_service
+    return _get_sheets_service()
+app/services/sheets.py:102: in get_sheets_service
+    return GoogleSheetsService()
+app/services/sheets_real.py:17: in __init__
+    self.credentials = self._get_credentials()
+app/services/sheets_real.py:36: in _get_credentials
+    return service_account.Credentials.from_service_account_file(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/google/oauth2/service_account.py:260: in from_service_account_file
+    info, signer = _service_account_info.from_filename(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/google/auth/_service_account_info.py:78: in from_filename
+    with io.open(filename, "r", encoding="utf-8") as json_file:
+E   FileNotFoundError: [Errno 2] No such file or directory: '/path/to/creds.json'
+___________ TestVehicleUpdateEndpoint.test_update_vehicle_not_found ____________
+tests/test_vehicles_api.py:198: in test_update_vehicle_not_found
+    response = auth_client.patch(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/testclient.py:663: in patch
+    return super().patch(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:1231: in patch
+    return self.request(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/testclient.py:488: in request
+    return super().request(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:837: in request
+    return self.send(request, auth=auth, follow_redirects=follow_redirects)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:926: in send
+    response = self._send_handling_auth(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:954: in _send_handling_auth
+    response = self._send_handling_redirects(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:991: in _send_handling_redirects
+    response = self._send_single_request(request)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:1027: in _send_single_request
+    response = transport.handle_request(request)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/testclient.py:381: in handle_request
+    raise exc
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/testclient.py:378: in handle_request
+    portal.call(self.app, scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/anyio/from_thread.py:321: in call
+    return cast(T_Retval, self.start_task_soon(func, *args).result())
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/concurrent/futures/_base.py:449: in result
+    return self.__get_result()
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/concurrent/futures/_base.py:401: in __get_result
+    raise self._exception
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/anyio/from_thread.py:252: in _call_func
+    retval = await retval_or_awaitable
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/fastapi/applications.py:1054: in __call__
+    await super().__call__(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/applications.py:113: in __call__
+    await self.middleware_stack(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/middleware/errors.py:187: in __call__
+    raise exc
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/middleware/errors.py:165: in __call__
+    await self.app(scope, receive, _send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/middleware/cors.py:85: in __call__
+    await self.app(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/middleware/exceptions.py:62: in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/_exception_handler.py:62: in wrapped_app
+    raise exc
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/_exception_handler.py:51: in wrapped_app
+    await app(scope, receive, sender)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:715: in __call__
+    await self.middleware_stack(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:735: in app
+    await route.handle(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:288: in handle
+    await self.app(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:76: in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/_exception_handler.py:62: in wrapped_app
+    raise exc
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/_exception_handler.py:51: in wrapped_app
+    await app(scope, receive, sender)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:73: in app
+    response = await f(request)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/fastapi/routing.py:301: in app
+    raw_response = await run_endpoint_function(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/fastapi/routing.py:212: in run_endpoint_function
+    return await dependant.call(**values)
+app/routers/vehicles.py:121: in update_vehicle
+    sheets_service = get_sheets_service()
+app/mocks/service_factory.py:31: in get_sheets_service
+    return _get_sheets_service()
+app/services/sheets.py:102: in get_sheets_service
+    return GoogleSheetsService()
+app/services/sheets_real.py:17: in __init__
+    self.credentials = self._get_credentials()
+app/services/sheets_real.py:36: in _get_credentials
+    return service_account.Credentials.from_service_account_file(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/google/oauth2/service_account.py:260: in from_service_account_file
+    info, signer = _service_account_info.from_filename(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/google/auth/_service_account_info.py:78: in from_filename
+    with io.open(filename, "r", encoding="utf-8") as json_file:
+E   FileNotFoundError: [Errno 2] No such file or directory: '/path/to/creds.json'
+___________ TestVehicleUpdateEndpoint.test_update_vehicle_forbidden ____________
+tests/test_vehicles_api.py:209: in test_update_vehicle_forbidden
+    response = auth_client.patch(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/testclient.py:663: in patch
+    return super().patch(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:1231: in patch
+    return self.request(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/testclient.py:488: in request
+    return super().request(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:837: in request
+    return self.send(request, auth=auth, follow_redirects=follow_redirects)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:926: in send
+    response = self._send_handling_auth(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:954: in _send_handling_auth
+    response = self._send_handling_redirects(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:991: in _send_handling_redirects
+    response = self._send_single_request(request)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:1027: in _send_single_request
+    response = transport.handle_request(request)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/testclient.py:381: in handle_request
+    raise exc
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/testclient.py:378: in handle_request
+    portal.call(self.app, scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/anyio/from_thread.py:321: in call
+    return cast(T_Retval, self.start_task_soon(func, *args).result())
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/concurrent/futures/_base.py:449: in result
+    return self.__get_result()
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/concurrent/futures/_base.py:401: in __get_result
+    raise self._exception
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/anyio/from_thread.py:252: in _call_func
+    retval = await retval_or_awaitable
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/fastapi/applications.py:1054: in __call__
+    await super().__call__(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/applications.py:113: in __call__
+    await self.middleware_stack(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/middleware/errors.py:187: in __call__
+    raise exc
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/middleware/errors.py:165: in __call__
+    await self.app(scope, receive, _send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/middleware/cors.py:85: in __call__
+    await self.app(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/middleware/exceptions.py:62: in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/_exception_handler.py:62: in wrapped_app
+    raise exc
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/_exception_handler.py:51: in wrapped_app
+    await app(scope, receive, sender)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:715: in __call__
+    await self.middleware_stack(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:735: in app
+    await route.handle(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:288: in handle
+    await self.app(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:76: in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/_exception_handler.py:62: in wrapped_app
+    raise exc
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/_exception_handler.py:51: in wrapped_app
+    await app(scope, receive, sender)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:73: in app
+    response = await f(request)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/fastapi/routing.py:301: in app
+    raw_response = await run_endpoint_function(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/fastapi/routing.py:212: in run_endpoint_function
+    return await dependant.call(**values)
+app/routers/vehicles.py:121: in update_vehicle
+    sheets_service = get_sheets_service()
+app/mocks/service_factory.py:31: in get_sheets_service
+    return _get_sheets_service()
+app/services/sheets.py:102: in get_sheets_service
+    return GoogleSheetsService()
+app/services/sheets_real.py:17: in __init__
+    self.credentials = self._get_credentials()
+app/services/sheets_real.py:36: in _get_credentials
+    return service_account.Credentials.from_service_account_file(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/google/oauth2/service_account.py:260: in from_service_account_file
+    info, signer = _service_account_info.from_filename(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/google/auth/_service_account_info.py:78: in from_filename
+    with io.open(filename, "r", encoding="utf-8") as json_file:
+E   FileNotFoundError: [Errno 2] No such file or directory: '/path/to/creds.json'
+__________ TestVehicleFiltering.test_filter_gestionnaire_dt_sees_all ___________
+tests/test_vehicles_api.py:223: in test_filter_gestionnaire_dt_sees_all
+    response = auth_client.get("/api/vehicles")
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/testclient.py:518: in get
+    return super().get(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:1066: in get
+    return self.request(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/testclient.py:488: in request
+    return super().request(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:837: in request
+    return self.send(request, auth=auth, follow_redirects=follow_redirects)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:926: in send
+    response = self._send_handling_auth(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:954: in _send_handling_auth
+    response = self._send_handling_redirects(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:991: in _send_handling_redirects
+    response = self._send_single_request(request)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:1027: in _send_single_request
+    response = transport.handle_request(request)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/testclient.py:381: in handle_request
+    raise exc
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/testclient.py:378: in handle_request
+    portal.call(self.app, scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/anyio/from_thread.py:321: in call
+    return cast(T_Retval, self.start_task_soon(func, *args).result())
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/concurrent/futures/_base.py:449: in result
+    return self.__get_result()
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/concurrent/futures/_base.py:401: in __get_result
+    raise self._exception
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/anyio/from_thread.py:252: in _call_func
+    retval = await retval_or_awaitable
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/fastapi/applications.py:1054: in __call__
+    await super().__call__(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/applications.py:113: in __call__
+    await self.middleware_stack(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/middleware/errors.py:187: in __call__
+    raise exc
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/middleware/errors.py:165: in __call__
+    await self.app(scope, receive, _send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/middleware/cors.py:85: in __call__
+    await self.app(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/middleware/exceptions.py:62: in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/_exception_handler.py:62: in wrapped_app
+    raise exc
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/_exception_handler.py:51: in wrapped_app
+    await app(scope, receive, sender)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:715: in __call__
+    await self.middleware_stack(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:735: in app
+    await route.handle(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:288: in handle
+    await self.app(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:76: in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/_exception_handler.py:62: in wrapped_app
+    raise exc
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/_exception_handler.py:51: in wrapped_app
+    await app(scope, receive, sender)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:73: in app
+    response = await f(request)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/fastapi/routing.py:301: in app
+    raw_response = await run_endpoint_function(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/fastapi/routing.py:212: in run_endpoint_function
+    return await dependant.call(**values)
+app/routers/vehicles.py:37: in list_vehicles
+    sheets_service = get_sheets_service()
+app/mocks/service_factory.py:31: in get_sheets_service
+    return _get_sheets_service()
+app/services/sheets.py:102: in get_sheets_service
+    return GoogleSheetsService()
+app/services/sheets_real.py:17: in __init__
+    self.credentials = self._get_credentials()
+app/services/sheets_real.py:36: in _get_credentials
+    return service_account.Credentials.from_service_account_file(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/google/oauth2/service_account.py:260: in from_service_account_file
+    info, signer = _service_account_info.from_filename(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/google/auth/_service_account_info.py:78: in from_filename
+    with io.open(filename, "r", encoding="utf-8") as json_file:
+E   FileNotFoundError: [Errno 2] No such file or directory: '/path/to/creds.json'
+______ TestVehicleFiltering.test_filter_responsable_ul_sees_only_their_ul ______
+tests/test_vehicles_api.py:233: in test_filter_responsable_ul_sees_only_their_ul
+    response = auth_client.get("/api/vehicles")
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/testclient.py:518: in get
+    return super().get(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:1066: in get
+    return self.request(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/testclient.py:488: in request
+    return super().request(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:837: in request
+    return self.send(request, auth=auth, follow_redirects=follow_redirects)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:926: in send
+    response = self._send_handling_auth(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:954: in _send_handling_auth
+    response = self._send_handling_redirects(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:991: in _send_handling_redirects
+    response = self._send_single_request(request)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:1027: in _send_single_request
+    response = transport.handle_request(request)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/testclient.py:381: in handle_request
+    raise exc
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/testclient.py:378: in handle_request
+    portal.call(self.app, scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/anyio/from_thread.py:321: in call
+    return cast(T_Retval, self.start_task_soon(func, *args).result())
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/concurrent/futures/_base.py:449: in result
+    return self.__get_result()
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/concurrent/futures/_base.py:401: in __get_result
+    raise self._exception
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/anyio/from_thread.py:252: in _call_func
+    retval = await retval_or_awaitable
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/fastapi/applications.py:1054: in __call__
+    await super().__call__(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/applications.py:113: in __call__
+    await self.middleware_stack(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/middleware/errors.py:187: in __call__
+    raise exc
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/middleware/errors.py:165: in __call__
+    await self.app(scope, receive, _send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/middleware/cors.py:85: in __call__
+    await self.app(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/middleware/exceptions.py:62: in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/_exception_handler.py:62: in wrapped_app
+    raise exc
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/_exception_handler.py:51: in wrapped_app
+    await app(scope, receive, sender)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:715: in __call__
+    await self.middleware_stack(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:735: in app
+    await route.handle(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:288: in handle
+    await self.app(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:76: in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/_exception_handler.py:62: in wrapped_app
+    raise exc
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/_exception_handler.py:51: in wrapped_app
+    await app(scope, receive, sender)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/starlette/routing.py:73: in app
+    response = await f(request)
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/fastapi/routing.py:301: in app
+    raw_response = await run_endpoint_function(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/fastapi/routing.py:212: in run_endpoint_function
+    return await dependant.call(**values)
+app/routers/vehicles.py:37: in list_vehicles
+    sheets_service = get_sheets_service()
+app/mocks/service_factory.py:31: in get_sheets_service
+    return _get_sheets_service()
+app/services/sheets.py:102: in get_sheets_service
+    return GoogleSheetsService()
+app/services/sheets_real.py:17: in __init__
+    self.credentials = self._get_credentials()
+app/services/sheets_real.py:36: in _get_credentials
+    return service_account.Credentials.from_service_account_file(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/google/oauth2/service_account.py:260: in from_service_account_file
+    info, signer = _service_account_info.from_filename(
+/Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/google/auth/_service_account_info.py:78: in from_filename
+    with io.open(filename, "r", encoding="utf-8") as json_file:
+E   FileNotFoundError: [Errno 2] No such file or directory: '/path/to/creds.json'
+=============================== warnings summary ===============================
+../../../../../.pyenv/versions/3.13.7/lib/python3.13/site-packages/pydantic/_internal/_config.py:291: 14 warnings
+  /Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/pydantic/_internal/_config.py:291: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.9/migration/
+    warnings.warn(DEPRECATION_MESSAGE, DeprecationWarning)
+
+app/main.py:64
+  /Users/tom/intent/workspaces/prod-test/repo/backend/app/main.py:64: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("startup")
+
+../../../../../.pyenv/versions/3.13.7/lib/python3.13/site-packages/fastapi/applications.py:4495
+../../../../../.pyenv/versions/3.13.7/lib/python3.13/site-packages/fastapi/applications.py:4495
+  /Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/fastapi/applications.py:4495: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    return self.router.on_event(event_type)
+
+app/main.py:99
+  /Users/tom/intent/workspaces/prod-test/repo/backend/app/main.py:99: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("shutdown")
+
+tests/test_auth.py: 14 warnings
+tests/test_calendar_router.py: 10 warnings
+tests/test_config_api.py: 4 warnings
+tests/test_qr_encode.py: 4 warnings
+tests/test_reservations_api.py: 10 warnings
+tests/test_vehicles_api.py: 22 warnings
+  /Users/tom/intent/workspaces/prod-test/repo/backend/app/mocks/okta_mock.py:121: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    now = datetime.utcnow()
+
+tests/test_auth.py::TestAuthEndpoints::test_full_auth_flow_dt_manager
+tests/test_auth.py::TestAuthEndpoints::test_full_auth_flow_ul_responsible
+tests/test_auth.py::TestAuthEndpoints::test_full_auth_flow_benevole
+  /Users/tom/.pyenv/versions/3.13.7/lib/python3.13/site-packages/httpx/_client.py:822: DeprecationWarning: Setting per-request cookies=<...> is being deprecated, because the expected behaviour on cookie persistence is ambiguous. Set cookies directly on the client instance instead.
+    warnings.warn(message, DeprecationWarning)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_auth.py::TestAuthEndpoints::test_full_auth_flow_ul_responsible
+FAILED tests/test_auth.py::TestAuthEndpoints::test_full_auth_flow_benevole - ...
+FAILED tests/test_auth.py::TestAuthDependencies::test_require_authenticated_user
+FAILED tests/test_auth.py::TestAuthDependencies::test_require_dt_manager - as...
+FAILED tests/test_auth.py::TestAuthDependencies::test_require_ul_responsible
+FAILED tests/test_auth.py::TestAuthService::test_user_role_determination_ul_responsible
+FAILED tests/test_auth.py::TestAuthService::test_user_role_determination_benevole
+FAILED tests/test_carnet_de_bord.py::TestCarnetDeBordAPI::test_enregistrer_prise_success
+FAILED tests/test_carnet_de_bord.py::TestCarnetDeBordAPI::test_enregistrer_retour_success
+FAILED tests/test_carnet_de_bord.py::TestCarnetDeBordAPI::test_get_derniere_prise_no_data
+FAILED tests/test_mocks.py::TestGoogleSheetsMock::test_get_vehicules - Assert...
+FAILED tests/test_mocks.py::TestGoogleSheetsMock::test_get_vehicule_by_nom_synthetique
+FAILED tests/test_mocks.py::TestGoogleSheetsMock::test_get_benevoles - Assert...
+FAILED tests/test_mocks.py::TestGoogleSheetsMock::test_get_benevole_by_email
+FAILED tests/test_mocks.py::TestGoogleSheetsMock::test_get_responsables - Ass...
+FAILED tests/test_reservations_api.py::TestCreateReservation::test_create_reservation_success
+FAILED tests/test_reservations_api.py::TestGetAvailableVehicles::test_get_available_vehicles_success
+FAILED tests/test_reservations_api.py::TestGetAvailableVehicles::test_get_available_vehicles_invalid_dates
+FAILED tests/test_sheets_service.py::TestGoogleSheetsMock::test_get_vehicles
+FAILED tests/test_sheets_service.py::TestGoogleSheetsMock::test_get_vehicles_backward_compatibility
+FAILED tests/test_sheets_service.py::TestGoogleSheetsMock::test_get_benevoles
+FAILED tests/test_sheets_service.py::TestGoogleSheetsMock::test_get_responsables
+FAILED tests/test_sync_api.py::TestSyncAPIAuthentication::test_valid_api_key
+FAILED tests/test_upload_api.py::TestUploadAPI::test_upload_single_photo - Fi...
+FAILED tests/test_upload_api.py::TestUploadAPI::test_upload_multiple_photos
+FAILED tests/test_upload_api.py::TestUploadAPI::test_upload_photo_vehicle_not_found
+FAILED tests/test_upload_api.py::TestUploadAPI::test_upload_photo_invalid_format
+FAILED tests/test_upload_api.py::TestUploadAPI::test_upload_png_photo - FileN...
+FAILED tests/test_upload_service.py::TestUploadService::test_upload_photos - ...
+FAILED tests/test_upload_service.py::TestUploadService::test_upload_photos_creates_folder_structure
+FAILED tests/test_upload_service.py::TestUploadService::test_upload_photos_without_compression
+FAILED tests/test_vehicles_api.py::TestVehicleListEndpoint::test_list_vehicles_gestionnaire_dt
+FAILED tests/test_vehicles_api.py::TestVehicleListEndpoint::test_list_vehicles_responsable_ul
+FAILED tests/test_vehicles_api.py::TestVehicleListEndpoint::test_list_vehicles_benevole
+FAILED tests/test_vehicles_api.py::TestVehicleDetailEndpoint::test_get_vehicle_success
+FAILED tests/test_vehicles_api.py::TestVehicleDetailEndpoint::test_get_vehicle_not_found
+FAILED tests/test_vehicles_api.py::TestVehicleDetailEndpoint::test_get_vehicle_forbidden
+FAILED tests/test_vehicles_api.py::TestVehicleUpdateEndpoint::test_update_vehicle_success
+FAILED tests/test_vehicles_api.py::TestVehicleUpdateEndpoint::test_update_vehicle_not_found
+FAILED tests/test_vehicles_api.py::TestVehicleUpdateEndpoint::test_update_vehicle_forbidden
+FAILED tests/test_vehicles_api.py::TestVehicleFiltering::test_filter_gestionnaire_dt_sees_all
+FAILED tests/test_vehicles_api.py::TestVehicleFiltering::test_filter_responsable_ul_sees_only_their_ul
+================= 42 failed, 163 passed, 85 warnings in 2.59s ==================
