@@ -18,9 +18,9 @@
           <mat-form-field class="full-width">
             <mat-label>Véhicule</mat-label>
             <mat-select formControlName="vehicule_immat" required>
-              @for (vehicle of vehicles(); track vehicle.immatriculation) {
-                <mat-option [value]="vehicle.immatriculation">
-                  {{ vehicle.immatriculation }} - {{ vehicle.marque }} {{ vehicle.modele }}
+              @for (vehicle of vehicles(); track vehicle.immat) {
+                <mat-option [value]="vehicle.immat">
+                  {{ vehicle.immat }} - {{ vehicle.marque }} {{ vehicle.modele }}
                 </mat-option>
               }
             </mat-select>
