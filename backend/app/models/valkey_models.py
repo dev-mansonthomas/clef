@@ -14,29 +14,54 @@ class DTConfiguration(BaseModel):
 
 
 class VehicleData(BaseModel):
-    """Vehicle data stored in Valkey."""
-    immat: str = Field(..., description="License plate")
+    """Vehicle data stored in Valkey - matches all 19 columns from referential."""
+    # Primary keys
+    immat: str = Field(..., description="License plate (immatriculation)")
     dt: str = Field(..., description="DT identifier")
-    dt_ul: Optional[str] = Field(None, description="UL within DT")
-    marque: Optional[str] = Field(None, description="Brand")
-    modele: Optional[str] = Field(None, description="Model")
-    indicatif: Optional[str] = Field(None, description="Call sign")
-    nom_synthetique: Optional[str] = Field(None, description="Synthetic name")
-    operationnel_mecanique: Optional[str] = Field(None, description="Mechanical status")
-    prochain_controle_technique: Optional[str] = Field(None, description="Next technical inspection")
-    prochain_controle_pollution: Optional[str] = Field(None, description="Next pollution control")
+
+    # Core fields (matching Vehicle model)
+    dt_ul: str = Field(..., description="Délégation Territoriale ou Unité Locale")
+    indicatif: str = Field(..., description="Code radio")
+    operationnel_mecanique: str = Field(..., description="Disponibilité mécanique (Dispo/Indispo)")
+    raison_indispo: str = Field(default="", description="Raison d'indisponibilité")
+    prochain_controle_technique: Optional[str] = Field(None, description="Date du prochain CT (YYYY-MM-DD)")
+    prochain_controle_pollution: Optional[str] = Field(None, description="Date du prochain contrôle pollution (YYYY-MM-DD)")
+    marque: str = Field(..., description="Marque du véhicule")
+    modele: str = Field(..., description="Modèle du véhicule")
+    type: str = Field(..., description="Type de véhicule (VSAV, VL, VPSP, etc.)")
+    date_mec: Optional[str] = Field(None, description="Date de mise en circulation (YYYY-MM-DD)")
+    nom_synthetique: str = Field(..., description="Nom synthétique unique (pour QR code)")
+    carte_grise: str = Field(..., description="Numéro de carte grise")
+    nb_places: str = Field(..., description="Nombre de places")
+    commentaires: str = Field(default="", description="Commentaires libres")
+    lieu_stationnement: str = Field(..., description="Lieu de stationnement")
+    instructions_recuperation: str = Field(default="", description="Lien vers instructions de récupération")
+    assurance_2026: str = Field(default="", description="Informations assurance")
+    numero_serie_baus: str = Field(default="", description="Numéro de série BAUS")
 
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
                 "immat": "AB-123-CD",
                 "dt": "DT75",
-                "dt_ul": "81",
+                "dt_ul": "UL Paris 15",
                 "marque": "Renault",
                 "modele": "Master",
                 "indicatif": "VPSU 81",
                 "nom_synthetique": "vpsu-81",
-                "operationnel_mecanique": "Dispo"
+                "operationnel_mecanique": "Dispo",
+                "raison_indispo": "",
+                "prochain_controle_technique": "2027-06-15",
+                "prochain_controle_pollution": "2027-06-15",
+                "type": "VSAV",
+                "date_mec": "2020-03-10",
+                "carte_grise": "CG123456789",
+                "nb_places": "3",
+                "commentaires": "Véhicule principal",
+                "lieu_stationnement": "Garage UL",
+                "instructions_recuperation": "https://docs.google.com/...",
+                "assurance_2026": "Contrat #2026-001",
+                "numero_serie_baus": "BAUS-2020-001"
             }
         }
     )
