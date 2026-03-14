@@ -1,5 +1,6 @@
 """API Keys management endpoints for DT and UL levels."""
 import logging
+import os
 from typing import Annotated, List, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
@@ -19,7 +20,7 @@ router = APIRouter(
 
 class ApiKeyCreate(BaseModel):
     """Model for creating a new API key."""
-    name: str = Field(..., description="Name/description of the API key")
+    key_type: str = Field(..., description="Type de clé: referentiel, benevoles, responsables")
 
 
 class ApiKeyResponse(BaseModel):
@@ -79,24 +80,28 @@ async def create_api_key_dt(
 ) -> ApiKeyResponse:
     """
     Generate a new API key for DT level.
-    
+
     **Access**: DT manager only
-    
+
     Args:
         dt: DT identifier
-        api_key_data: API key creation data
-        
+        api_key_data: API key creation data (key_type: referentiel, benevoles, responsables)
+
     Returns:
         Created API key with full key value (only shown once)
     """
     valkey = await get_valkey_for_dt(dt)
-    
+
     try:
+        # Auto-generate name based on key type and environment
+        env = os.getenv("ENVIRONMENT", "DEV")
+        key_name = f"{api_key_data.key_type}-{env}"
+
         api_key = await valkey.generate_api_key_dt(
-            name=api_key_data.name,
+            name=key_name,
             created_by=current_user.email
         )
-        logger.info(f"Created DT-level API key '{api_key_data.name}' for {dt} by {current_user.email}")
+        logger.info(f"Created DT-level API key '{key_name}' for {dt} by {current_user.email}")
         return ApiKeyResponse(**api_key)
     except Exception as e:
         logger.error(f"Error creating DT-level API key: {e}")
@@ -173,7 +178,7 @@ async def create_api_key_ul(
     Args:
         dt: DT identifier
         ul_id: UL identifier
-        api_key_data: API key creation data
+        api_key_data: API key creation data (key_type: referentiel, benevoles, responsables)
 
     Returns:
         Created API key with full key value (only shown once)
@@ -181,12 +186,16 @@ async def create_api_key_ul(
     valkey = await get_valkey_for_dt(dt)
 
     try:
+        # Auto-generate name based on key type and environment
+        env = os.getenv("ENVIRONMENT", "DEV")
+        key_name = f"{api_key_data.key_type}-{env}"
+
         api_key = await valkey.generate_api_key_ul(
             ul_id=ul_id,
-            name=api_key_data.name,
+            name=key_name,
             created_by=current_user.email
         )
-        logger.info(f"Created UL-level API key '{api_key_data.name}' for {dt} UL {ul_id} by {current_user.email}")
+        logger.info(f"Created UL-level API key '{key_name}' for {dt} UL {ul_id} by {current_user.email}")
         return ApiKeyResponse(**api_key)
     except ValueError as e:
         raise HTTPException(

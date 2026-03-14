@@ -12,6 +12,6 @@ export interface ApiKey {
 }
 
 export interface ApiKeyCreate {
-  name: string;
+  key_type: string;
 }
 

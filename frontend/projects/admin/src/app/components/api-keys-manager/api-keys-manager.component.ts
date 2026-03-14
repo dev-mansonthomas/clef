@@ -1,13 +1,12 @@
 import { Component, Input, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ApiKeysService } from '../../services/api-keys.service';
 import { ApiKey } from '../../models/api-key.model';
 
 @Component({
   selector: 'app-api-keys-manager',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule],
   templateUrl: './api-keys-manager.component.html',
   styleUrl: './api-keys-manager.component.scss'
 })
@@ -17,25 +16,15 @@ export class ApiKeysManagerComponent implements OnInit {
   @Input() syncUrl: string = '';
 
   private readonly apiKeysService = inject(ApiKeysService);
-  private readonly fb = inject(FormBuilder);
 
   apiKeys = signal<ApiKey[]>([]);
   loading = signal(false);
   error = signal<string | null>(null);
-  newKeyForm!: FormGroup;
-  showNewKeyDialog = signal(false);
   newlyCreatedKey = signal<ApiKey | null>(null);
   revealedKeys = signal<Set<string>>(new Set());
 
   ngOnInit(): void {
-    this.initForm();
     this.loadApiKeys();
-  }
-
-  private initForm(): void {
-    this.newKeyForm = this.fb.group({
-      name: ['', [Validators.required, Validators.minLength(3)]]
-    });
   }
 
   loadApiKeys(): void {
@@ -59,25 +48,18 @@ export class ApiKeysManagerComponent implements OnInit {
     });
   }
 
-  onCreateKey(): void {
-    if (this.newKeyForm.invalid) {
-      this.newKeyForm.markAllAsTouched();
-      return;
-    }
-
+  generateKey(keyType: string): void {
     this.loading.set(true);
     this.error.set(null);
 
     const request = this.level === 'dt'
-      ? this.apiKeysService.createApiKeyDT(this.newKeyForm.value)
-      : this.apiKeysService.createApiKeyUL(this.ulId!, this.newKeyForm.value);
+      ? this.apiKeysService.createApiKeyDT({ key_type: keyType })
+      : this.apiKeysService.createApiKeyUL(this.ulId!, { key_type: keyType });
 
     request.subscribe({
       next: (key) => {
         this.newlyCreatedKey.set(key);
         this.loadApiKeys();
-        this.newKeyForm.reset();
-        this.showNewKeyDialog.set(false);
         this.loading.set(false);
       },
       error: (err) => {
