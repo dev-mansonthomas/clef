@@ -6,7 +6,7 @@ from fastapi import APIRouter, Header, HTTPException, status, Depends
 from pydantic import BaseModel, Field
 
 from app.services.valkey_service import ValkeyService
-from app.models.valkey_models import VehicleData, ResponsableData, BenevoleData
+from app.models.valkey_models import VehicleData, ResponsableData, BenevoleData, ResponsableVehiculeData
 from app.cache import get_cache
 
 logger = logging.getLogger(__name__)
@@ -25,6 +25,16 @@ class BenevoleSync(BaseModel):
     email: str | None = Field(None, description="Email address")
     ul: str | None = Field(None, description="UL identifier")
     role: str | None = Field(None, description="Role")
+
+
+class ResponsableVehiculeSync(BaseModel):
+    """Responsable véhicule data for sync from Apps Script."""
+    nivol: str = Field(..., description="NIVOL identifier")
+    nom: str = Field(..., description="Last name")
+    prenom: str = Field(..., description="First name")
+    ul: str = Field(..., description="Unité Locale")
+    telephone: str = Field(..., description="Phone number")
+    email: str = Field(..., description="Email address")
 
 
 class SyncResponse(BaseModel):
@@ -241,10 +251,81 @@ async def sync_benevoles(
             continue
     
     logger.info(f"Sync API: Processed {processed}/{len(benevoles)} bénévoles for {dt}")
-    
+
     return SyncResponse(
         success=True,
         count=processed,
         message=f"Successfully synced {processed} bénévoles"
     )
+
+
+@router.post("/{dt}/responsables", response_model=SyncResponse)
+async def sync_responsables_vehicules(
+    dt: str,
+    responsables: List[ResponsableVehiculeSync],
+    _: None = Depends(verify_api_key)
+) -> SyncResponse:
+    """
+    Sync responsables véhicules from Apps Script to Valkey.
+
+    Args:
+        dt: DT identifier (e.g., "DT75")
+        responsables: List of responsable véhicule data from spreadsheet
+
+    Returns:
+        Sync response with count of processed records
+    """
+    valkey = await get_valkey_for_dt(dt)
+
+    processed = 0
+    for resp_data in responsables:
+        try:
+            # Create ResponsableVehiculeData instance
+            responsable = ResponsableVehiculeData(
+                email=resp_data.email,
+                nivol=resp_data.nivol,
+                nom=resp_data.nom,
+                prenom=resp_data.prenom,
+                ul=resp_data.ul,
+                telephone=resp_data.telephone
+            )
+
+            # Store in Valkey
+            success = await valkey.set_responsable_vehicule(responsable)
+            if success:
+                processed += 1
+        except Exception as e:
+            logger.error(f"Error syncing responsable véhicule {resp_data.email}: {e}")
+            continue
+
+    logger.info(f"Sync API: Processed {processed}/{len(responsables)} responsables véhicules for {dt}")
+
+    return SyncResponse(
+        success=True,
+        count=processed,
+        message=f"Successfully synced {processed} responsables véhicules"
+    )
+
+
+@router.get("/{dt}/responsables/vehicules")
+async def get_responsables_vehicules_for_sync(
+    dt: str,
+    _: None = Depends(verify_api_key)
+) -> List[Dict[str, Any]]:
+    """
+    Get all responsables véhicules for a DT (for Apps Script sync).
+
+    Args:
+        dt: DT identifier (e.g., "DT75")
+
+    Returns:
+        List of responsable véhicule dictionaries
+    """
+    valkey = await get_valkey_for_dt(dt)
+
+    # Get all responsables véhicules
+    responsables = await valkey.get_all_responsables_vehicules()
+
+    logger.info(f"Sync API: Retrieved {len(responsables)} responsables véhicules for {dt}")
+    return [r.model_dump() for r in responsables]
 

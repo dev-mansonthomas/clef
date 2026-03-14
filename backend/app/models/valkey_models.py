@@ -119,6 +119,29 @@ class ResponsableData(BaseModel):
     )
 
 
+class ResponsableVehiculeData(BaseModel):
+    """Responsable véhicule data stored in Valkey."""
+    email: str = Field(..., description="Email address")
+    nivol: str = Field(..., description="NIVOL identifier")
+    nom: str = Field(..., description="Last name")
+    prenom: str = Field(..., description="First name")
+    ul: str = Field(..., description="Unité Locale")
+    telephone: str = Field(..., description="Phone number")
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "email": "pauline.michel@croix-rouge.fr",
+                "nivol": "01100112935Y",
+                "nom": "MICHEL",
+                "prenom": "Pauline",
+                "ul": "UNITE LOCALE DE PARIS XIII",
+                "telephone": "06 81 79 53 09"
+            }
+        }
+    )
+
+
 class CarnetBordEntry(BaseModel):
     """Carnet de bord entry stored in Valkey."""
     immat: str = Field(..., description="Vehicle license plate")

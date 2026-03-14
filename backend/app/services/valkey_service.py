@@ -6,7 +6,7 @@ import secrets
 from typing import Optional, List, Dict, Any, Set
 from datetime import datetime, date
 from redis.asyncio import Redis
-from app.models.valkey_models import VehicleData, BenevoleData, ResponsableData, CarnetBordEntry, DTConfiguration
+from app.models.valkey_models import VehicleData, BenevoleData, ResponsableData, ResponsableVehiculeData, CarnetBordEntry, DTConfiguration
 from app.models.reservation import ValkeyReservation, ValkeyReservationCreate
 
 logger = logging.getLogger(__name__)
@@ -451,6 +451,41 @@ class ValkeyService:
         except Exception as e:
             logger.error(f"Error deleting responsable {email} for {self.dt}: {e}")
             return False
+
+    # ========== Responsables Véhicules ==========
+
+    async def set_responsable_vehicule(self, responsable: ResponsableVehiculeData) -> bool:
+        """Store responsable véhicule in Valkey."""
+        try:
+            key = self._key("responsables_vehicules", responsable.email)
+            await self.redis.set(key, responsable.model_dump_json())
+            await self.redis.sadd(self._key("responsables_vehicules", "index"), responsable.email)
+            return True
+        except Exception as e:
+            logger.error(f"Error setting responsable véhicule {responsable.email} for {self.dt}: {e}")
+            return False
+
+    async def get_responsable_vehicule(self, email: str) -> Optional[ResponsableVehiculeData]:
+        """Get responsable véhicule by email."""
+        data = await self.redis.get(self._key("responsables_vehicules", email))
+        if data:
+            return ResponsableVehiculeData(**json.loads(data))
+        return None
+
+    async def list_responsables_vehicules(self) -> List[str]:
+        """List all responsable véhicule emails."""
+        members = await self.redis.smembers(self._key("responsables_vehicules", "index"))
+        return list(members) if members else []
+
+    async def get_all_responsables_vehicules(self) -> List[ResponsableVehiculeData]:
+        """Get all responsables véhicules."""
+        emails = await self.list_responsables_vehicules()
+        result = []
+        for email in emails:
+            resp = await self.get_responsable_vehicule(email)
+            if resp:
+                result.append(resp)
+        return result
 
     # ========== Carnet de Bord ==========
 
