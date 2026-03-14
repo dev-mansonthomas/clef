@@ -2,6 +2,7 @@
 from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from datetime import datetime
+import urllib.parse
 from app.models.vehicle import Vehicle, VehicleUpdate, VehicleListResponse
 from app.models.qr_code import QrEncodeRequest, QrEncodeResponse, QrDecodeRequest, QrDecodeResponse
 from app.models.valkey_models import VehicleData
@@ -103,7 +104,7 @@ async def list_vehicles(
     )
 
 
-@router.get("/{nom_synthetique}", response_model=Vehicle)
+@router.get("/{nom_synthetique:path}", response_model=Vehicle)
 async def get_vehicle(
     nom_synthetique: str,
     current_user: User = Depends(require_authenticated_user),
@@ -121,6 +122,9 @@ async def get_vehicle(
     Raises:
         404: Vehicle not found or user doesn't have access
     """
+    # Decode URL-encoded characters (e.g., %2F for /)
+    nom_synthetique = urllib.parse.unquote(nom_synthetique)
+
     # Try by nom_synthetique first
     vehicle_data = await get_vehicle_by_nom_synthetique(valkey_service, nom_synthetique)
 
@@ -149,7 +153,7 @@ async def get_vehicle(
     return VehicleService.enrich_vehicle(vehicle_dict)
 
 
-@router.patch("/{nom_synthetique}", response_model=Vehicle)
+@router.patch("/{nom_synthetique:path}", response_model=Vehicle)
 async def update_vehicle(
     nom_synthetique: str,
     update_data: VehicleUpdate,
@@ -172,6 +176,9 @@ async def update_vehicle(
     Raises:
         404: Vehicle not found or user doesn't have access
     """
+    # Decode URL-encoded characters (e.g., %2F for /)
+    nom_synthetique = urllib.parse.unquote(nom_synthetique)
+
     # Get vehicle from Valkey
     vehicle_data = await get_vehicle_by_nom_synthetique(valkey_service, nom_synthetique)
 
