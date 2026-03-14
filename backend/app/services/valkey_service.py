@@ -1,5 +1,4 @@
 """Valkey service with multi-tenant DT prefixing."""
-import json
 import logging
 import uuid
 import secrets
@@ -52,15 +51,15 @@ class ValkeyService:
     
     async def get_configuration(self) -> Optional[DTConfiguration]:
         """Get DT configuration."""
-        data = await self.redis.get(self._key("configuration"))
+        data = await self.redis.json().get(self._key("configuration"))
         if not data:
             return None
-        return DTConfiguration(**json.loads(data))
-    
+        return DTConfiguration(**data)
+
     async def set_configuration(self, config: DTConfiguration) -> bool:
         """Set DT configuration."""
         try:
-            await self.redis.set(self._key("configuration"), config.model_dump_json())
+            await self.redis.json().set(self._key("configuration"), "$", config.model_dump())
             return True
         except Exception as e:
             logger.error(f"Error setting configuration for {self.dt}: {e}")
@@ -90,8 +89,8 @@ class ValkeyService:
         }
 
         # Get current config
-        config_data = await self.redis.get(self._key("configuration"))
-        config = json.loads(config_data) if config_data else {}
+        config_data = await self.redis.json().get(self._key("configuration"))
+        config = config_data if config_data else {}
 
         # Add API key to config
         if "api_keys" not in config:
@@ -99,7 +98,7 @@ class ValkeyService:
         config["api_keys"].append(api_key_data)
 
         # Save updated config
-        await self.redis.set(self._key("configuration"), json.dumps(config))
+        await self.redis.json().set(self._key("configuration"), "$", config)
 
         return api_key_data
 
@@ -126,11 +125,11 @@ class ValkeyService:
         }
 
         # Get current UL data
-        ul_data_raw = await self.redis.get(self._key("unite_locale", ul_id))
+        ul_data_raw = await self.redis.json().get(self._key("unite_locale", ul_id))
         if not ul_data_raw:
             raise ValueError(f"UL {ul_id} not found")
 
-        ul_data = json.loads(ul_data_raw)
+        ul_data = ul_data_raw
 
         # Add API key to UL data
         if "api_keys" not in ul_data:
@@ -138,7 +137,7 @@ class ValkeyService:
         ul_data["api_keys"].append(api_key_data)
 
         # Save updated UL data
-        await self.redis.set(self._key("unite_locale", ul_id), json.dumps(ul_data))
+        await self.redis.json().set(self._key("unite_locale", ul_id), "$", ul_data)
 
         return api_key_data
 
@@ -156,34 +155,34 @@ class ValkeyService:
         """
         if ul_id:
             # Validate UL-level key
-            ul_data_raw = await self.redis.get(self._key("unite_locale", ul_id))
+            ul_data_raw = await self.redis.json().get(self._key("unite_locale", ul_id))
             if not ul_data_raw:
                 return False
 
-            ul_data = json.loads(ul_data_raw)
+            ul_data = ul_data_raw
             api_keys = ul_data.get("api_keys", [])
 
             for api_key in api_keys:
                 if api_key["key"] == key:
                     # Update last_used timestamp
                     api_key["last_used"] = datetime.utcnow().isoformat()
-                    await self.redis.set(self._key("unite_locale", ul_id), json.dumps(ul_data))
+                    await self.redis.json().set(self._key("unite_locale", ul_id), "$", ul_data)
                     return True
             return False
         else:
             # Validate DT-level key
-            config_data = await self.redis.get(self._key("configuration"))
+            config_data = await self.redis.json().get(self._key("configuration"))
             if not config_data:
                 return False
 
-            config = json.loads(config_data)
+            config = config_data
             api_keys = config.get("api_keys", [])
 
             for api_key in api_keys:
                 if api_key["key"] == key:
                     # Update last_used timestamp
                     api_key["last_used"] = datetime.utcnow().isoformat()
-                    await self.redis.set(self._key("configuration"), json.dumps(config))
+                    await self.redis.json().set(self._key("configuration"), "$", config)
                     return True
             return False
 
@@ -197,11 +196,11 @@ class ValkeyService:
         Returns:
             List of API key dictionaries
         """
-        config_data = await self.redis.get(self._key("configuration"))
+        config_data = await self.redis.json().get(self._key("configuration"))
         if not config_data:
             return []
 
-        config = json.loads(config_data)
+        config = config_data
         api_keys = config.get("api_keys", [])
 
         if mask_keys:
@@ -222,11 +221,11 @@ class ValkeyService:
         Returns:
             List of API key dictionaries
         """
-        ul_data_raw = await self.redis.get(self._key("unite_locale", ul_id))
+        ul_data_raw = await self.redis.json().get(self._key("unite_locale", ul_id))
         if not ul_data_raw:
             return []
 
-        ul_data = json.loads(ul_data_raw)
+        ul_data = ul_data_raw
         api_keys = ul_data.get("api_keys", [])
 
         if mask_keys:
@@ -246,11 +245,11 @@ class ValkeyService:
         Returns:
             True if deleted, False if not found
         """
-        config_data = await self.redis.get(self._key("configuration"))
+        config_data = await self.redis.json().get(self._key("configuration"))
         if not config_data:
             return False
 
-        config = json.loads(config_data)
+        config = config_data
         api_keys = config.get("api_keys", [])
 
         # Filter out the key to delete
@@ -260,7 +259,7 @@ class ValkeyService:
             return False  # Key not found
 
         config["api_keys"] = new_keys
-        await self.redis.set(self._key("configuration"), json.dumps(config))
+        await self.redis.json().set(self._key("configuration"), "$", config)
         return True
 
     async def delete_api_key_ul(self, ul_id: str, key_id: str) -> bool:
@@ -274,11 +273,11 @@ class ValkeyService:
         Returns:
             True if deleted, False if not found
         """
-        ul_data_raw = await self.redis.get(self._key("unite_locale", ul_id))
+        ul_data_raw = await self.redis.json().get(self._key("unite_locale", ul_id))
         if not ul_data_raw:
             return False
 
-        ul_data = json.loads(ul_data_raw)
+        ul_data = ul_data_raw
         api_keys = ul_data.get("api_keys", [])
 
         # Filter out the key to delete
@@ -288,23 +287,23 @@ class ValkeyService:
             return False  # Key not found
 
         ul_data["api_keys"] = new_keys
-        await self.redis.set(self._key("unite_locale", ul_id), json.dumps(ul_data))
+        await self.redis.json().set(self._key("unite_locale", ul_id), "$", ul_data)
         return True
 
     # ========== Vehicles ==========
     
     async def get_vehicle(self, immat: str) -> Optional[VehicleData]:
         """Get vehicle by license plate."""
-        data = await self.redis.get(self._key("vehicules", immat))
+        data = await self.redis.json().get(self._key("vehicules", immat))
         if not data:
             return None
-        return VehicleData(**json.loads(data))
-    
+        return VehicleData(**data)
+
     async def set_vehicle(self, vehicle: VehicleData) -> bool:
         """Set vehicle data and add to index."""
         try:
             key = self._key("vehicules", vehicle.immat)
-            await self.redis.set(key, vehicle.model_dump_json())
+            await self.redis.json().set(key, "$", vehicle.model_dump())
             await self.redis.sadd(self._key("vehicules", "index"), vehicle.immat)
             return True
         except Exception as e:
@@ -348,27 +347,27 @@ class ValkeyService:
     
     async def get_benevole(self, nivol: str) -> Optional[BenevoleData]:
         """Get bénévole by NIVOL."""
-        data = await self.redis.get(self._key("benevoles", nivol))
+        data = await self.redis.json().get(self._key("benevoles", nivol))
         if not data:
             return None
-        return BenevoleData(**json.loads(data))
-    
+        return BenevoleData(**data)
+
     async def set_benevole(self, benevole: BenevoleData) -> bool:
         """Set bénévole data and add to indices."""
         try:
             key = self._key("benevoles", benevole.nivol)
-            await self.redis.set(key, benevole.model_dump_json())
-            
+            await self.redis.json().set(key, "$", benevole.model_dump())
+
             # Add to global index
             await self.redis.sadd(self._key("benevoles", "index"), benevole.nivol)
-            
+
             # Add to UL-specific index if UL is specified
             if benevole.ul:
                 await self.redis.sadd(
                     self._key("benevoles", "by_ul", benevole.ul),
                     benevole.nivol
                 )
-            
+
             return True
         except Exception as e:
             logger.error(f"Error setting benevole {benevole.nivol} for {self.dt}: {e}")
@@ -418,16 +417,16 @@ class ValkeyService:
 
     async def get_responsable(self, email: str) -> Optional[ResponsableData]:
         """Get responsable by email."""
-        data = await self.redis.get(self._key("responsables", email))
+        data = await self.redis.json().get(self._key("responsables", email))
         if not data:
             return None
-        return ResponsableData(**json.loads(data))
+        return ResponsableData(**data)
 
     async def set_responsable(self, responsable: ResponsableData) -> bool:
         """Set responsable data and add to index."""
         try:
             key = self._key("responsables", responsable.email)
-            await self.redis.set(key, responsable.model_dump_json())
+            await self.redis.json().set(key, "$", responsable.model_dump())
 
             # Add to global index
             await self.redis.sadd(self._key("responsables", "index"), responsable.email)
@@ -458,7 +457,7 @@ class ValkeyService:
         """Store responsable véhicule in Valkey."""
         try:
             key = self._key("responsables_vehicules", responsable.email)
-            await self.redis.set(key, responsable.model_dump_json())
+            await self.redis.json().set(key, "$", responsable.model_dump())
             await self.redis.sadd(self._key("responsables_vehicules", "index"), responsable.email)
             return True
         except Exception as e:
@@ -467,9 +466,9 @@ class ValkeyService:
 
     async def get_responsable_vehicule(self, email: str) -> Optional[ResponsableVehiculeData]:
         """Get responsable véhicule by email."""
-        data = await self.redis.get(self._key("responsables_vehicules", email))
+        data = await self.redis.json().get(self._key("responsables_vehicules", email))
         if data:
-            return ResponsableVehiculeData(**json.loads(data))
+            return ResponsableVehiculeData(**data)
         return None
 
     async def list_responsables_vehicules(self) -> List[str]:
@@ -498,7 +497,7 @@ class ValkeyService:
         try:
             timestamp_str = entry.timestamp.isoformat()
             key = self._key("carnet", entry.immat, timestamp_str)
-            await self.redis.set(key, entry.model_dump_json())
+            await self.redis.json().set(key, "$", entry.model_dump())
 
             # Add to vehicle's carnet index
             await self.redis.sadd(
@@ -546,9 +545,9 @@ class ValkeyService:
             entries = []
             for timestamp in sorted_timestamps:
                 key = self._key("carnet", immat, timestamp)
-                data = await self.redis.get(key)
+                data = await self.redis.json().get(key)
                 if data:
-                    entries.append(CarnetBordEntry(**json.loads(data)))
+                    entries.append(CarnetBordEntry(**data))
 
             return entries
         except Exception as e:
@@ -634,7 +633,7 @@ class ValkeyService:
             "observations": observations,
             "timestamp": timestamp.isoformat()
         }
-        await self.redis.set(derniere_prise_key, json.dumps(prise_data))
+        await self.redis.json().set(derniere_prise_key, "$", prise_data)
 
         return timestamp.isoformat()
 
@@ -703,8 +702,8 @@ class ValkeyService:
             Last prise data or None if vehicle is not currently taken
         """
         derniere_prise_key = self._key("carnet", "derniere_prise", immat)
-        data = await self.redis.get(derniere_prise_key)
-        return json.loads(data) if data else None
+        data = await self.redis.json().get(derniere_prise_key)
+        return data if data else None
 
     async def get_historique_carnet(self, immat: str, limit: int = 50) -> List[Dict[str, Any]]:
         """
@@ -767,7 +766,7 @@ class ValkeyService:
         try:
             # Store reservation
             key = self._key("reservations", reservation_id)
-            await self.redis.set(key, reservation.model_dump_json())
+            await self.redis.json().set(key, "$", reservation.model_dump())
 
             # Add to global index
             await self.redis.sadd(self._key("reservations", "index"), reservation_id)
@@ -801,10 +800,10 @@ class ValkeyService:
         Returns:
             Reservation or None if not found
         """
-        data = await self.redis.get(self._key("reservations", reservation_id))
+        data = await self.redis.json().get(self._key("reservations", reservation_id))
         if not data:
             return None
-        return ValkeyReservation(**json.loads(data))
+        return ValkeyReservation(**data)
 
     async def list_reservations(
         self,
@@ -914,7 +913,7 @@ class ValkeyService:
 
             # Store updated reservation
             key = self._key("reservations", reservation_id)
-            await self.redis.set(key, updated.model_dump_json())
+            await self.redis.json().set(key, "$", updated.model_dump())
 
             # Update indexes if vehicle or dates changed
             if existing.vehicule_immat != updated.vehicule_immat:
