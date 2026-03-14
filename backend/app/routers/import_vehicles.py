@@ -52,6 +52,9 @@ HEADER_MAPPINGS = {
     "modele": "modele",
     "type": "type",
     "date de mec": "date_mec",
+    "date de mise en circulation": "date_mec",
+    "mise en circulation": "date_mec",
+    "date mec": "date_mec",
     "mec": "date_mec",
     "nom synthétique": "nom_synthetique",
     "nom synthetique": "nom_synthetique",
@@ -83,22 +86,57 @@ def is_na_value(value: str) -> bool:
 
 
 def parse_date(date_str: str) -> str:
-    """Convert DD/MM/YYYY to YYYY-MM-DD format."""
+    """Convert various date formats to YYYY-MM-DD format.
+
+    Supported formats:
+    - DD/MM/YYYY
+    - DD/MM/YY
+    - DD-MM-YYYY
+    - DD-MM-YY
+    - YYYY-MM-DD (ISO format, returned as-is)
+    """
     if not date_str or is_na_value(date_str):
         return ""
+
+    date_str = date_str.strip()
+
+    # Try YYYY-MM-DD format (ISO format - already correct)
+    try:
+        dt = datetime.strptime(date_str, "%Y-%m-%d")
+        return dt.strftime("%Y-%m-%d")
+    except ValueError:
+        pass
+
     # Try DD/MM/YYYY format
     try:
-        dt = datetime.strptime(date_str.strip(), "%d/%m/%Y")
+        dt = datetime.strptime(date_str, "%d/%m/%Y")
         return dt.strftime("%Y-%m-%d")
     except ValueError:
         pass
+
     # Try DD/MM/YY format
     try:
-        dt = datetime.strptime(date_str.strip(), "%d/%m/%y")
+        dt = datetime.strptime(date_str, "%d/%m/%y")
         return dt.strftime("%Y-%m-%d")
     except ValueError:
         pass
+
+    # Try DD-MM-YYYY format
+    try:
+        dt = datetime.strptime(date_str, "%d-%m-%Y")
+        return dt.strftime("%Y-%m-%d")
+    except ValueError:
+        pass
+
+    # Try DD-MM-YY format
+    try:
+        dt = datetime.strptime(date_str, "%d-%m-%y")
+        return dt.strftime("%Y-%m-%d")
+    except ValueError:
+        pass
+
     # Return as-is if can't parse
+    logger.warning(f"Could not parse date format: '{date_str}'")
     return date_str
 
 
@@ -335,6 +373,12 @@ async def import_csv(
             for field, col_idx in mapping_dict.items():
                 value = row[col_idx] if col_idx < len(row) else ""
                 values[field] = value.strip()
+
+            # Debug logging for date_mec
+            if "date_mec" in values:
+                logger.info(f"Line {idx}: date_mec raw value: '{values.get('date_mec')}'")
+                parsed_date = parse_date(values.get("date_mec", ""))
+                logger.info(f"Line {idx}: date_mec parsed value: '{parsed_date}'")
 
             # Check if immatriculation is valid
             immat = values.get("immat", "")
