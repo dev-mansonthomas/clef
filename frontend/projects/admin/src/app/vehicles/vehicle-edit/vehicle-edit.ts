@@ -12,6 +12,7 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatCardModule } from '@angular/material/card';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { VehicleService } from '../../services/vehicle.service';
+import { ErrorService } from '../../services/error.service';
 import { Vehicle, DisponibiliteStatus } from '../../models/vehicle.model';
 
 @Component({
@@ -38,6 +39,7 @@ export class VehicleEdit implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly vehicleService = inject(VehicleService);
+  private readonly errorService = inject(ErrorService);
   private readonly snackBar = inject(MatSnackBar);
   private readonly cdr = inject(ChangeDetectorRef);
 
@@ -88,7 +90,7 @@ export class VehicleEdit implements OnInit {
       prochain_controle_pollution: [''],
 
       // Section: Localisation & Instructions
-      lieu_stationnement: ['', Validators.required],
+      lieu_stationnement: [''],
       instructions_recuperation: [''],
 
       // Section: Administratif
@@ -114,9 +116,7 @@ export class VehicleEdit implements OnInit {
       },
       error: (error) => {
         console.error('Error loading vehicle:', error);
-        this.snackBar.open('Erreur lors du chargement du véhicule', 'Fermer', {
-          duration: 5000
-        });
+        this.errorService.handleHttpError(error, 'Impossible de charger le véhicule. Veuillez réessayer.');
         this.loading = false;
         this.cdr.detectChanges();
         this.router.navigate(['/vehicles']);
