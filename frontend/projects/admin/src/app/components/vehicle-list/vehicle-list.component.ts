@@ -84,7 +84,17 @@ export class VehicleListComponent implements OnInit {
     this.loading.set(true);
     this.vehicleService.getVehicles().subscribe({
       next: (response) => {
-        this.vehicles.set(response.vehicles);
+        // Sort vehicles by DT/UL then by Indicatif
+        const sortedVehicles = response.vehicles.sort((a, b) => {
+          // Primary sort by dt_ul
+          const dtCompare = (a.dt_ul || '').localeCompare(b.dt_ul || '');
+          if (dtCompare !== 0) return dtCompare;
+
+          // Secondary sort by indicatif
+          return (a.indicatif || '').localeCompare(b.indicatif || '');
+        });
+
+        this.vehicles.set(sortedVehicles);
         this.loading.set(false);
       },
       error: (error) => {
