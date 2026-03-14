@@ -14,9 +14,17 @@
   <div class="api-keys-section">
     <div class="section-header">
       <h3>🔑 API Keys</h3>
-      <button type="button" (click)="showNewKeyDialog.set(true)" class="btn-primary">
-        + Générer
-      </button>
+      <div class="api-key-buttons">
+        <button type="button" (click)="generateKey('referentiel')" class="btn-primary" [disabled]="loading()">
+          🔄 Générer clé Référentiel
+        </button>
+        <button type="button" (click)="generateKey('benevoles')" class="btn-accent" [disabled]="loading()">
+          👥 Générer clé Bénévoles
+        </button>
+        <button type="button" (click)="generateKey('responsables')" class="btn-warn" [disabled]="loading()">
+          👔 Générer clé Responsables
+        </button>
+      </div>
     </div>
 
     @if (error()) {
@@ -102,43 +110,5 @@
     }
   </div>
 
-  <!-- New Key Dialog -->
-  @if (showNewKeyDialog()) {
-    <div class="dialog-overlay" (click)="showNewKeyDialog.set(false)">
-      <div class="dialog" (click)="$event.stopPropagation()">
-        <h3>Générer une nouvelle clé API</h3>
-        <form [formGroup]="newKeyForm" (ngSubmit)="onCreateKey()">
-          <div class="form-group">
-            <label for="keyName">Nom de la clé *</label>
-            <input
-              type="text"
-              id="keyName"
-              formControlName="name"
-              placeholder="Ex: Apps Script Production"
-            />
-            @if (newKeyForm.get('name')?.touched && newKeyForm.get('name')?.errors) {
-              <span class="error-message">
-                @if (newKeyForm.get('name')?.errors?.['required']) {
-                  Le nom est requis
-                }
-                @if (newKeyForm.get('name')?.errors?.['minlength']) {
-                  Le nom doit contenir au moins 3 caractères
-                }
-              </span>
-            }
-          </div>
-
-          <div class="dialog-actions">
-            <button type="button" (click)="showNewKeyDialog.set(false)" class="btn-secondary">
-              Annuler
-            </button>
-            <button type="submit" class="btn-primary" [disabled]="newKeyForm.invalid || loading()">
-              Générer
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  }
 </div>
 
