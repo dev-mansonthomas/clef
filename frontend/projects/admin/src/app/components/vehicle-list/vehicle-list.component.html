@@ -86,7 +86,7 @@
         <ng-container matColumnDef="status_pollution">
           <th mat-header-cell *matHeaderCellDef>Pollution</th>
           <td mat-cell *matCellDef="let vehicle">
-            <span [class]="getStatusClass(vehicle.status_pollution.color)">
+            <span [class]="getPollutionStatusClass(vehicle.status_pollution)">
               {{ vehicle.status_pollution.value }}
             </span>
           </td>

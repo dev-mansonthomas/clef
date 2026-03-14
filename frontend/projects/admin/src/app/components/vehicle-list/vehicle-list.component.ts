@@ -39,12 +39,12 @@ export class VehicleListComponent implements OnInit {
     'dt_ul',
     'indicatif',
     'immat',
+    'status_disponibilite',
     'type',
     'marque_modele',
     'status_ct',
     'status_pollution',
     'assurance',
-    'status_disponibilite',
     'responsable'
   ];
 
@@ -116,6 +116,14 @@ export class VehicleListComponent implements OnInit {
 
   getStatusClass(color: string): string {
     return `status-${color}`;
+  }
+
+  getPollutionStatusClass(status: { value: string; color: string }): string {
+    // N/A en gris (véhicules récents sans contrôle pollution)
+    if (status.value === 'N/A') {
+      return 'status-gray';
+    }
+    return `status-${status.color}`;
   }
 
   getMarqueModele(vehicle: Vehicle): string {
