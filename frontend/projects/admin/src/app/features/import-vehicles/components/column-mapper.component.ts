@@ -68,7 +68,7 @@ export class ColumnMapperComponent implements OnChanges {
     { id: 'lieu_stationnement', label: 'Lieu de stationnement', required: false },
     { id: 'instructions', label: 'Instructions', required: false },
     { id: 'assurance', label: 'Assurance', required: false },
-    { id: 'num_baus', label: 'Numéro BAUS', required: false }
+    { id: 'num_baus', label: 'N° de série constructeur', required: false }
   ];
 
   // CSV columns detected from file (in file order)
@@ -231,7 +231,7 @@ export class ColumnMapperComponent implements OnChanges {
       'instruction': 'instructions',
       // Assurance
       'assurance': 'assurance',
-      // Numéro BAUS
+      // N° de série constructeur
       'numbaus': 'num_baus',
       'numerobaus': 'num_baus',
       'baus': 'num_baus'
