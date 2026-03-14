@@ -52,6 +52,8 @@ export class VehicleEdit implements OnInit {
     { value: 'Indispo', label: 'Indisponible' }
   ];
 
+  readonly carteGriseOptions = ['Présente', 'Manquante', 'N/A', 'A Refabriquer'];
+
   ngOnInit(): void {
     this.initForm();
     this.nomSynthetique = this.route.snapshot.paramMap.get('nomSynthetique');
