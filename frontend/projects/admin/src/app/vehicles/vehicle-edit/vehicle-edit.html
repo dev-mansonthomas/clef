@@ -80,7 +80,11 @@
 
           <mat-form-field appearance="outline">
             <mat-label>Carte Grise</mat-label>
-            <input matInput formControlName="carte_grise" readonly>
+            <mat-select formControlName="carte_grise">
+              <mat-option *ngFor="let option of carteGriseOptions" [value]="option">
+                {{ option }}
+              </mat-option>
+            </mat-select>
           </mat-form-field>
         </div>
       </mat-card-content>
@@ -161,7 +165,7 @@
           </mat-form-field>
 
           <mat-form-field appearance="outline">
-            <mat-label>N° Série BAUS</mat-label>
+            <mat-label>N° de série constructeur</mat-label>
             <input matInput formControlName="numero_serie_baus" readonly>
           </mat-form-field>
         </div>
