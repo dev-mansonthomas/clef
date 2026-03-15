@@ -151,7 +151,7 @@
     align-items: center;
     justify-content: center;
     text-align: center;
-    height: calc((297mm - 20mm - 24mm) / 3); // A4 height - margins - gaps / 3 rows
+    height: calc((297mm - 20mm - 30mm) / 3); // A4 height - margins - gaps / 3 rows - increased bottom margin
   }
 
   // Pas de page-break-after car on veut plusieurs par page
@@ -198,11 +198,11 @@
     align-items: center;
   }
 
-  // Réduire la taille du QR code pour tenir 6 par page
+  // Réduire la taille du QR code pour tenir 9 par page avec marge en bas
   .qr-code-print qrcode canvas,
   .qr-code-print qrcode img {
-    width: 100px !important;
-    height: 100px !important;
+    width: 90px !important;
+    height: 90px !important;
   }
 
   .print-vehicle-info {
