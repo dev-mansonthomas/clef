@@ -186,21 +186,22 @@ export class ColumnMapperComponent implements OnChanges {
       'statut': 'statut',
       'disponibilite': 'statut',
       'dispo': 'statut',
-      // Marque/Modèle
+      // Marque variations
       'marque': 'marque',
+      // Modèle variations (accent-insensitive via normalize)
       'modele': 'modele',
       'model': 'modele',
       // Type
       'type': 'type',
-      // Raison indispo
+      // Raison indispo variations
       'raisonindispo': 'raison_indispo',
       'raison': 'raison_indispo',
-      // Contrôle technique
+      // Contrôle technique variations
       'prochaincontroletechnique': 'prochain_ct',
       'prochainct': 'prochain_ct',
       'controletechnique': 'prochain_ct',
       'ct': 'prochain_ct',
-      // Contrôle pollution
+      // Contrôle pollution variations
       'prochaincontrolepollution': 'prochain_pollution',
       'prochainpollution': 'prochain_pollution',
       'controlepollution': 'prochain_pollution',
@@ -209,29 +210,39 @@ export class ColumnMapperComponent implements OnChanges {
       'datemec': 'date_mec',
       'mec': 'date_mec',
       'miseencirculation': 'date_mec',
-      // Nom synthétique
+      // Nom synthétique variations (handles both "Synthétique" and "Syntéthique" via normalize)
       'nomsynthetique': 'nom_synthetique',
       'nom': 'nom_synthetique',
-      // Carte grise
+      // Carte grise variations
       'cartegrise': 'carte_grise',
-      // Nombre de places
+      // Nombre de places variations
+      'deplace': 'nb_places',  // "# de Place"
       'nbplaces': 'nb_places',
       'nombreplaces': 'nb_places',
+      'nombredeplace': 'nb_places',
+      'nombredeplacess': 'nb_places',
       'places': 'nb_places',
-      // Commentaires
+      // Commentaires variations
       'commentaires': 'commentaires',
       'commentaire': 'commentaires',
       'comment': 'commentaires',
-      // Lieu de stationnement
+      // Lieu de stationnement variations
       'lieustationnement': 'lieu_stationnement',
+      'lieudestationnement': 'lieu_stationnement',
       'lieu': 'lieu_stationnement',
       'stationnement': 'lieu_stationnement',
-      // Instructions
+      // Instructions variations
       'instructions': 'instructions',
       'instruction': 'instructions',
+      'instructionspourrecuperer': 'instructions',
+      'instructionspourrecuprer': 'instructions',  // Common typo
       // Assurance
       'assurance': 'assurance',
-      // N° de série constructeur
+      // N° de série constructeur / BAUS variations
+      'nserie': 'num_baus',
+      'ndeserie': 'num_baus',
+      'numeroserie': 'num_baus',
+      'numerodeserie': 'num_baus',
       'numbaus': 'num_baus',
       'numerobaus': 'num_baus',
       'baus': 'num_baus'
