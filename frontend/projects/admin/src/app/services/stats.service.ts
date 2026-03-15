@@ -25,6 +25,7 @@ export interface DateStats {
   en_retard: number;
   dans_2_mois: number;
   ok: number;
+  sans_ct: number;
 }
 
 /**
