@@ -72,18 +72,28 @@ export class QrCodeGeneratorComponent implements OnInit {
 
     this.vehicleService.getVehicles().subscribe({
       next: (response) => {
+        // Sort vehicles by DT/UL then by Indicatif (same as vehicle list)
+        const sortedVehicles = response.vehicles.sort((a, b) => {
+          // Primary sort by dt_ul
+          const dtCompare = (a.dt_ul || '').localeCompare(b.dt_ul || '');
+          if (dtCompare !== 0) return dtCompare;
+
+          // Secondary sort by indicatif
+          return (a.indicatif || '').localeCompare(b.indicatif || '');
+        });
+
         const qrCodes: VehicleQrCode[] = [];
-        
-        response.vehicles.forEach(vehicle => {
+
+        sortedVehicles.forEach(vehicle => {
           this.qrCodeService.generateQrCodeUrl(vehicle.nom_synthetique).subscribe({
             next: (url) => {
               qrCodes.push({
                 vehicle,
                 qrCodeUrl: url
               });
-              
+
               // Update signal when all QR codes are generated
-              if (qrCodes.length === response.vehicles.length) {
+              if (qrCodes.length === sortedVehicles.length) {
                 this.vehicleQrCodes.set(qrCodes);
                 this.loading.set(false);
               }
@@ -97,7 +107,7 @@ export class QrCodeGeneratorComponent implements OnInit {
         });
 
         // Handle empty vehicle list
-        if (response.vehicles.length === 0) {
+        if (sortedVehicles.length === 0) {
           this.loading.set(false);
         }
       },
