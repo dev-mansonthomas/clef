@@ -4,6 +4,7 @@ import { Router } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatTableModule } from '@angular/material/table';
 import { StatsService, DashboardStats, VehicleAlert } from '../../services/stats.service';
 
 /**
@@ -16,7 +17,8 @@ import { StatsService, DashboardStats, VehicleAlert } from '../../services/stats
     CommonModule,
     MatCardModule,
     MatIconModule,
-    MatProgressSpinnerModule
+    MatProgressSpinnerModule,
+    MatTableModule
   ],
   templateUrl: './dashboard.component.html',
   styleUrl: './dashboard.component.scss'
@@ -29,6 +31,9 @@ export class DashboardComponent implements OnInit {
   loading = signal(true);
   stats = signal<DashboardStats | null>(null);
   error = signal<string | null>(null);
+
+  // Table columns for alerts
+  alertColumns: string[] = ['dt_ul', 'indicatif', 'type', 'immatriculation', 'marque_modele', 'alerte'];
 
   ngOnInit(): void {
     this.loadStats();
