@@ -84,6 +84,8 @@ export class VehicleListComponent implements OnInit, AfterViewInit {
     this.route.queryParams.subscribe(params => {
       if (params['highlight']) {
         this.highlightedImmat.set(params['highlight']);
+        // Scroll after vehicles are loaded
+        this.scrollAfterLoad();
       }
     });
 
@@ -91,10 +93,7 @@ export class VehicleListComponent implements OnInit, AfterViewInit {
   }
 
   ngAfterViewInit(): void {
-    // Scroll to highlighted vehicle after view is initialized
-    if (this.highlightedImmat()) {
-      setTimeout(() => this.scrollToHighlightedVehicle(), 500);
-    }
+    // View initialization complete
   }
 
   loadVehicles(): void {
@@ -152,6 +151,22 @@ export class VehicleListComponent implements OnInit, AfterViewInit {
    */
   isHighlighted(vehicle: Vehicle): boolean {
     return this.highlightedImmat() === vehicle.immat;
+  }
+
+  /**
+   * Wait for vehicles to load, then scroll to highlighted vehicle
+   */
+  private scrollAfterLoad(): void {
+    // Wait for vehicles to load, then scroll
+    const checkAndScroll = setInterval(() => {
+      if (!this.loading() && this.filteredVehicles().length > 0) {
+        clearInterval(checkAndScroll);
+        setTimeout(() => this.scrollToHighlightedVehicle(), 100);
+      }
+    }, 100);
+
+    // Timeout after 5 seconds
+    setTimeout(() => clearInterval(checkAndScroll), 5000);
   }
 
   /**
