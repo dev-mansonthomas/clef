@@ -25,35 +25,33 @@
                   </div>
                   <div class="benevole-role">
                     <span class="role-badge">{{ getRoleDisplay(benevole.role) }}</span>
-                    <button 
-                      mat-icon-button 
-                      [matMenuTriggerFor]="roleMenu"
-                      aria-label="Modifier le rôle"
-                    >
-                      <mat-icon>more_vert</mat-icon>
-                    </button>
-                    <mat-menu #roleMenu="matMenu">
-                      <button mat-menu-item (click)="setResponsableDT(benevole)">
-                        <mat-icon>admin_panel_settings</mat-icon>
-                        <span>Définir comme Responsable DT</span>
-                      </button>
-                      <button 
-                        mat-menu-item 
-                        (click)="setResponsableUL(benevole)"
-                        [disabled]="!benevole.ul"
+                    @if (canModifyBenevole(benevole)) {
+                      <button
+                        mat-icon-button
+                        [matMenuTriggerFor]="roleMenu"
+                        aria-label="Modifier le rôle"
                       >
-                        <mat-icon>supervisor_account</mat-icon>
-                        <span>Définir comme Responsable UL</span>
+                        <mat-icon>more_vert</mat-icon>
                       </button>
-                      <button 
-                        mat-menu-item 
-                        (click)="removeRole(benevole)"
-                        [disabled]="!benevole.role || benevole.role === 'Bénévole'"
-                      >
-                        <mat-icon>person</mat-icon>
-                        <span>Retirer le rôle</span>
-                      </button>
-                    </mat-menu>
+                      <mat-menu #roleMenu="matMenu">
+                        <button
+                          mat-menu-item
+                          (click)="setResponsableUL(benevole)"
+                          [disabled]="!benevole.ul"
+                        >
+                          <mat-icon>supervisor_account</mat-icon>
+                          <span>Définir comme Responsable UL</span>
+                        </button>
+                        <button
+                          mat-menu-item
+                          (click)="removeRole(benevole)"
+                          [disabled]="!benevole.role || benevole.role === 'Bénévole'"
+                        >
+                          <mat-icon>person</mat-icon>
+                          <span>Retirer le rôle</span>
+                        </button>
+                      </mat-menu>
+                    }
                   </div>
                 </div>
               }

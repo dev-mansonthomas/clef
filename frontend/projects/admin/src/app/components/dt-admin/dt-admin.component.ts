@@ -100,31 +100,6 @@ export class DtAdminComponent implements OnInit {
   }
 
   /**
-   * Set bénévole as Responsable DT
-   */
-  setResponsableDT(benevole: Benevole): void {
-    const dt = this.currentUserDT();
-    
-    this.benevoleService.updateBenevoleRole(dt, benevole.email, {
-      role: 'Gestionnaire DT',
-      ul: null
-    }).subscribe({
-      next: () => {
-        this.snackBar.open('Rôle mis à jour: Gestionnaire DT', 'Fermer', {
-          duration: 3000
-        });
-        this.loadBenevoles();
-      },
-      error: (error) => {
-        console.error('Error updating role:', error);
-        this.snackBar.open('Erreur lors de la mise à jour du rôle', 'Fermer', {
-          duration: 3000
-        });
-      }
-    });
-  }
-
-  /**
    * Set bénévole as Responsable UL
    */
   setResponsableUL(benevole: Benevole): void {
@@ -134,11 +109,11 @@ export class DtAdminComponent implements OnInit {
       });
       return;
     }
-    
+
     const dt = this.currentUserDT();
-    
+
     this.benevoleService.updateBenevoleRole(dt, benevole.email, {
-      role: 'Responsable UL',
+      role: 'responsable_ul',
       ul: benevole.ul
     }).subscribe({
       next: () => {
@@ -182,16 +157,24 @@ export class DtAdminComponent implements OnInit {
   }
 
   /**
+   * Check if a bénévole can be modified from this screen
+   * DT Paris volunteers and responsable_dt cannot be modified here
+   */
+  canModifyBenevole(benevole: Benevole): boolean {
+    return benevole.ul !== 'DT Paris' && benevole.role !== 'responsable_dt';
+  }
+
+  /**
    * Get display text for role
    */
   getRoleDisplay(role: string | null): string {
     if (!role || role === 'Bénévole') {
       return 'Bénévole';
     }
-    if (role === 'Gestionnaire DT') {
+    if (role === 'Gestionnaire DT' || role === 'responsable_dt') {
       return 'Resp. DT';
     }
-    if (role === 'Responsable UL') {
+    if (role === 'Responsable UL' || role === 'responsable_ul') {
       return 'Resp. UL';
     }
     return role;
