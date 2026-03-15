@@ -8,6 +8,7 @@
   width: 250px;
   padding: 0;
   border-radius: 0 !important; // Remove Material's default rounded corners
+  background-color: #E0F2F1; // Vert clair jusqu'en bas
 
   .sidenav-header {
     background-color: #E0F2F1;
@@ -29,6 +30,7 @@
   mat-nav-list {
     background-color: #E0F2F1;
     padding-top: 1rem;
+    min-height: calc(100vh - 64px); // Remplir jusqu'en bas
 
     a.active {
       background-color: var(--mat-sys-surface-variant);
@@ -37,7 +39,7 @@
 }
 
 .app-header {
-  background-color: #E0F2F1;
+  background-color: #F9FAFB; // Même blanc cassé que le contenu
   display: flex;
   justify-content: space-between;
   align-items: center;
