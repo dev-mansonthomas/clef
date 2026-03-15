@@ -1,5 +1,5 @@
 """Pydantic models for Valkey data structures."""
-from typing import Optional, List
+from typing import Optional, List, Dict
 from datetime import datetime
 from pydantic import BaseModel, Field, ConfigDict
 
@@ -11,6 +11,14 @@ class DTConfiguration(BaseModel):
     gestionnaire_email: str = Field(..., description="DT manager email")
     region: Optional[str] = Field(None, description="Region")
     departement: Optional[str] = Field(None, description="Department")
+
+    # Configuration fields (migrated from ConfigService)
+    sheets_url_vehicules: Optional[str] = Field(None, description="URL du référentiel véhicules (Google Sheets)")
+    sheets_url_benevoles: Optional[str] = Field(None, description="URL du référentiel bénévoles (Google Sheets)")
+    sheets_url_responsables: Optional[str] = Field(None, description="URL du référentiel responsables (Google Sheets)")
+    template_doc_url: Optional[str] = Field(None, description="URL du template de document véhicule")
+    email_destinataire_alertes: Optional[str] = Field(None, description="Email destinataire des alertes")
+    api_keys: List[Dict] = Field(default_factory=list, description="API keys for this DT")
 
 
 class VehicleData(BaseModel):

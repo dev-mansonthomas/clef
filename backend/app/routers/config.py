@@ -7,7 +7,8 @@ from typing import Annotated
 
 from app.models.config import ConfigUpdate, ConfigResponse
 from app.services.config_service import ConfigService
-from app.cache import RedisCache, get_cache
+from app.services.valkey_service import ValkeyService
+from app.services.valkey_dependencies import get_valkey_service
 from app.auth.models import User
 from app.auth.dependencies import is_dt_manager
 
@@ -19,10 +20,10 @@ router = APIRouter(
 
 
 def get_config_service(
-    cache: Annotated[RedisCache, Depends(get_cache)]
+    valkey_service: Annotated[ValkeyService, Depends(get_valkey_service)]
 ) -> ConfigService:
     """Dependency to get ConfigService instance."""
-    return ConfigService(cache)
+    return ConfigService(valkey_service)
 
 
 @router.get("", response_model=ConfigResponse)
