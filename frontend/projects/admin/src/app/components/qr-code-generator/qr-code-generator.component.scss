@@ -135,11 +135,11 @@
     margin: 10mm;
   }
 
-  // Grille 2 colonnes x 3 lignes = 6 QR codes par page
+  // Grille 3 colonnes pour utiliser toute la largeur A4
   .print-only {
     display: grid !important;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 8mm;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 5mm;
   }
 
   .qr-print-page {
@@ -150,6 +150,7 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
+    text-align: center;
     height: calc((297mm - 20mm - 24mm) / 3); // A4 height - margins - gaps / 3 rows
   }
 
@@ -158,21 +159,22 @@
     page-break-after: auto;
   }
 
-  // Forcer saut de page après 6 éléments
-  .qr-print-page:nth-child(6n) {
+  // Forcer saut de page après 9 éléments (3 colonnes x 3 lignes)
+  .qr-print-page:nth-child(9n) {
     page-break-after: always;
   }
 
+  // Cacher la première ligne (indicatif seul)
   .print-title {
-    font-size: 16px;
-    font-weight: 600;
-    margin: 0 0 2px 0;
+    display: none;
   }
 
+  // Ligne d'identification principale : gras et plus gros
   .print-subtitle {
-    font-size: 10px;
-    margin: 0 0 6px 0;
-    color: #666;
+    font-size: 14px;
+    font-weight: bold;
+    margin: 0 0 8px 0;
+    color: #000;
   }
 
   .print-instruction {
@@ -191,6 +193,9 @@
 
   .qr-code-print {
     margin: 6px 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
   }
 
   // Réduire la taille du QR code pour tenir 6 par page
@@ -207,6 +212,11 @@
 
     p {
       margin: 1px 0;
+    }
+
+    // Cacher le dernier paragraphe (immatriculation en doublon)
+    p:last-child {
+      display: none;
     }
   }
 }
