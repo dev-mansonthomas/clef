@@ -362,9 +362,9 @@ async def import_csv(
     updated = 0
     errors: List[ImportError] = []
 
-    data_rows = all_rows[config.skip_lines + 1:]
+    data_rows = all_rows[config.skip_lines:]
 
-    for idx, row in enumerate(data_rows, start=config.skip_lines):
+    for idx, row in enumerate(data_rows, start=config.skip_lines + 1):
         total_lines += 1
 
         # Extract values based on mapping
