@@ -51,5 +51,12 @@ export class LayoutComponent {
   logout(): void {
     this.authService.logout().subscribe();
   }
+
+  /**
+   * Check if user is DT Manager
+   */
+  isDTManager(user: any): boolean {
+    return this.authService.isDTManager(user);
+  }
 }
 

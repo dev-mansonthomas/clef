@@ -27,6 +27,7 @@ from app.routers import sync
 from app.routers import ical
 from app.routers import import_vehicles
 from app.routers import api_keys
+from app.routers import benevoles
 from app.scheduler import start_scheduler, stop_scheduler
 
 app = FastAPI(
@@ -60,6 +61,7 @@ app.include_router(sync.router)
 app.include_router(ical.router)
 app.include_router(import_vehicles.router)
 app.include_router(api_keys.router)
+app.include_router(benevoles.router)
 
 # Cache instances
 cache = get_cache()
