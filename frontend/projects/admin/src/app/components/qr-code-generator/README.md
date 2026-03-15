@@ -12,7 +12,7 @@ This component generates QR codes for each vehicle based on their `nom_synthetiq
 - **Print Functionality**:
   - Print all QR codes at once
   - Print individual QR codes
-  - Optimized for A4 paper format with 6 QR codes per page (2x3 grid)
+  - Optimized for A4 paper format with 9 QR codes per page (3x3 grid)
 - **Responsive Design**: Grid layout for screen viewing, optimized print layout for paper
 - **Material Design**: Uses Angular Material components for consistent UI
 - **Instruction Message**: Displays "À la prise et au retour du véhicule, veuillez remplir le formulaire CLEF" on each QR code
@@ -30,14 +30,16 @@ Navigate to `/qr-codes` in the admin application.
 
 ### Print Settings
 
-The component is optimized for **A4 portrait** format with 10mm margins, displaying **6 QR codes per page** in a 2x3 grid layout.
+The component is optimized for **A4 portrait** format with 10mm margins, displaying **9 QR codes per page** in a 3x3 grid layout.
 
 **Layout Details:**
-- Grid: 2 columns × 3 rows
-- Gap between QR codes: 8mm
-- Each QR code: 100px × 100px
+- Grid: 3 columns × 3 rows
+- Gap between QR codes: 5mm
+- Each QR code: 100px × 100px (centered in each cell)
 - Dashed border around each QR code as a cutting guide
-- Page break after every 6 QR codes
+- Page break after every 9 QR codes
+- Single identification line (bold, 14px) showing UL, indicatif, and license plate
+- Vehicle make/model displayed below QR code
 
 The print layout automatically hides the sidebar and header to maximize space for QR codes.
 
