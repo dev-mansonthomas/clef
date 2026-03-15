@@ -36,3 +36,16 @@ body {
   height: 100%;
 }
 /* You can add global styles to this file, and also import other style files */
+
+// Print styles - global
+@media print {
+  body {
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}
