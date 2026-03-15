@@ -94,31 +94,31 @@ class StatsService:
     ) -> Dict[str, int]:
         """
         Calculate statistics for a date field (CT or pollution).
-        
+
         Args:
             vehicles: List of vehicles
             date_getter: Function to extract date from vehicle
-            
+
         Returns:
             Dictionary with en_retard, dans_2_mois, ok counts
         """
         today = date.today()
         threshold_date = today + timedelta(days=StatsService.ALERT_THRESHOLD_DAYS)
-        
+
         en_retard = 0
         dans_2_mois = 0
         ok = 0
-        
+
         for vehicle in vehicles:
             date_str = date_getter(vehicle)
             if not date_str:
-                # No date = consider as expired
-                en_retard += 1
+                # No date = vehicle not concerned (e.g., trailer without CT)
+                # Don't count in stats
                 continue
-            
+
             try:
                 check_date = datetime.strptime(date_str, "%Y-%m-%d").date()
-                
+
                 if check_date < today:
                     en_retard += 1
                 elif check_date <= threshold_date:
@@ -128,7 +128,7 @@ class StatsService:
             except ValueError:
                 # Invalid date format = consider as expired
                 en_retard += 1
-        
+
         return {
             "en_retard": en_retard,
             "dans_2_mois": dans_2_mois,
@@ -139,28 +139,31 @@ class StatsService:
     def _generate_alerts(vehicles: List[VehicleData]) -> List[Dict[str, Any]]:
         """
         Generate list of vehicles requiring attention.
-        
+
         Args:
             vehicles: List of vehicles
-            
+
         Returns:
             List of alert dictionaries
         """
         today = date.today()
         threshold_date = today + timedelta(days=StatsService.ALERT_THRESHOLD_DAYS)
-        
+
         alertes = []
-        
+
         for vehicle in vehicles:
             # Check CT
             if vehicle.prochain_controle_technique:
                 try:
                     ct_date = datetime.strptime(vehicle.prochain_controle_technique, "%Y-%m-%d").date()
                     days = (ct_date - today).days
-                    
+
                     if days < 0:
                         alertes.append({
                             "immatriculation": vehicle.immat,
+                            "dt_ul": vehicle.dt_ul,
+                            "indicatif": vehicle.indicatif,
+                            "type_vehicule": vehicle.type,
                             "marque": vehicle.marque,
                             "modele": vehicle.modele,
                             "type": "ct_expire",
@@ -170,6 +173,9 @@ class StatsService:
                     elif ct_date <= threshold_date:
                         alertes.append({
                             "immatriculation": vehicle.immat,
+                            "dt_ul": vehicle.dt_ul,
+                            "indicatif": vehicle.indicatif,
+                            "type_vehicule": vehicle.type,
                             "marque": vehicle.marque,
                             "modele": vehicle.modele,
                             "type": "ct_bientot",
@@ -178,16 +184,19 @@ class StatsService:
                         })
                 except ValueError:
                     pass
-            
+
             # Check pollution
             if vehicle.prochain_controle_pollution:
                 try:
                     pollution_date = datetime.strptime(vehicle.prochain_controle_pollution, "%Y-%m-%d").date()
                     days = (pollution_date - today).days
-                    
+
                     if days < 0:
                         alertes.append({
                             "immatriculation": vehicle.immat,
+                            "dt_ul": vehicle.dt_ul,
+                            "indicatif": vehicle.indicatif,
+                            "type_vehicule": vehicle.type,
                             "marque": vehicle.marque,
                             "modele": vehicle.modele,
                             "type": "pollution_expire",
@@ -197,6 +206,9 @@ class StatsService:
                     elif pollution_date <= threshold_date:
                         alertes.append({
                             "immatriculation": vehicle.immat,
+                            "dt_ul": vehicle.dt_ul,
+                            "indicatif": vehicle.indicatif,
+                            "type_vehicule": vehicle.type,
                             "marque": vehicle.marque,
                             "modele": vehicle.modele,
                             "type": "pollution_bientot",
@@ -205,9 +217,9 @@ class StatsService:
                         })
                 except ValueError:
                     pass
-        
+
         # Sort by urgency (most urgent first)
         alertes.sort(key=lambda x: x["jours"])
-        
+
         return alertes
 

@@ -23,7 +23,7 @@
         </mat-card-content>
       </mat-card>
 
-      <mat-card class="stat-card">
+      <mat-card class="stat-card unavailable-card">
         <mat-card-content>
           <div class="stat-value">{{ data.indisponibles }}</div>
           <div class="stat-label">Indisponibles</div>
@@ -33,7 +33,7 @@
       <mat-card class="stat-card alert-card">
         <mat-card-content>
           <div class="stat-value">{{ data.ct.en_retard + data.pollution.en_retard }}</div>
-          <div class="stat-label">En alerte</div>
+          <div class="stat-label">Alertes</div>
         </mat-card-content>
       </mat-card>
     </div>
@@ -101,7 +101,14 @@
             @for (alert of data.alertes; track alert.immatriculation + alert.type) {
               <div class="alert-item" (click)="goToVehicle(alert.immatriculation)">
                 <div class="alert-vehicle">
+                  <span class="alert-dt-ul">{{ alert.dt_ul }}</span>
+                  <span class="alert-separator">|</span>
+                  <span class="alert-indicatif">{{ alert.indicatif }}</span>
+                  <span class="alert-separator">|</span>
+                  <span class="alert-type">{{ alert.type_vehicule }}</span>
+                  <span class="alert-separator">|</span>
                   <span class="alert-immat">{{ alert.immatriculation }}</span>
+                  <span class="alert-separator">|</span>
                   <span class="alert-model">{{ alert.marque }} {{ alert.modele }}</span>
                 </div>
                 <div class="alert-message">

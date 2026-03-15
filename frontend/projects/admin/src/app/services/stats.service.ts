@@ -8,6 +8,9 @@ import { environment } from '../../environments/environment';
  */
 export interface VehicleAlert {
   immatriculation: string;
+  dt_ul: string;
+  indicatif: string;
+  type_vehicule: string;
   marque: string;
   modele: string;
   type: 'ct_expire' | 'ct_bientot' | 'pollution_expire' | 'pollution_bientot';

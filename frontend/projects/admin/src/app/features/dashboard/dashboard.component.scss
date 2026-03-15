@@ -72,6 +72,10 @@
   &.alert-card .stat-value {
     color: #d32f2f;
   }
+
+  &.unavailable-card .stat-value {
+    color: #d32f2f;
+  }
 }
 
 // Status cards
@@ -170,8 +174,31 @@
 
   .alert-vehicle {
     display: flex;
-    gap: 12px;
+    gap: 8px;
     align-items: center;
+    flex-wrap: wrap;
+
+    .alert-separator {
+      color: #999;
+    }
+
+    .alert-dt-ul {
+      font-weight: 500;
+      color: #1976d2;
+      min-width: 60px;
+    }
+
+    .alert-indicatif {
+      font-weight: 500;
+      color: #333;
+      min-width: 60px;
+    }
+
+    .alert-type {
+      font-weight: 500;
+      color: #666;
+      min-width: 50px;
+    }
 
     .alert-immat {
       font-weight: 500;

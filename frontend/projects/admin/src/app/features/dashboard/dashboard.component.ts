@@ -73,11 +73,12 @@ export class DashboardComponent implements OnInit {
   }
 
   /**
-   * Navigate to vehicle details
+   * Navigate to vehicle list with highlight
    */
   goToVehicle(immatriculation: string): void {
-    // TODO: Navigate to vehicle detail page when implemented
-    // For now, navigate to vehicles list
+    this.router.navigate(['/vehicles'], {
+      queryParams: { highlight: immatriculation }
+    });
     this.router.navigate(['/vehicles']);
   }
 }
