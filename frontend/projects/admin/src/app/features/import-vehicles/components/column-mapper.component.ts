@@ -52,7 +52,7 @@ export class ColumnMapperComponent implements OnChanges {
   readonly CLEF_FIELDS: ClefField[] = [
     { id: 'immat', label: 'Immatriculation *', required: true },
     { id: 'dt_ul', label: 'DT / UL *', required: true },
-    { id: 'indicatif', label: 'Indicatif *', required: true },
+    { id: 'indicatif', label: 'Indicatif', required: false },
     { id: 'marque', label: 'Marque', required: false },
     { id: 'modele', label: 'Modèle', required: false },
     { id: 'type', label: 'Type', required: false },
