@@ -1,14 +1,14 @@
 services:
-  # Redis Stack - Mock MemoryStore avec JSON pour dev local (iso Google Cloud Memorystore Valkey 8)
-  redis:
-    image: redis/redis-stack-server:7.4.0-v3
+  # Valkey 8 Bundle - iso Google Cloud Memorystore for Valkey 8 (JSON, Search, etc.)
+  valkey:
+    image: valkey/valkey-bundle:8
     container_name: clef-valkey
     ports:
       - "6379:6379"
     volumes:
       - valkey-data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "valkey-cli", "ping"]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -30,12 +30,12 @@ services:
       - ./backend/.env
     environment:
       - PYTHONUNBUFFERED=1
-      - REDIS_HOST=redis
+      - REDIS_HOST=valkey
       - REDIS_PORT=6379
-      - REDIS_URL=redis://redis:6379/0
+      - REDIS_URL=redis://valkey:6379/0
       - ENV=dev
     depends_on:
-      redis:
+      valkey:
         condition: service_healthy
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     healthcheck:
