@@ -11,20 +11,18 @@
 
   <!-- Alerts Banner -->
   <div *ngIf="!loading && vehicle && hasAlerts()" class="alerts-banner">
-    <mat-chip-set>
-      <mat-chip *ngIf="vehicle.status_disponibilite.value === 'Indispo'" class="alert-chip">
-        Indisponible
-      </mat-chip>
-      <mat-chip *ngIf="!vehicle.carte_grise" class="alert-chip">
-        Carte grise manquante
-      </mat-chip>
-      <mat-chip *ngIf="isCtExpired()" class="alert-chip">
-        CT expiré
-      </mat-chip>
-      <mat-chip *ngIf="isPollutionExpired()" class="alert-chip">
-        Pollution expirée
-      </mat-chip>
-    </mat-chip-set>
+    <span *ngIf="vehicle.status_disponibilite.value === 'Indispo'" class="alert-chip">
+      Indisponible
+    </span>
+    <span *ngIf="!vehicle.carte_grise || vehicle.carte_grise === 'Manquante'" class="alert-chip">
+      Carte grise manquante
+    </span>
+    <span *ngIf="isCtExpired()" class="alert-chip">
+      CT expiré
+    </span>
+    <span *ngIf="isPollutionExpired()" class="alert-chip">
+      Pollution expirée
+    </span>
   </div>
 
   <form *ngIf="!loading && vehicleForm" [formGroup]="vehicleForm" (ngSubmit)="onSubmit()">
