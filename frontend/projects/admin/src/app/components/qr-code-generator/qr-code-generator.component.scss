@@ -121,7 +121,7 @@
 }
 
 @media print {
-  // Hide everything except print content
+  // Cache le header de la page de navigation
   .no-print {
     display: none !important;
   }
@@ -130,83 +130,83 @@
     display: block !important;
   }
 
-  // Reset page margins
   @page {
-    size: A6 portrait;
+    size: A4 portrait;
     margin: 10mm;
   }
 
-  // Alternative A7 format (uncomment if needed)
-  // @page {
-  //   size: A7 portrait;
-  //   margin: 8mm;
-  // }
-
-  body {
-    margin: 0;
-    padding: 0;
+  // Grille 2 colonnes x 3 lignes = 6 QR codes par page
+  .print-only {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8mm;
   }
 
   .qr-print-page {
-    page-break-after: always;
     page-break-inside: avoid;
-    width: 100%;
-    height: 100%;
+    padding: 4mm;
+    border: 1px dashed #ccc; // Guide de découpe
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
-
-    &:last-child {
-      page-break-after: auto;
-    }
+    height: calc((297mm - 20mm - 24mm) / 3); // A4 height - margins - gaps / 3 rows
   }
 
-  .qr-print-content {
-    text-align: center;
-    width: 100%;
+  // Pas de page-break-after car on veut plusieurs par page
+  .qr-print-page {
+    page-break-after: auto;
+  }
+
+  // Forcer saut de page après 6 éléments
+  .qr-print-page:nth-child(6n) {
+    page-break-after: always;
   }
 
   .print-title {
-    font-size: 18px;
+    font-size: 16px;
     font-weight: 600;
-    margin: 0 0 4px 0;
-    color: #000;
+    margin: 0 0 2px 0;
   }
 
   .print-subtitle {
-    font-size: 12px;
-    margin: 0 0 16px 0;
+    font-size: 10px;
+    margin: 0 0 6px 0;
     color: #666;
   }
 
   .print-instruction {
-    margin: 0 0 20px 0;
-    padding: 12px;
+    margin: 0 0 8px 0;
+    padding: 6px 8px;
     border: 2px solid #E30613;
     border-radius: 4px;
 
     p {
       margin: 0;
-      font-size: 14px;
+      font-size: 10px;
       font-weight: 600;
       color: #E30613;
-      line-height: 1.4;
     }
   }
 
   .qr-code-print {
-    display: flex;
-    justify-content: center;
-    margin: 20px 0;
+    margin: 6px 0;
+  }
+
+  // Réduire la taille du QR code pour tenir 6 par page
+  .qr-code-print qrcode canvas,
+  .qr-code-print qrcode img {
+    width: 100px !important;
+    height: 100px !important;
   }
 
   .print-vehicle-info {
-    margin-top: 16px;
-    font-size: 11px;
+    margin-top: 4px;
+    font-size: 8px;
     color: #666;
 
     p {
-      margin: 2px 0;
+      margin: 1px 0;
     }
   }
 }
