@@ -128,69 +128,7 @@ class TestRedisCache:
 
 
 class TestCacheService:
-    """Test CacheService for référentiels."""
-    
-    @pytest.mark.asyncio
-    async def test_preload_benevoles(self, cache_service: CacheService):
-        """Test preloading bénévoles into cache."""
-        benevoles = [
-            {
-                "email": "jean.dupont@croix-rouge.fr",
-                "nom": "Dupont",
-                "prenom": "Jean",
-                "ul": "UL Paris 15"
-            },
-            {
-                "email": "marie.martin@croix-rouge.fr",
-                "nom": "Martin",
-                "prenom": "Marie",
-                "ul": "UL Paris 15"
-            }
-        ]
-        
-        # Preload
-        success = await cache_service.preload_benevoles(benevoles)
-        assert success is True
-        
-        # Verify full list is cached
-        cached = await cache_service.get_benevoles()
-        assert cached == benevoles
-        
-        # Verify count is cached
-        count = await cache_service.cache.get(f"{RedisCache.PREFIX_BENEVOLES}:count")
-        assert count == 2
-        
-        # Verify individual bénévoles are cached
-        benevole = await cache_service.get_benevole_by_email("jean.dupont@croix-rouge.fr")
-        assert benevole == benevoles[0]
-    
-    @pytest.mark.asyncio
-    async def test_preload_responsables(self, cache_service: CacheService):
-        """Test preloading responsables into cache."""
-        responsables = [
-            {
-                "email": "thomas.manson@croix-rouge.fr",
-                "nom": "Manson",
-                "prenom": "Thomas",
-                "perimetre": "DT Paris"
-            }
-        ]
-        
-        # Preload
-        success = await cache_service.preload_responsables(responsables)
-        assert success is True
-
-        # Verify full list is cached
-        cached = await cache_service.get_responsables()
-        assert cached == responsables
-
-        # Verify count is cached
-        count = await cache_service.cache.get(f"{RedisCache.PREFIX_RESPONSABLES}:count")
-        assert count == 1
-
-        # Verify individual responsable is cached
-        responsable = await cache_service.get_responsable_by_email("thomas.manson@croix-rouge.fr")
-        assert responsable == responsables[0]
+    """Test CacheService for calendar ID persistence."""
 
     @pytest.mark.asyncio
     async def test_calendar_id_persistence(self, cache_service: CacheService):
@@ -210,18 +148,6 @@ class TestCacheService:
         key = f"{RedisCache.PREFIX_CALENDAR_IDS}:{vehicle_name}"
         ttl = await cache_service.cache.client.ttl(key)
         assert ttl == -1  # No expiration
-
-    @pytest.mark.asyncio
-    async def test_get_nonexistent_benevole(self, cache_service: CacheService):
-        """Test getting a non-existent bénévole."""
-        result = await cache_service.get_benevole_by_email("nonexistent@example.com")
-        assert result is None
-
-    @pytest.mark.asyncio
-    async def test_get_nonexistent_responsable(self, cache_service: CacheService):
-        """Test getting a non-existent responsable."""
-        result = await cache_service.get_responsable_by_email("nonexistent@example.com")
-        assert result is None
 
     @pytest.mark.asyncio
     async def test_get_nonexistent_calendar_id(self, cache_service: CacheService):

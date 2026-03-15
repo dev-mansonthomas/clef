@@ -11,19 +11,19 @@ logger = logging.getLogger(__name__)
 class RedisCache:
     """
     Async Redis cache with TTL support.
-    
+
     Provides generic cache interface for:
-    - Référentiels (bénévoles, responsables) with 1-year TTL
     - Calendar IDs (persistent, no TTL)
+
+    DEPRECATED: Bénévoles and responsables are now stored in Valkey with DT prefixes.
+    Use ValkeyService for benevoles/responsables operations.
     """
-    
+
     # TTL constants
     TTL_ONE_YEAR = 31536000  # 1 year in seconds
     TTL_PERSISTENT = None  # No expiration
-    
-    # Key prefixes
-    PREFIX_BENEVOLES = "clef:benevoles"
-    PREFIX_RESPONSABLES = "clef:responsables"
+
+    # Key prefixes (legacy - kept for backward compatibility)
     PREFIX_CALENDAR_IDS = "clef:calendar_ids"
     
     def __init__(self, redis_url: Optional[str] = None):
