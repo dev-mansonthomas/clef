@@ -20,7 +20,7 @@
         <span matListItemTitle>Tableau de bord</span>
       </a>
 
-      <a mat-list-item routerLink="/vehicles" routerLinkActive="active">
+      <a mat-list-item routerLink="/vehicles" routerLinkActive="active" [routerLinkActiveOptions]="{exact: true}">
         <mat-icon matListItemIcon>directions_car</mat-icon>
         <span matListItemTitle>Véhicules</span>
       </a>
