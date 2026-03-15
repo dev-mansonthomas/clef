@@ -11,6 +11,7 @@ import { MatNativeDateModule } from '@angular/material/core';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatCardModule } from '@angular/material/card';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatChipsModule } from '@angular/material/chips';
 import { VehicleService } from '../../services/vehicle.service';
 import { ErrorService } from '../../services/error.service';
 import { Vehicle, DisponibiliteStatus } from '../../models/vehicle.model';
@@ -57,9 +58,9 @@ export class VehicleEdit implements OnInit {
   readonly carteGriseOptions = ['Présente', 'Manquante', 'N/A', 'A Refabriquer'];
 
   readonly suiviModeOptions = [
-    { value: 'prise', label: 'À la prise du véhicule' },
-    { value: 'retour', label: 'Au retour du véhicule' },
-    { value: 'prise_et_retour', label: 'À la prise et au retour du véhicule' }
+    { value: 'prise', label: 'Prise du véhicule' },
+    { value: 'retour', label: 'Retour du véhicule' },
+    { value: 'prise_retour', label: 'Prise et retour' }
   ];
 
   ngOnInit(): void {
@@ -69,6 +70,16 @@ export class VehicleEdit implements OnInit {
     if (this.nomSynthetique) {
       this.loadVehicle();
     }
+  }
+
+  /**
+   * Get default suivi_mode based on vehicle type
+   * VPSP, LOG, PCM → 'prise_retour' (both)
+   * Others (VL, Quad, etc.) → 'prise' (pickup only)
+   */
+  private getDefaultSuiviMode(type: string): string {
+    const bothTypes = ['VPSP', 'LOG', 'PCM'];
+    return bothTypes.includes(type?.toUpperCase()) ? 'prise_retour' : 'prise';
   }
 
   private initForm(): void {
