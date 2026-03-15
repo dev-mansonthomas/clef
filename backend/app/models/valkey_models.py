@@ -85,7 +85,7 @@ class BenevoleData(BaseModel):
     nom: str = Field(..., description="Last name")
     prenom: str = Field(..., description="First name")
     email: Optional[str] = Field(None, description="Email address")
-    role: Optional[str] = Field(None, description="Role")
+    role: Optional[str] = Field(None, description="Role: 'responsable_ul', 'responsable_dt', or null for regular benevole")
 
     model_config = ConfigDict(
         json_schema_extra={
