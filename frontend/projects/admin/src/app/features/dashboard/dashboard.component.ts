@@ -79,7 +79,6 @@ export class DashboardComponent implements OnInit {
     this.router.navigate(['/vehicles'], {
       queryParams: { highlight: immatriculation }
     });
-    this.router.navigate(['/vehicles']);
   }
 }
 
