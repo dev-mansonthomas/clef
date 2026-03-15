@@ -2,7 +2,7 @@
 from datetime import date, datetime
 from enum import Enum
 from typing import Optional, Any
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class StatusColor(str, Enum):
@@ -76,6 +76,32 @@ class SuiviMode(str, Enum):
 
         return SuiviMode.PRISE
 
+    @staticmethod
+    def determine_from_type(vehicle_type: str) -> "SuiviMode":
+        """
+        Determine suivi_mode based on vehicle type.
+
+        Rules:
+        - VPSP, LOG, PCM → PRISE_ET_RETOUR (both pickup and return)
+        - Other vehicles (VL, VSAV, Quad, etc.) → PRISE (pickup only)
+
+        Args:
+            vehicle_type: Vehicle type (VPSP, VL, VSAV, LOG, PCM, etc.)
+
+        Returns:
+            SuiviMode enum value
+        """
+        if not vehicle_type:
+            return SuiviMode.PRISE
+
+        vehicle_type_upper = vehicle_type.upper()
+        both_types = ['VPSP', 'LOG', 'PCM']
+
+        if vehicle_type_upper in both_types:
+            return SuiviMode.PRISE_ET_RETOUR
+
+        return SuiviMode.PRISE
+
 
 class StatusInfo(BaseModel):
     """Status information with color coding."""
@@ -105,7 +131,7 @@ class VehicleBase(BaseModel):
     instructions_recuperation: str = Field(default="", description="Lien vers instructions de récupération")
     assurance_2026: str = Field(default="", description="Informations assurance")
     numero_serie_baus: str = Field(default="", description="Numéro de série BAUS")
-    suivi_mode: SuiviMode = Field(default=SuiviMode.PRISE, description="Mode de suivi du véhicule")
+    suivi_mode: Optional[SuiviMode] = Field(default=None, description="Mode de suivi du véhicule")
 
     @field_validator('operationnel_mecanique', mode='before')
     @classmethod
@@ -119,16 +145,30 @@ class VehicleBase(BaseModel):
 
     @field_validator('suivi_mode', mode='before')
     @classmethod
-    def normalize_suivi_mode(cls, v: Any) -> SuiviMode:
-        """Normalize suivi_mode to SuiviMode enum."""
+    def normalize_suivi_mode(cls, v: Any) -> Optional[SuiviMode]:
+        """
+        Normalize suivi_mode to SuiviMode enum if a value is provided.
+        """
+        # If a valid value is provided, use it
         if isinstance(v, SuiviMode):
             return v
-        if isinstance(v, str):
+        if isinstance(v, str) and v:
             try:
                 return SuiviMode(v)
             except ValueError:
-                return SuiviMode.PRISE
-        return SuiviMode.PRISE
+                return None  # Will be set by model_validator
+        return None  # Will be set by model_validator
+
+    @model_validator(mode='after')
+    def set_default_suivi_mode(self) -> 'VehicleBase':
+        """
+        Set default suivi_mode based on vehicle type if not already set.
+
+        This runs after all field validators, so we can access the type field.
+        """
+        if self.suivi_mode is None:
+            self.suivi_mode = SuiviMode.determine_from_type(self.type)
+        return self
 
 
 class Vehicle(VehicleBase):

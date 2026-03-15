@@ -35,7 +35,7 @@ export interface Vehicle {
   instructions_recuperation: string;
   assurance_2026: string;
   numero_serie_baus: string;
-  suivi_mode: SuiviMode;
+  suivi_mode: SuiviMode;  // Backend now provides type-based default
 
   // Computed status fields
   status_ct: StatusInfo;

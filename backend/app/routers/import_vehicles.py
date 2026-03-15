@@ -444,11 +444,11 @@ async def import_csv(
                 parts.append(vehicle_dict['immat'])
                 vehicle_dict["nom_synthetique"] = " - ".join(parts)
 
-            # Auto-determine suivi_mode based on indicatif if not provided
+            # Auto-determine suivi_mode based on vehicle type if not provided
             if "suivi_mode" not in values or not values.get("suivi_mode"):
                 from app.models.vehicle import SuiviMode
-                indicatif = vehicle_dict.get("indicatif", "")
-                suivi_mode = SuiviMode.determine_from_indicatif(indicatif)
+                vehicle_type = vehicle_dict.get("type", "")
+                suivi_mode = SuiviMode.determine_from_type(vehicle_type)
                 vehicle_dict["suivi_mode"] = suivi_mode.value
             else:
                 vehicle_dict["suivi_mode"] = values.get("suivi_mode", "prise")
