@@ -97,26 +97,52 @@
           <mat-card-title>Véhicules nécessitant attention</mat-card-title>
         </mat-card-header>
         <mat-card-content>
-          <div class="alerts-list">
-            @for (alert of data.alertes; track alert.immatriculation + alert.type) {
-              <div class="alert-item" (click)="goToVehicle(alert.immatriculation)">
-                <div class="alert-vehicle">
-                  <span class="alert-dt-ul">{{ alert.dt_ul }}</span>
-                  <span class="alert-separator">|</span>
-                  <span class="alert-indicatif">{{ alert.indicatif }}</span>
-                  <span class="alert-separator">|</span>
-                  <span class="alert-type">{{ alert.type_vehicule }}</span>
-                  <span class="alert-separator">|</span>
-                  <span class="alert-immat">{{ alert.immatriculation }}</span>
-                  <span class="alert-separator">|</span>
-                  <span class="alert-model">{{ alert.marque }} {{ alert.modele }}</span>
-                </div>
-                <div class="alert-message">
-                  {{ getAlertLabel(alert) }}
-                </div>
-              </div>
-            }
-          </div>
+          <table mat-table [dataSource]="data.alertes" class="alerts-table">
+            <!-- DT/UL Column -->
+            <ng-container matColumnDef="dt_ul">
+              <th mat-header-cell *matHeaderCellDef>DT/UL</th>
+              <td mat-cell *matCellDef="let alert">{{ alert.dt_ul }}</td>
+            </ng-container>
+
+            <!-- Indicatif Column -->
+            <ng-container matColumnDef="indicatif">
+              <th mat-header-cell *matHeaderCellDef>Indicatif</th>
+              <td mat-cell *matCellDef="let alert">{{ alert.indicatif }}</td>
+            </ng-container>
+
+            <!-- Type Column -->
+            <ng-container matColumnDef="type">
+              <th mat-header-cell *matHeaderCellDef>Type</th>
+              <td mat-cell *matCellDef="let alert">{{ alert.type_vehicule }}</td>
+            </ng-container>
+
+            <!-- Immatriculation Column -->
+            <ng-container matColumnDef="immatriculation">
+              <th mat-header-cell *matHeaderCellDef>Immat</th>
+              <td mat-cell *matCellDef="let alert">{{ alert.immatriculation }}</td>
+            </ng-container>
+
+            <!-- Marque/Modèle Column -->
+            <ng-container matColumnDef="marque_modele">
+              <th mat-header-cell *matHeaderCellDef>Marque/Modèle</th>
+              <td mat-cell *matCellDef="let alert">{{ alert.marque }} {{ alert.modele }}</td>
+            </ng-container>
+
+            <!-- Alerte Column -->
+            <ng-container matColumnDef="alerte">
+              <th mat-header-cell *matHeaderCellDef>Alerte</th>
+              <td mat-cell *matCellDef="let alert"
+                  [class.alert-expired]="alert.type === 'ct_expire' || alert.type === 'pollution_expire'"
+                  [class.alert-upcoming]="alert.type === 'ct_bientot' || alert.type === 'pollution_bientot'">
+                {{ getAlertLabel(alert) }}
+              </td>
+            </ng-container>
+
+            <tr mat-header-row *matHeaderRowDef="alertColumns"></tr>
+            <tr mat-row *matRowDef="let row; columns: alertColumns"
+                (click)="goToVehicle(row.immatriculation)"
+                class="clickable-row"></tr>
+          </table>
         </mat-card-content>
       </mat-card>
     }
