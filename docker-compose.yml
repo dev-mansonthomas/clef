@@ -1,13 +1,12 @@
 services:
-  # Redis - Mock MemoryStore for local development
+  # Redis Stack - Mock MemoryStore avec JSON pour dev local (iso Google Cloud Memorystore Valkey 8)
   redis:
-    image: redis:7-alpine
-    container_name: clef-redis
+    image: redis/redis-stack-server:7.4.0-v3
+    container_name: clef-valkey
     ports:
       - "6379:6379"
     volumes:
-      - redis-data:/data
-    command: redis-server --appendonly yes
+      - valkey-data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -96,7 +95,7 @@ networks:
     driver: bridge
 
 volumes:
-  redis-data:
+  valkey-data:
   backend-cache:
   frontend-cache:
   frontend-form-cache:
