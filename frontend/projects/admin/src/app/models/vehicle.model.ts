@@ -6,6 +6,8 @@ export type StatusColor = 'red' | 'orange' | 'green';
 
 export type DisponibiliteStatus = 'Dispo' | 'Indispo';
 
+export type SuiviMode = 'prise' | 'retour' | 'prise_et_retour';
+
 export interface StatusInfo {
   value: string;
   color: StatusColor;
@@ -33,7 +35,8 @@ export interface Vehicle {
   instructions_recuperation: string;
   assurance_2026: string;
   numero_serie_baus: string;
-  
+  suivi_mode: SuiviMode;
+
   // Computed status fields
   status_ct: StatusInfo;
   status_pollution: StatusInfo;
@@ -43,6 +46,7 @@ export interface Vehicle {
 export interface VehicleUpdate {
   couleur_calendrier?: string | null;
   commentaires?: string | null;
+  suivi_mode?: SuiviMode | null;
 }
 
 export interface VehicleListResponse {

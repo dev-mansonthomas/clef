@@ -46,6 +46,37 @@ class DisponibiliteStatus(str, Enum):
             return DisponibiliteStatus.INDISPO
 
 
+class SuiviMode(str, Enum):
+    """Vehicle tracking mode - when the CLEF form should be filled."""
+    PRISE = "prise"
+    RETOUR = "retour"
+    PRISE_ET_RETOUR = "prise_et_retour"
+
+    @staticmethod
+    def determine_from_indicatif(indicatif: str) -> "SuiviMode":
+        """
+        Determine suivi_mode based on vehicle indicatif.
+
+        Rules:
+        - Indicatif contains "VPSP" or "LOG" → PRISE_ET_RETOUR
+        - Other vehicles → PRISE
+
+        Args:
+            indicatif: Vehicle radio code
+
+        Returns:
+            SuiviMode enum value
+        """
+        if not indicatif:
+            return SuiviMode.PRISE
+
+        indicatif_upper = indicatif.upper()
+        if "VPSP" in indicatif_upper or "LOG" in indicatif_upper:
+            return SuiviMode.PRISE_ET_RETOUR
+
+        return SuiviMode.PRISE
+
+
 class StatusInfo(BaseModel):
     """Status information with color coding."""
     value: str
@@ -74,6 +105,7 @@ class VehicleBase(BaseModel):
     instructions_recuperation: str = Field(default="", description="Lien vers instructions de récupération")
     assurance_2026: str = Field(default="", description="Informations assurance")
     numero_serie_baus: str = Field(default="", description="Numéro de série BAUS")
+    suivi_mode: SuiviMode = Field(default=SuiviMode.PRISE, description="Mode de suivi du véhicule")
 
     @field_validator('operationnel_mecanique', mode='before')
     @classmethod
@@ -84,6 +116,19 @@ class VehicleBase(BaseModel):
         if isinstance(v, str):
             return DisponibiliteStatus.normalize(v)
         return DisponibiliteStatus.INDISPO
+
+    @field_validator('suivi_mode', mode='before')
+    @classmethod
+    def normalize_suivi_mode(cls, v: Any) -> SuiviMode:
+        """Normalize suivi_mode to SuiviMode enum."""
+        if isinstance(v, SuiviMode):
+            return v
+        if isinstance(v, str):
+            try:
+                return SuiviMode(v)
+            except ValueError:
+                return SuiviMode.PRISE
+        return SuiviMode.PRISE
 
 
 class Vehicle(VehicleBase):
@@ -114,6 +159,7 @@ class Vehicle(VehicleBase):
                 "instructions_recuperation": "https://docs.google.com/document/d/...",
                 "assurance_2026": "Contrat #2026-001",
                 "numero_serie_baus": "BAUS-2020-001",
+                "suivi_mode": "prise",
                 "status_ct": {
                     "value": "2026-08-15",
                     "color": "green",
@@ -136,12 +182,14 @@ class VehicleUpdate(BaseModel):
     """Model for updating vehicle metadata (calendar color, etc.)."""
     couleur_calendrier: Optional[str] = Field(None, description="Couleur pour le calendrier (hex color)")
     commentaires: Optional[str] = Field(None, description="Commentaires libres")
-    
+    suivi_mode: Optional[SuiviMode] = Field(None, description="Mode de suivi du véhicule")
+
     class Config:
         json_schema_extra = {
             "example": {
                 "couleur_calendrier": "#FF5733",
-                "commentaires": "Véhicule principal de l'UL"
+                "commentaires": "Véhicule principal de l'UL",
+                "suivi_mode": "prise"
             }
         }
 

@@ -200,11 +200,20 @@ async def update_vehicle(
         )
 
     # Update fields in Valkey
+    updated = False
     if update_data.commentaires is not None:
         vehicle_data.commentaires = update_data.commentaires
-        # Save back to Valkey
-        await valkey_service.set_vehicle(vehicle_data)
         vehicle_dict["commentaires"] = update_data.commentaires
+        updated = True
+
+    if update_data.suivi_mode is not None:
+        vehicle_data.suivi_mode = update_data.suivi_mode.value
+        vehicle_dict["suivi_mode"] = update_data.suivi_mode.value
+        updated = True
+
+    # Save back to Valkey if any field was updated
+    if updated:
+        await valkey_service.set_vehicle(vehicle_data)
 
     # Note: couleur_calendrier would be stored in a separate metadata structure
     # This is not yet implemented

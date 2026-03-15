@@ -38,6 +38,7 @@ class VehicleData(BaseModel):
     instructions_recuperation: str = Field(default="", description="Lien vers instructions de récupération")
     assurance_2026: str = Field(default="", description="Informations assurance")
     numero_serie_baus: str = Field(default="", description="Numéro de série BAUS")
+    suivi_mode: str = Field(default="prise", description="Mode de suivi du véhicule (prise/retour/prise_et_retour)")
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -61,7 +62,8 @@ class VehicleData(BaseModel):
                 "lieu_stationnement": "Garage UL",
                 "instructions_recuperation": "https://docs.google.com/...",
                 "assurance_2026": "Contrat #2026-001",
-                "numero_serie_baus": "BAUS-2020-001"
+                "numero_serie_baus": "BAUS-2020-001",
+                "suivi_mode": "prise"
             }
         }
     )

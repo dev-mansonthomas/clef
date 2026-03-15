@@ -56,6 +56,12 @@ export class VehicleEdit implements OnInit {
 
   readonly carteGriseOptions = ['Présente', 'Manquante', 'N/A', 'A Refabriquer'];
 
+  readonly suiviModeOptions = [
+    { value: 'prise', label: 'À la prise du véhicule' },
+    { value: 'retour', label: 'Au retour du véhicule' },
+    { value: 'prise_et_retour', label: 'À la prise et au retour du véhicule' }
+  ];
+
   ngOnInit(): void {
     this.initForm();
     this.nomSynthetique = this.route.snapshot.paramMap.get('nomSynthetique');
@@ -99,7 +105,10 @@ export class VehicleEdit implements OnInit {
       commentaires: [''],
 
       // Section: Metadata CLEF
-      couleur_calendrier: ['#E30613'] // Default Red Cross color
+      couleur_calendrier: ['#E30613'], // Default Red Cross color
+
+      // Section: Configuration du suivi
+      suivi_mode: ['prise'] // Default tracking mode
     });
   }
 
@@ -144,7 +153,8 @@ export class VehicleEdit implements OnInit {
       instructions_recuperation: vehicle.instructions_recuperation,
       assurance_2026: vehicle.assurance_2026,
       numero_serie_baus: vehicle.numero_serie_baus,
-      commentaires: vehicle.commentaires
+      commentaires: vehicle.commentaires,
+      suivi_mode: vehicle.suivi_mode || 'prise'
     });
   }
 
@@ -159,7 +169,8 @@ export class VehicleEdit implements OnInit {
     // Only send metadata fields that can be updated
     const updateData = {
       couleur_calendrier: formValue.couleur_calendrier,
-      commentaires: formValue.commentaires
+      commentaires: formValue.commentaires,
+      suivi_mode: formValue.suivi_mode
     };
 
     this.vehicleService.updateVehicle(this.nomSynthetique, updateData).subscribe({
