@@ -9,6 +9,24 @@
     <p>Chargement du véhicule...</p>
   </div>
 
+  <!-- Alerts Banner -->
+  <div *ngIf="!loading && vehicle && hasAlerts()" class="alerts-banner">
+    <mat-chip-set>
+      <mat-chip *ngIf="vehicle.status_disponibilite.value === 'Indispo'" class="alert-chip">
+        Indisponible
+      </mat-chip>
+      <mat-chip *ngIf="!vehicle.carte_grise" class="alert-chip">
+        Carte grise manquante
+      </mat-chip>
+      <mat-chip *ngIf="isCtExpired()" class="alert-chip">
+        CT expiré
+      </mat-chip>
+      <mat-chip *ngIf="isPollutionExpired()" class="alert-chip">
+        Pollution expirée
+      </mat-chip>
+    </mat-chip-set>
+  </div>
+
   <form *ngIf="!loading && vehicleForm" [formGroup]="vehicleForm" (ngSubmit)="onSubmit()">
     <!-- Section: Identification -->
     <mat-card>
@@ -196,10 +214,11 @@
     <mat-card>
       <mat-card-header>
         <mat-card-title>Configuration du suivi</mat-card-title>
+        <mat-card-subtitle>Quand remplir le Carnet de suivi CLEF pour ce véhicule</mat-card-subtitle>
       </mat-card-header>
       <mat-card-content>
         <mat-form-field appearance="outline" class="full-width">
-          <mat-label>Quand remplir le formulaire CLEF</mat-label>
+          <mat-label>Mode de suivi</mat-label>
           <mat-select formControlName="suivi_mode">
             <mat-option *ngFor="let option of suiviModeOptions" [value]="option.value">
               {{ option.label }}

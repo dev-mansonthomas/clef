@@ -30,7 +30,8 @@ import { Vehicle, DisponibiliteStatus } from '../../models/vehicle.model';
     MatNativeDateModule,
     MatSnackBarModule,
     MatCardModule,
-    MatProgressSpinnerModule
+    MatProgressSpinnerModule,
+    MatChipsModule
   ],
   templateUrl: './vehicle-edit.html',
   styleUrl: './vehicle-edit.scss',
@@ -60,7 +61,7 @@ export class VehicleEdit implements OnInit {
   readonly suiviModeOptions = [
     { value: 'prise', label: 'Prise du véhicule' },
     { value: 'retour', label: 'Retour du véhicule' },
-    { value: 'prise_retour', label: 'Prise et retour' }
+    { value: 'prise_et_retour', label: 'Prise et retour' }
   ];
 
   ngOnInit(): void {
@@ -74,12 +75,12 @@ export class VehicleEdit implements OnInit {
 
   /**
    * Get default suivi_mode based on vehicle type
-   * VPSP, LOG, PCM → 'prise_retour' (both)
+   * VPSP, LOG, PCM → 'prise_et_retour' (both)
    * Others (VL, Quad, etc.) → 'prise' (pickup only)
    */
   private getDefaultSuiviMode(type: string): string {
     const bothTypes = ['VPSP', 'LOG', 'PCM'];
-    return bothTypes.includes(type?.toUpperCase()) ? 'prise_retour' : 'prise';
+    return bothTypes.includes(type?.toUpperCase()) ? 'prise_et_retour' : 'prise';
   }
 
   private initForm(): void {
@@ -165,7 +166,7 @@ export class VehicleEdit implements OnInit {
       assurance_2026: vehicle.assurance_2026,
       numero_serie_baus: vehicle.numero_serie_baus,
       commentaires: vehicle.commentaires,
-      suivi_mode: vehicle.suivi_mode || 'prise'
+      suivi_mode: vehicle.suivi_mode || this.getDefaultSuiviMode(vehicle.type)
     });
   }
 
@@ -204,5 +205,33 @@ export class VehicleEdit implements OnInit {
 
   onCancel(): void {
     this.router.navigate(['/vehicles']);
+  }
+
+  /**
+   * Check if there are any alerts to display
+   */
+  hasAlerts(): boolean {
+    if (!this.vehicle) return false;
+
+    return this.vehicle.status_disponibilite.value === 'Indispo' ||
+           !this.vehicle.carte_grise ||
+           this.isCtExpired() ||
+           this.isPollutionExpired();
+  }
+
+  /**
+   * Check if CT (contrôle technique) is expired
+   */
+  isCtExpired(): boolean {
+    if (!this.vehicle) return false;
+    return this.vehicle.status_ct?.color === 'red';
+  }
+
+  /**
+   * Check if pollution control is expired
+   */
+  isPollutionExpired(): boolean {
+    if (!this.vehicle) return false;
+    return this.vehicle.status_pollution?.color === 'red';
   }
 }
