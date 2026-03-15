@@ -120,3 +120,16 @@
   }
 }
 
+// Print styles - hide navigation elements
+@media print {
+  .layout-sidenav,
+  .app-header {
+    display: none !important;
+  }
+
+  .layout-content {
+    margin-left: 0 !important;
+    padding: 0 !important;
+  }
+}
+
