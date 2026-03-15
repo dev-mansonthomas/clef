@@ -17,20 +17,20 @@ class AuthService:
     def get_user_from_token(self, token_data: TokenData) -> User:
         """
         Create a User object from token data by looking up user info in referentials.
-        
+
         Args:
             token_data: Data extracted from JWT token
-            
+
         Returns:
             User object with role and UL information
         """
         email = token_data.email
-        
+
         # Extract name from token or use defaults
         prenom = token_data.given_name or ""
         nom = token_data.family_name or ""
-        
-        # Check if user is DT manager
+
+        # Check if user is DT manager (hardcoded email)
         if email.lower() == self.dt_manager_email.lower():
             return User(
                 email=email,
@@ -42,8 +42,37 @@ class AuthService:
                 perimetre="DT Paris",
                 type_perimetre="DT"
             )
-        
-        # Check if user is a responsable
+
+        # Check if user is a benevole (now includes responsables with role field)
+        benevole = self._get_benevole(email)
+        if benevole:
+            # Map benevole.role to User.role
+            user_role = "Bénévole"  # Default
+            perimetre = benevole.get("ul")
+            type_perimetre = "UL"
+
+            benevole_role = benevole.get("role")
+            if benevole_role == "responsable_dt":
+                user_role = "Gestionnaire DT"
+                perimetre = "DT Paris"
+                type_perimetre = "DT"
+            elif benevole_role == "responsable_ul":
+                user_role = "Responsable UL"
+                perimetre = benevole.get("ul")
+                type_perimetre = "UL"
+
+            return User(
+                email=email,
+                nom=benevole.get("nom", nom),
+                prenom=benevole.get("prenom", prenom),
+                dt=benevole.get("dt", "DT75"),  # Default to DT75 if not specified
+                ul=benevole.get("ul"),
+                role=user_role,
+                perimetre=perimetre,
+                type_perimetre=type_perimetre
+            )
+
+        # Fallback: check old responsables structure for backward compatibility
         responsable = self._get_responsable(email)
         if responsable:
             return User(
@@ -56,21 +85,7 @@ class AuthService:
                 perimetre=responsable.get("perimetre"),
                 type_perimetre=responsable.get("type_perimetre")
             )
-        
-        # Check if user is a benevole
-        benevole = self._get_benevole(email)
-        if benevole:
-            return User(
-                email=email,
-                nom=benevole.get("nom", nom),
-                prenom=benevole.get("prenom", prenom),
-                dt=benevole.get("dt", "DT75"),  # Default to DT75 if not specified
-                ul=benevole.get("ul"),
-                role=benevole.get("role", "Bénévole"),
-                perimetre=benevole.get("ul"),
-                type_perimetre="UL"
-            )
-        
+
         # Default: unknown user (should not happen in production)
         return User(
             email=email,

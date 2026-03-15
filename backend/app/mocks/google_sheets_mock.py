@@ -111,7 +111,8 @@ class GoogleSheetsMock(SheetsService):
                 "prenom": "Jean",
                 "ul": "UL Paris 15",
                 "dt": "DT75",
-                "statut": "Actif"
+                "statut": "Actif",
+                "role": None  # Regular benevole
             },
             {
                 "email": "marie.martin@croix-rouge.fr",
@@ -119,7 +120,8 @@ class GoogleSheetsMock(SheetsService):
                 "prenom": "Marie",
                 "ul": "UL Paris 15",
                 "dt": "DT75",
-                "statut": "Actif"
+                "statut": "Actif",
+                "role": None  # Regular benevole
             },
             {
                 "email": "pierre.bernard@croix-rouge.fr",
@@ -127,7 +129,8 @@ class GoogleSheetsMock(SheetsService):
                 "prenom": "Pierre",
                 "ul": "UL Paris 16",
                 "dt": "DT75",
-                "statut": "Actif"
+                "statut": "Actif",
+                "role": None  # Regular benevole
             },
             {
                 "email": "sophie.dubois@croix-rouge.fr",
@@ -135,7 +138,8 @@ class GoogleSheetsMock(SheetsService):
                 "prenom": "Sophie",
                 "ul": "UL Paris 16",
                 "dt": "DT75",
-                "statut": "Actif"
+                "statut": "Actif",
+                "role": None  # Regular benevole
             },
             {
                 "email": "thomas.manson@croix-rouge.fr",
@@ -143,7 +147,16 @@ class GoogleSheetsMock(SheetsService):
                 "prenom": "Thomas",
                 "ul": "DT Paris",
                 "dt": "DT75",
-                "role": "Gestionnaire DT",
+                "role": "responsable_dt",  # DT manager
+                "statut": "Actif"
+            },
+            {
+                "email": "claire.rousseau@croix-rouge.fr",
+                "nom": "Rousseau",
+                "prenom": "Claire",
+                "ul": "UL Paris 15",
+                "dt": "DT75",
+                "role": "responsable_ul",  # UL responsible
                 "statut": "Actif"
             }
         ]

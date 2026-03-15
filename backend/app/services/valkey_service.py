@@ -406,6 +406,28 @@ class ValkeyService:
             logger.error(f"Error deleting benevole {nivol} for {self.dt}: {e}")
             return False
 
+    async def get_benevoles_by_role(self, role: Optional[str] = None) -> List[BenevoleData]:
+        """
+        Get all bénévoles, optionally filtered by role.
+
+        Args:
+            role: Optional role filter ('responsable_ul', 'responsable_dt', or None for all)
+
+        Returns:
+            List of BenevoleData objects
+        """
+        nivols = await self.list_benevoles()
+        benevoles = []
+
+        for nivol in nivols:
+            benevole = await self.get_benevole(nivol)
+            if benevole:
+                # Filter by role if specified
+                if role is None or benevole.role == role:
+                    benevoles.append(benevole)
+
+        return benevoles
+
     # ========== Responsables ==========
 
     async def get_responsable(self, email: str) -> Optional[ResponsableData]:
@@ -1021,4 +1043,104 @@ class ValkeyService:
                 overlaps.append(reservation)
 
         return overlaps
+
+    async def migrate_responsables_to_benevoles(self) -> Dict[str, int]:
+        """
+        Migrate responsables to benevoles with role field.
+
+        This merges DT:responsables:* into DT:benevoles:* by:
+        1. Finding all responsables
+        2. For each responsable, check if benevole exists
+        3. If benevole exists, update with role from responsable
+        4. If benevole doesn't exist, create new benevole with role
+        5. Delete responsable entry
+
+        Returns:
+            Dict with migration statistics
+        """
+        stats = {
+            "responsables_found": 0,
+            "benevoles_updated": 0,
+            "benevoles_created": 0,
+            "responsables_deleted": 0,
+            "errors": 0
+        }
+
+        try:
+            # Get all responsable emails
+            responsable_emails = await self.list_responsables()
+            stats["responsables_found"] = len(responsable_emails)
+
+            for email in responsable_emails:
+                try:
+                    # Get responsable data
+                    responsable = await self.get_responsable(email)
+                    if not responsable:
+                        continue
+
+                    # Determine role based on responsable data
+                    # Map "Gestionnaire DT" or similar to "responsable_dt"
+                    # Map "Responsable UL" to "responsable_ul"
+                    role = None
+                    if responsable.role:
+                        role_lower = responsable.role.lower()
+                        if "gestionnaire" in role_lower or "dt" in role_lower:
+                            role = "responsable_dt"
+                        elif "ul" in role_lower or "responsable" in role_lower:
+                            role = "responsable_ul"
+
+                    # Try to find existing benevole by email
+                    # We need to search through all benevoles
+                    existing_benevole = None
+                    nivols = await self.list_benevoles()
+                    for nivol in nivols:
+                        benevole = await self.get_benevole(nivol)
+                        if benevole and benevole.email and benevole.email.lower() == email.lower():
+                            existing_benevole = benevole
+                            break
+
+                    if existing_benevole:
+                        # Update existing benevole with role
+                        updated_benevole = BenevoleData(
+                            nivol=existing_benevole.nivol,
+                            dt=existing_benevole.dt,
+                            ul=existing_benevole.ul or responsable.ul,
+                            nom=existing_benevole.nom,
+                            prenom=existing_benevole.prenom,
+                            email=existing_benevole.email,
+                            role=role
+                        )
+                        await self.set_benevole(updated_benevole)
+                        stats["benevoles_updated"] += 1
+                    else:
+                        # Create new benevole from responsable
+                        # Use email as nivol if no nivol available
+                        new_benevole = BenevoleData(
+                            nivol=email,  # Use email as NIVOL for responsables without NIVOL
+                            dt=responsable.dt,
+                            ul=responsable.ul,
+                            nom=responsable.nom,
+                            prenom=responsable.prenom,
+                            email=email,
+                            role=role
+                        )
+                        await self.set_benevole(new_benevole)
+                        stats["benevoles_created"] += 1
+
+                    # Delete responsable entry
+                    await self.delete_responsable(email)
+                    stats["responsables_deleted"] += 1
+
+                except Exception as e:
+                    logger.error(f"Error migrating responsable {email}: {e}")
+                    stats["errors"] += 1
+                    continue
+
+            logger.info(f"Migration completed: {stats}")
+            return stats
+
+        except Exception as e:
+            logger.error(f"Error during migration: {e}")
+            stats["errors"] += 1
+            return stats
 
