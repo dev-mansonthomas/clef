@@ -164,6 +164,41 @@ export class ColumnMapperComponent implements OnChanges {
   private autoSuggestMapping(headers: string[]): void {
     const newMapping = new Map<number, string>();
 
+    // DT75 Standard Format: If we have exactly 19 columns, apply default DT75 mapping
+    if (headers.length === 19) {
+      // Standard DT75 CSV mapping (columns A-S, indices 0-18)
+      const dt75Mapping: Record<number, string> = {
+        0: 'dt_ul',                    // A: DT 75 / UL
+        1: 'immat',                    // B: Immatriculation
+        2: 'indicatif',                // C: Indicatif
+        3: 'statut',                   // D: Opérationnel mécanique
+        4: 'raison_indispo',           // E: Raison indispo
+        5: 'prochain_ct',              // F: Prochain contrôle technique
+        6: 'prochain_pollution',       // G: Prochain contrôle pollution
+        7: 'marque',                   // H: Marque
+        8: 'modele',                   // I: Modèle
+        9: 'type',                     // J: Type
+        10: 'date_mec',                // K: Date MEC
+        11: 'nom_synthetique',         // L: Nom synthétique
+        12: 'carte_grise',             // M: Carte grise
+        13: 'nb_places',               // N: # de Place
+        14: 'commentaires',            // O: Commentaires
+        15: 'lieu_stationnement',      // P: Lieu de stationnement
+        16: 'instructions',            // Q: Instructions pour récupérer
+        17: 'assurance',               // R: Assurance
+        18: 'num_baus'                 // S: N° de série
+      };
+
+      // Apply DT75 default mapping
+      Object.entries(dt75Mapping).forEach(([csvIndex, clefFieldId]) => {
+        newMapping.set(Number(csvIndex), clefFieldId);
+      });
+
+      this.mapping.set(newMapping);
+      this.emitMapping();
+      return;
+    }
+
     // Normalize string for comparison
     const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
 
