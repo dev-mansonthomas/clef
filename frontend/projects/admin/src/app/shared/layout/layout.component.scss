@@ -122,14 +122,54 @@
 
 // Print styles - hide navigation elements
 @media print {
-  .layout-sidenav,
+  // Sidebar completement caché
+  .layout-sidenav {
+    display: none !important;
+    width: 0 !important;
+  }
+
+  // Header caché
   .app-header {
     display: none !important;
   }
 
+  // Contenu prend toute la largeur
   .layout-content {
     margin-left: 0 !important;
     padding: 0 !important;
+    width: 100% !important;
+  }
+
+  // Le wrapper principal aussi
+  .layout-wrapper,
+  .layout-container {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+  }
+
+  // Material Design classes
+  ::ng-deep {
+    .mat-drawer-container,
+    .mat-sidenav-container {
+      margin: 0 !important;
+      padding: 0 !important;
+      width: 100% !important;
+    }
+
+    .mat-sidenav,
+    .mat-drawer {
+      display: none !important;
+      width: 0 !important;
+    }
+
+    .mat-sidenav-content,
+    .mat-drawer-content {
+      margin-left: 0 !important;
+      margin-right: 0 !important;
+      padding: 0 !important;
+      width: 100% !important;
+    }
   }
 }
 
