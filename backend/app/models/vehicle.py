@@ -57,7 +57,7 @@ class VehicleBase(BaseModel):
     """Base vehicle model with all 19 columns from the referential."""
     dt_ul: str = Field(..., description="Délégation Territoriale ou Unité Locale")
     immat: str = Field(..., description="Immatriculation")
-    indicatif: str = Field(..., description="Code radio")
+    indicatif: str = Field(default="", description="Code radio")
     operationnel_mecanique: DisponibiliteStatus = Field(..., description="Disponibilité mécanique")
     raison_indispo: str = Field(default="", description="Raison d'indisponibilité")
     prochain_controle_technique: Optional[str] = Field(None, description="Date du prochain CT (YYYY-MM-DD)")
