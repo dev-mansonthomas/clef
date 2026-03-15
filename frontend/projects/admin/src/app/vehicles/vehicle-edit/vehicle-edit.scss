@@ -31,6 +31,28 @@
     }
   }
 
+  .alerts-banner {
+    padding: 12px;
+    background-color: #ffebee;
+    border-radius: 4px;
+    margin-bottom: 16px;
+
+    mat-chip-set {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .alert-chip {
+      background-color: #d32f2f !important;
+      color: white !important;
+
+      &::part(label) {
+        color: white !important;
+      }
+    }
+  }
+
   form {
     mat-card {
       margin-bottom: 24px;
