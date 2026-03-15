@@ -35,12 +35,29 @@ export class QrCodeGeneratorComponent implements OnInit {
   protected readonly loading = signal(false);
   protected readonly vehicleQrCodes = signal<VehicleQrCode[]>([]);
   protected readonly error = signal<string | null>(null);
-  protected readonly instructionMessage = 'À la prise et au retour du véhicule, veuillez remplir le formulaire CLEF';
 
   constructor(
     private vehicleService: VehicleService,
     private qrCodeService: QrCodeService
   ) {}
+
+  /**
+   * Get instruction message based on vehicle's suivi_mode
+   */
+  protected getInstructionMessage(vehicle: Vehicle): string {
+    const suiviMode = vehicle.suivi_mode || 'prise';
+
+    switch (suiviMode) {
+      case 'prise':
+        return 'À la prise du véhicule, veuillez remplir le formulaire CLEF';
+      case 'retour':
+        return 'Au retour du véhicule, veuillez remplir le formulaire CLEF';
+      case 'prise_et_retour':
+        return 'À la prise et au retour du véhicule, veuillez remplir le formulaire CLEF';
+      default:
+        return 'À la prise du véhicule, veuillez remplir le formulaire CLEF';
+    }
+  }
 
   ngOnInit(): void {
     this.loadVehicles();

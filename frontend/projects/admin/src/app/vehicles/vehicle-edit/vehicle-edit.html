@@ -192,6 +192,24 @@
       </mat-card-content>
     </mat-card>
 
+    <!-- Section: Configuration du suivi -->
+    <mat-card>
+      <mat-card-header>
+        <mat-card-title>Configuration du suivi</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Quand remplir le formulaire CLEF</mat-label>
+          <mat-select formControlName="suivi_mode">
+            <mat-option *ngFor="let option of suiviModeOptions" [value]="option.value">
+              {{ option.label }}
+            </mat-option>
+          </mat-select>
+          <mat-hint>Détermine quand les bénévoles doivent remplir le formulaire de suivi</mat-hint>
+        </mat-form-field>
+      </mat-card-content>
+    </mat-card>
+
     <!-- Actions -->
     <div class="form-actions">
       <button mat-raised-button type="button" (click)="onCancel()">

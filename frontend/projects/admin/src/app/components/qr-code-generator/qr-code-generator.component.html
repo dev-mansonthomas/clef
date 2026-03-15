@@ -62,9 +62,9 @@
                 [margin]="2">
               </qrcode>
             </div>
-            
-            <p class="instruction-text">{{ instructionMessage }}</p>
-            
+
+            <p class="instruction-text">{{ getInstructionMessage(item.vehicle) }}</p>
+
             <div class="vehicle-info">
               <p><strong>Véhicule:</strong> {{ item.vehicle.marque }} {{ item.vehicle.modele }}</p>
               <p><strong>Immatriculation:</strong> {{ item.vehicle.immat }}</p>
@@ -92,11 +92,11 @@
           <div class="qr-print-content">
             <h2 class="print-title">{{ item.vehicle.indicatif }}</h2>
             <p class="print-subtitle">{{ item.vehicle.nom_synthetique }}</p>
-            
+
             <div class="print-instruction">
-              <p>{{ instructionMessage }}</p>
+              <p>{{ getInstructionMessage(item.vehicle) }}</p>
             </div>
-            
+
             <div class="qr-code-print">
               <qrcode
                 [qrdata]="item.qrCodeUrl"
