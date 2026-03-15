@@ -287,12 +287,14 @@ async def get_available_vehicles(
             summary = event.get('summary', '')
             if ' - ' in summary:
                 indicatif = summary.split(' - ')[0]
-                reserved_indicatifs.add(indicatif)
+                if indicatif:  # Only add non-empty indicatifs
+                    reserved_indicatifs.add(indicatif)
 
         # Filter out reserved vehicles
+        # Only check reservation status for vehicles with an indicatif
         available_vehicles = [
             v for v in mechanically_available
-            if v.get("indicatif") not in reserved_indicatifs
+            if not v.get("indicatif") or v.get("indicatif") not in reserved_indicatifs
         ]
 
     except ValueError:

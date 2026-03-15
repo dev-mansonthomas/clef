@@ -21,7 +21,7 @@ class VehicleData(BaseModel):
 
     # Core fields (matching Vehicle model)
     dt_ul: str = Field(..., description="Délégation Territoriale ou Unité Locale")
-    indicatif: str = Field(..., description="Code radio")
+    indicatif: str = Field(default="", description="Code radio")
     operationnel_mecanique: str = Field(..., description="Disponibilité mécanique (Dispo/Indispo)")
     raison_indispo: str = Field(default="", description="Raison d'indisponibilité")
     prochain_controle_technique: Optional[str] = Field(None, description="Date du prochain CT (YYYY-MM-DD)")

@@ -74,7 +74,7 @@ HEADER_MAPPINGS = {
 }
 
 # Required fields for vehicle creation
-REQUIRED_FIELDS = {"immat", "dt_ul", "indicatif"}
+REQUIRED_FIELDS = {"immat", "dt_ul"}
 
 # Values that should be treated as empty/N/A
 NA_VALUES = {"n/a", "#n/a", "", "na", "n.a.", "null", "none"}
@@ -437,7 +437,12 @@ async def import_csv(
 
             # Auto-generate nom_synthetique if empty
             if not vehicle_dict.get("nom_synthetique") or is_na_value(vehicle_dict.get("nom_synthetique", "")):
-                vehicle_dict["nom_synthetique"] = f"{vehicle_dict['dt_ul']} - {vehicle_dict['indicatif']} - {vehicle_dict['immat']}"
+                # Build nom_synthetique, omitting indicatif if empty
+                parts = [vehicle_dict['dt_ul']]
+                if vehicle_dict.get('indicatif'):
+                    parts.append(vehicle_dict['indicatif'])
+                parts.append(vehicle_dict['immat'])
+                vehicle_dict["nom_synthetique"] = " - ".join(parts)
 
             # Check if vehicle already exists
             existing = await valkey_service.get_vehicle(immat)
