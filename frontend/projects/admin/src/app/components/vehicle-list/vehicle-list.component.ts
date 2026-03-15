@@ -1,6 +1,6 @@
-import { Component, OnInit, signal, computed } from '@angular/core';
+import { Component, OnInit, signal, computed, AfterViewInit, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Router } from '@angular/router';
+import { Router, ActivatedRoute } from '@angular/router';
 import { MatTableModule } from '@angular/material/table';
 import { MatInputModule } from '@angular/material/input';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -29,11 +29,12 @@ import { Vehicle, DisponibiliteStatus } from '../../models/vehicle.model';
   templateUrl: './vehicle-list.component.html',
   styleUrl: './vehicle-list.component.scss'
 })
-export class VehicleListComponent implements OnInit {
+export class VehicleListComponent implements OnInit, AfterViewInit {
   vehicles = signal<Vehicle[]>([]);
   loading = signal(true);
   searchText = signal('');
   availabilityFilter = signal<'all' | DisponibiliteStatus>('all');
+  highlightedImmat = signal<string | null>(null);
 
   displayedColumns: string[] = [
     'dt_ul',
@@ -73,11 +74,27 @@ export class VehicleListComponent implements OnInit {
 
   constructor(
     private vehicleService: VehicleService,
-    private router: Router
+    private router: Router,
+    private route: ActivatedRoute,
+    private elementRef: ElementRef
   ) {}
 
   ngOnInit(): void {
+    // Check for highlight query param
+    this.route.queryParams.subscribe(params => {
+      if (params['highlight']) {
+        this.highlightedImmat.set(params['highlight']);
+      }
+    });
+
     this.loadVehicles();
+  }
+
+  ngAfterViewInit(): void {
+    // Scroll to highlighted vehicle after view is initialized
+    if (this.highlightedImmat()) {
+      setTimeout(() => this.scrollToHighlightedVehicle(), 500);
+    }
   }
 
   loadVehicles(): void {
@@ -128,6 +145,49 @@ export class VehicleListComponent implements OnInit {
 
   getMarqueModele(vehicle: Vehicle): string {
     return `${vehicle.marque} ${vehicle.modele}`;
+  }
+
+  /**
+   * Check if a vehicle is highlighted
+   */
+  isHighlighted(vehicle: Vehicle): boolean {
+    return this.highlightedImmat() === vehicle.immat;
+  }
+
+  /**
+   * Scroll to highlighted vehicle and apply blink animation
+   */
+  private scrollToHighlightedVehicle(): void {
+    const immat = this.highlightedImmat();
+    if (!immat) return;
+
+    // Find the row element
+    const rows = this.elementRef.nativeElement.querySelectorAll('tr.clickable-row');
+    const vehicles = this.filteredVehicles();
+
+    const vehicleIndex = vehicles.findIndex(v => v.immat === immat);
+    if (vehicleIndex === -1) return;
+
+    const row = rows[vehicleIndex];
+    if (row) {
+      // Scroll into view
+      row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+      // Add highlight class
+      row.classList.add('highlight-blink');
+
+      // Remove highlight class after 4 seconds
+      setTimeout(() => {
+        row.classList.remove('highlight-blink');
+        // Clear the query param
+        this.router.navigate([], {
+          queryParams: { highlight: null },
+          queryParamsHandling: 'merge',
+          replaceUrl: true
+        });
+        this.highlightedImmat.set(null);
+      }, 4000);
+    }
   }
 }
 
