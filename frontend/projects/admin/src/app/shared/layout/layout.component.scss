@@ -27,8 +27,9 @@
   }
   
   mat-nav-list {
+    background-color: #E0F2F1;
     padding-top: 1rem;
-    
+
     a.active {
       background-color: var(--mat-sys-surface-variant);
     }
@@ -110,6 +111,10 @@
   .mat-sidenav {
     border-right: none; // Remove border that could create visual gap
     box-shadow: none; // Remove shadow
+  }
+
+  .mat-sidenav-content {
+    background-color: #F9FAFB; // Off-white background for main zone
   }
 }
 
