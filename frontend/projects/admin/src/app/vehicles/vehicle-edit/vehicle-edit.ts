@@ -73,16 +73,6 @@ export class VehicleEdit implements OnInit {
     }
   }
 
-  /**
-   * Get default suivi_mode based on vehicle type
-   * VPSP, LOG, PCM → 'prise_et_retour' (both)
-   * Others (VL, Quad, etc.) → 'prise' (pickup only)
-   */
-  private getDefaultSuiviMode(type: string): string {
-    const bothTypes = ['VPSP', 'LOG', 'PCM'];
-    return bothTypes.includes(type?.toUpperCase()) ? 'prise_et_retour' : 'prise';
-  }
-
   private initForm(): void {
     this.vehicleForm = this.fb.group({
       // Section: Identification
@@ -166,7 +156,7 @@ export class VehicleEdit implements OnInit {
       assurance_2026: vehicle.assurance_2026,
       numero_serie_baus: vehicle.numero_serie_baus,
       commentaires: vehicle.commentaires,
-      suivi_mode: vehicle.suivi_mode || this.getDefaultSuiviMode(vehicle.type)
+      suivi_mode: vehicle.suivi_mode  // Backend now provides type-based default
     });
   }
 
@@ -215,6 +205,7 @@ export class VehicleEdit implements OnInit {
 
     return this.vehicle.status_disponibilite.value === 'Indispo' ||
            !this.vehicle.carte_grise ||
+           this.vehicle.carte_grise === 'Manquante' ||
            this.isCtExpired() ||
            this.isPollutionExpired();
   }
