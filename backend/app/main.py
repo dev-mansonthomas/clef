@@ -12,7 +12,8 @@ from app.mocks.service_factory import (
     use_mocks
 )
 from app.auth.routes import router as auth_router
-from app.cache import get_cache, CacheService
+from app.cache import get_cache
+from app.services.valkey_service import ValkeyService
 
 logger = logging.getLogger(__name__)
 from app.routers import config_router, calendar_router, unites_locales_router
@@ -62,34 +63,49 @@ app.include_router(api_keys.router)
 
 # Cache instances
 cache = get_cache()
-cache_service = None
 
 
 @app.on_event("startup")
 async def startup_event():
     """Initialize Redis connection and preload référentiels on startup"""
-    global cache_service
-
     try:
         # Connect to Redis
         await cache.connect()
         logger.info("Redis connection established")
 
-        # Initialize cache service
-        cache_service = CacheService(cache)
+        # Get ValkeyService for DT75 (default DT)
+        # Note: In production, this should be configurable per DT
+        if not cache.client:
+            raise RuntimeError("Redis client not available")
+        valkey = ValkeyService(redis_client=cache.client, dt="DT75")
 
-        # Preload référentiels from mocks
+        # Preload référentiels from Google Sheets
         sheets_service = get_sheets_service()
 
-        # Preload bénévoles
+        # Preload bénévoles into Valkey with DT prefix
         benevoles = sheets_service.get_benevoles()
-        await cache_service.preload_benevoles(benevoles)
-        logger.info(f"Preloaded {len(benevoles)} bénévoles into cache")
+        from app.models.valkey_models import BenevoleData
+        for benevole_dict in benevoles:
+            # Map email to nivol if nivol not present (temporary compatibility)
+            if "nivol" not in benevole_dict:
+                benevole_dict["nivol"] = benevole_dict.get("email", "unknown")
+            # Ensure dt field is present
+            if "dt" not in benevole_dict:
+                benevole_dict["dt"] = "DT75"
+            benevole = BenevoleData(**benevole_dict)
+            await valkey.set_benevole(benevole)
+        logger.info(f"Preloaded {len(benevoles)} bénévoles into Valkey with DT prefix")
 
-        # Preload responsables
+        # Preload responsables into Valkey with DT prefix
         responsables = sheets_service.get_responsables()
-        await cache_service.preload_responsables(responsables)
-        logger.info(f"Preloaded {len(responsables)} responsables into cache")
+        from app.models.valkey_models import ResponsableData
+        for responsable_dict in responsables:
+            # Ensure dt field is present
+            if "dt" not in responsable_dict:
+                responsable_dict["dt"] = "DT75"
+            responsable = ResponsableData(**responsable_dict)
+            await valkey.set_responsable(responsable)
+        logger.info(f"Preloaded {len(responsables)} responsables into Valkey with DT prefix")
 
         # Start scheduler for alerts
         start_scheduler()
