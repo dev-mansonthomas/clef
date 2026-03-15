@@ -1,5 +1,118 @@
 <div class="dashboard-container">
-  <h1>Tableau de bord</h1>
-  <p>Bienvenue dans l'application d'administration de la gestion de flotte.</p>
+  <div class="header">
+    <h1>Tableau de bord</h1>
+    <p class="subtitle">Vue d'ensemble de la flotte</p>
+  </div>
+
+  @if (loading()) {
+    <div class="loading-container">
+      <mat-spinner></mat-spinner>
+    </div>
+  } @else if (error()) {
+    <div class="error-container">
+      <mat-icon>error</mat-icon>
+      <p>{{ error() }}</p>
+    </div>
+  } @else if (stats(); as data) {
+    <!-- Summary cards -->
+    <div class="summary-cards">
+      <mat-card class="stat-card">
+        <mat-card-content>
+          <div class="stat-value">{{ data.total_vehicules }}</div>
+          <div class="stat-label">Véhicules total</div>
+        </mat-card-content>
+      </mat-card>
+
+      <mat-card class="stat-card">
+        <mat-card-content>
+          <div class="stat-value">{{ data.indisponibles }}</div>
+          <div class="stat-label">Indisponibles</div>
+        </mat-card-content>
+      </mat-card>
+
+      <mat-card class="stat-card alert-card">
+        <mat-card-content>
+          <div class="stat-value">{{ data.ct.en_retard + data.pollution.en_retard }}</div>
+          <div class="stat-label">En alerte</div>
+        </mat-card-content>
+      </mat-card>
+    </div>
+
+    <!-- CT Status -->
+    <mat-card class="status-card">
+      <mat-card-header>
+        <mat-card-title>Contrôle Technique</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <div class="status-row">
+          <div class="status-item status-red">
+            <mat-icon>error</mat-icon>
+            <span class="status-count">{{ data.ct.en_retard }}</span>
+            <span class="status-text">en retard</span>
+          </div>
+          <div class="status-item status-orange">
+            <mat-icon>warning</mat-icon>
+            <span class="status-count">{{ data.ct.dans_2_mois }}</span>
+            <span class="status-text">dans 2 mois</span>
+          </div>
+          <div class="status-item status-green">
+            <mat-icon>check_circle</mat-icon>
+            <span class="status-count">{{ data.ct.ok }}</span>
+            <span class="status-text">OK</span>
+          </div>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- Pollution Status -->
+    <mat-card class="status-card">
+      <mat-card-header>
+        <mat-card-title>Contrôle Anti-pollution</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <div class="status-row">
+          <div class="status-item status-red">
+            <mat-icon>error</mat-icon>
+            <span class="status-count">{{ data.pollution.en_retard }}</span>
+            <span class="status-text">en retard</span>
+          </div>
+          <div class="status-item status-orange">
+            <mat-icon>warning</mat-icon>
+            <span class="status-count">{{ data.pollution.dans_2_mois }}</span>
+            <span class="status-text">dans 2 mois</span>
+          </div>
+          <div class="status-item status-green">
+            <mat-icon>check_circle</mat-icon>
+            <span class="status-count">{{ data.pollution.ok }}</span>
+            <span class="status-text">OK</span>
+          </div>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- Alerts -->
+    @if (data.alertes.length > 0) {
+      <mat-card class="alerts-card">
+        <mat-card-header>
+          <mat-card-title>Véhicules nécessitant attention</mat-card-title>
+        </mat-card-header>
+        <mat-card-content>
+          <div class="alerts-list">
+            @for (alert of data.alertes; track alert.immatriculation + alert.type) {
+              <div class="alert-item" (click)="goToVehicle(alert.immatriculation)">
+                <div class="alert-vehicle">
+                  <span class="alert-immat">{{ alert.immatriculation }}</span>
+                  <span class="alert-model">{{ alert.marque }} {{ alert.modele }}</span>
+                </div>
+                <div class="alert-message">
+                  {{ getAlertLabel(alert) }}
+                </div>
+              </div>
+            }
+          </div>
+        </mat-card-content>
+      </mat-card>
+    }
+  }
 </div>
 
