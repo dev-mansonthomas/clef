@@ -44,6 +44,15 @@
         <mat-icon matListItemIcon>settings</mat-icon>
         <span matListItemTitle>Configuration</span>
       </a>
+
+      @if (currentUser$ | async; as user) {
+        @if (isDTManager(user)) {
+          <a mat-list-item routerLink="/dt-admin" routerLinkActive="active">
+            <mat-icon matListItemIcon>admin_panel_settings</mat-icon>
+            <span matListItemTitle>Administration DT</span>
+          </a>
+        }
+      }
     </mat-nav-list>
   </mat-sidenav>
 
