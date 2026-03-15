@@ -59,7 +59,9 @@ export class VehicleListComponent implements OnInit, AfterViewInit {
         v.indicatif.toLowerCase().includes(search) ||
         v.immat.toLowerCase().includes(search) ||
         v.marque.toLowerCase().includes(search) ||
-        v.modele.toLowerCase().includes(search)
+        v.modele.toLowerCase().includes(search) ||
+        v.dt_ul.toLowerCase().includes(search) ||
+        v.type.toLowerCase().includes(search)
       );
     }
 
