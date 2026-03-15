@@ -100,7 +100,7 @@ class StatsService:
             date_getter: Function to extract date from vehicle
 
         Returns:
-            Dictionary with en_retard, dans_2_mois, ok counts
+            Dictionary with en_retard, dans_2_mois, ok, sans_ct counts
         """
         today = date.today()
         threshold_date = today + timedelta(days=StatsService.ALERT_THRESHOLD_DAYS)
@@ -108,12 +108,13 @@ class StatsService:
         en_retard = 0
         dans_2_mois = 0
         ok = 0
+        sans_ct = 0
 
         for vehicle in vehicles:
             date_str = date_getter(vehicle)
             if not date_str:
                 # No date = vehicle not concerned (e.g., trailer without CT)
-                # Don't count in stats
+                sans_ct += 1
                 continue
 
             try:
@@ -132,7 +133,8 @@ class StatsService:
         return {
             "en_retard": en_retard,
             "dans_2_mois": dans_2_mois,
-            "ok": ok
+            "ok": ok,
+            "sans_ct": sans_ct
         }
     
     @staticmethod
