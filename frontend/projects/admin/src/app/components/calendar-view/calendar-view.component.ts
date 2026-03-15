@@ -3,23 +3,18 @@ import { CommonModule } from '@angular/common';
 import { MatButtonModule } from '@angular/material/button';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatIconModule } from '@angular/material/icon';
 import { FullCalendarModule } from '@fullcalendar/angular';
 import { CalendarOptions, EventInput } from '@fullcalendar/core';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import frLocale from '@fullcalendar/core/locales/fr';
-import { CalendarService } from '../../services/calendar.service';
-
-interface CalendarEvent {
-  id: string;
-  summary: string;
-  start: { dateTime: string; timeZone: string };
-  end: { dateTime: string; timeZone: string };
-  colorId?: string;
-}
+import { CalendarService, ValkeyReservation } from '../../services/calendar.service';
+import { AuthService } from '../../services/auth.service';
 
 interface VehicleMetadata {
-  nom_synthetique: string;
+  immat: string;
+  indicatif: string;
   couleur_calendrier?: string;
 }
 
@@ -31,21 +26,25 @@ interface VehicleMetadata {
     FullCalendarModule,
     MatButtonModule,
     MatSnackBarModule,
-    MatProgressSpinnerModule
+    MatProgressSpinnerModule,
+    MatIconModule
   ],
   templateUrl: './calendar-view.component.html',
   styleUrls: ['./calendar-view.component.scss']
 })
 export class CalendarViewComponent implements OnInit, OnDestroy {
   private readonly calendarService = inject(CalendarService);
+  private readonly authService = inject(AuthService);
   private readonly snackBar = inject(MatSnackBar);
   private refreshInterval?: number;
 
+  // User DT
+  userDt = signal<string>('DT75'); // Default, will be updated from user
+
   // Calendar status
-  calendarExists = signal<boolean>(false);
   calendarLoading = signal<boolean>(true);
-  creatingCalendar = signal<boolean>(false);
-  
+  icalFeedUrl = signal<string>('');
+
   calendarOptions = signal<CalendarOptions>({
     plugins: [timeGridPlugin, interactionPlugin],
     initialView: 'timeGridWeek',
@@ -70,10 +69,24 @@ export class CalendarViewComponent implements OnInit, OnDestroy {
   });
 
   ngOnInit(): void {
-    this.checkCalendarStatus();
+    // Get user DT
+    this.authService.getCurrentUser().subscribe({
+      next: (user) => {
+        if (user) {
+          this.userDt.set(user.dt || 'DT75');
+          this.icalFeedUrl.set(this.calendarService.getICalFeedUrl(this.userDt()));
+          this.loadReservations();
+        }
+      },
+      error: (error) => {
+        console.error('Error getting user:', error);
+        this.calendarLoading.set(false);
+      }
+    });
+
     // Auto-refresh every 5 minutes
     this.refreshInterval = window.setInterval(() => {
-      this.checkCalendarStatus();
+      this.loadReservations();
     }, 5 * 60 * 1000);
   }
 
@@ -84,22 +97,23 @@ export class CalendarViewComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Check if calendar exists and load events if it does
+   * Load reservations from the API
    */
-  private checkCalendarStatus(): void {
+  private loadReservations(): void {
     this.calendarLoading.set(true);
-    this.calendarService.getCalendarStatus().subscribe({
-      next: (status) => {
-        this.calendarExists.set(status.exists);
+    this.calendarService.getReservations(this.userDt()).subscribe({
+      next: (response) => {
         this.calendarLoading.set(false);
-        if (status.exists) {
-          this.loadEvents();
-        }
+        const formattedEvents = this.formatReservationsAsEvents(response.reservations);
+        this.calendarOptions.update(options => ({
+          ...options,
+          events: formattedEvents
+        }));
       },
       error: (error) => {
-        console.error('Error checking calendar status:', error);
+        console.error('Error loading reservations:', error);
         this.calendarLoading.set(false);
-        this.snackBar.open('Erreur lors de la vérification du calendrier', 'Fermer', {
+        this.snackBar.open('Erreur lors du chargement des réservations', 'Fermer', {
           duration: 5000
         });
       }
@@ -107,178 +121,88 @@ export class CalendarViewComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Create a new calendar
+   * Copy iCal feed URL to clipboard
    */
-  createCalendar(): void {
-    this.creatingCalendar.set(true);
-    this.calendarService.createCalendar().subscribe({
-      next: (response) => {
-        this.creatingCalendar.set(false);
-        this.calendarExists.set(true);
-        this.snackBar.open(
-          `Calendrier "${response.summary}" créé avec succès !`,
-          'Fermer',
-          { duration: 5000 }
-        );
-        // Load events after calendar creation
-        this.loadEvents();
-      },
-      error: (error) => {
-        console.error('Error creating calendar:', error);
-        this.creatingCalendar.set(false);
-        const message = error.error?.detail || 'Erreur lors de la création du calendrier';
-        this.snackBar.open(message, 'Fermer', {
-          duration: 5000
-        });
-      }
+  copyICalUrl(): void {
+    const url = this.icalFeedUrl();
+    navigator.clipboard.writeText(url).then(() => {
+      this.snackBar.open('URL du feed iCal copiée !', 'Fermer', {
+        duration: 3000
+      });
+    }).catch(err => {
+      console.error('Failed to copy URL:', err);
+      this.snackBar.open('Erreur lors de la copie de l\'URL', 'Fermer', {
+        duration: 3000
+      });
     });
   }
 
-  private async loadEvents(): Promise<void> {
-    try {
-      // TODO: Replace with actual API call when backend endpoint is ready
-      // const response = await fetch('http://localhost:8000/api/calendar/events');
-      // const data = await response.json();
-      
-      // Mock data for development
-      const mockEvents = this.getMockEvents();
-      const vehicleColors = await this.getVehicleColors();
-      
-      const formattedEvents: EventInput[] = mockEvents.map(event => {
-        const indicatif = this.extractIndicatif(event.summary);
-        const color = vehicleColors[indicatif] || '#3788d8';
-        
-        return {
-          id: event.id,
-          title: event.summary,
-          start: event.start.dateTime,
-          end: event.end.dateTime,
-          backgroundColor: color,
-          borderColor: color,
-          extendedProps: {
-            indicatif,
-            colorId: event.colorId
-          }
-        };
-      });
+  /**
+   * Format reservations as FullCalendar events
+   */
+  private formatReservationsAsEvents(reservations: ValkeyReservation[]): EventInput[] {
+    return reservations.map(reservation => {
+      // Use a default color for now - could be enhanced with vehicle colors later
+      const color = this.getColorForVehicle(reservation.vehicule_immat);
 
-      this.calendarOptions.update(options => ({
-        ...options,
-        events: formattedEvents
-      }));
-    } catch (error) {
-      console.error('Error loading calendar events:', error);
-    }
-  }
-
-  private extractIndicatif(summary: string): string {
-    // Extract indicatif from format: "{indicatif} - {chauffeur} - {mission}"
-    const parts = summary.split(' - ');
-    return parts[0] || '';
-  }
-
-  private async getVehicleColors(): Promise<Record<string, string>> {
-    try {
-      // TODO: Replace with actual API call when backend is ready
-      // const response = await fetch('http://localhost:8000/api/vehicles');
-      // const data = await response.json();
-      
-      // Mock vehicle colors
       return {
-        'VL75-01': '#FF5733',
-        'VL75-02': '#33FF57',
-        'VL75-03': '#3357FF',
-        'VPSP75-01': '#FF33F5',
-        'VPSP75-02': '#F5FF33'
+        id: reservation.id,
+        title: `${reservation.vehicule_immat} - ${reservation.chauffeur_nom} - ${reservation.mission}`,
+        start: reservation.debut,
+        end: reservation.fin,
+        backgroundColor: color,
+        borderColor: color,
+        extendedProps: {
+          vehicule_immat: reservation.vehicule_immat,
+          chauffeur_nivol: reservation.chauffeur_nivol,
+          chauffeur_nom: reservation.chauffeur_nom,
+          mission: reservation.mission,
+          lieu_depart: reservation.lieu_depart,
+          commentaire: reservation.commentaire
+        }
       };
-    } catch (error) {
-      console.error('Error loading vehicle colors:', error);
-      return {};
-    }
+    });
   }
 
-  private getMockEvents(): CalendarEvent[] {
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  /**
+   * Get color for a vehicle (simple hash-based color generation)
+   */
+  private getColorForVehicle(immat: string): string {
+    // Simple hash function to generate consistent colors for vehicles
+    let hash = 0;
+    for (let i = 0; i < immat.length; i++) {
+      hash = immat.charCodeAt(i) + ((hash << 5) - hash);
+    }
 
-    // Create events for the current week
-    return [
-      {
-        id: 'mock-1',
-        summary: 'VL75-01 - Jean Dupont - Mission Secours',
-        start: {
-          dateTime: new Date(today.getTime() + 10 * 60 * 60 * 1000).toISOString(),
-          timeZone: 'Europe/Paris'
-        },
-        end: {
-          dateTime: new Date(today.getTime() + 14 * 60 * 60 * 1000).toISOString(),
-          timeZone: 'Europe/Paris'
-        },
-        colorId: '5'
-      },
-      {
-        id: 'mock-2',
-        summary: 'VL75-02 - Marie Martin - Transport Matériel',
-        start: {
-          dateTime: new Date(today.getTime() + 1 * 24 * 60 * 60 * 1000 + 8 * 60 * 60 * 1000).toISOString(),
-          timeZone: 'Europe/Paris'
-        },
-        end: {
-          dateTime: new Date(today.getTime() + 1 * 24 * 60 * 60 * 1000 + 12 * 60 * 60 * 1000).toISOString(),
-          timeZone: 'Europe/Paris'
-        },
-        colorId: '2'
-      },
-      {
-        id: 'mock-3',
-        summary: 'VPSP75-01 - Pierre Durand - Maraude',
-        start: {
-          dateTime: new Date(today.getTime() + 2 * 24 * 60 * 60 * 1000 + 14 * 60 * 60 * 1000).toISOString(),
-          timeZone: 'Europe/Paris'
-        },
-        end: {
-          dateTime: new Date(today.getTime() + 2 * 24 * 60 * 60 * 1000 + 18 * 60 * 60 * 1000).toISOString(),
-          timeZone: 'Europe/Paris'
-        },
-        colorId: '7'
-      },
-      {
-        id: 'mock-4',
-        summary: 'VL75-03 - Sophie Bernard - Formation',
-        start: {
-          dateTime: new Date(today.getTime() + 3 * 24 * 60 * 60 * 1000 + 9 * 60 * 60 * 1000).toISOString(),
-          timeZone: 'Europe/Paris'
-        },
-        end: {
-          dateTime: new Date(today.getTime() + 3 * 24 * 60 * 60 * 1000 + 17 * 60 * 60 * 1000).toISOString(),
-          timeZone: 'Europe/Paris'
-        },
-        colorId: '3'
-      },
-      {
-        id: 'mock-5',
-        summary: 'VPSP75-02 - Luc Petit - Intervention Urgente',
-        start: {
-          dateTime: new Date(today.getTime() + 4 * 24 * 60 * 60 * 1000 + 6 * 60 * 60 * 1000).toISOString(),
-          timeZone: 'Europe/Paris'
-        },
-        end: {
-          dateTime: new Date(today.getTime() + 4 * 24 * 60 * 60 * 1000 + 10 * 60 * 60 * 1000).toISOString(),
-          timeZone: 'Europe/Paris'
-        },
-        colorId: '9'
-      }
-    ];
+    // Generate a color from the hash
+    const hue = Math.abs(hash % 360);
+    return `hsl(${hue}, 70%, 50%)`;
   }
 
   private handleEventClick(info: any): void {
     // Read-only calendar - just show event details
-    console.log('Event clicked:', info.event.title);
+    const props = info.event.extendedProps;
+    const details = [
+      `Véhicule: ${props.vehicule_immat}`,
+      `Chauffeur: ${props.chauffeur_nom}`,
+      `Mission: ${props.mission}`,
+      props.lieu_depart ? `Lieu de départ: ${props.lieu_depart}` : '',
+      props.commentaire ? `Commentaire: ${props.commentaire}` : ''
+    ].filter(Boolean).join('\n');
+
+    console.log('Event clicked:', info.event.title, details);
   }
 
   private handleEventDidMount(info: any): void {
-    // Additional styling or tooltips can be added here
-    info.el.title = info.event.title;
+    // Add tooltip with event details
+    const props = info.event.extendedProps;
+    const tooltip = [
+      info.event.title,
+      props.lieu_depart ? `Départ: ${props.lieu_depart}` : '',
+      props.commentaire ? `Note: ${props.commentaire}` : ''
+    ].filter(Boolean).join('\n');
+
+    info.el.title = tooltip;
   }
 }
 

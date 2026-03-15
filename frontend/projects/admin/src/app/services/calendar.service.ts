@@ -3,17 +3,23 @@ import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
 
-export interface CalendarStatusResponse {
-  exists: boolean;
-  calendar_id: string | null;
-  calendar_name: string | null;
+export interface ValkeyReservation {
+  id: string;
+  vehicule_immat: string;
+  chauffeur_nivol: string;
+  chauffeur_nom: string;
+  mission: string;
+  debut: string; // ISO 8601 datetime
+  fin: string;   // ISO 8601 datetime
+  lieu_depart?: string;
+  commentaire?: string;
+  created_by: string;
+  created_at: string;
 }
 
-export interface CalendarCreateResponse {
-  id: string;
-  summary: string;
-  description: string;
-  timeZone: string;
+export interface ValkeyReservationListResponse {
+  count: number;
+  reservations: ValkeyReservation[];
 }
 
 @Injectable({
@@ -24,17 +30,27 @@ export class CalendarService {
   private readonly apiUrl = environment.apiUrl;
 
   /**
-   * Check if the calendar exists
+   * Get reservations for a DT
    */
-  getCalendarStatus(): Observable<CalendarStatusResponse> {
-    return this.http.get<CalendarStatusResponse>(`${this.apiUrl}/api/calendar/status`);
+  getReservations(dt: string, fromDate?: string, toDate?: string): Observable<ValkeyReservationListResponse> {
+    let url = `${this.apiUrl}/api/calendar/${dt}/reservations`;
+    const params: any = {};
+
+    if (fromDate) {
+      params.from = fromDate;
+    }
+    if (toDate) {
+      params.to = toDate;
+    }
+
+    return this.http.get<ValkeyReservationListResponse>(url, { params });
   }
 
   /**
-   * Create a new calendar
+   * Get iCal feed URL for a DT
    */
-  createCalendar(): Observable<CalendarCreateResponse> {
-    return this.http.post<CalendarCreateResponse>(`${this.apiUrl}/api/calendar/create`, {});
+  getICalFeedUrl(dt: string): string {
+    return `${this.apiUrl}/api/calendar/${dt}/reservations.ics`;
   }
 }
 

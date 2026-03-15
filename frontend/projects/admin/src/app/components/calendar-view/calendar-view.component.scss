@@ -6,17 +6,75 @@
 
 .calendar-header {
   margin-bottom: 2rem;
-  
+
   h2 {
     font-size: 1.75rem;
     font-weight: 600;
     color: #1a1a1a;
     margin: 0 0 0.5rem 0;
   }
-  
+
   .calendar-subtitle {
     font-size: 0.875rem;
     color: #666;
+    margin: 0 0 1.5rem 0;
+  }
+}
+
+.ical-feed-section {
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-top: 1.5rem;
+
+  h3 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: #1a1a1a;
+    margin: 0 0 0.5rem 0;
+  }
+
+  p {
+    font-size: 0.875rem;
+    color: #666;
+    margin: 0 0 1rem 0;
+  }
+
+  .ical-url-container {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    margin-bottom: 1rem;
+
+    .ical-url-input {
+      flex: 1;
+      padding: 0.75rem;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 0.875rem;
+      background: white;
+      color: #333;
+
+      &:focus {
+        outline: none;
+        border-color: #3788d8;
+      }
+    }
+
+    button {
+      white-space: nowrap;
+
+      mat-icon {
+        margin-right: 0.5rem;
+      }
+    }
+  }
+
+  .help-text {
+    font-size: 0.8rem;
+    color: #888;
+    font-style: italic;
     margin: 0;
   }
 }

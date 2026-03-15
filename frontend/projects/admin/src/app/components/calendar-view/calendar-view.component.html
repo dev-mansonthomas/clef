@@ -2,39 +2,41 @@
   <div class="calendar-header">
     <h2>Calendrier des Réservations</h2>
     <p class="calendar-subtitle">Vue en lecture seule des réservations de véhicules</p>
+
+    <!-- iCal Feed Integration -->
+    <div class="ical-feed-section">
+      <h3>Intégration Google Calendar</h3>
+      <p>Copiez l'URL ci-dessous pour intégrer ce calendrier dans Google Calendar :</p>
+      <div class="ical-url-container">
+        <input
+          type="text"
+          [value]="icalFeedUrl()"
+          readonly
+          class="ical-url-input"
+        />
+        <button
+          mat-raised-button
+          color="primary"
+          (click)="copyICalUrl()">
+          <mat-icon>content_copy</mat-icon>
+          Copier l'URL
+        </button>
+      </div>
+      <p class="help-text">
+        Dans Google Calendar : Autres agendas → + → À partir de l'URL → Collez l'URL
+      </p>
+    </div>
   </div>
 
   <!-- Loading state -->
   @if (calendarLoading()) {
     <div class="loading-container">
       <mat-spinner diameter="50"></mat-spinner>
-      <p>Vérification du calendrier...</p>
+      <p>Chargement des réservations...</p>
     </div>
   }
 
-  <!-- Calendar doesn't exist - show create button -->
-  @else if (!calendarExists()) {
-    <div class="no-calendar-container">
-      <div class="no-calendar-message">
-        <h3>Aucun calendrier configuré</h3>
-        <p>Le calendrier de réservation n'existe pas encore. Créez-le pour commencer à gérer les réservations de véhicules.</p>
-        <button
-          mat-raised-button
-          color="primary"
-          (click)="createCalendar()"
-          [disabled]="creatingCalendar()">
-          @if (creatingCalendar()) {
-            <mat-spinner diameter="20" style="display: inline-block; margin-right: 8px;"></mat-spinner>
-            Création en cours...
-          } @else {
-            Créer le calendrier
-          }
-        </button>
-      </div>
-    </div>
-  }
-
-  <!-- Calendar exists - show calendar view -->
+  <!-- Calendar view -->
   @else {
     <div class="calendar-wrapper">
       <full-calendar [options]="calendarOptions()" />
