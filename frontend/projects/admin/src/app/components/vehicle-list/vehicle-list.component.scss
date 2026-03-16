@@ -57,7 +57,16 @@
         transition: background-color 0.2s;
 
         &:hover {
-          background-color: #f9f9f9;
+          background-color: #e8e8e8;
+        }
+
+        // Alternating row colors
+        &:nth-child(even) {
+          background-color: #f0f0f0;
+
+          &:hover {
+            background-color: #e8e8e8;
+          }
         }
 
         &.highlight-blink {
@@ -101,6 +110,18 @@
         padding: 4px 8px;
         border-radius: 4px;
         background-color: #e8e8e8;
+      }
+
+      // Km and Carburant columns - compact display
+      .km-cell {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+      }
+
+      .fuel-cell {
+        white-space: nowrap;
+        font-variant-numeric: tabular-nums;
       }
     }
 
