@@ -164,6 +164,12 @@ export class VehicleEdit implements OnInit {
       commentaires: vehicle.commentaires,
       suivi_mode: vehicle.suivi_mode  // Backend now provides type-based default
     });
+
+    // Disable the 'type' field in edit mode (not create mode)
+    // Using programmatic disable instead of [disabled] attribute to avoid Angular warning
+    if (!this.isCreateMode) {
+      this.vehicleForm.get('type')?.disable();
+    }
   }
 
   onSubmit(): void {
