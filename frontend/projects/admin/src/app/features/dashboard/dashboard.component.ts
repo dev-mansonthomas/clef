@@ -48,7 +48,20 @@ export class DashboardComponent implements OnInit {
 
     this.statsService.getStats().subscribe({
       next: (stats) => {
-        this.stats.set(stats);
+        // Sort alerts by DT/UL then by Indicatif
+        const sortedAlerts = stats.alertes.sort((a, b) => {
+          // Primary sort by dt_ul
+          const dtCompare = (a.dt_ul || '').localeCompare(b.dt_ul || '');
+          if (dtCompare !== 0) return dtCompare;
+
+          // Secondary sort by indicatif
+          return (a.indicatif || '').localeCompare(b.indicatif || '');
+        });
+
+        this.stats.set({
+          ...stats,
+          alertes: sortedAlerts
+        });
         this.loading.set(false);
       },
       error: (err) => {
