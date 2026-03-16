@@ -6,8 +6,14 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
+import { MatTableModule } from '@angular/material/table';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { BenevoleService, Benevole } from '../../services/benevole.service';
 import { AuthService } from '../../services/auth.service';
+import { UniteLocaleService } from '../../services/unite-locale.service';
+import { UniteLocale } from '../../models/unite-locale.model';
+import { ULDialogComponent } from './ul-dialog/ul-dialog.component';
 
 /**
  * Bénévoles grouped by UL
@@ -30,7 +36,10 @@ interface BenevolesByUL {
     MatIconModule,
     MatMenuModule,
     MatProgressSpinnerModule,
-    MatSnackBarModule
+    MatSnackBarModule,
+    MatDialogModule,
+    MatTableModule,
+    MatTooltipModule
   ],
   templateUrl: './dt-admin.component.html',
   styleUrl: './dt-admin.component.scss'
@@ -38,12 +47,19 @@ interface BenevolesByUL {
 export class DtAdminComponent implements OnInit {
   private readonly benevoleService = inject(BenevoleService);
   private readonly authService = inject(AuthService);
+  private readonly uniteLocaleService = inject(UniteLocaleService);
   private readonly snackBar = inject(MatSnackBar);
+  private readonly dialog = inject(MatDialog);
 
   // State
   loading = signal(true);
   benevolesByUL = signal<BenevolesByUL[]>([]);
   currentUserDT = signal<string>('');
+
+  // UL Management State
+  unitesLocales = signal<UniteLocale[]>([]);
+  ulLoading = signal(false);
+  displayedColumns = ['id', 'nom', 'actions'];
 
   ngOnInit(): void {
     // Get current user's DT
@@ -51,6 +67,7 @@ export class DtAdminComponent implements OnInit {
       if (user) {
         this.currentUserDT.set(user.dt);
         this.loadBenevoles();
+        this.loadUnitesLocales();
       }
     });
   }
@@ -178,6 +195,135 @@ export class DtAdminComponent implements OnInit {
       return 'Resp. UL';
     }
     return role;
+  }
+
+  // ========== UL Management Methods ==========
+
+  /**
+   * Load all Unités Locales
+   */
+  loadUnitesLocales(): void {
+    this.ulLoading.set(true);
+    this.uniteLocaleService.getUnitesLocales().subscribe({
+      next: (response) => {
+        this.unitesLocales.set(response.unites_locales);
+        this.ulLoading.set(false);
+      },
+      error: (error) => {
+        console.error('Error loading ULs:', error);
+        this.snackBar.open('Erreur lors du chargement des ULs', 'Fermer', {
+          duration: 3000
+        });
+        this.ulLoading.set(false);
+      }
+    });
+  }
+
+  /**
+   * Open dialog to create a new UL
+   */
+  openCreateULDialog(): void {
+    const dialogRef = this.dialog.open(ULDialogComponent, {
+      width: '500px',
+      data: { mode: 'create' }
+    });
+
+    dialogRef.afterClosed().subscribe(result => {
+      if (result) {
+        this.createUL(result);
+      }
+    });
+  }
+
+  /**
+   * Open dialog to edit an existing UL
+   */
+  openEditULDialog(ul: UniteLocale): void {
+    const dialogRef = this.dialog.open(ULDialogComponent, {
+      width: '500px',
+      data: { mode: 'edit', ul }
+    });
+
+    dialogRef.afterClosed().subscribe(result => {
+      if (result) {
+        this.updateUL(ul.id, result);
+      }
+    });
+  }
+
+  /**
+   * Create a new UL
+   */
+  private createUL(data: { id: string; nom: string }): void {
+    this.ulLoading.set(true);
+    this.uniteLocaleService.createUniteLocale({
+      id: data.id,
+      nom: data.nom,
+      dt: 'DT75'
+    }).subscribe({
+      next: () => {
+        this.snackBar.open('UL créée avec succès', 'Fermer', {
+          duration: 3000
+        });
+        this.loadUnitesLocales();
+      },
+      error: (error) => {
+        console.error('Error creating UL:', error);
+        const message = error.status === 409
+          ? 'Cette UL existe déjà'
+          : 'Erreur lors de la création de l\'UL';
+        this.snackBar.open(message, 'Fermer', {
+          duration: 3000
+        });
+        this.ulLoading.set(false);
+      }
+    });
+  }
+
+  /**
+   * Update an existing UL
+   */
+  private updateUL(ulId: string, data: { nom: string }): void {
+    this.ulLoading.set(true);
+    this.uniteLocaleService.updateUniteLocale(ulId, { nom: data.nom }).subscribe({
+      next: () => {
+        this.snackBar.open('UL modifiée avec succès', 'Fermer', {
+          duration: 3000
+        });
+        this.loadUnitesLocales();
+      },
+      error: (error) => {
+        console.error('Error updating UL:', error);
+        this.snackBar.open('Erreur lors de la modification de l\'UL', 'Fermer', {
+          duration: 3000
+        });
+        this.ulLoading.set(false);
+      }
+    });
+  }
+
+  /**
+   * Delete a UL with confirmation
+   */
+  deleteUL(ul: UniteLocale): void {
+    if (confirm(`Êtes-vous sûr de vouloir supprimer l'UL "${ul.nom}" (${ul.id}) ?`)) {
+      this.ulLoading.set(true);
+      this.uniteLocaleService.deleteUniteLocale(ul.id).subscribe({
+        next: () => {
+          this.snackBar.open('UL supprimée avec succès', 'Fermer', {
+            duration: 3000
+          });
+          this.loadUnitesLocales();
+        },
+        error: (error) => {
+          console.error('Error deleting UL:', error);
+          this.snackBar.open('Erreur lors de la suppression de l\'UL', 'Fermer', {
+            duration: 3000
+          });
+          this.ulLoading.set(false);
+        }
+      });
+    }
   }
 }
 
