@@ -35,7 +35,12 @@
         <div class="form-row">
           <mat-form-field appearance="outline">
             <mat-label>DT / UL</mat-label>
-            <input matInput formControlName="dt_ul" [readonly]="!isCreateMode">
+            <mat-select formControlName="dt_ul" *ngIf="isCreateMode">
+              <mat-option *ngFor="let option of dtUlOptions" [value]="option">
+                {{ option }}
+              </mat-option>
+            </mat-select>
+            <input matInput formControlName="dt_ul" *ngIf="!isCreateMode" readonly>
           </mat-form-field>
 
           <mat-form-field appearance="outline">
@@ -52,7 +57,7 @@
 
           <mat-form-field appearance="outline">
             <mat-label>Nom Synthétique</mat-label>
-            <input matInput formControlName="nom_synthetique" [readonly]="!isCreateMode">
+            <input matInput formControlName="nom_synthetique" readonly>
           </mat-form-field>
         </div>
       </mat-card-content>
@@ -180,8 +185,13 @@
       <mat-card-content>
         <div class="form-row">
           <mat-form-field appearance="outline">
-            <mat-label>Assurance 2026</mat-label>
-            <input matInput formControlName="assurance_2026" [readonly]="!isCreateMode">
+            <mat-label>Assurance</mat-label>
+            <mat-select formControlName="assurance_2026" *ngIf="isCreateMode">
+              <mat-option *ngFor="let option of assuranceOptions" [value]="option">
+                {{ option }}
+              </mat-option>
+            </mat-select>
+            <input matInput formControlName="assurance_2026" *ngIf="!isCreateMode" readonly>
           </mat-form-field>
 
           <mat-form-field appearance="outline">

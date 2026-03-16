@@ -14,6 +14,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatChipsModule } from '@angular/material/chips';
 import { VehicleService } from '../../services/vehicle.service';
 import { ErrorService } from '../../services/error.service';
+import { UniteLocaleService } from '../../services/unite-locale.service';
 import { Vehicle, DisponibiliteStatus } from '../../models/vehicle.model';
 
 @Component({
@@ -42,6 +43,7 @@ export class VehicleEdit implements OnInit {
   private readonly router = inject(Router);
   private readonly vehicleService = inject(VehicleService);
   private readonly errorService = inject(ErrorService);
+  private readonly uniteLocaleService = inject(UniteLocaleService);
   private readonly snackBar = inject(MatSnackBar);
   private readonly cdr = inject(ChangeDetectorRef);
 
@@ -52,6 +54,9 @@ export class VehicleEdit implements OnInit {
   vehicle: Vehicle | null = null;
   isCreateMode = false;
 
+  // DT/UL dropdown options
+  dtUlOptions: string[] = [];
+
   readonly disponibiliteOptions = [
     { value: 'Dispo', label: 'Disponible' },
     { value: 'Indispo', label: 'Indisponible' }
@@ -61,6 +66,8 @@ export class VehicleEdit implements OnInit {
 
   readonly typeOptions = ['Log', 'PCM', 'Quad', 'Remorque', 'Utilitaire', 'VL', 'VPSP'];
 
+  readonly assuranceOptions = ['Tiers', 'Tous Risques', 'N/A'];
+
   readonly suiviModeOptions = [
     { value: 'prise', label: 'Prise du véhicule' },
     { value: 'retour', label: 'Retour du véhicule' },
@@ -69,6 +76,7 @@ export class VehicleEdit implements OnInit {
 
   ngOnInit(): void {
     this.initForm();
+    this.loadUnitesLocales();
     this.nomSynthetique = this.route.snapshot.paramMap.get('nomSynthetique');
 
     // Check if we're in create mode by examining the actual route URL
@@ -79,6 +87,9 @@ export class VehicleEdit implements OnInit {
     if (this.nomSynthetique && !this.isCreateMode) {
       this.loadVehicle();
     }
+
+    // Setup auto-calculation of synthetic name
+    this.setupSyntheticNameAutoCalculation();
   }
 
   private initForm(): void {
@@ -87,7 +98,7 @@ export class VehicleEdit implements OnInit {
       dt_ul: ['', Validators.required],
       immat: ['', Validators.required],
       indicatif: ['', Validators.required],
-      nom_synthetique: ['', Validators.required],
+      nom_synthetique: [{ value: '', disabled: true }, Validators.required],
 
       // Section: Caractéristiques
       marque: ['', Validators.required],
@@ -120,6 +131,40 @@ export class VehicleEdit implements OnInit {
       // Section: Configuration du suivi
       suivi_mode: ['prise'] // Default tracking mode
     });
+  }
+
+  private loadUnitesLocales(): void {
+    this.uniteLocaleService.getUnitesLocales().subscribe({
+      next: (response) => {
+        // Build options: DT75 + UL IDs
+        this.dtUlOptions = ['DT75', ...response.unites_locales.map(ul => ul.id)];
+        this.cdr.detectChanges();
+      },
+      error: (error) => {
+        console.error('Error loading UL:', error);
+        // Fallback to just DT75 if UL loading fails
+        this.dtUlOptions = ['DT75'];
+        this.cdr.detectChanges();
+      }
+    });
+  }
+
+  private setupSyntheticNameAutoCalculation(): void {
+    // Listen to changes in dt_ul, indicatif, and immat
+    this.vehicleForm.get('dt_ul')?.valueChanges.subscribe(() => this.updateSyntheticName());
+    this.vehicleForm.get('indicatif')?.valueChanges.subscribe(() => this.updateSyntheticName());
+    this.vehicleForm.get('immat')?.valueChanges.subscribe(() => this.updateSyntheticName());
+  }
+
+  private updateSyntheticName(): void {
+    const dtUl = this.vehicleForm.get('dt_ul')?.value || '';
+    const indicatif = this.vehicleForm.get('indicatif')?.value || '';
+    const immat = this.vehicleForm.get('immat')?.value || '';
+
+    if (dtUl && indicatif && immat) {
+      const syntheticName = `${dtUl} - ${indicatif} - ${immat}`;
+      this.vehicleForm.get('nom_synthetique')?.setValue(syntheticName, { emitEvent: false });
+    }
   }
 
   private loadVehicle(): void {
@@ -180,7 +225,7 @@ export class VehicleEdit implements OnInit {
     }
 
     this.saving = true;
-    const formValue = this.vehicleForm.value;
+    const formValue = this.vehicleForm.getRawValue(); // Use getRawValue to include disabled fields
 
     if (this.isCreateMode) {
       // Create new vehicle - send all fields
