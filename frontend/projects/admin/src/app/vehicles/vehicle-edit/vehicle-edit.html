@@ -94,7 +94,7 @@
             <input matInput formControlName="nb_places" readonly>
           </mat-form-field>
 
-          <mat-form-field appearance="outline" [class.field-alert]="isCarteGriseMissing()">
+          <mat-form-field appearance="outline" [ngClass]="getCarteGriseClass()">
             <mat-label>Carte Grise</mat-label>
             <mat-select formControlName="carte_grise">
               <mat-option *ngFor="let option of carteGriseOptions" [value]="option">
@@ -113,7 +113,7 @@
       </mat-card-header>
       <mat-card-content>
         <div class="form-row">
-          <mat-form-field appearance="outline" [class.field-alert]="isVehicleUnavailable()">
+          <mat-form-field appearance="outline" [ngClass]="getDisponibiliteClass()">
             <mat-label>Opérationnel Mécanique</mat-label>
             <mat-select formControlName="operationnel_mecanique">
               <mat-option *ngFor="let option of disponibiliteOptions" [value]="option.value">
@@ -194,10 +194,10 @@
       </mat-card-content>
     </mat-card>
 
-    <!-- Section: Metadata CLEF -->
+    <!-- Section: Calendrier -->
     <mat-card>
       <mat-card-header>
-        <mat-card-title>Metadata CLEF</mat-card-title>
+        <mat-card-title>Calendrier</mat-card-title>
       </mat-card-header>
       <mat-card-content>
         <mat-form-field appearance="outline">
