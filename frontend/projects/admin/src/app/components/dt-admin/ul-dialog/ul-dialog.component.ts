@@ -53,6 +53,10 @@ export interface ULDialogData {
       margin-bottom: 16px;
     }
 
+    .full-width:first-child {
+      margin-top: 16px;
+    }
+
     mat-dialog-content {
       min-width: 400px;
       padding: 20px 24px;

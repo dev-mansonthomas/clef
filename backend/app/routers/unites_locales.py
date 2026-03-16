@@ -44,24 +44,31 @@ async def list_unites_locales(
         # Get the set of UL IDs for this DT
         index_key = f"{dt}:unite_locales:index"
         ul_ids = await cache.client.smembers(index_key)
-        
+
         if not ul_ids:
             return UniteLocaleListResponse(unites_locales=[], total=0)
-        
+
         # Fetch each UL
         unites_locales = []
         for ul_id in ul_ids:
             ul_key = f"{dt}:unite_locale:{ul_id}"
-            ul_data = await cache.client.json().get(ul_key)
-            if ul_data:
-                unites_locales.append(UniteLocale(**ul_data))
-        
+            try:
+                ul_data = await cache.client.json().get(ul_key)
+                if ul_data:
+                    unites_locales.append(UniteLocale(**ul_data))
+                else:
+                    logger.warning(f"UL {ul_id} in index but data not found at key {ul_key}")
+            except Exception as e:
+                logger.error(f"Error fetching UL {ul_id} from key {ul_key}: {e}", exc_info=True)
+                # Continue to next UL instead of failing the entire request
+                continue
+
         return UniteLocaleListResponse(
             unites_locales=unites_locales,
             total=len(unites_locales)
         )
     except Exception as e:
-        logger.error(f"Error listing UL for {dt}: {e}")
+        logger.error(f"Error listing UL for {dt}: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error retrieving Unités Locales"
@@ -118,31 +125,41 @@ async def create_unite_locale(
     Returns:
         Created Unité Locale
     """
-    # Check if UL already exists
-    ul_key = f"{dt}:unite_locale:{ul.id}"
-    exists = await cache.exists(ul_key)
-    
-    if exists:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Unité Locale {ul.id} already exists in {dt}"
+    try:
+        # Check if UL already exists
+        ul_key = f"{dt}:unite_locale:{ul.id}"
+        exists = await cache.exists(ul_key)
+
+        if exists:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Unité Locale {ul.id} already exists in {dt}"
+            )
+
+        # Create UL with timestamp
+        ul_data = UniteLocale(
+            **ul.model_dump(),
+            created_at=datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
         )
-    
-    # Create UL with timestamp
-    ul_data = UniteLocale(
-        **ul.model_dump(),
-        created_at=datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
-    )
 
-    # Store in Redis using JSON native storage
-    await cache.client.json().set(ul_key, "$", ul_data.model_dump())
+        # Store in Redis using JSON native storage
+        await cache.client.json().set(ul_key, "$", ul_data.model_dump())
 
-    # Add to index
-    index_key = f"{dt}:unite_locales:index"
-    await cache.client.sadd(index_key, ul.id)
-    
-    logger.info(f"Created UL {ul.id} in {dt}")
-    return ul_data
+        # Add to index
+        index_key = f"{dt}:unite_locales:index"
+        await cache.client.sadd(index_key, ul.id)
+
+        logger.info(f"Created UL {ul.id} in {dt} with key {ul_key}")
+        return ul_data
+    except HTTPException:
+        # Re-raise HTTP exceptions (like 409 Conflict)
+        raise
+    except Exception as e:
+        logger.error(f"Error creating UL {ul.id} in {dt}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error creating Unité Locale: {str(e)}"
+        )
 
 
 @router.put("/{ul_id}", response_model=UniteLocale)
@@ -166,26 +183,36 @@ async def update_unite_locale(
     Returns:
         Updated Unité Locale
     """
-    # Check if UL exists
-    ul_key = f"{dt}:unite_locale:{ul_id}"
-    ul_data = await cache.client.json().get(ul_key)
+    try:
+        # Check if UL exists
+        ul_key = f"{dt}:unite_locale:{ul_id}"
+        ul_data = await cache.client.json().get(ul_key)
 
-    if not ul_data:
+        if not ul_data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Unité Locale {ul_id} not found in {dt}"
+            )
+
+        # Update only provided fields
+        current_ul = UniteLocale(**ul_data)
+        update_data = ul.model_dump(exclude_unset=True)
+
+        for field, value in update_data.items():
+            setattr(current_ul, field, value)
+
+        # Store updated UL using JSON native storage
+        await cache.client.json().set(ul_key, "$", current_ul.model_dump())
+
+        logger.info(f"Updated UL {ul_id} in {dt}")
+        return current_ul
+    except HTTPException:
+        # Re-raise HTTP exceptions (like 404 Not Found)
+        raise
+    except Exception as e:
+        logger.error(f"Error updating UL {ul_id} in {dt}: {e}", exc_info=True)
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Unité Locale {ul_id} not found in {dt}"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error updating Unité Locale: {str(e)}"
         )
-
-    # Update only provided fields
-    current_ul = UniteLocale(**ul_data)
-    update_data = ul.model_dump(exclude_unset=True)
-
-    for field, value in update_data.items():
-        setattr(current_ul, field, value)
-
-    # Store updated UL using JSON native storage
-    await cache.client.json().set(ul_key, "$", current_ul.model_dump())
-
-    logger.info(f"Updated UL {ul_id} in {dt}")
-    return current_ul
 
