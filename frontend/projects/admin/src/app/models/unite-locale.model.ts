@@ -14,3 +14,13 @@ export interface UniteLocaleListResponse {
   total: number;
 }
 
+export interface UniteLocaleCreate {
+  id: string;
+  nom: string;
+  dt: string;
+}
+
+export interface UniteLocaleUpdate {
+  nom: string;
+}
+

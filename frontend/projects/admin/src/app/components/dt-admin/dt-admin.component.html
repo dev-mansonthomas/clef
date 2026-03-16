@@ -1,9 +1,60 @@
 <div class="dt-admin-container">
   <div class="header">
     <h1>Administration DT</h1>
-    <p class="subtitle">Gestion des bénévoles et des rôles</p>
+    <p class="subtitle">Gestion des bénévoles, des rôles et des Unités Locales</p>
   </div>
 
+  <!-- UL Management Section -->
+  <mat-card class="ul-management-card">
+    <mat-card-header>
+      <mat-card-title>Gestion des Unités Locales</mat-card-title>
+      <button mat-raised-button color="primary" (click)="openCreateULDialog()" class="add-ul-button">
+        <mat-icon>add</mat-icon>
+        Ajouter une UL
+      </button>
+    </mat-card-header>
+    <mat-card-content>
+      @if (ulLoading()) {
+        <div class="loading-container">
+          <mat-spinner diameter="40"></mat-spinner>
+        </div>
+      } @else if (unitesLocales().length === 0) {
+        <p class="no-data">Aucune Unité Locale configurée</p>
+      } @else {
+        <table mat-table [dataSource]="unitesLocales()" class="ul-table">
+          <!-- ID Column -->
+          <ng-container matColumnDef="id">
+            <th mat-header-cell *matHeaderCellDef>ID</th>
+            <td mat-cell *matCellDef="let ul">{{ ul.id }}</td>
+          </ng-container>
+
+          <!-- Nom Column -->
+          <ng-container matColumnDef="nom">
+            <th mat-header-cell *matHeaderCellDef>Nom</th>
+            <td mat-cell *matCellDef="let ul">{{ ul.nom }}</td>
+          </ng-container>
+
+          <!-- Actions Column -->
+          <ng-container matColumnDef="actions">
+            <th mat-header-cell *matHeaderCellDef>Actions</th>
+            <td mat-cell *matCellDef="let ul">
+              <button mat-icon-button (click)="openEditULDialog(ul)" matTooltip="Modifier">
+                <mat-icon>edit</mat-icon>
+              </button>
+              <button mat-icon-button (click)="deleteUL(ul)" matTooltip="Supprimer" color="warn">
+                <mat-icon>delete</mat-icon>
+              </button>
+            </td>
+          </ng-container>
+
+          <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+          <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+        </table>
+      }
+    </mat-card-content>
+  </mat-card>
+
+  <!-- Bénévoles Section -->
   @if (loading()) {
     <div class="loading-container">
       <mat-spinner></mat-spinner>
