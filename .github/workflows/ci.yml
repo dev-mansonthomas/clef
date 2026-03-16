@@ -1,0 +1,159 @@
+name: CI/CD Pipeline
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main]
+
+env:
+  GCP_REGION: europe-west1
+  GCP_RESOURCE_PREFIX: clef-
+
+jobs:
+  # Backend tests on PR
+  backend-test:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: 'pip'
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        working-directory: backend
+        run: |
+          pip install -r requirements.txt
+
+      - name: Run pytest
+        working-directory: backend
+        env:
+          USE_MOCKS: "true"
+          REDIS_URL: "redis://localhost:6379/0"
+        run: |
+          pytest tests/ -v --tb=short
+
+  # Frontend build on PR
+  frontend-build:
+    name: Frontend Build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    
+    strategy:
+      matrix:
+        app: [admin, form]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build ${{ matrix.app }} app
+        working-directory: frontend
+        run: npm run build -- ${{ matrix.app }} --configuration production
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.app }}-build
+          path: frontend/dist/${{ matrix.app }}
+          retention-days: 1
+
+  # Deploy to Cloud Run on main branch merge
+  deploy-dev:
+    name: Deploy to Dev (Cloud Run)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    environment: dev
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_DEV }}
+
+      - name: Configure Docker for GCP
+        run: |
+          gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev
+
+      - name: Build and push backend image
+        working-directory: backend
+        run: |
+          IMAGE_NAME="${{ env.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_DEV }}/clef-images/clef-api:${{ github.sha }}"
+          docker build -t $IMAGE_NAME -f Dockerfile .
+          docker push $IMAGE_NAME
+          echo "BACKEND_IMAGE=$IMAGE_NAME" >> $GITHUB_ENV
+
+      - name: Build and push frontend image
+        working-directory: frontend
+        run: |
+          IMAGE_NAME="${{ env.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_DEV }}/clef-images/clef-frontend:${{ github.sha }}"
+          docker build -t $IMAGE_NAME -f Dockerfile .
+          docker push $IMAGE_NAME
+          echo "FRONTEND_IMAGE=$IMAGE_NAME" >> $GITHUB_ENV
+
+      - name: Deploy backend to Cloud Run
+        run: |
+          gcloud run deploy clef-api \
+            --image ${{ env.BACKEND_IMAGE }} \
+            --region ${{ env.GCP_REGION }} \
+            --platform managed \
+            --allow-unauthenticated \
+            --set-env-vars="ENVIRONMENT=dev,GCP_PROJECT=${{ secrets.GCP_PROJECT_DEV }},GCP_RESOURCE_PREFIX=${{ env.GCP_RESOURCE_PREFIX }}" \
+            --set-secrets="GOOGLE_CLIENT_ID=GOOGLE_CLIENT_ID:latest,GOOGLE_CLIENT_SECRET=GOOGLE_CLIENT_SECRET:latest,QR_CODE_SALT=QR_CODE_SALT:latest" \
+            --memory 512Mi \
+            --cpu 1 \
+            --min-instances 0 \
+            --max-instances 10 \
+            --timeout 300 \
+            --project ${{ secrets.GCP_PROJECT_DEV }}
+
+      - name: Deploy frontend to Cloud Run
+        run: |
+          gcloud run deploy clef-frontend \
+            --image ${{ env.FRONTEND_IMAGE }} \
+            --region ${{ env.GCP_REGION }} \
+            --platform managed \
+            --allow-unauthenticated \
+            --port 80 \
+            --memory 256Mi \
+            --cpu 1 \
+            --min-instances 0 \
+            --max-instances 5 \
+            --project ${{ secrets.GCP_PROJECT_DEV }}
+
+      - name: Get service URLs
+        run: |
+          BACKEND_URL=$(gcloud run services describe clef-api --region ${{ env.GCP_REGION }} --format 'value(status.url)' --project ${{ secrets.GCP_PROJECT_DEV }})
+          FRONTEND_URL=$(gcloud run services describe clef-frontend --region ${{ env.GCP_REGION }} --format 'value(status.url)' --project ${{ secrets.GCP_PROJECT_DEV }})
+          echo "Backend URL: $BACKEND_URL"
+          echo "Frontend URL: $FRONTEND_URL"
+          echo "BACKEND_URL=$BACKEND_URL" >> $GITHUB_ENV
+          echo "FRONTEND_URL=$FRONTEND_URL" >> $GITHUB_ENV
+

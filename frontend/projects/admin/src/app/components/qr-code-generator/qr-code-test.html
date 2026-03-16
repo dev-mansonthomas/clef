@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test QR Code Generator</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+    }
+    .test-section {
+      margin: 30px 0;
+      padding: 20px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+    }
+    .qr-preview {
+      display: flex;
+      justify-content: center;
+      margin: 20px 0;
+    }
+    .instruction {
+      text-align: center;
+      font-weight: bold;
+      color: #E30613;
+      padding: 12px;
+      border: 2px solid #E30613;
+      border-radius: 4px;
+      margin: 20px 0;
+    }
+    button {
+      background-color: #E30613;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    button:hover {
+      background-color: #c00510;
+    }
+    @media print {
+      .no-print {
+        display: none !important;
+      }
+      @page {
+        size: A6 portrait;
+        margin: 10mm;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="no-print">
+    <h1>Test QR Code Generator Component</h1>
+    <p>This page demonstrates the QR code generation functionality.</p>
+  </div>
+
+  <div class="test-section">
+    <h2 class="no-print">Test Vehicle: VSAV-PARIS15-01</h2>
+    
+    <div class="instruction">
+      À la prise et au retour du véhicule, veuillez remplir le formulaire CLEF
+    </div>
+
+    <div class="qr-preview">
+      <canvas id="qrcode"></canvas>
+    </div>
+
+    <div class="no-print">
+      <p><strong>Véhicule:</strong> Renault Master</p>
+      <p><strong>Immatriculation:</strong> AB-123-CD</p>
+      <p><strong>UL:</strong> UL Paris 15</p>
+      <p><strong>URL encodée:</strong> <span id="url"></span></p>
+      <button onclick="window.print()">Imprimer</button>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+  <script>
+    // Generate QR code for test vehicle
+    const nomSynthetique = 'VSAV-PARIS15-01';
+    const encodedId = btoa(nomSynthetique); // Base64 encoding
+    const domain = 'clef.example.com';
+    const url = `https://${domain}/vehicle/${encodedId}`;
+    
+    document.getElementById('url').textContent = url;
+    
+    // Generate QR code
+    QRCode.toCanvas(document.getElementById('qrcode'), url, {
+      width: 256,
+      margin: 2,
+      errorCorrectionLevel: 'M'
+    }, function (error) {
+      if (error) console.error(error);
+      console.log('QR code generated successfully!');
+    });
+  </script>
+</body>
+</html>
+

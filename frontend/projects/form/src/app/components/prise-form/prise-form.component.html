@@ -1,0 +1,145 @@
+<div class="form-container">
+  <mat-card>
+    <mat-card-header>
+      <mat-card-title>Prise de Véhicule</mat-card-title>
+      <mat-card-subtitle>{{ nomSynthetique() }}</mat-card-subtitle>
+    </mat-card-header>
+
+    <mat-card-content>
+      <form [formGroup]="priseForm" (ngSubmit)="onSubmit()">
+        
+        <!-- Kilométrage départ -->
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Kilométrage départ</mat-label>
+          <input matInput 
+                 type="number" 
+                 formControlName="kmDepart" 
+                 placeholder="Ex: 12500"
+                 required>
+          <mat-icon matSuffix>speed</mat-icon>
+          <mat-error *ngIf="priseForm.get('kmDepart')?.hasError('required')">
+            Kilométrage requis
+          </mat-error>
+          <mat-error *ngIf="priseForm.get('kmDepart')?.hasError('min')">
+            Kilométrage doit être positif
+          </mat-error>
+        </mat-form-field>
+
+        <!-- Niveau carburant -->
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Niveau de carburant</mat-label>
+          <mat-select formControlName="niveauCarburant" required>
+            <mat-option *ngFor="let niveau of niveauxCarburant" [value]="niveau.value">
+              {{ niveau.label }}
+            </mat-option>
+          </mat-select>
+          <mat-icon matSuffix>local_gas_station</mat-icon>
+          <mat-error *ngIf="priseForm.get('niveauCarburant')?.hasError('required')">
+            Niveau de carburant requis
+          </mat-error>
+        </mat-form-field>
+
+        <!-- État général (slider 1-5) -->
+        <div class="form-section">
+          <label class="section-label">État général du véhicule</label>
+          <div class="slider-container">
+            <mat-slider 
+              min="1" 
+              max="5" 
+              step="1" 
+              showTickMarks 
+              discrete
+              class="full-width">
+              <input matSliderThumb formControlName="etatGeneral">
+            </mat-slider>
+            <div class="slider-labels">
+              <span>Mauvais</span>
+              <span>Excellent</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Commentaires -->
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Commentaires</mat-label>
+          <textarea matInput 
+                    formControlName="commentaires" 
+                    rows="3"
+                    placeholder="Observations particulières..."></textarea>
+          <mat-icon matSuffix>comment</mat-icon>
+        </mat-form-field>
+
+        <!-- Photos -->
+        <div class="form-section">
+          <label class="section-label">Photos de l'état du véhicule (max {{ maxPhotos }})</label>
+          <div class="photo-upload">
+            <input 
+              type="file" 
+              #photoInput 
+              accept="image/*" 
+              multiple 
+              (change)="onPhotoSelected($event)"
+              style="display: none">
+            <button 
+              mat-raised-button 
+              type="button"
+              (click)="photoInput.click()"
+              [disabled]="photos().length >= maxPhotos">
+              <mat-icon>add_a_photo</mat-icon>
+              Ajouter des photos ({{ photos().length }}/{{ maxPhotos }})
+            </button>
+          </div>
+
+          <!-- Photo previews -->
+          <div class="photo-previews" *ngIf="photoPreviewUrls().length > 0">
+            <div class="photo-preview" *ngFor="let url of photoPreviewUrls(); let i = index">
+              <img [src]="url" alt="Photo {{ i + 1 }}">
+              <button 
+                mat-icon-button 
+                type="button"
+                class="remove-photo"
+                (click)="removePhoto(i)">
+                <mat-icon>close</mat-icon>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Signature -->
+        <div class="form-section">
+          <label class="section-label">Signature du chauffeur *</label>
+          <div class="signature-container">
+            <canvas #signatureCanvas class="signature-canvas"></canvas>
+            <button 
+              mat-button 
+              type="button"
+              class="clear-signature"
+              (click)="clearSignature()">
+              <mat-icon>clear</mat-icon>
+              Effacer
+            </button>
+          </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="form-actions">
+          <button 
+            mat-raised-button 
+            type="button"
+            routerLink="/">
+            Annuler
+          </button>
+          <button 
+            mat-raised-button 
+            color="primary" 
+            type="submit"
+            [disabled]="loading()">
+            <mat-spinner *ngIf="loading()" diameter="20"></mat-spinner>
+            <span *ngIf="!loading()">Valider la prise</span>
+          </button>
+        </div>
+      </form>
+    </mat-card-content>
+  </mat-card>
+</div>
+

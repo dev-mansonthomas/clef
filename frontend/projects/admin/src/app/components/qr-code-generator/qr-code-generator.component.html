@@ -1,0 +1,129 @@
+<div class="qr-generator-container">
+  <!-- Header (hidden when printing) -->
+  <div class="header no-print">
+    <h1>Génération de QR Codes Véhicules</h1>
+    <p class="subtitle">Générez et imprimez les QR codes pour les véhicules</p>
+    
+    <div class="actions">
+      <button 
+        mat-raised-button 
+        color="primary" 
+        (click)="printQrCodes()"
+        [disabled]="loading() || vehicleQrCodes().length === 0">
+        <mat-icon>print</mat-icon>
+        Imprimer tous les QR codes
+      </button>
+      
+      <button 
+        mat-stroked-button 
+        (click)="reload()"
+        [disabled]="loading()">
+        <mat-icon>refresh</mat-icon>
+        Recharger
+      </button>
+    </div>
+  </div>
+
+  <!-- Loading state -->
+  @if (loading()) {
+    <div class="loading-container">
+      <mat-spinner></mat-spinner>
+      <p>Chargement des véhicules...</p>
+    </div>
+  }
+
+  <!-- Error state -->
+  @if (error()) {
+    <mat-card class="error-card no-print">
+      <mat-card-content>
+        <mat-icon color="warn">error</mat-icon>
+        <p>{{ error() }}</p>
+        <button mat-button (click)="reload()">Réessayer</button>
+      </mat-card-content>
+    </mat-card>
+  }
+
+  <!-- QR Codes Grid (screen view) -->
+  @if (!loading() && !error() && vehicleQrCodes().length > 0) {
+    <div class="qr-grid no-print">
+      @for (item of vehicleQrCodes(); track item.vehicle.nom_synthetique) {
+        <mat-card class="qr-card">
+          <mat-card-header>
+            <mat-card-title>{{ item.vehicle.indicatif }}</mat-card-title>
+            <mat-card-subtitle>{{ item.vehicle.nom_synthetique }}</mat-card-subtitle>
+          </mat-card-header>
+          
+          <mat-card-content>
+            <div class="qr-code-wrapper">
+              <qrcode 
+                [qrdata]="item.qrCodeUrl" 
+                [width]="200" 
+                [errorCorrectionLevel]="'M'"
+                [margin]="2">
+              </qrcode>
+            </div>
+
+            <p class="instruction-text">{{ getInstructionMessage(item.vehicle) }}</p>
+
+            <div class="vehicle-info">
+              <p><strong>Véhicule:</strong> {{ item.vehicle.marque }} {{ item.vehicle.modele }}</p>
+              <p><strong>Immatriculation:</strong> {{ item.vehicle.immat }}</p>
+              <p><strong>UL:</strong> {{ item.vehicle.dt_ul }}</p>
+            </div>
+          </mat-card-content>
+          
+          <mat-card-actions>
+            <button 
+              mat-button 
+              color="primary"
+              (click)="printSingleQrCode(item)">
+              <mat-icon>print</mat-icon>
+              Imprimer
+            </button>
+          </mat-card-actions>
+        </mat-card>
+      }
+    </div>
+
+    <!-- Print Layout (A6/A7 format) -->
+    <div class="print-only">
+      @for (item of vehicleQrCodes(); track item.vehicle.nom_synthetique) {
+        <div class="qr-print-page">
+          <div class="qr-print-content">
+            <h2 class="print-title">{{ item.vehicle.indicatif }}</h2>
+            <p class="print-subtitle">{{ item.vehicle.nom_synthetique }}</p>
+
+            <div class="print-instruction">
+              <p>{{ getInstructionMessage(item.vehicle) }}</p>
+            </div>
+
+            <div class="qr-code-print">
+              <qrcode
+                [qrdata]="item.qrCodeUrl"
+                [width]="120"
+                [errorCorrectionLevel]="'M'"
+                [margin]="1">
+              </qrcode>
+            </div>
+            
+            <div class="print-vehicle-info">
+              <p>{{ item.vehicle.marque }} {{ item.vehicle.modele }}</p>
+              <p>{{ item.vehicle.immat }}</p>
+            </div>
+          </div>
+        </div>
+      }
+    </div>
+  }
+
+  <!-- Empty state -->
+  @if (!loading() && !error() && vehicleQrCodes().length === 0) {
+    <mat-card class="empty-card no-print">
+      <mat-card-content>
+        <mat-icon>qr_code_2</mat-icon>
+        <p>Aucun véhicule disponible</p>
+      </mat-card-content>
+    </mat-card>
+  }
+</div>
+

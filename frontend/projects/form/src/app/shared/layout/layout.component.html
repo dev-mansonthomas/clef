@@ -1,0 +1,43 @@
+<div class="layout-container">
+  <!-- Header with logo -->
+  <header class="app-header">
+    <div class="header-content">
+      <img
+        src="assets/images/logo-CLEF-Carnet-Suivi.png"
+        alt="Logo CLEF Carnet de Suivi"
+        class="app-logo"
+      />
+      <h1 class="app-title-header">C.L.E.F. - Réservation et Suivi</h1>
+    </div>
+  </header>
+
+  <!-- Mobile-first toolbar -->
+  <mat-toolbar color="primary" class="layout-toolbar">
+    <!-- Navigation -->
+    <nav class="nav-menu">
+      <a mat-button routerLink="/reservations" routerLinkActive="active">
+        <mat-icon>event</mat-icon>
+        <span class="nav-label">Réservations</span>
+      </a>
+      <a mat-button routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{exact: true}">
+        <mat-icon>directions_car</mat-icon>
+        <span class="nav-label">Prise/Retour</span>
+      </a>
+    </nav>
+
+    <span class="toolbar-spacer"></span>
+
+    @if (currentUser$ | async; as user) {
+      <span class="user-info">{{ user.prenom }} {{ user.nom }}</span>
+      <button mat-icon-button (click)="logout()" aria-label="Déconnexion">
+        <mat-icon>logout</mat-icon>
+      </button>
+    }
+  </mat-toolbar>
+
+  <!-- Page content -->
+  <div class="layout-content">
+    <router-outlet></router-outlet>
+  </div>
+</div>
+

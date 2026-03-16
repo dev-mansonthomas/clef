@@ -1,0 +1,191 @@
+<div class="dashboard-container">
+  <div class="header">
+    <h1>Tableau de bord</h1>
+    <p class="subtitle">Vue d'ensemble de la flotte</p>
+  </div>
+
+  @if (loading()) {
+    <div class="loading-container">
+      <mat-spinner></mat-spinner>
+    </div>
+  } @else if (error()) {
+    <div class="error-container">
+      <mat-icon>error</mat-icon>
+      <p>{{ error() }}</p>
+    </div>
+  } @else if (stats(); as data) {
+    <!-- Summary cards -->
+    <div class="summary-cards">
+      <mat-card class="stat-card">
+        <mat-card-content>
+          <div class="stat-value">{{ data.total_vehicules }}</div>
+          <div class="stat-label">Véhicules total</div>
+        </mat-card-content>
+      </mat-card>
+
+      <mat-card class="stat-card unavailable-card">
+        <mat-card-content>
+          <div class="stat-value">{{ data.indisponibles }}</div>
+          <div class="stat-label">Indisponibles</div>
+        </mat-card-content>
+      </mat-card>
+
+      <mat-card class="stat-card alert-card">
+        <mat-card-content>
+          <div class="stat-value">{{ data.ct.en_retard + data.pollution.en_retard }}</div>
+          <div class="stat-label">Alertes</div>
+        </mat-card-content>
+      </mat-card>
+    </div>
+
+    <!-- CT Status -->
+    <mat-card class="status-card">
+      <mat-card-header>
+        <mat-card-title>Contrôle Technique</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <div class="status-row">
+          <div class="status-item status-red">
+            <mat-icon>error</mat-icon>
+            <span class="status-count">{{ data.ct.en_retard }}</span>
+            <span class="status-text">en retard</span>
+          </div>
+          <div class="status-item status-orange">
+            <mat-icon>warning</mat-icon>
+            <span class="status-count">{{ data.ct.dans_2_mois }}</span>
+            <span class="status-text">dans 2 mois</span>
+          </div>
+          <div class="status-item status-green">
+            <mat-icon>check_circle</mat-icon>
+            <span class="status-count">{{ data.ct.ok }}</span>
+            <span class="status-text">OK</span>
+          </div>
+          <div class="status-item status-gray">
+            <mat-icon>remove_circle_outline</mat-icon>
+            <span class="status-count">{{ data.ct.sans_ct }}</span>
+            <span class="status-text">sans CT</span>
+          </div>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- Pollution Status -->
+    <mat-card class="status-card">
+      <mat-card-header>
+        <mat-card-title>Contrôle Anti-pollution</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <div class="status-row">
+          <div class="status-item status-red">
+            <mat-icon>error</mat-icon>
+            <span class="status-count">{{ data.pollution.en_retard }}</span>
+            <span class="status-text">en retard</span>
+          </div>
+          <div class="status-item status-orange">
+            <mat-icon>warning</mat-icon>
+            <span class="status-count">{{ data.pollution.dans_2_mois }}</span>
+            <span class="status-text">dans 2 mois</span>
+          </div>
+          <div class="status-item status-green">
+            <mat-icon>check_circle</mat-icon>
+            <span class="status-count">{{ data.pollution.ok }}</span>
+            <span class="status-text">OK</span>
+          </div>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- Alerts -->
+    @if (data.alertes.length > 0) {
+      <mat-card class="alerts-card">
+        <mat-card-header>
+          <mat-card-title>Véhicules nécessitant attention</mat-card-title>
+        </mat-card-header>
+        <mat-card-content>
+          <!-- Desktop table view -->
+          <div class="desktop-only">
+            <table mat-table [dataSource]="data.alertes" class="alerts-table">
+              <!-- DT/UL Column -->
+              <ng-container matColumnDef="dt_ul">
+                <th mat-header-cell *matHeaderCellDef>DT/UL</th>
+                <td mat-cell *matCellDef="let alert">{{ alert.dt_ul }}</td>
+              </ng-container>
+
+              <!-- Indicatif Column -->
+              <ng-container matColumnDef="indicatif">
+                <th mat-header-cell *matHeaderCellDef>Indicatif</th>
+                <td mat-cell *matCellDef="let alert">{{ alert.indicatif }}</td>
+              </ng-container>
+
+              <!-- Type Column -->
+              <ng-container matColumnDef="type">
+                <th mat-header-cell *matHeaderCellDef>Type</th>
+                <td mat-cell *matCellDef="let alert">{{ alert.type_vehicule }}</td>
+              </ng-container>
+
+              <!-- Immatriculation Column -->
+              <ng-container matColumnDef="immatriculation">
+                <th mat-header-cell *matHeaderCellDef>Immat</th>
+                <td mat-cell *matCellDef="let alert">{{ alert.immatriculation }}</td>
+              </ng-container>
+
+              <!-- Marque/Modèle Column -->
+              <ng-container matColumnDef="marque_modele">
+                <th mat-header-cell *matHeaderCellDef>Marque/Modèle</th>
+                <td mat-cell *matCellDef="let alert">{{ alert.marque }} {{ alert.modele }}</td>
+              </ng-container>
+
+              <!-- Alerte Column -->
+              <ng-container matColumnDef="alerte">
+                <th mat-header-cell *matHeaderCellDef>Alerte</th>
+                <td mat-cell *matCellDef="let alert"
+                    [class.alert-expired]="alert.type === 'ct_expire' || alert.type === 'pollution_expire'"
+                    [class.alert-upcoming]="alert.type === 'ct_bientot' || alert.type === 'pollution_bientot'">
+                  {{ getAlertLabel(alert) }}
+                </td>
+              </ng-container>
+
+              <tr mat-header-row *matHeaderRowDef="alertColumns"></tr>
+              <tr mat-row *matRowDef="let row; columns: alertColumns"
+                  (click)="goToVehicle(row.immatriculation)"
+                  class="clickable-row"></tr>
+            </table>
+          </div>
+
+          <!-- Mobile cards view -->
+          <div class="cards-container mobile-only">
+            @for (alert of data.alertes; track alert.immatriculation) {
+              <div class="alert-card" (click)="goToVehicle(alert.immatriculation)">
+                <!-- Header -->
+                <div class="card-header">
+                  <div class="card-title">
+                    <span class="dt-ul">{{ alert.dt_ul }}</span>
+                    <span class="indicatif">{{ alert.indicatif }}</span>
+                  </div>
+                  <span class="type-badge">{{ alert.type_vehicule }}</span>
+                </div>
+
+                <!-- Immatriculation -->
+                <div class="card-immat">{{ alert.immatriculation }}</div>
+
+                <!-- Marque/Modèle -->
+                <div class="card-marque">{{ alert.marque }} {{ alert.modele }}</div>
+
+                <div class="card-divider"></div>
+
+                <!-- Alert -->
+                <div class="card-alert"
+                     [class.alert-expired]="alert.type === 'ct_expire' || alert.type === 'pollution_expire'"
+                     [class.alert-upcoming]="alert.type === 'ct_bientot' || alert.type === 'pollution_bientot'">
+                  <mat-icon>{{ (alert.type === 'ct_expire' || alert.type === 'pollution_expire') ? 'error' : 'warning' }}</mat-icon>
+                  <span>{{ getAlertLabel(alert) }}</span>
+                </div>
+              </div>
+            }
+          </div>
+        </mat-card-content>
+      </mat-card>
+    }
+  }
+</div>
+

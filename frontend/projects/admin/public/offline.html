@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CLEF Admin - Hors ligne</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: 'Roboto', Arial, sans-serif;
+      background: linear-gradient(135deg, #e30613 0%, #c00510 100%);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+    .container {
+      text-align: center;
+      max-width: 500px;
+    }
+    .icon {
+      font-size: 80px;
+      margin-bottom: 20px;
+    }
+    h1 {
+      font-size: 32px;
+      margin-bottom: 16px;
+      font-weight: 500;
+    }
+    p {
+      font-size: 18px;
+      line-height: 1.6;
+      margin-bottom: 24px;
+      opacity: 0.9;
+    }
+    .status {
+      background: rgba(255, 255, 255, 0.2);
+      padding: 12px 24px;
+      border-radius: 24px;
+      display: inline-block;
+      margin-bottom: 24px;
+    }
+    button {
+      background: white;
+      color: #e30613;
+      border: none;
+      padding: 12px 32px;
+      font-size: 16px;
+      font-weight: 500;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: transform 0.2s;
+    }
+    button:hover {
+      transform: scale(1.05);
+    }
+    button:active {
+      transform: scale(0.95);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="icon">📡</div>
+    <h1>Vous êtes hors ligne</h1>
+    <div class="status" id="status">
+      Connexion perdue
+    </div>
+    <p>
+      L'interface d'administration CLEF nécessite une connexion Internet pour fonctionner.
+      Veuillez vérifier votre connexion réseau.
+    </p>
+    <button onclick="location.reload()">Réessayer</button>
+  </div>
+
+  <script>
+    // Monitor online status
+    function updateStatus() {
+      const status = document.getElementById('status');
+      if (navigator.onLine) {
+        status.textContent = 'Connexion rétablie';
+        setTimeout(() => location.reload(), 1000);
+      } else {
+        status.textContent = 'Connexion perdue';
+      }
+    }
+
+    window.addEventListener('online', updateStatus);
+    window.addEventListener('offline', updateStatus);
+    
+    // Check every 5 seconds
+    setInterval(updateStatus, 5000);
+  </script>
+</body>
+</html>
+

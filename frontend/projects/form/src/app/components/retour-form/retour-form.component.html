@@ -1,0 +1,174 @@
+<div class="retour-form-container">
+  <mat-card>
+    <mat-card-header>
+      <mat-card-title>Retour de Véhicule</mat-card-title>
+      <mat-card-subtitle>
+        @if (priseData()) {
+          {{ priseData()!.nomSynthetique }}
+        }
+      </mat-card-subtitle>
+    </mat-card-header>
+
+    <mat-card-content>
+      @if (loadingPriseData()) {
+        <div class="loading-container">
+          <mat-spinner diameter="40"></mat-spinner>
+          <p>Chargement des données de prise...</p>
+        </div>
+      } @else {
+        <form [formGroup]="retourForm" (ngSubmit)="onSubmit()">
+          
+          <!-- Données de prise (lecture seule) -->
+          @if (priseData()) {
+            <div class="prise-info">
+              <h3>Informations de prise</h3>
+              <div class="info-grid">
+                <div class="info-item">
+                  <span class="label">Date de prise:</span>
+                  <span class="value">{{ priseData()!.timestamp | date:'short' }}</span>
+                </div>
+                <div class="info-item">
+                  <span class="label">Km départ:</span>
+                  <span class="value">{{ priseData()!.kilometrage }} km</span>
+                </div>
+                <div class="info-item">
+                  <span class="label">Carburant départ:</span>
+                  <span class="value">{{ priseData()!.niveau_carburant }}</span>
+                </div>
+                <div class="info-item">
+                  <span class="label">Bénévole:</span>
+                  <span class="value">{{ priseData()!.benevole_prenom }} {{ priseData()!.benevole_nom }}</span>
+                </div>
+              </div>
+            </div>
+          }
+
+          <!-- Section: Données de retour -->
+          <div class="retour-section">
+            <h3>Données de retour</h3>
+
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Kilométrage d'arrivée</mat-label>
+              <input matInput type="number" formControlName="kmArrivee" required>
+              <mat-hint>
+                @if (kmParcourus()) {
+                  Distance parcourue: {{ kmParcourus() }} km
+                }
+              </mat-hint>
+              <mat-error *ngIf="retourForm.get('kmArrivee')?.hasError('required')">
+                Kilométrage requis
+              </mat-error>
+              <mat-error *ngIf="retourForm.get('kmArrivee')?.hasError('min')">
+                Kilométrage invalide
+              </mat-error>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Niveau de carburant</mat-label>
+              <mat-select formControlName="niveauCarburant" required>
+                <mat-option *ngFor="let niveau of niveauxCarburant" [value]="niveau.value">
+                  {{ niveau.label }}
+                </mat-option>
+              </mat-select>
+              <mat-error *ngIf="retourForm.get('niveauCarburant')?.hasError('required')">
+                Niveau de carburant requis
+              </mat-error>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>État général du véhicule</mat-label>
+              <mat-select formControlName="etatGeneral" required>
+                <mat-option *ngFor="let etat of etatsGeneral" [value]="etat.value">
+                  {{ etat.label }}
+                </mat-option>
+              </mat-select>
+              <mat-error *ngIf="retourForm.get('etatGeneral')?.hasError('required')">
+                État général requis
+              </mat-error>
+            </mat-form-field>
+          </div>
+
+          <!-- Section: Signalement de problème -->
+          <div class="problem-section">
+            <mat-checkbox formControlName="problemeASignaler" class="problem-checkbox">
+              Problème à signaler
+            </mat-checkbox>
+
+            @if (showProblemFields()) {
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Description du problème</mat-label>
+                <textarea 
+                  matInput 
+                  formControlName="descriptionProbleme"
+                  rows="4"
+                  placeholder="Décrivez le problème rencontré..."></textarea>
+                <mat-error *ngIf="retourForm.get('descriptionProbleme')?.hasError('required')">
+                  Description requise
+                </mat-error>
+                <mat-error *ngIf="retourForm.get('descriptionProbleme')?.hasError('minlength')">
+                  Description trop courte (minimum 10 caractères)
+                </mat-error>
+              </mat-form-field>
+
+              <!-- Photo upload -->
+              <div class="photo-upload">
+                <h4>Photos du problème</h4>
+                <input 
+                  type="file" 
+                  #photoInput
+                  accept="image/*"
+                  multiple
+                  (change)="onPhotoSelected($event)"
+                  style="display: none">
+                
+                <button 
+                  mat-stroked-button 
+                  type="button"
+                  (click)="photoInput.click()">
+                  <mat-icon>add_photo_alternate</mat-icon>
+                  Ajouter des photos
+                </button>
+
+                @if (selectedPhotos().length > 0) {
+                  <div class="photo-list">
+                    @for (photo of selectedPhotos(); track $index) {
+                      <div class="photo-item">
+                        <mat-icon>image</mat-icon>
+                        <span>{{ photo.name }}</span>
+                        <button 
+                          mat-icon-button 
+                          type="button"
+                          (click)="removePhoto($index)">
+                          <mat-icon>close</mat-icon>
+                        </button>
+                      </div>
+                    }
+                  </div>
+                }
+              </div>
+            }
+          </div>
+
+          <!-- Actions -->
+          <div class="actions">
+            <button 
+              mat-raised-button 
+              color="primary"
+              type="submit"
+              [disabled]="retourForm.invalid || loading()">
+              @if (loading()) {
+                <mat-spinner diameter="20"></mat-spinner>
+              }
+              <span>{{ loading() ? 'Enregistrement...' : 'Enregistrer le retour' }}</span>
+            </button>
+
+            <button mat-button type="button" routerLink="/">
+              Annuler
+            </button>
+          </div>
+        </form>
+      }
+    </mat-card-content>
+  </mat-card>
+</div>
+

@@ -1,0 +1,121 @@
+<div class="reservation-form-container">
+  <mat-card>
+    <mat-card-header>
+      <mat-card-title>
+        {{ isEditMode() ? 'Modifier la réservation' : 'Nouvelle réservation' }}
+      </mat-card-title>
+    </mat-card-header>
+
+    <mat-card-content>
+      @if (loading()) {
+        <div class="loading-container">
+          <mat-spinner diameter="40"></mat-spinner>
+          <p>Chargement...</p>
+        </div>
+      } @else {
+        <form [formGroup]="reservationForm" (ngSubmit)="onSubmit()">
+          <!-- Vehicle Selection -->
+          <mat-form-field class="full-width">
+            <mat-label>Véhicule</mat-label>
+            <mat-select formControlName="vehicule_immat" required>
+              @for (vehicle of vehicles(); track vehicle.immat) {
+                <mat-option [value]="vehicle.immat">
+                  {{ vehicle.immat }} - {{ vehicle.marque }} {{ vehicle.modele }}
+                </mat-option>
+              }
+            </mat-select>
+            <mat-error>Veuillez sélectionner un véhicule</mat-error>
+          </mat-form-field>
+
+          <!-- Driver Selection with Autocomplete -->
+          <mat-form-field class="full-width">
+            <mat-label>Chauffeur</mat-label>
+            <input 
+              type="text" 
+              matInput 
+              formControlName="chauffeur_nom"
+              [matAutocomplete]="auto"
+              required>
+            <mat-autocomplete 
+              #auto="matAutocomplete" 
+              [displayWith]="displayBenevole"
+              (optionSelected)="onBenevoleSelected($event.option.value)">
+              @for (benevole of filteredBenevoles | async; track benevole.nivol) {
+                <mat-option [value]="benevole">
+                  {{ benevole.prenom }} {{ benevole.nom }} ({{ benevole.nivol }})
+                </mat-option>
+              }
+            </mat-autocomplete>
+            <mat-error>Veuillez sélectionner un chauffeur</mat-error>
+          </mat-form-field>
+
+          <!-- Hidden NIVOL field -->
+          <input type="hidden" formControlName="chauffeur_nivol">
+
+          <!-- Mission -->
+          <mat-form-field class="full-width">
+            <mat-label>Mission</mat-label>
+            <input matInput formControlName="mission" required>
+            <mat-error>Veuillez saisir la mission</mat-error>
+          </mat-form-field>
+
+          <!-- Date Range -->
+          <div class="date-range">
+            <mat-form-field class="half-width">
+              <mat-label>Date et heure de début</mat-label>
+              <input 
+                matInput 
+                type="datetime-local" 
+                formControlName="debut" 
+                required>
+              <mat-error>Veuillez saisir la date de début</mat-error>
+            </mat-form-field>
+
+            <mat-form-field class="half-width">
+              <mat-label>Date et heure de fin</mat-label>
+              <input 
+                matInput 
+                type="datetime-local" 
+                formControlName="fin" 
+                required>
+              <mat-error>Veuillez saisir la date de fin</mat-error>
+            </mat-form-field>
+          </div>
+
+          <!-- Departure Location -->
+          <mat-form-field class="full-width">
+            <mat-label>Lieu de départ (optionnel)</mat-label>
+            <input matInput formControlName="lieu_depart">
+          </mat-form-field>
+
+          <!-- Comments -->
+          <mat-form-field class="full-width">
+            <mat-label>Commentaire (optionnel)</mat-label>
+            <textarea 
+              matInput 
+              formControlName="commentaire" 
+              rows="3"></textarea>
+          </mat-form-field>
+
+          <!-- Actions -->
+          <div class="form-actions">
+            <button 
+              mat-button 
+              type="button" 
+              (click)="cancel()">
+              Annuler
+            </button>
+            <button 
+              mat-raised-button 
+              color="primary" 
+              type="submit"
+              [disabled]="loading()">
+              {{ isEditMode() ? 'Modifier' : 'Créer' }}
+            </button>
+          </div>
+        </form>
+      }
+    </mat-card-content>
+  </mat-card>
+</div>
+

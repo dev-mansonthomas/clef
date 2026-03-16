@@ -1,0 +1,46 @@
+<div class="calendar-container">
+  <div class="calendar-header">
+    <h2>Calendrier des Réservations</h2>
+    <p class="calendar-subtitle">Vue en lecture seule des réservations de véhicules</p>
+
+    <!-- iCal Feed Integration -->
+    <div class="ical-feed-section">
+      <h3>Intégration Google Calendar</h3>
+      <p>Copiez l'URL ci-dessous pour intégrer ce calendrier dans Google Calendar :</p>
+      <div class="ical-url-container">
+        <input
+          type="text"
+          [value]="icalFeedUrl()"
+          readonly
+          class="ical-url-input"
+        />
+        <button
+          mat-raised-button
+          color="primary"
+          (click)="copyICalUrl()">
+          <mat-icon>content_copy</mat-icon>
+          Copier l'URL
+        </button>
+      </div>
+      <p class="help-text">
+        Dans Google Calendar : Autres agendas → + → À partir de l'URL → Collez l'URL
+      </p>
+    </div>
+  </div>
+
+  <!-- Loading state -->
+  @if (calendarLoading()) {
+    <div class="loading-container">
+      <mat-spinner diameter="50"></mat-spinner>
+      <p>Chargement des réservations...</p>
+    </div>
+  }
+
+  <!-- Calendar view -->
+  @else {
+    <div class="calendar-wrapper">
+      <full-calendar [options]="calendarOptions()" />
+    </div>
+  }
+</div>
+

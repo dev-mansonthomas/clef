@@ -1,0 +1,379 @@
+.vehicle-list-container {
+  padding: 24px;
+  max-width: 1400px;
+  margin: 0 auto;
+
+  .header-section {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+
+    h1 {
+      margin: 0;
+      color: #333;
+    }
+
+    .add-vehicle-btn {
+      .btn-emojis { display: none; }
+      .btn-text { display: inline; }
+      @media (max-width: 767px) {
+        .btn-emojis { display: inline; }
+        .btn-text { display: none; }
+      }
+    }
+  }
+
+  .filters {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+
+    mat-form-field {
+      min-width: 250px;
+    }
+  }
+
+  .loading {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 400px;
+  }
+
+  .desktop-only { display: block; }
+  .mobile-only { display: none !important; }
+  @media (max-width: 767px) {
+    .desktop-only { display: none !important; }
+    .mobile-only { display: flex !important; }
+  }
+
+  .table-container {
+    overflow-x: auto;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+
+    .vehicle-table {
+      width: 100%;
+
+      th {
+        font-weight: 600;
+        background-color: #f5f5f5;
+        padding: 12px;
+      }
+
+      td {
+        padding: 12px;
+        &.mat-column-status_ct,
+        &.mat-column-status_pollution,
+        &.mat-column-assurance {
+          white-space: nowrap;
+        }
+      }
+
+      .clickable-row {
+        cursor: pointer;
+        transition: background-color 0.2s;
+
+        &:hover {
+          background-color: #e8e8e8;
+        }
+        &:nth-child(even) {
+          background-color: #f0f0f0;
+
+          &:hover {
+            background-color: #e8e8e8;
+          }
+        }
+
+        &.highlight-blink {
+          animation: blink-highlight 0.5s ease-in-out 8;
+        }
+      }
+
+      @keyframes blink-highlight {
+        0%, 100% { background-color: transparent; }
+        50% { background-color: #fff3cd; }
+      }
+
+      .status-red {
+        color: #d32f2f;
+        font-weight: 600;
+        padding: 4px 8px;
+        border-radius: 4px;
+        background-color: #ffebee;
+      }
+      .status-orange {
+        color: #f57c00;
+        font-weight: 600;
+        padding: 4px 8px;
+        border-radius: 4px;
+        background-color: #fff3e0;
+      }
+      .status-green {
+        color: #388e3c;
+        font-weight: 600;
+        padding: 4px 8px;
+        border-radius: 4px;
+        background-color: #e8f5e9;
+      }
+      .status-gray {
+        color: #666;
+        font-weight: 600;
+        padding: 4px 8px;
+        border-radius: 4px;
+        background-color: #e8e8e8;
+      }
+
+      .infos-cell {
+        white-space: nowrap;
+        font-variant-numeric: tabular-nums;
+
+        .infos-content {
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+
+          .km-line {
+            font-size: 14px;
+            color: #333;
+          }
+
+          .fuel-line {
+            font-size: 14px;
+            color: #333;
+          }
+        }
+      }
+    }
+
+    .no-data {
+      padding: 48px;
+      text-align: center;
+      color: #666;
+
+      p {
+        margin: 0;
+        font-size: 16px;
+      }
+    }
+  }
+
+  .cards-container {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+
+    .vehicle-card {
+      background: white;
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+
+      &:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      }
+
+      .card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 8px;
+
+        .card-title {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+
+          .indicatif {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+          }
+
+          .type-badge {
+            background-color: #e3f2fd;
+            color: #1976d2;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+          }
+        }
+
+        .availability-badge {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          padding: 4px 8px;
+          border-radius: 12px;
+          font-size: 12px;
+          font-weight: 600;
+
+          .badge-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+          }
+
+          &.badge-green {
+            background-color: #e8f5e9;
+            color: #388e3c;
+
+            .badge-dot {
+              background-color: #388e3c;
+            }
+          }
+
+          &.badge-red {
+            background-color: #ffebee;
+            color: #d32f2f;
+
+            .badge-dot {
+              background-color: #d32f2f;
+            }
+          }
+
+          &.badge-orange {
+            background-color: #fff3e0;
+            color: #f57c00;
+
+            .badge-dot {
+              background-color: #f57c00;
+            }
+          }
+        }
+      }
+
+      .card-immat {
+        font-size: 14px;
+        color: #666;
+        margin-bottom: 12px;
+      }
+
+      .card-info-row {
+        display: flex;
+        gap: 16px;
+        margin-bottom: 12px;
+
+        .info-item {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          font-size: 14px;
+          color: #333;
+
+          .icon {
+            font-size: 16px;
+          }
+        }
+      }
+
+      .card-divider {
+        height: 1px;
+        background-color: #e0e0e0;
+        margin: 12px 0;
+      }
+
+      .card-details {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+        margin-bottom: 16px;
+
+        .detail-item {
+          .detail-label {
+            font-size: 11px;
+            font-weight: 600;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+          }
+
+          .detail-value {
+            font-size: 14px;
+            color: #333;
+            font-weight: 500;
+          }
+        }
+      }
+
+      .card-fuel {
+        .fuel-header {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          margin-bottom: 8px;
+
+          .fuel-icon {
+            font-size: 18px;
+          }
+
+          .fuel-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #666;
+            text-transform: uppercase;
+            flex: 1;
+          }
+
+          .fuel-percentage {
+            font-size: 14px;
+            font-weight: 600;
+            color: #333;
+          }
+        }
+
+        .fuel-bar {
+          height: 8px;
+          background-color: #e0e0e0;
+          border-radius: 4px;
+          overflow: hidden;
+          margin-bottom: 4px;
+
+          .fuel-bar-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.3s ease;
+
+            &.fuel-green {
+              background-color: #4caf50;
+            }
+
+            &.fuel-orange {
+              background-color: #ff9800;
+            }
+
+            &.fuel-red {
+              background-color: #f44336;
+            }
+          }
+        }
+
+        .fuel-autonomy {
+          font-size: 12px;
+          color: #666;
+          text-align: right;
+        }
+      }
+    }
+
+    .no-data {
+      padding: 48px;
+      text-align: center;
+      color: #666;
+
+      p {
+        margin: 0;
+        font-size: 16px;
+      }
+    }
+  }
+}
+

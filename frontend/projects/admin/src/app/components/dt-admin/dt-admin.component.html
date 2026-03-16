@@ -1,0 +1,116 @@
+<div class="dt-admin-container">
+  <div class="header">
+    <h1>Administration DT</h1>
+    <p class="subtitle">Gestion des bénévoles, des rôles et des Unités Locales</p>
+  </div>
+
+  <!-- UL Management Section -->
+  <mat-card class="ul-management-card">
+    <mat-card-header>
+      <mat-card-title>Gestion des Unités Locales</mat-card-title>
+      <button mat-raised-button color="primary" (click)="openCreateULDialog()" class="add-ul-button">
+        <mat-icon>add</mat-icon>
+        Ajouter une UL
+      </button>
+    </mat-card-header>
+    <mat-card-content>
+      @if (ulLoading()) {
+        <div class="loading-container">
+          <mat-spinner diameter="40"></mat-spinner>
+        </div>
+      } @else if (unitesLocales().length === 0) {
+        <p class="no-data">Aucune Unité Locale configurée</p>
+      } @else {
+        <table mat-table [dataSource]="unitesLocales()" class="ul-table">
+          <!-- ID Column -->
+          <ng-container matColumnDef="id">
+            <th mat-header-cell *matHeaderCellDef>ID</th>
+            <td mat-cell *matCellDef="let ul">{{ ul.id }}</td>
+          </ng-container>
+
+          <!-- Nom Column -->
+          <ng-container matColumnDef="nom">
+            <th mat-header-cell *matHeaderCellDef>Nom</th>
+            <td mat-cell *matCellDef="let ul">{{ ul.nom }}</td>
+          </ng-container>
+
+          <!-- Actions Column -->
+          <ng-container matColumnDef="actions">
+            <th mat-header-cell *matHeaderCellDef>Actions</th>
+            <td mat-cell *matCellDef="let ul">
+              <button mat-icon-button (click)="openEditULDialog(ul)" matTooltip="Modifier">
+                <mat-icon>edit</mat-icon>
+              </button>
+              <button mat-icon-button (click)="deleteUL(ul)" matTooltip="Supprimer" color="warn">
+                <mat-icon>delete</mat-icon>
+              </button>
+            </td>
+          </ng-container>
+
+          <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+          <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+        </table>
+      }
+    </mat-card-content>
+  </mat-card>
+
+  <!-- Bénévoles Section -->
+  @if (loading()) {
+    <div class="loading-container">
+      <mat-spinner></mat-spinner>
+    </div>
+  } @else {
+    <div class="benevoles-list">
+      @for (group of benevolesByUL(); track group.ul) {
+        <mat-card class="ul-group">
+          <mat-card-header>
+            <mat-card-title>{{ group.ul }}</mat-card-title>
+          </mat-card-header>
+          <mat-card-content>
+            <div class="benevoles-table">
+              @for (benevole of group.benevoles; track benevole.email) {
+                <div class="benevole-row">
+                  <div class="benevole-info">
+                    <span class="benevole-name">{{ benevole.prenom }} {{ benevole.nom }}</span>
+                    <span class="benevole-email">{{ benevole.email }}</span>
+                  </div>
+                  <div class="benevole-role">
+                    <span class="role-badge">{{ getRoleDisplay(benevole.role) }}</span>
+                    @if (canModifyBenevole(benevole)) {
+                      <button
+                        mat-icon-button
+                        [matMenuTriggerFor]="roleMenu"
+                        aria-label="Modifier le rôle"
+                      >
+                        <mat-icon>more_vert</mat-icon>
+                      </button>
+                      <mat-menu #roleMenu="matMenu">
+                        <button
+                          mat-menu-item
+                          (click)="setResponsableUL(benevole)"
+                          [disabled]="!benevole.ul"
+                        >
+                          <mat-icon>supervisor_account</mat-icon>
+                          <span>Définir comme Responsable UL</span>
+                        </button>
+                        <button
+                          mat-menu-item
+                          (click)="removeRole(benevole)"
+                          [disabled]="!benevole.role || benevole.role === 'Bénévole'"
+                        >
+                          <mat-icon>person</mat-icon>
+                          <span>Retirer le rôle</span>
+                        </button>
+                      </mat-menu>
+                    }
+                  </div>
+                </div>
+              }
+            </div>
+          </mat-card-content>
+        </mat-card>
+      }
+    </div>
+  }
+</div>
+

@@ -1,0 +1,135 @@
+.mapper-container {
+  h3 {
+    margin-bottom: 24px;
+    color: var(--mat-sys-on-surface);
+  }
+}
+
+.loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 48px;
+
+  p {
+    color: var(--mat-sys-on-surface-variant);
+  }
+}
+
+.mapping-section {
+  .info-banner {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px;
+    background-color: var(--mat-sys-primary-container);
+    color: var(--mat-sys-on-primary-container);
+    border-radius: 8px;
+    margin-bottom: 24px;
+
+    mat-icon {
+      font-size: 20px;
+      width: 20px;
+      height: 20px;
+      flex-shrink: 0;
+    }
+  }
+}
+
+.mapping-table {
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.mapping-header {
+  display: grid;
+  grid-template-columns: 3fr 3fr 2fr;
+  gap: 16px;
+  padding: 16px;
+  background-color: var(--mat-sys-surface-container);
+  font-weight: 500;
+  border-bottom: 1px solid var(--mat-sys-outline-variant);
+}
+
+.mapping-row {
+  display: grid;
+  grid-template-columns: 3fr 3fr 2fr;
+  gap: 16px;
+  padding: 16px;
+  border-bottom: 1px solid var(--mat-sys-outline-variant);
+  align-items: center;
+
+  &:last-child {
+    border-bottom: none;
+  }
+
+  &:hover {
+    background-color: var(--mat-sys-surface-container-lowest);
+  }
+}
+
+.csv-column-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  .column-letter {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    background-color: var(--mat-sys-primary-container);
+    color: var(--mat-sys-on-primary-container);
+    border-radius: 4px;
+    font-weight: 600;
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+
+  .column-name {
+    font-weight: 500;
+    color: var(--mat-sys-on-surface);
+  }
+}
+
+.clef-field-cell {
+  mat-form-field {
+    width: 100%;
+    margin: 0;
+  }
+}
+
+.example-cell {
+  .example-value {
+    font-size: 14px;
+    color: var(--mat-sys-on-surface-variant);
+    font-family: monospace;
+
+    &:empty::before {
+      content: '-';
+      opacity: 0.5;
+    }
+  }
+}
+
+.warning-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  margin-top: 16px;
+  background-color: var(--mat-sys-error-container);
+  color: var(--mat-sys-on-error-container);
+  border-radius: 8px;
+
+  mat-icon {
+    font-size: 20px;
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+  }
+}
+

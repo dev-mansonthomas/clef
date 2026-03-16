@@ -52,6 +52,11 @@ Thumbs.db
 # Logs
 logs/
 *.log
+npm-debug.log*
+
+# Données sensibles (emails, téléphones bénévoles)
+*.csv
+Référentiel*.csv
 
 # Coverage
 coverage/

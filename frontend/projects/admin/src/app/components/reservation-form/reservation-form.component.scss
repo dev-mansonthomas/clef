@@ -1,0 +1,87 @@
+.reservation-form-container {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 24px;
+
+  h2 {
+    margin-bottom: 24px;
+    color: var(--mat-sys-on-surface);
+  }
+
+  h3 {
+    font-size: 16px;
+    font-weight: 500;
+    margin-bottom: 16px;
+    color: var(--mat-sys-on-surface-variant);
+  }
+
+  .date-time-section,
+  .vehicle-section,
+  .details-section {
+    margin-bottom: 32px;
+  }
+
+  .date-time-row {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 16px;
+
+    .date-field {
+      flex: 2;
+    }
+
+    .time-field {
+      flex: 1;
+    }
+  }
+
+  .full-width {
+    width: 100%;
+    margin-bottom: 16px;
+  }
+
+  .actions {
+    display: flex;
+    gap: 16px;
+    justify-content: flex-end;
+    margin-top: 24px;
+
+    button {
+      min-width: 120px;
+    }
+
+    mat-spinner {
+      display: inline-block;
+      margin-right: 8px;
+    }
+  }
+
+  mat-form-field {
+    display: block;
+  }
+}
+
+@media (max-width: 600px) {
+  .reservation-form-container {
+    padding: 16px;
+
+    .date-time-row {
+      flex-direction: column;
+      gap: 0;
+
+      .date-field,
+      .time-field {
+        flex: 1;
+      }
+    }
+
+    .actions {
+      flex-direction: column;
+
+      button {
+        width: 100%;
+      }
+    }
+  }
+}
+

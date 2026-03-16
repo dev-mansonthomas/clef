@@ -1,0 +1,67 @@
+<div class="mapper-container">
+  <h3>Mapping des colonnes</h3>
+
+  @if (loading()) {
+    <div class="loading">
+      <mat-spinner diameter="40"></mat-spinner>
+      <p>Chargement des colonnes...</p>
+    </div>
+  } @else {
+    <div class="mapping-section">
+      <div class="info-banner">
+        <mat-icon>info</mat-icon>
+        <span>
+          Associez chaque colonne de votre fichier CSV à un champ CLEF.
+          Les champs marqués (*) sont obligatoires.
+        </span>
+      </div>
+
+      <div class="mapping-table">
+        <div class="mapping-header">
+          <div class="csv-column-header">Colonne CSV</div>
+          <div class="clef-field-header">Champ CLEF</div>
+          <div class="example-header">Exemple</div>
+        </div>
+
+        @for (col of csvColumns(); track col.index) {
+          <div class="mapping-row">
+            <div class="csv-column-cell">
+              <span class="column-letter">{{ getColumnLetter(col.index) }}</span>
+              <span class="column-name">{{ col.name }}</span>
+            </div>
+
+            <div class="clef-field-cell">
+              <mat-form-field appearance="outline">
+                <mat-select
+                  [value]="getMapping(col.index)"
+                  (selectionChange)="onMappingChange(col.index, $event.value)"
+                >
+                  <mat-option value="skip">Ne pas importer</mat-option>
+                  @for (field of getAvailableFields(col.index); track field.id) {
+                    <mat-option [value]="field.id">
+                      {{ field.label }}
+                    </mat-option>
+                  }
+                </mat-select>
+              </mat-form-field>
+            </div>
+
+            <div class="example-cell">
+              <span class="example-value">{{ col.exampleValue || '-' }}</span>
+            </div>
+          </div>
+        }
+      </div>
+
+      @if (!allRequiredFieldsMapped()) {
+        <div class="warning-banner">
+          <mat-icon>warning</mat-icon>
+          <span>
+            Champs obligatoires non mappés : {{ getMissingRequiredFields().join(', ') }}
+          </span>
+        </div>
+      }
+    </div>
+  }
+</div>
+
