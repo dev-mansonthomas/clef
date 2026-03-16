@@ -241,6 +241,12 @@ class VehicleCreate(BaseModel):
     commentaires: str = Field(default="", description="Commentaires libres")
     suivi_mode: Optional[SuiviMode] = Field(default=None, description="Mode de suivi du véhicule")
 
+    @field_validator('immat', 'indicatif')
+    @classmethod
+    def uppercase_fields(cls, v: str) -> str:
+        """Force uppercase for immat and indicatif fields."""
+        return v.upper() if v else v
+
     class Config:
         json_schema_extra = {
             "example": {
@@ -269,14 +275,44 @@ class VehicleCreate(BaseModel):
 
 
 class VehicleUpdate(BaseModel):
-    """Model for updating vehicle metadata (calendar color, etc.)."""
-    couleur_calendrier: Optional[str] = Field(None, description="Couleur pour le calendrier (hex color)")
+    """Model for updating vehicle fields (all fields except immat, indicatif, nom_synthetique)."""
+    # Identification
+    dt_ul: Optional[str] = Field(None, description="DT ou UL du véhicule")
+
+    # Caractéristiques
+    marque: Optional[str] = Field(None, description="Marque du véhicule")
+    modele: Optional[str] = Field(None, description="Modèle du véhicule")
+    type: Optional[str] = Field(None, description="Type de véhicule")
+    date_mec: Optional[str] = Field(None, description="Date de mise en circulation")
+    nb_places: Optional[int] = Field(None, description="Nombre de places")
+    carte_grise: Optional[str] = Field(None, description="Statut carte grise")
+
+    # Disponibilité
+    operationnel_mecanique: Optional[str] = Field(None, description="Statut opérationnel")
+    raison_indispo: Optional[str] = Field(None, description="Raison d'indisponibilité")
+
+    # Contrôles
+    prochain_controle_technique: Optional[str] = Field(None, description="Date prochain CT")
+    prochain_controle_pollution: Optional[str] = Field(None, description="Date prochain contrôle pollution")
+
+    # Localisation & Instructions
+    lieu_stationnement: Optional[str] = Field(None, description="Lieu de stationnement")
+    instructions_recuperation: Optional[str] = Field(None, description="Instructions de récupération")
+
+    # Administratif
+    assurance_2026: Optional[str] = Field(None, description="Type d'assurance")
+    numero_serie_baus: Optional[str] = Field(None, description="Numéro de série constructeur")
     commentaires: Optional[str] = Field(None, description="Commentaires libres")
+
+    # Metadata CLEF
+    couleur_calendrier: Optional[str] = Field(None, description="Couleur pour le calendrier (hex color)")
     suivi_mode: Optional[SuiviMode] = Field(None, description="Mode de suivi du véhicule")
 
     class Config:
         json_schema_extra = {
             "example": {
+                "dt_ul": "DT75",
+                "assurance_2026": "Tous Risques",
                 "couleur_calendrier": "#FF5733",
                 "commentaires": "Véhicule principal de l'UL",
                 "suivi_mode": "prise"

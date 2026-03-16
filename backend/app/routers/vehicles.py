@@ -285,9 +285,97 @@ async def update_vehicle(
 
     # Update fields in Valkey
     updated = False
+
+    # Identification
+    if update_data.dt_ul is not None:
+        vehicle_data.dt_ul = update_data.dt_ul
+        vehicle_dict["dt_ul"] = update_data.dt_ul
+        updated = True
+
+    # Caractéristiques
+    if update_data.marque is not None:
+        vehicle_data.marque = update_data.marque
+        vehicle_dict["marque"] = update_data.marque
+        updated = True
+
+    if update_data.modele is not None:
+        vehicle_data.modele = update_data.modele
+        vehicle_dict["modele"] = update_data.modele
+        updated = True
+
+    if update_data.type is not None:
+        vehicle_data.type = update_data.type
+        vehicle_dict["type"] = update_data.type
+        updated = True
+
+    if update_data.date_mec is not None:
+        vehicle_data.date_mec = update_data.date_mec
+        vehicle_dict["date_mec"] = update_data.date_mec
+        updated = True
+
+    if update_data.nb_places is not None:
+        vehicle_data.nb_places = update_data.nb_places
+        vehicle_dict["nb_places"] = update_data.nb_places
+        updated = True
+
+    if update_data.carte_grise is not None:
+        vehicle_data.carte_grise = update_data.carte_grise
+        vehicle_dict["carte_grise"] = update_data.carte_grise
+        updated = True
+
+    # Disponibilité
+    if update_data.operationnel_mecanique is not None:
+        vehicle_data.operationnel_mecanique = update_data.operationnel_mecanique
+        vehicle_dict["operationnel_mecanique"] = update_data.operationnel_mecanique
+        updated = True
+
+    if update_data.raison_indispo is not None:
+        vehicle_data.raison_indispo = update_data.raison_indispo
+        vehicle_dict["raison_indispo"] = update_data.raison_indispo
+        updated = True
+
+    # Contrôles
+    if update_data.prochain_controle_technique is not None:
+        vehicle_data.prochain_controle_technique = update_data.prochain_controle_technique
+        vehicle_dict["prochain_controle_technique"] = update_data.prochain_controle_technique
+        updated = True
+
+    if update_data.prochain_controle_pollution is not None:
+        vehicle_data.prochain_controle_pollution = update_data.prochain_controle_pollution
+        vehicle_dict["prochain_controle_pollution"] = update_data.prochain_controle_pollution
+        updated = True
+
+    # Localisation & Instructions
+    if update_data.lieu_stationnement is not None:
+        vehicle_data.lieu_stationnement = update_data.lieu_stationnement
+        vehicle_dict["lieu_stationnement"] = update_data.lieu_stationnement
+        updated = True
+
+    if update_data.instructions_recuperation is not None:
+        vehicle_data.instructions_recuperation = update_data.instructions_recuperation
+        vehicle_dict["instructions_recuperation"] = update_data.instructions_recuperation
+        updated = True
+
+    # Administratif
+    if update_data.assurance_2026 is not None:
+        vehicle_data.assurance_2026 = update_data.assurance_2026
+        vehicle_dict["assurance_2026"] = update_data.assurance_2026
+        updated = True
+
+    if update_data.numero_serie_baus is not None:
+        vehicle_data.numero_serie_baus = update_data.numero_serie_baus
+        vehicle_dict["numero_serie_baus"] = update_data.numero_serie_baus
+        updated = True
+
     if update_data.commentaires is not None:
         vehicle_data.commentaires = update_data.commentaires
         vehicle_dict["commentaires"] = update_data.commentaires
+        updated = True
+
+    # Metadata CLEF
+    if update_data.couleur_calendrier is not None:
+        vehicle_data.couleur_calendrier = update_data.couleur_calendrier
+        vehicle_dict["couleur_calendrier"] = update_data.couleur_calendrier
         updated = True
 
     if update_data.suivi_mode is not None:
@@ -298,9 +386,6 @@ async def update_vehicle(
     # Save back to Valkey if any field was updated
     if updated:
         await valkey_service.set_vehicle(vehicle_data)
-
-    # Note: couleur_calendrier would be stored in a separate metadata structure
-    # This is not yet implemented
 
     # Return enriched vehicle
     return VehicleService.enrich_vehicle(vehicle_dict)
