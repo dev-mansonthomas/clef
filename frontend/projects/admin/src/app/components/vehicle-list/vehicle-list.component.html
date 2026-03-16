@@ -1,7 +1,7 @@
 <div class="vehicle-list-container">
   <div class="header-section">
     <h1>Liste des Véhicules</h1>
-    <button mat-raised-button color="primary" (click)="navigateToImport()">
+    <button mat-raised-button color="primary" (click)="navigateToCreate()">
       Ajouter un véhicule
     </button>
   </div>
@@ -114,16 +114,15 @@
           <td mat-cell *matCellDef="let vehicle">{{ vehicle.dt_ul }}</td>
         </ng-container>
 
-        <!-- Km Column -->
-        <ng-container matColumnDef="km">
-          <th mat-header-cell *matHeaderCellDef>Km</th>
-          <td mat-cell *matCellDef="let vehicle" class="km-cell">{{ getKilometrage(vehicle) }}</td>
-        </ng-container>
-
-        <!-- Carburant Column -->
-        <ng-container matColumnDef="carburant">
-          <th mat-header-cell *matHeaderCellDef>Carburant</th>
-          <td mat-cell *matCellDef="let vehicle" class="fuel-cell">{{ getFuelDisplay(vehicle) }}</td>
+        <!-- Infos Column (Km + Carburant) -->
+        <ng-container matColumnDef="infos">
+          <th mat-header-cell *matHeaderCellDef>Infos</th>
+          <td mat-cell *matCellDef="let vehicle" class="infos-cell">
+            <div class="infos-content">
+              <div class="km-line">{{ getKilometrage(vehicle) }} km</div>
+              <div class="fuel-line">{{ getFuelDisplay(vehicle) }}</div>
+            </div>
+          </td>
         </ng-container>
 
         <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
