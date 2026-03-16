@@ -131,4 +131,9 @@
       border: 1px solid rgba(158, 158, 158, 0.3); // Light gray border
     }
   }
+
+  // Force uppercase display for specific fields
+  .uppercase-field {
+    text-transform: uppercase;
+  }
 }

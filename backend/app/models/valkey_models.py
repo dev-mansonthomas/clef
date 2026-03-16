@@ -1,7 +1,7 @@
 """Pydantic models for Valkey data structures."""
 from typing import Optional, List, Dict
 from datetime import datetime
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 
 
 class DTConfiguration(BaseModel):
@@ -47,6 +47,12 @@ class VehicleData(BaseModel):
     assurance_2026: str = Field(default="", description="Informations assurance")
     numero_serie_baus: str = Field(default="", description="Numéro de série BAUS")
     suivi_mode: str = Field(default="prise", description="Mode de suivi du véhicule (prise/retour/prise_et_retour)")
+
+    @field_validator('immat', 'indicatif')
+    @classmethod
+    def uppercase_fields(cls, v: str) -> str:
+        """Force uppercase for immat and indicatif fields."""
+        return v.upper() if v else v
 
     model_config = ConfigDict(
         json_schema_extra={

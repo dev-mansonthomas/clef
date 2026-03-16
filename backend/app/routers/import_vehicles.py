@@ -407,11 +407,12 @@ async def import_csv(
                 continue
 
             # Build vehicle data with defaults for missing fields
+            # Force uppercase for immat and indicatif
             vehicle_dict = {
-                "immat": values["immat"],
+                "immat": values["immat"].upper() if values["immat"] else values["immat"],
                 "dt": dt,
                 "dt_ul": values.get("dt_ul", ""),
-                "indicatif": values.get("indicatif", ""),
+                "indicatif": values.get("indicatif", "").upper() if values.get("indicatif", "") else "",
                 "marque": values.get("marque", ""),
                 "modele": values.get("modele", ""),
                 "nom_synthetique": values.get("nom_synthetique", ""),

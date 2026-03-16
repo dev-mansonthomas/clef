@@ -211,12 +211,6 @@ export class VehicleEdit implements OnInit {
       commentaires: vehicle.commentaires,
       suivi_mode: vehicle.suivi_mode  // Backend now provides type-based default
     });
-
-    // Disable the 'type' field in edit mode (not create mode)
-    // Using programmatic disable instead of [disabled] attribute to avoid Angular warning
-    if (!this.isCreateMode) {
-      this.vehicleForm.get('type')?.disable();
-    }
   }
 
   onSubmit(): void {
@@ -270,14 +264,42 @@ export class VehicleEdit implements OnInit {
         }
       });
     } else {
-      // Update existing vehicle - only send metadata fields that can be updated
+      // Update existing vehicle - send all editable fields
       if (!this.nomSynthetique) {
         return;
       }
 
       const updateData = {
+        // Identification
+        dt_ul: formValue.dt_ul,
+
+        // Caractéristiques
+        marque: formValue.marque,
+        modele: formValue.modele,
+        type: formValue.type,
+        date_mec: formValue.date_mec || null,
+        nb_places: formValue.nb_places,
+        carte_grise: formValue.carte_grise,
+
+        // Disponibilité
+        operationnel_mecanique: formValue.operationnel_mecanique,
+        raison_indispo: formValue.raison_indispo || '',
+
+        // Contrôles
+        prochain_controle_technique: formValue.prochain_controle_technique || null,
+        prochain_controle_pollution: formValue.prochain_controle_pollution || null,
+
+        // Localisation & Instructions
+        lieu_stationnement: formValue.lieu_stationnement || '',
+        instructions_recuperation: formValue.instructions_recuperation || '',
+
+        // Administratif
+        assurance_2026: formValue.assurance_2026 || '',
+        numero_serie_baus: formValue.numero_serie_baus || '',
+        commentaires: formValue.commentaires || '',
+
+        // Metadata CLEF
         couleur_calendrier: formValue.couleur_calendrier,
-        commentaires: formValue.commentaires,
         suivi_mode: formValue.suivi_mode
       };
 
@@ -387,5 +409,25 @@ export class VehicleEdit implements OnInit {
     if (color === 'orange') return 'field-warning';
     if (color === 'green') return 'field-success';
     return '';
+  }
+
+  /**
+   * Transform immatriculation input to uppercase
+   */
+  onImmatInput(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const upperValue = input.value.toUpperCase();
+    this.vehicleForm.patchValue({ immat: upperValue }, { emitEvent: false });
+    input.value = upperValue;
+  }
+
+  /**
+   * Transform indicatif radio input to uppercase
+   */
+  onIndicatifInput(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const upperValue = input.value.toUpperCase();
+    this.vehicleForm.patchValue({ indicatif: upperValue }, { emitEvent: false });
+    input.value = upperValue;
   }
 }
