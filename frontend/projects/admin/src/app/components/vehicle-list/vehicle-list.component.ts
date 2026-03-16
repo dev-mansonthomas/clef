@@ -128,6 +128,10 @@ export class VehicleListComponent implements OnInit, AfterViewInit {
     this.router.navigate(['/vehicles', vehicle.nom_synthetique, 'edit']);
   }
 
+  navigateToImport(): void {
+    this.router.navigate(['/vehicles/import']);
+  }
+
   getStatusClass(color: string): string {
     return `status-${color}`;
   }
