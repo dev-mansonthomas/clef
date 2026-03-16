@@ -154,15 +154,13 @@ async def get_vehicules_for_ul(
         )
 
     # Get UL name to match against vehicle dt_ul field
-    ul_data_raw = await valkey.redis.get(valkey._key("unite_locale", ul_id))
-    if not ul_data_raw:
+    ul_data = await valkey.redis.json().get(valkey._key("unite_locale", ul_id))
+    if not ul_data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"UL {ul_id} not found"
         )
 
-    import json
-    ul_data = json.loads(ul_data_raw)
     ul_name = ul_data.get("nom")
 
     # Get all vehicle IDs
