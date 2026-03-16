@@ -83,6 +83,11 @@ async def startup_event():
             raise RuntimeError("Redis client not available")
         valkey = ValkeyService(redis_client=cache.client, dt="DT75")
 
+        # Initialize DTs and ULs data if not present
+        from scripts.init_ul_data import init_data_async
+        await init_data_async(cache.client)
+        logger.info("DT and UL initialization complete")
+
         # Preload référentiels from Google Sheets
         sheets_service = get_sheets_service()
 
