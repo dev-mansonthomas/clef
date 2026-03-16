@@ -33,21 +33,11 @@
     min-height: 400px;
   }
 
-  .desktop-only {
-    display: block;
-  }
-  .mobile-only {
-    display: none;
-  }
-
+  .desktop-only { display: block; }
+  .mobile-only { display: none; }
   @media (max-width: 767px) {
-    .desktop-only {
-      display: none;
-    }
-
-    .mobile-only {
-      display: block;
-    }
+    .desktop-only { display: none; }
+    .mobile-only { display: block; }
   }
 
   .table-container {
@@ -81,8 +71,6 @@
         &:hover {
           background-color: #e8e8e8;
         }
-
-        // Alternating row colors
         &:nth-child(even) {
           background-color: #f0f0f0;
 
@@ -92,16 +80,15 @@
         }
 
         &.highlight-blink {
-          animation: blink-highlight 0.5s ease-in-out 8; // 8 times = 4 seconds
+          animation: blink-highlight 0.5s ease-in-out 8;
         }
       }
 
       @keyframes blink-highlight {
         0%, 100% { background-color: transparent; }
-        50% { background-color: #fff3cd; } // yellow light
+        50% { background-color: #fff3cd; }
       }
 
-      // Status color classes
       .status-red {
         color: #d32f2f;
         font-weight: 600;
@@ -109,7 +96,6 @@
         border-radius: 4px;
         background-color: #ffebee;
       }
-
       .status-orange {
         color: #f57c00;
         font-weight: 600;
@@ -117,7 +103,6 @@
         border-radius: 4px;
         background-color: #fff3e0;
       }
-
       .status-green {
         color: #388e3c;
         font-weight: 600;
@@ -125,7 +110,6 @@
         border-radius: 4px;
         background-color: #e8f5e9;
       }
-
       .status-gray {
         color: #666;
         font-weight: 600;
@@ -134,7 +118,6 @@
         background-color: #e8e8e8;
       }
 
-      // Infos column - stacked Km and Carburant display
       .infos-cell {
         white-space: nowrap;
         font-variant-numeric: tabular-nums;
@@ -169,7 +152,6 @@
     }
   }
 
-  // Mobile cards container
   .cards-container {
     display: flex;
     flex-direction: column;
@@ -188,7 +170,6 @@
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
       }
 
-      // Header with indicatif, type badge, and availability
       .card-header {
         display: flex;
         justify-content: space-between;
@@ -260,14 +241,12 @@
         }
       }
 
-      // Immatriculation
       .card-immat {
         font-size: 14px;
         color: #666;
         margin-bottom: 12px;
       }
 
-      // Equipment and fuel type row
       .card-info-row {
         display: flex;
         gap: 16px;
@@ -286,14 +265,12 @@
         }
       }
 
-      // Divider
       .card-divider {
         height: 1px;
         background-color: #e0e0e0;
         margin: 12px 0;
       }
 
-      // Details section (kilometrage & parking)
       .card-details {
         display: grid;
         grid-template-columns: 1fr 1fr;
@@ -318,7 +295,6 @@
         }
       }
 
-      // Fuel/Battery section
       .card-fuel {
         .fuel-header {
           display: flex;
