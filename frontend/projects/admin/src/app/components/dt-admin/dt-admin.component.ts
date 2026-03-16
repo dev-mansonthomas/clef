@@ -206,7 +206,11 @@ export class DtAdminComponent implements OnInit {
     this.ulLoading.set(true);
     this.uniteLocaleService.getUnitesLocales().subscribe({
       next: (response) => {
-        this.unitesLocales.set(response.unites_locales);
+        // Sort ULs by numeric ID
+        const sortedULs = response.unites_locales.sort((a, b) =>
+          parseInt(a.id, 10) - parseInt(b.id, 10)
+        );
+        this.unitesLocales.set(sortedULs);
         this.ulLoading.set(false);
       },
       error: (error) => {
