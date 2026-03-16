@@ -21,10 +21,11 @@
     border-bottom: 3px solid #E30613;
   }
 
-  .sidenav-logo {
-    max-width: 180px;
-    max-height: 48px;
-    object-fit: contain;
+  .sidenav-title {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 500;
+    color: #333;
   }
   
   mat-nav-list {
@@ -34,6 +35,13 @@
 
     a.active {
       background-color: var(--mat-sys-surface-variant);
+    }
+
+    // Hide text labels on mobile, show only icons
+    @media (max-width: 768px) {
+      span[matListItemTitle] {
+        display: none;
+      }
     }
   }
 }

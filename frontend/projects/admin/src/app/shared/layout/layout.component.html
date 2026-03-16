@@ -7,11 +7,7 @@
     class="layout-sidenav"
   >
     <div class="sidenav-header">
-      <img
-        src="assets/images/logo-CLEF-Admin.png"
-        alt="Logo CLEF"
-        class="sidenav-logo"
-      />
+      <h2 class="sidenav-title">CLEF</h2>
     </div>
     
     <mat-nav-list>
@@ -64,7 +60,7 @@
         <button mat-icon-button (click)="toggleSidenav()">
           <mat-icon>menu</mat-icon>
         </button>
-        <h1 class="app-title">Administration - C.L.E.F. - Carnet de Liaison et d'Entretien de la Flotte</h1>
+        <h1 class="app-title">Admin</h1>
       </div>
       <div class="header-right">
         @if (currentUser$ | async; as user) {
