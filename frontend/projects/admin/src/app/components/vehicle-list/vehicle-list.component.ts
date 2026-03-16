@@ -46,7 +46,9 @@ export class VehicleListComponent implements OnInit, AfterViewInit {
     'status_ct',
     'status_pollution',
     'assurance',
-    'responsable'
+    'responsable',
+    'km',
+    'carburant'
   ];
 
   filteredVehicles = computed(() => {
@@ -126,12 +128,6 @@ export class VehicleListComponent implements OnInit, AfterViewInit {
     this.router.navigate(['/vehicles', vehicle.nom_synthetique, 'edit']);
   }
 
-  onAddVehicle(): void {
-    // Navigate to vehicle creation form
-    // Using 'new' as a placeholder for creation mode
-    this.router.navigate(['/vehicles', 'new', 'edit']);
-  }
-
   getStatusClass(color: string): string {
     return `status-${color}`;
   }
@@ -146,6 +142,48 @@ export class VehicleListComponent implements OnInit, AfterViewInit {
 
   getMarqueModele(vehicle: Vehicle): string {
     return `${vehicle.marque} ${vehicle.modele}`;
+  }
+
+  /**
+   * Get mileage for a vehicle (mock data for now)
+   * TODO: Replace with actual data from Suivi
+   */
+  getKilometrage(vehicle: Vehicle): string {
+    // Mock data based on vehicle index for demonstration
+    const mockKm = [205, 5770, 10092, 1200, 8450, 3200, 15000, 2500];
+    const hash = vehicle.immat.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    const km = mockKm[hash % mockKm.length];
+    return km.toLocaleString('fr-FR');
+  }
+
+  /**
+   * Get fuel level for a vehicle (mock data for now)
+   * TODO: Replace with actual data from Suivi
+   */
+  getFuelLevel(vehicle: Vehicle): number {
+    // Mock data based on vehicle index for demonstration
+    const mockLevels = [57, 72, 45, 15, 80, 30, 65, 20];
+    const hash = vehicle.immat.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    return mockLevels[hash % mockLevels.length];
+  }
+
+  /**
+   * Get fuel level emoji based on percentage
+   * Green > 50%, Orange 25-50%, Red < 25%
+   */
+  getFuelEmoji(level: number): string {
+    if (level > 50) return '🟢';
+    if (level >= 25) return '🟠';
+    return '🔴';
+  }
+
+  /**
+   * Get fuel level display with emoji and percentage
+   */
+  getFuelDisplay(vehicle: Vehicle): string {
+    const level = this.getFuelLevel(vehicle);
+    const emoji = this.getFuelEmoji(level);
+    return `${emoji} ${level}%`;
   }
 
   /**
