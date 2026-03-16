@@ -161,6 +161,25 @@
   mat-card-content {
     padding: 0;
   }
+
+  // Desktop/Mobile visibility
+  .desktop-only {
+    display: block;
+  }
+
+  .mobile-only {
+    display: none;
+  }
+
+  @media (max-width: 768px) {
+    .desktop-only {
+      display: none;
+    }
+
+    .mobile-only {
+      display: block;
+    }
+  }
 }
 
 .alerts-table {
@@ -212,6 +231,115 @@
   }
 }
 
+// Mobile cards
+.cards-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+
+  .alert-card {
+    background: white;
+    border-radius: 12px;
+    padding: 16px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    cursor: pointer;
+    transition: all 0.2s;
+
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+
+    // Header with DT/UL, indicatif, and type badge
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+
+      .card-title {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+
+        .dt-ul {
+          font-size: 14px;
+          color: #666;
+          font-weight: 500;
+        }
+
+        .indicatif {
+          font-size: 18px;
+          font-weight: 600;
+          color: #333;
+        }
+      }
+
+      .type-badge {
+        background-color: #e3f2fd;
+        color: #1976d2;
+        padding: 4px 12px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 500;
+      }
+    }
+
+    // Immatriculation
+    .card-immat {
+      font-size: 14px;
+      color: #666;
+      margin-bottom: 4px;
+    }
+
+    // Marque/Modèle
+    .card-marque {
+      font-size: 14px;
+      color: #666;
+      margin-bottom: 12px;
+    }
+
+    // Divider
+    .card-divider {
+      height: 1px;
+      background-color: #e0e0e0;
+      margin: 12px 0;
+    }
+
+    // Alert section
+    .card-alert {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      font-weight: 500;
+
+      mat-icon {
+        font-size: 20px;
+        width: 20px;
+        height: 20px;
+      }
+
+      &.alert-expired {
+        color: #d32f2f;
+
+        mat-icon {
+          color: #d32f2f;
+        }
+      }
+
+      &.alert-upcoming {
+        color: #f57c00;
+
+        mat-icon {
+          color: #f57c00;
+        }
+      }
+    }
+  }
+}
+
 // Responsive
 @media (max-width: 768px) {
   .dashboard-container {
@@ -226,14 +354,6 @@
     flex-direction: column;
     gap: 16px;
     align-items: flex-start;
-  }
-
-  .alerts-table {
-    font-size: 12px;
-
-    th, td {
-      padding: 8px 4px;
-    }
   }
 }
 
