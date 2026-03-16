@@ -71,8 +71,10 @@ export class VehicleEdit implements OnInit {
     this.initForm();
     this.nomSynthetique = this.route.snapshot.paramMap.get('nomSynthetique');
 
-    // Check if we're in create mode (route is /vehicles/new/edit)
-    this.isCreateMode = this.nomSynthetique === 'new';
+    // Check if we're in create mode by examining the actual route URL
+    // The route /vehicles/new/edit is a static route with no parameters
+    const url = this.router.url;
+    this.isCreateMode = url.includes('/vehicles/new/edit');
 
     if (this.nomSynthetique && !this.isCreateMode) {
       this.loadVehicle();
