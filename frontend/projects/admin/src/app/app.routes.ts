@@ -31,6 +31,10 @@ export const routes: Routes = [
         component: VehicleListComponent
       },
       {
+        path: 'vehicles/new/edit',
+        component: VehicleEdit
+      },
+      {
         path: 'vehicles/:nomSynthetique/edit',
         component: VehicleEdit
       },

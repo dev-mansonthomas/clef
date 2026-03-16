@@ -218,6 +218,56 @@ class Vehicle(VehicleBase):
         }
 
 
+class VehicleCreate(BaseModel):
+    """Model for creating a new vehicle."""
+    dt_ul: str = Field(..., description="Délégation Territoriale ou Unité Locale")
+    immat: str = Field(..., description="Immatriculation")
+    indicatif: str = Field(default="", description="Code radio")
+    nom_synthetique: str = Field(..., description="Nom synthétique unique (pour QR code)")
+    marque: str = Field(..., description="Marque du véhicule")
+    modele: str = Field(..., description="Modèle du véhicule")
+    type: str = Field(..., description="Type de véhicule (VSAV, VL, VPSP, etc.)")
+    date_mec: Optional[str] = Field(None, description="Date de mise en circulation (YYYY-MM-DD)")
+    nb_places: str = Field(..., description="Nombre de places")
+    carte_grise: str = Field(..., description="Numéro de carte grise")
+    operationnel_mecanique: DisponibiliteStatus = Field(default=DisponibiliteStatus.DISPO, description="Disponibilité mécanique")
+    raison_indispo: str = Field(default="", description="Raison d'indisponibilité")
+    prochain_controle_technique: Optional[str] = Field(None, description="Date du prochain CT (YYYY-MM-DD)")
+    prochain_controle_pollution: Optional[str] = Field(None, description="Date du prochain contrôle pollution (YYYY-MM-DD)")
+    lieu_stationnement: str = Field(default="", description="Lieu de stationnement")
+    instructions_recuperation: str = Field(default="", description="Lien vers instructions de récupération")
+    assurance_2026: str = Field(default="", description="Informations assurance")
+    numero_serie_baus: str = Field(default="", description="Numéro de série BAUS")
+    commentaires: str = Field(default="", description="Commentaires libres")
+    suivi_mode: Optional[SuiviMode] = Field(default=None, description="Mode de suivi du véhicule")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "dt_ul": "UL Paris 15",
+                "immat": "AB-123-CD",
+                "indicatif": "PARIS-15-01",
+                "nom_synthetique": "VSAV-PARIS15-01",
+                "marque": "Renault",
+                "modele": "Master",
+                "type": "VSAV",
+                "date_mec": "2020-03-10",
+                "nb_places": "3",
+                "carte_grise": "CG123456789",
+                "operationnel_mecanique": "Dispo",
+                "raison_indispo": "",
+                "prochain_controle_technique": "2026-08-15",
+                "prochain_controle_pollution": "2026-08-15",
+                "lieu_stationnement": "Garage UL Paris 15",
+                "instructions_recuperation": "https://docs.google.com/document/d/...",
+                "assurance_2026": "Contrat #2026-001",
+                "numero_serie_baus": "BAUS-2020-001",
+                "commentaires": "Véhicule principal de l'UL",
+                "suivi_mode": "prise"
+            }
+        }
+
+
 class VehicleUpdate(BaseModel):
     """Model for updating vehicle metadata (calendar color, etc.)."""
     couleur_calendrier: Optional[str] = Field(None, description="Couleur pour le calendrier (hex color)")

@@ -3,7 +3,7 @@ from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from datetime import datetime
 import urllib.parse
-from app.models.vehicle import Vehicle, VehicleUpdate, VehicleListResponse
+from app.models.vehicle import Vehicle, VehicleCreate, VehicleUpdate, VehicleListResponse
 from app.models.qr_code import QrEncodeRequest, QrEncodeResponse, QrDecodeRequest, QrDecodeResponse
 from app.models.valkey_models import VehicleData
 from app.auth.models import User
@@ -102,6 +102,90 @@ async def list_vehicles(
         count=len(enriched_vehicles),
         vehicles=enriched_vehicles
     )
+
+
+@router.post("", response_model=Vehicle, status_code=status.HTTP_201_CREATED)
+async def create_vehicle(
+    vehicle_create: VehicleCreate,
+    current_user: User = Depends(require_authenticated_user),
+    valkey_service: ValkeyService = Depends(get_valkey_service)
+) -> Vehicle:
+    """
+    Create a new vehicle.
+
+    Args:
+        vehicle_create: Vehicle data to create
+        current_user: Authenticated user (must be Gestionnaire DT)
+
+    Returns:
+        Created vehicle with computed status fields
+
+    Raises:
+        403: User doesn't have permission to create vehicles
+        409: Vehicle with this immat or nom_synthetique already exists
+    """
+    # Only Gestionnaire DT can create vehicles
+    if current_user.role != "Gestionnaire DT":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only Gestionnaire DT can create vehicles"
+        )
+
+    # Check if vehicle with this immat already exists
+    existing_vehicle = await valkey_service.get_vehicle(vehicle_create.immat)
+    if existing_vehicle:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Vehicle with immat '{vehicle_create.immat}' already exists"
+        )
+
+    # Check if vehicle with this nom_synthetique already exists
+    existing_by_nom = await valkey_service.get_vehicle_by_nom_synthetique(vehicle_create.nom_synthetique)
+    if existing_by_nom:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Vehicle with nom_synthetique '{vehicle_create.nom_synthetique}' already exists"
+        )
+
+    # Get DT from user
+    dt = current_user.dt
+
+    # Create VehicleData for Valkey
+    vehicle_data = VehicleData(
+        immat=vehicle_create.immat,
+        dt=dt,
+        dt_ul=vehicle_create.dt_ul,
+        indicatif=vehicle_create.indicatif,
+        nom_synthetique=vehicle_create.nom_synthetique,
+        marque=vehicle_create.marque,
+        modele=vehicle_create.modele,
+        type=vehicle_create.type,
+        date_mec=vehicle_create.date_mec,
+        nb_places=vehicle_create.nb_places,
+        carte_grise=vehicle_create.carte_grise,
+        operationnel_mecanique=vehicle_create.operationnel_mecanique.value,
+        raison_indispo=vehicle_create.raison_indispo,
+        prochain_controle_technique=vehicle_create.prochain_controle_technique,
+        prochain_controle_pollution=vehicle_create.prochain_controle_pollution,
+        lieu_stationnement=vehicle_create.lieu_stationnement,
+        instructions_recuperation=vehicle_create.instructions_recuperation,
+        assurance_2026=vehicle_create.assurance_2026,
+        numero_serie_baus=vehicle_create.numero_serie_baus,
+        commentaires=vehicle_create.commentaires,
+        suivi_mode=vehicle_create.suivi_mode.value if vehicle_create.suivi_mode else None
+    )
+
+    # Save to Valkey
+    success = await valkey_service.set_vehicle(vehicle_data)
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to create vehicle"
+        )
+
+    # Return enriched vehicle
+    vehicle_dict = vehicle_data_to_dict(vehicle_data)
+    return VehicleService.enrich_vehicle(vehicle_dict)
 
 
 @router.get("/{nom_synthetique:path}", response_model=Vehicle)

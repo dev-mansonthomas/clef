@@ -32,5 +32,12 @@ export class VehicleService {
   updateVehicle(nomSynthetique: string, update: VehicleUpdate): Observable<Vehicle> {
     return this.http.patch<Vehicle>(`${this.apiUrl}/${nomSynthetique}`, update, { withCredentials: true });
   }
+
+  /**
+   * Create a new vehicle
+   */
+  createVehicle(vehicle: Partial<Vehicle>): Observable<Vehicle> {
+    return this.http.post<Vehicle>(this.apiUrl, vehicle, { withCredentials: true });
+  }
 }
 

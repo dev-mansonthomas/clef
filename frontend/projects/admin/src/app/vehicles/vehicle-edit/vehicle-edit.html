@@ -124,7 +124,7 @@
 
           <mat-form-field appearance="outline">
             <mat-label>Raison Indisponibilité</mat-label>
-            <input matInput formControlName="raison_indispo" readonly>
+            <input matInput formControlName="raison_indispo" [readonly]="!isCreateMode">
           </mat-form-field>
         </div>
       </mat-card-content>
@@ -139,12 +139,12 @@
         <div class="form-row">
           <mat-form-field appearance="outline" [ngClass]="getCtClass()">
             <mat-label>Prochain Contrôle Technique</mat-label>
-            <input matInput formControlName="prochain_controle_technique" type="date" readonly>
+            <input matInput formControlName="prochain_controle_technique" type="date" [readonly]="!isCreateMode">
           </mat-form-field>
 
           <mat-form-field appearance="outline" [class.field-alert]="isPollutionExpired()">
             <mat-label>Prochain Contrôle Pollution</mat-label>
-            <input matInput formControlName="prochain_controle_pollution" type="date" readonly>
+            <input matInput formControlName="prochain_controle_pollution" type="date" [readonly]="!isCreateMode">
           </mat-form-field>
         </div>
       </mat-card-content>
@@ -177,12 +177,12 @@
         <div class="form-row">
           <mat-form-field appearance="outline">
             <mat-label>Assurance 2026</mat-label>
-            <input matInput formControlName="assurance_2026" readonly>
+            <input matInput formControlName="assurance_2026" [readonly]="!isCreateMode">
           </mat-form-field>
 
           <mat-form-field appearance="outline">
             <mat-label>N° de série constructeur</mat-label>
-            <input matInput formControlName="numero_serie_baus" readonly>
+            <input matInput formControlName="numero_serie_baus" [readonly]="!isCreateMode">
           </mat-form-field>
         </div>
 
