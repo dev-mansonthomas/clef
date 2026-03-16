@@ -10,9 +10,9 @@
   border-radius: 0 !important; // Remove Material's default rounded corners
   background-color: #E0F2F1; // Vert clair jusqu'en bas
 
-  // Mobile: show text with reduced width
+  // Mobile: icons only with narrow width
   @media (max-width: 768px) {
-    width: 180px;
+    width: 60px;
   }
 
   .sidenav-header {
@@ -42,10 +42,10 @@
       background-color: var(--mat-sys-surface-variant);
     }
 
-    // Show text labels on mobile with smaller font
+    // Hide text labels on mobile (icons only)
     @media (max-width: 768px) {
       span[matListItemTitle] {
-        font-size: 13px;
+        display: none;
       }
     }
   }
