@@ -47,8 +47,7 @@ export class VehicleListComponent implements OnInit, AfterViewInit {
     'status_pollution',
     'assurance',
     'responsable',
-    'km',
-    'carburant'
+    'infos'
   ];
 
   filteredVehicles = computed(() => {
@@ -130,6 +129,10 @@ export class VehicleListComponent implements OnInit, AfterViewInit {
 
   navigateToImport(): void {
     this.router.navigate(['/vehicles/import']);
+  }
+
+  navigateToCreate(): void {
+    this.router.navigate(['/vehicles/new/edit']);
   }
 
   getStatusClass(color: string): string {

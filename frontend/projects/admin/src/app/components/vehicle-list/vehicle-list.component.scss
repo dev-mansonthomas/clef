@@ -131,16 +131,26 @@
         background-color: #e8e8e8;
       }
 
-      // Km and Carburant columns - compact display
-      .km-cell {
-        text-align: right;
-        font-variant-numeric: tabular-nums;
+      // Infos column - stacked Km and Carburant display
+      .infos-cell {
         white-space: nowrap;
-      }
+        font-variant-numeric: tabular-nums;
 
-      .fuel-cell {
-        white-space: nowrap;
-        font-variant-numeric: tabular-nums;
+        .infos-content {
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+
+          .km-line {
+            font-size: 14px;
+            color: #333;
+          }
+
+          .fuel-line {
+            font-size: 14px;
+            color: #333;
+          }
+        }
       }
     }
 
