@@ -214,15 +214,37 @@ export class VehicleEdit implements OnInit {
    * Check if CT (contrôle technique) is expired
    */
   isCtExpired(): boolean {
-    if (!this.vehicle) return false;
-    return this.vehicle.status_ct?.color === 'red';
+    const v = this.vehicle;
+    // Pas de date = pas d'alerte (rien à vérifier)
+    if (!v?.prochain_controle_technique) return false;
+    // Only show alert if there's a date AND it's expired (red)
+    return v.status_ct?.color === 'red';
   }
 
   /**
    * Check if pollution control is expired
    */
   isPollutionExpired(): boolean {
+    const v = this.vehicle;
+    // Pas de date = pas d'alerte (rien à vérifier)
+    if (!v?.prochain_controle_pollution) return false;
+    // Only show alert if there's a date AND it's expired (red)
+    return v.status_pollution?.color === 'red';
+  }
+
+  /**
+   * Check if carte grise is missing
+   */
+  isCarteGriseMissing(): boolean {
     if (!this.vehicle) return false;
-    return this.vehicle.status_pollution?.color === 'red';
+    return this.vehicle.carte_grise === 'Manquante';
+  }
+
+  /**
+   * Check if vehicle is unavailable
+   */
+  isVehicleUnavailable(): boolean {
+    if (!this.vehicle) return false;
+    return this.vehicle.status_disponibilite?.value === 'Indispo';
   }
 }

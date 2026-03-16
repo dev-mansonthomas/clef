@@ -94,7 +94,7 @@
             <input matInput formControlName="nb_places" readonly>
           </mat-form-field>
 
-          <mat-form-field appearance="outline">
+          <mat-form-field appearance="outline" [class.field-alert]="isCarteGriseMissing()">
             <mat-label>Carte Grise</mat-label>
             <mat-select formControlName="carte_grise">
               <mat-option *ngFor="let option of carteGriseOptions" [value]="option">
@@ -113,7 +113,7 @@
       </mat-card-header>
       <mat-card-content>
         <div class="form-row">
-          <mat-form-field appearance="outline">
+          <mat-form-field appearance="outline" [class.field-alert]="isVehicleUnavailable()">
             <mat-label>Opérationnel Mécanique</mat-label>
             <mat-select formControlName="operationnel_mecanique">
               <mat-option *ngFor="let option of disponibiliteOptions" [value]="option.value">
@@ -137,12 +137,12 @@
       </mat-card-header>
       <mat-card-content>
         <div class="form-row">
-          <mat-form-field appearance="outline">
+          <mat-form-field appearance="outline" [class.field-alert]="isCtExpired()">
             <mat-label>Prochain Contrôle Technique</mat-label>
             <input matInput formControlName="prochain_controle_technique" type="date" readonly>
           </mat-form-field>
 
-          <mat-form-field appearance="outline">
+          <mat-form-field appearance="outline" [class.field-alert]="isPollutionExpired()">
             <mat-label>Prochain Contrôle Pollution</mat-label>
             <input matInput formControlName="prochain_controle_pollution" type="date" readonly>
           </mat-form-field>
