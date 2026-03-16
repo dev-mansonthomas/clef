@@ -1,9 +1,6 @@
 <div class="vehicle-list-container">
   <div class="header-section">
     <h1>Liste des Véhicules</h1>
-    <button mat-raised-button color="primary" (click)="onAddVehicle()">
-      Ajouter un véhicule
-    </button>
   </div>
 
   <!-- Filters -->
@@ -38,9 +35,9 @@
     </div>
   }
 
-  <!-- Vehicle table -->
+  <!-- Vehicle table (desktop) -->
   @if (!loading()) {
-    <div class="table-container">
+    <div class="table-container desktop-only">
       <table mat-table [dataSource]="filteredVehicles()" class="vehicle-table">
         <!-- DT/UL Column -->
         <ng-container matColumnDef="dt_ul">
@@ -114,6 +111,18 @@
           <td mat-cell *matCellDef="let vehicle">{{ vehicle.dt_ul }}</td>
         </ng-container>
 
+        <!-- Km Column -->
+        <ng-container matColumnDef="km">
+          <th mat-header-cell *matHeaderCellDef>Km</th>
+          <td mat-cell *matCellDef="let vehicle" class="km-cell">{{ getKilometrage(vehicle) }}</td>
+        </ng-container>
+
+        <!-- Carburant Column -->
+        <ng-container matColumnDef="carburant">
+          <th mat-header-cell *matHeaderCellDef>Carburant</th>
+          <td mat-cell *matCellDef="let vehicle" class="fuel-cell">{{ getFuelDisplay(vehicle) }}</td>
+        </ng-container>
+
         <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
         <tr
           mat-row
@@ -122,6 +131,79 @@
           class="clickable-row"
         ></tr>
       </table>
+
+      @if (filteredVehicles().length === 0) {
+        <div class="no-data">
+          <p>Aucun véhicule trouvé</p>
+        </div>
+      }
+    </div>
+
+    <!-- Vehicle cards (mobile) -->
+    <div class="cards-container mobile-only">
+      @for (vehicle of filteredVehicles(); track vehicle.immat) {
+        <div class="vehicle-card" (click)="onRowClick(vehicle)">
+          <!-- Header -->
+          <div class="card-header">
+            <div class="card-title">
+              <span class="indicatif">{{ vehicle.indicatif }}</span>
+              <span class="type-badge">{{ vehicle.type }}</span>
+            </div>
+            <span class="availability-badge" [class]="'badge-' + vehicle.status_disponibilite.color">
+              <span class="badge-dot"></span>
+              {{ vehicle.status_disponibilite.value }}
+            </span>
+          </div>
+
+          <!-- Immatriculation -->
+          <div class="card-immat">{{ vehicle.immat }}</div>
+
+          <!-- Equipment & Fuel Type -->
+          <div class="card-info-row">
+            <span class="info-item equipment">
+              <span class="icon">🔴</span>
+              <span>DSA</span>
+            </span>
+            <span class="info-item fuel-type">
+              <span class="icon">⚡</span>
+              <span>{{ getFuelType(vehicle) }}</span>
+            </span>
+          </div>
+
+          <div class="card-divider"></div>
+
+          <!-- Kilometrage & Parking -->
+          <div class="card-details">
+            <div class="detail-item">
+              <div class="detail-label">KILOMÉTRAGE</div>
+              <div class="detail-value">{{ getKilometrage(vehicle) }}</div>
+            </div>
+            <div class="detail-item">
+              <div class="detail-label">STATIONNEMENT</div>
+              <div class="detail-value">{{ vehicle.lieu_stationnement }}</div>
+            </div>
+          </div>
+
+          <!-- Fuel/Battery Level -->
+          <div class="card-fuel">
+            <div class="fuel-header">
+              <span class="fuel-icon">🔋</span>
+              <span class="fuel-label">{{ getFuelLabel(vehicle) }}</span>
+              <span class="fuel-percentage">{{ getFuelLevel(vehicle) }}%</span>
+            </div>
+            <div class="fuel-bar">
+              <div
+                class="fuel-bar-fill"
+                [style.width.%]="getFuelLevel(vehicle)"
+                [class]="getFuelBarClass(getFuelLevel(vehicle))">
+              </div>
+            </div>
+            <div class="fuel-autonomy">
+              Autonomie: {{ getAutonomy(vehicle) }} km
+            </div>
+          </div>
+        </div>
+      }
 
       @if (filteredVehicles().length === 0) {
         <div class="no-data">
