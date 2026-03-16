@@ -59,6 +59,8 @@ export class VehicleEdit implements OnInit {
 
   readonly carteGriseOptions = ['Présente', 'Manquante', 'N/A', 'A Refabriquer'];
 
+  readonly typeOptions = ['Log', 'PCM', 'Quad', 'Remorque', 'Utilitaire', 'VL', 'VPSP'];
+
   readonly suiviModeOptions = [
     { value: 'prise', label: 'Prise du véhicule' },
     { value: 'retour', label: 'Retour du véhicule' },
