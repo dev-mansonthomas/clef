@@ -23,18 +23,24 @@ def mock_cache():
     """Create a mock RedisCache with UL data."""
     cache_mock = AsyncMock(spec=RedisCache)
     cache_mock._connected = True
-    
+
     # Mock client for set operations
     cache_mock.client = AsyncMock()
     cache_mock.client.smembers = AsyncMock()
     cache_mock.client.sadd = AsyncMock()
-    
+
+    # Mock JSON operations
+    cache_mock.client.json = MagicMock()
+    cache_mock.client.json.return_value = AsyncMock()
+    cache_mock.client.json().get = AsyncMock(return_value=None)
+    cache_mock.client.json().set = AsyncMock(return_value=True)
+
     # Default: no UL data
     cache_mock.get.return_value = None
     cache_mock.set.return_value = True
     cache_mock.exists.return_value = False
     cache_mock.client.smembers.return_value = set()
-    
+
     return cache_mock
 
 
@@ -105,9 +111,9 @@ class TestListUnitesLocales:
         """Test listing UL with data."""
         # Mock index with 2 UL IDs
         mock_cache.client.smembers.return_value = {"81", "82"}
-        
-        # Mock UL data
-        async def mock_get(key):
+
+        # Mock UL data using JSON native storage
+        async def mock_json_get(key):
             if key == "DT75:unite_locale:81":
                 return {
                     "id": "81",
@@ -123,11 +129,11 @@ class TestListUnitesLocales:
                     "created_at": "2026-03-13T00:00:00Z"
                 }
             return None
-        
-        mock_cache.get.side_effect = mock_get
-        
+
+        mock_cache.client.json().get.side_effect = mock_json_get
+
         response = await client.get("/api/DT75/unites-locales")
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["total"] == 2
@@ -140,13 +146,13 @@ class TestGetUniteLocale:
     @pytest.mark.asyncio
     async def test_get_existing_ul(self, client, mock_cache):
         """Test getting an existing UL."""
-        mock_cache.get.return_value = {
+        mock_cache.client.json().get.return_value = {
             "id": "81",
             "nom": "UL 01-02",
             "dt": "DT75",
             "created_at": "2026-03-13T00:00:00Z"
         }
-        
+
         response = await client.get("/api/DT75/unites-locales/81")
 
         assert response.status_code == 200
@@ -158,7 +164,7 @@ class TestGetUniteLocale:
     @pytest.mark.asyncio
     async def test_get_nonexistent_ul(self, client, mock_cache):
         """Test getting a non-existent UL."""
-        mock_cache.get.return_value = None
+        mock_cache.client.json().get.return_value = None
 
         response = await client.get("/api/DT75/unites-locales/999")
 
@@ -189,8 +195,8 @@ class TestCreateUniteLocale:
         assert data["dt"] == "DT75"
         assert "created_at" in data
 
-        # Verify cache was called
-        mock_cache.set.assert_called_once()
+        # Verify cache was called with JSON native storage
+        mock_cache.client.json().set.assert_called_once()
         mock_cache.client.sadd.assert_called_once()
 
     @pytest.mark.asyncio
@@ -216,7 +222,7 @@ class TestUpdateUniteLocale:
     @pytest.mark.asyncio
     async def test_update_ul(self, client, mock_cache):
         """Test updating an existing UL."""
-        mock_cache.get.return_value = {
+        mock_cache.client.json().get.return_value = {
             "id": "81",
             "nom": "UL 01-02",
             "dt": "DT75",
@@ -234,13 +240,13 @@ class TestUpdateUniteLocale:
         assert data["nom"] == "UL 01-02 Updated"
         assert data["id"] == "81"
 
-        # Verify cache was updated
-        mock_cache.set.assert_called_once()
+        # Verify cache was updated with JSON native storage
+        mock_cache.client.json().set.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_update_nonexistent_ul(self, client, mock_cache):
         """Test updating a non-existent UL."""
-        mock_cache.get.return_value = None
+        mock_cache.client.json().get.return_value = None
 
         update_data = {
             "nom": "UL Updated"

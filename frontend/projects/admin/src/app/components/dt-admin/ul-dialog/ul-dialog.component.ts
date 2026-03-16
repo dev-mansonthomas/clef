@@ -24,7 +24,7 @@ export interface ULDialogData {
     MatButtonModule
   ],
   template: `
-    <h2 mat-dialog-title>{{ data.mode === 'create' ? 'Ajouter une UL' : 'Modifier l\'UL' }}</h2>
+    <h2 mat-dialog-title>{{ dialogTitle }}</h2>
     <mat-dialog-content>
       <form [formGroup]="ulForm">
         <mat-form-field appearance="outline" class="full-width">
@@ -62,10 +62,12 @@ export interface ULDialogData {
 export class ULDialogComponent {
   private readonly fb = inject(FormBuilder);
   private readonly dialogRef = inject(MatDialogRef<ULDialogComponent>);
-  
+
   ulForm: FormGroup;
+  dialogTitle: string;
 
   constructor(@Inject(MAT_DIALOG_DATA) public data: ULDialogData) {
+    this.dialogTitle = data.mode === 'create' ? 'Ajouter une UL' : "Modifier l'UL";
     this.ulForm = this.fb.group({
       id: [
         { value: data.ul?.id || '', disabled: data.mode === 'edit' },

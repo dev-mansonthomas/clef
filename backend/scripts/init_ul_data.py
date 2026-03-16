@@ -58,15 +58,15 @@ def init_ul_data():
         # Initialize each UL
         for ul in UL_DATA:
             ul_with_timestamp = {**ul, "created_at": timestamp}
-            
-            # Store UL data
+
+            # Store UL data using JSON native storage
             key = f"{ul['dt']}:unite_locale:{ul['id']}"
-            r.set(key, json.dumps(ul_with_timestamp, ensure_ascii=False))
-            
+            r.json().set(key, "$", ul_with_timestamp)
+
             # Add to index
             index_key = f"{ul['dt']}:unite_locales:index"
             r.sadd(index_key, ul['id'])
-            
+
             print(f"✓ Initialized {ul['nom']} (ID: {ul['id']})")
         
         print(f"\n✅ Successfully initialized {len(UL_DATA)} Unités Locales for DT75")

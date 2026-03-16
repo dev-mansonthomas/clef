@@ -52,7 +52,7 @@ async def list_unites_locales(
         unites_locales = []
         for ul_id in ul_ids:
             ul_key = f"{dt}:unite_locale:{ul_id}"
-            ul_data = await cache.get(ul_key)
+            ul_data = await cache.client.json().get(ul_key)
             if ul_data:
                 unites_locales.append(UniteLocale(**ul_data))
         
@@ -88,14 +88,14 @@ async def get_unite_locale(
         Unité Locale details
     """
     ul_key = f"{dt}:unite_locale:{ul_id}"
-    ul_data = await cache.get(ul_key)
-    
+    ul_data = await cache.client.json().get(ul_key)
+
     if not ul_data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Unité Locale {ul_id} not found in {dt}"
         )
-    
+
     return UniteLocale(**ul_data)
 
 
@@ -133,10 +133,10 @@ async def create_unite_locale(
         **ul.model_dump(),
         created_at=datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
     )
-    
-    # Store in Redis
-    await cache.set(ul_key, ul_data.model_dump())
-    
+
+    # Store in Redis using JSON native storage
+    await cache.client.json().set(ul_key, "$", ul_data.model_dump())
+
     # Add to index
     index_key = f"{dt}:unite_locales:index"
     await cache.client.sadd(index_key, ul.id)
@@ -168,7 +168,7 @@ async def update_unite_locale(
     """
     # Check if UL exists
     ul_key = f"{dt}:unite_locale:{ul_id}"
-    ul_data = await cache.get(ul_key)
+    ul_data = await cache.client.json().get(ul_key)
 
     if not ul_data:
         raise HTTPException(
@@ -183,8 +183,8 @@ async def update_unite_locale(
     for field, value in update_data.items():
         setattr(current_ul, field, value)
 
-    # Store updated UL
-    await cache.set(ul_key, current_ul.model_dump())
+    # Store updated UL using JSON native storage
+    await cache.client.json().set(ul_key, "$", current_ul.model_dump())
 
     logger.info(f"Updated UL {ul_id} in {dt}")
     return current_ul
