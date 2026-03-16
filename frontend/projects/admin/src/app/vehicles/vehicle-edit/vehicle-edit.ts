@@ -150,7 +150,7 @@ export class VehicleEdit implements OnInit {
       type: vehicle.type,
       date_mec: vehicle.date_mec,
       nb_places: vehicle.nb_places,
-      carte_grise: vehicle.carte_grise,
+      carte_grise: vehicle.carte_grise || 'Manquante',
       operationnel_mecanique: vehicle.operationnel_mecanique,
       raison_indispo: vehicle.raison_indispo,
       prochain_controle_technique: vehicle.prochain_controle_technique,
