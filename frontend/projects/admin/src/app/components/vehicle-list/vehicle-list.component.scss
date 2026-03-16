@@ -46,7 +46,7 @@
   .mobile-only { display: none !important; }
   @media (max-width: 767px) {
     .desktop-only { display: none !important; }
-    .mobile-only { display: block !important; }
+    .mobile-only { display: flex !important; }
   }
 
   .table-container {
