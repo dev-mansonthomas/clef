@@ -50,6 +50,7 @@ export class VehicleEdit implements OnInit {
   saving = false;
   nomSynthetique: string | null = null;
   vehicle: Vehicle | null = null;
+  isCreateMode = false;
 
   readonly disponibiliteOptions = [
     { value: 'Dispo', label: 'Disponible' },
@@ -68,7 +69,10 @@ export class VehicleEdit implements OnInit {
     this.initForm();
     this.nomSynthetique = this.route.snapshot.paramMap.get('nomSynthetique');
 
-    if (this.nomSynthetique) {
+    // Check if we're in create mode (route is /vehicles/new/edit)
+    this.isCreateMode = this.nomSynthetique === 'new';
+
+    if (this.nomSynthetique && !this.isCreateMode) {
       this.loadVehicle();
     }
   }
@@ -161,36 +165,84 @@ export class VehicleEdit implements OnInit {
   }
 
   onSubmit(): void {
-    if (this.vehicleForm.invalid || !this.nomSynthetique) {
+    if (this.vehicleForm.invalid) {
       return;
     }
 
     this.saving = true;
     const formValue = this.vehicleForm.value;
 
-    // Only send metadata fields that can be updated
-    const updateData = {
-      couleur_calendrier: formValue.couleur_calendrier,
-      commentaires: formValue.commentaires,
-      suivi_mode: formValue.suivi_mode
-    };
+    if (this.isCreateMode) {
+      // Create new vehicle - send all fields
+      const createData = {
+        dt_ul: formValue.dt_ul,
+        immat: formValue.immat,
+        indicatif: formValue.indicatif,
+        nom_synthetique: formValue.nom_synthetique,
+        marque: formValue.marque,
+        modele: formValue.modele,
+        type: formValue.type,
+        date_mec: formValue.date_mec || null,
+        nb_places: formValue.nb_places,
+        carte_grise: formValue.carte_grise,
+        operationnel_mecanique: formValue.operationnel_mecanique,
+        raison_indispo: formValue.raison_indispo || '',
+        prochain_controle_technique: formValue.prochain_controle_technique || null,
+        prochain_controle_pollution: formValue.prochain_controle_pollution || null,
+        lieu_stationnement: formValue.lieu_stationnement || '',
+        instructions_recuperation: formValue.instructions_recuperation || '',
+        assurance_2026: formValue.assurance_2026 || '',
+        numero_serie_baus: formValue.numero_serie_baus || '',
+        commentaires: formValue.commentaires || '',
+        suivi_mode: formValue.suivi_mode
+      };
 
-    this.vehicleService.updateVehicle(this.nomSynthetique, updateData).subscribe({
-      next: () => {
-        this.snackBar.open('Véhicule mis à jour avec succès', 'Fermer', {
-          duration: 3000
-        });
-        this.saving = false;
-        this.router.navigate(['/vehicles']);
-      },
-      error: (error) => {
-        console.error('Error updating vehicle:', error);
-        this.snackBar.open('Erreur lors de la mise à jour du véhicule', 'Fermer', {
-          duration: 5000
-        });
-        this.saving = false;
+      this.vehicleService.createVehicle(createData).subscribe({
+        next: (vehicle) => {
+          this.snackBar.open('Véhicule créé avec succès', 'Fermer', {
+            duration: 3000
+          });
+          this.saving = false;
+          // Navigate to vehicle list with highlight on the new vehicle
+          this.router.navigate(['/vehicles'], {
+            queryParams: { highlight: vehicle.immat }
+          });
+        },
+        error: (error) => {
+          console.error('Error creating vehicle:', error);
+          this.errorService.handleHttpError(error, 'Erreur lors de la création du véhicule');
+          this.saving = false;
+        }
+      });
+    } else {
+      // Update existing vehicle - only send metadata fields that can be updated
+      if (!this.nomSynthetique) {
+        return;
       }
-    });
+
+      const updateData = {
+        couleur_calendrier: formValue.couleur_calendrier,
+        commentaires: formValue.commentaires,
+        suivi_mode: formValue.suivi_mode
+      };
+
+      this.vehicleService.updateVehicle(this.nomSynthetique, updateData).subscribe({
+        next: () => {
+          this.snackBar.open('Véhicule mis à jour avec succès', 'Fermer', {
+            duration: 3000
+          });
+          this.saving = false;
+          this.router.navigate(['/vehicles']);
+        },
+        error: (error) => {
+          console.error('Error updating vehicle:', error);
+          this.snackBar.open('Erreur lors de la mise à jour du véhicule', 'Fermer', {
+            duration: 5000
+          });
+          this.saving = false;
+        }
+      });
+    }
   }
 
   onCancel(): void {
@@ -246,5 +298,39 @@ export class VehicleEdit implements OnInit {
   isVehicleUnavailable(): boolean {
     if (!this.vehicle) return false;
     return this.vehicle.status_disponibilite?.value === 'Indispo';
+  }
+
+  /**
+   * Get CSS class for Disponibilité field based on value
+   */
+  getDisponibiliteClass(): string {
+    const value = this.vehicleForm?.get('operationnel_mecanique')?.value;
+    if (value === 'Dispo') return 'field-success';
+    if (value === 'Indispo') return 'field-alert';
+    return '';
+  }
+
+  /**
+   * Get CSS class for Carte Grise field based on value
+   */
+  getCarteGriseClass(): string {
+    const value = this.vehicleForm?.get('carte_grise')?.value;
+    if (value === 'Manquante') return 'field-alert';
+    if (value === 'Présente') return 'field-success';
+    if (value === 'A Refabriquer') return 'field-warning';
+    if (value === 'N/A') return 'field-neutral';
+    return '';
+  }
+
+  /**
+   * Get CSS class for CT field based on status
+   */
+  getCtClass(): string {
+    if (!this.vehicle?.status_ct) return '';
+    const color = this.vehicle.status_ct.color;
+    if (color === 'red') return 'field-alert';
+    if (color === 'orange') return 'field-warning';
+    if (color === 'green') return 'field-success';
+    return '';
   }
 }
