@@ -34,10 +34,10 @@
   }
 
   .desktop-only { display: block; }
-  .mobile-only { display: none; }
+  .mobile-only { display: none !important; }
   @media (max-width: 767px) {
-    .desktop-only { display: none; }
-    .mobile-only { display: block; }
+    .desktop-only { display: none !important; }
+    .mobile-only { display: block !important; }
   }
 
   .table-container {
