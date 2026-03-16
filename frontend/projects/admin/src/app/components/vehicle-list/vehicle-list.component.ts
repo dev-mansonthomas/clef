@@ -187,6 +187,48 @@ export class VehicleListComponent implements OnInit, AfterViewInit {
   }
 
   /**
+   * Get fuel type for display (mock data for now)
+   * TODO: Add fuel type to vehicle model
+   */
+  getFuelType(vehicle: Vehicle): string {
+    // Mock implementation based on vehicle type
+    const types: { [key: string]: string } = {
+      'VL': 'Électrique',
+      'VPSP': 'Diesel',
+      'VSAV': 'Diesel'
+    };
+    return types[vehicle.type] || 'Essence';
+  }
+
+  /**
+   * Get fuel label (BATTERIE for electric, CARBURANT for others)
+   */
+  getFuelLabel(vehicle: Vehicle): string {
+    return this.getFuelType(vehicle) === 'Électrique' ? 'BATTERIE' : 'CARBURANT';
+  }
+
+  /**
+   * Get fuel bar CSS class based on level
+   * Green > 50%, Orange 25-50%, Red < 25%
+   */
+  getFuelBarClass(level: number): string {
+    if (level > 50) return 'fuel-green';
+    if (level >= 25) return 'fuel-orange';
+    return 'fuel-red';
+  }
+
+  /**
+   * Get autonomy in km (mock data for now)
+   * TODO: Calculate based on actual fuel level and vehicle type
+   */
+  getAutonomy(vehicle: Vehicle): number {
+    const level = this.getFuelLevel(vehicle);
+    const isElectric = this.getFuelType(vehicle) === 'Électrique';
+    const maxRange = isElectric ? 200 : 600;
+    return Math.round((level / 100) * maxRange);
+  }
+
+  /**
    * Check if a vehicle is highlighted
    */
   isHighlighted(vehicle: Vehicle): boolean {
