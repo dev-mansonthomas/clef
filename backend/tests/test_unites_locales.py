@@ -257,3 +257,36 @@ class TestUpdateUniteLocale:
         assert response.status_code == 404
         assert "not found" in response.json()["detail"]
 
+
+class TestDeleteUniteLocale:
+    """Tests for DELETE /api/{dt}/unites-locales/{ul_id} endpoint."""
+
+    @pytest.mark.asyncio
+    async def test_delete_ul(self, client, mock_cache):
+        """Test deleting an existing UL."""
+        mock_cache.exists.return_value = True
+        mock_cache.client.delete = AsyncMock(return_value=1)
+        mock_cache.client.srem = AsyncMock(return_value=1)
+
+        response = await client.delete("/api/DT75/unites-locales/81")
+
+        assert response.status_code == 204
+
+        # Verify cache operations
+        mock_cache.exists.assert_called_once_with("DT75:unite_locale:81")
+        mock_cache.client.delete.assert_called_once_with("DT75:unite_locale:81")
+        mock_cache.client.srem.assert_called_once_with("DT75:unite_locales:index", "81")
+
+    @pytest.mark.asyncio
+    async def test_delete_nonexistent_ul(self, client, mock_cache):
+        """Test deleting a non-existent UL."""
+        mock_cache.exists.return_value = False
+
+        response = await client.delete("/api/DT75/unites-locales/999")
+
+        assert response.status_code == 404
+        assert "not found" in response.json()["detail"]
+
+        # Verify delete was not called
+        mock_cache.client.delete.assert_not_called()
+

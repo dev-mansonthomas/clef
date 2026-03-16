@@ -216,3 +216,52 @@ async def update_unite_locale(
             detail=f"Error updating Unité Locale: {str(e)}"
         )
 
+
+@router.delete("/{ul_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_unite_locale(
+    dt: str,
+    ul_id: str,
+    cache: Annotated[RedisCache, Depends(get_cache)],
+    current_user: User = Depends(require_dt_manager)
+) -> None:
+    """
+    Supprimer une Unité Locale (admin DT uniquement).
+
+    Args:
+        dt: Code de la Délégation Territoriale
+        ul_id: ID de l'Unité Locale
+        cache: Redis cache instance
+        current_user: Authenticated DT manager
+
+    Returns:
+        None (204 No Content on success)
+    """
+    try:
+        # Check if UL exists
+        ul_key = f"{dt}:unite_locale:{ul_id}"
+        exists = await cache.exists(ul_key)
+
+        if not exists:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Unité Locale {ul_id} not found in {dt}"
+            )
+
+        # Delete UL data
+        await cache.client.delete(ul_key)
+
+        # Remove from index
+        index_key = f"{dt}:unite_locales:index"
+        await cache.client.srem(index_key, ul_id)
+
+        logger.info(f"Deleted UL {ul_id} from {dt}")
+    except HTTPException:
+        # Re-raise HTTP exceptions (like 404 Not Found)
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting UL {ul_id} in {dt}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error deleting Unité Locale: {str(e)}"
+        )
+
