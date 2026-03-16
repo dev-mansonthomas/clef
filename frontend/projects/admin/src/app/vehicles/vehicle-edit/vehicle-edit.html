@@ -1,6 +1,6 @@
 <div class="vehicle-edit-container">
   <div class="header">
-    <h1>Édition Véhicule</h1>
+    <h1>{{ isCreateMode ? 'Nouveau Véhicule' : 'Édition Véhicule' }}</h1>
     <p *ngIf="vehicle">{{ vehicle.indicatif }} - {{ vehicle.marque }} {{ vehicle.modele }}</p>
   </div>
 
@@ -35,24 +35,24 @@
         <div class="form-row">
           <mat-form-field appearance="outline">
             <mat-label>DT / UL</mat-label>
-            <input matInput formControlName="dt_ul" readonly>
+            <input matInput formControlName="dt_ul" [readonly]="!isCreateMode">
           </mat-form-field>
 
           <mat-form-field appearance="outline">
             <mat-label>Immatriculation</mat-label>
-            <input matInput formControlName="immat" readonly>
+            <input matInput formControlName="immat" [readonly]="!isCreateMode">
           </mat-form-field>
         </div>
 
         <div class="form-row">
           <mat-form-field appearance="outline">
             <mat-label>Indicatif Radio</mat-label>
-            <input matInput formControlName="indicatif" readonly>
+            <input matInput formControlName="indicatif" [readonly]="!isCreateMode">
           </mat-form-field>
 
           <mat-form-field appearance="outline">
             <mat-label>Nom Synthétique</mat-label>
-            <input matInput formControlName="nom_synthetique" readonly>
+            <input matInput formControlName="nom_synthetique" [readonly]="!isCreateMode">
           </mat-form-field>
         </div>
       </mat-card-content>
@@ -67,19 +67,19 @@
         <div class="form-row">
           <mat-form-field appearance="outline">
             <mat-label>Marque</mat-label>
-            <input matInput formControlName="marque" readonly>
+            <input matInput formControlName="marque" [readonly]="!isCreateMode">
           </mat-form-field>
 
           <mat-form-field appearance="outline">
             <mat-label>Modèle</mat-label>
-            <input matInput formControlName="modele" readonly>
+            <input matInput formControlName="modele" [readonly]="!isCreateMode">
           </mat-form-field>
         </div>
 
         <div class="form-row">
           <mat-form-field appearance="outline">
             <mat-label>Type</mat-label>
-            <input matInput formControlName="type" readonly>
+            <input matInput formControlName="type" [readonly]="!isCreateMode">
           </mat-form-field>
 
           <mat-form-field appearance="outline">
@@ -91,7 +91,7 @@
         <div class="form-row">
           <mat-form-field appearance="outline">
             <mat-label>Nombre de Places</mat-label>
-            <input matInput formControlName="nb_places" readonly>
+            <input matInput formControlName="nb_places" [readonly]="!isCreateMode">
           </mat-form-field>
 
           <mat-form-field appearance="outline" [ngClass]="getCarteGriseClass()">
@@ -137,7 +137,7 @@
       </mat-card-header>
       <mat-card-content>
         <div class="form-row">
-          <mat-form-field appearance="outline" [class.field-alert]="isCtExpired()">
+          <mat-form-field appearance="outline" [ngClass]="getCtClass()">
             <mat-label>Prochain Contrôle Technique</mat-label>
             <input matInput formControlName="prochain_controle_technique" type="date" readonly>
           </mat-form-field>
