@@ -79,7 +79,11 @@
         <div class="form-row">
           <mat-form-field appearance="outline">
             <mat-label>Type</mat-label>
-            <input matInput formControlName="type" [readonly]="!isCreateMode">
+            <mat-select formControlName="type" [disabled]="!isCreateMode">
+              <mat-option *ngFor="let option of typeOptions" [value]="option">
+                {{ option }}
+              </mat-option>
+            </mat-select>
           </mat-form-field>
 
           <mat-form-field appearance="outline">
