@@ -239,3 +239,53 @@ class TestVehicleFiltering:
         for vehicle in data["vehicles"]:
             assert "Paris 15" in vehicle["dt_ul"]
 
+
+class TestVehicleUppercaseFields:
+    """Test that immat and indicatif are forced to uppercase."""
+
+    def test_vehicle_create_model_uppercase(self):
+        """Test that VehicleCreate model forces uppercase on immat and indicatif."""
+        from app.models.vehicle import VehicleCreate, DisponibiliteStatus
+
+        # Create vehicle with lowercase immat and indicatif
+        vehicle = VehicleCreate(
+            dt_ul="UL Paris 15",
+            immat="ab-123-cd",  # lowercase
+            indicatif="paris-15-01",  # lowercase
+            nom_synthetique="test-vehicle",
+            marque="Renault",
+            modele="Master",
+            type="VSAV",
+            nb_places="3",
+            carte_grise="CG123456",
+            operationnel_mecanique=DisponibiliteStatus.DISPO
+        )
+
+        # Verify fields are uppercased
+        assert vehicle.immat == "AB-123-CD"
+        assert vehicle.indicatif == "PARIS-15-01"
+
+    def test_vehicle_data_model_uppercase(self):
+        """Test that VehicleData model forces uppercase on immat and indicatif."""
+        from app.models.valkey_models import VehicleData
+
+        # Create vehicle data with lowercase immat and indicatif
+        vehicle_data = VehicleData(
+            immat="ef-456-gh",  # lowercase
+            dt="DT75",
+            dt_ul="UL Paris 16",
+            indicatif="paris-16-02",  # lowercase
+            marque="Peugeot",
+            modele="Partner",
+            nom_synthetique="test-vehicle-2",
+            operationnel_mecanique="Dispo",
+            type="VL",
+            carte_grise="CG789",
+            nb_places="5",
+            lieu_stationnement="Garage"
+        )
+
+        # Verify fields are uppercased
+        assert vehicle_data.immat == "EF-456-GH"
+        assert vehicle_data.indicatif == "PARIS-16-02"
+
