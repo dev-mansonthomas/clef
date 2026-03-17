@@ -33,10 +33,10 @@ echo ""
 echo "⏳ Waiting for services to be ready..."
 echo ""
 
-# Wait for Redis
-echo -n "  Redis: "
+# Wait for Valkey
+echo -n "  Valkey: "
 for i in {1..30}; do
-    if docker-compose exec -T redis redis-cli ping > /dev/null 2>&1; then
+    if docker-compose exec -T valkey valkey-cli ping > /dev/null 2>&1; then
         echo "✅ Ready"
         break
     fi
@@ -82,13 +82,13 @@ echo "📍 Services:"
 echo "  - Frontend:  http://localhost:4200"
 echo "  - Backend:   http://localhost:8000"
 echo "  - API Docs:  http://localhost:8000/docs"
-echo "  - Redis:     localhost:6379"
+echo "  - Valkey:    localhost:6379"
 echo ""
 echo "📝 Useful commands:"
 echo "  - View logs:        docker-compose logs -f"
-echo "  - View logs (service): docker-compose logs -f [frontend|backend|redis]"
+echo "  - View logs (service): docker-compose logs -f [frontend|backend|valkey]"
 echo "  - Stop services:    docker-compose down"
-echo "  - Restart service:  docker-compose restart [frontend|backend|redis]"
+echo "  - Restart service:  docker-compose restart [frontend|backend|valkey]"
 echo ""
 echo "🔄 Hot-reload is enabled for both frontend and backend"
 echo ""
