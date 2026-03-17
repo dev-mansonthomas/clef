@@ -6,7 +6,7 @@ import logging
 from typing import Optional, Dict, Any
 from datetime import datetime, timedelta
 from app.services.kms_service import kms_service
-from app.core.cache import get_cache
+from app.cache import get_cache
 
 logger = logging.getLogger(__name__)
 
