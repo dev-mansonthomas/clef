@@ -25,13 +25,21 @@ yarn-error.log*
 .angular/
 dist/
 
-# Terraform
-.terraform/
+# Terraform sensitive files - NEVER commit these
+*.tfplan
+*.tfplan.*
+tfplan*
 *.tfstate
 *.tfstate.*
 *.tfvars
+!*.tfvars.example
+.terraform/
 .terraform.lock.hcl
 crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
 
 # IDE
 .idea/
@@ -71,3 +79,11 @@ htmlcov/
 *.pem
 *.key
 service-account*.json
+
+# Service account keys and sensitive JSON - NEVER commit
+*.json
+!package.json
+!package-lock.json
+!tsconfig.json
+!angular.json
+!*.component.json

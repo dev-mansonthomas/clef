@@ -38,6 +38,11 @@ class AuthSettings(BaseSettings):
     # DT Manager email
     email_gestionnaire_dt: str = os.getenv("EMAIL_GESTIONNAIRE_DT", "thomas.manson@croix-rouge.fr")
 
+    # Super Admin Configuration
+    super_admin_email: str = os.getenv("SUPER_ADMIN_EMAIL", "")
+    super_admin_dt_id: str = os.getenv("SUPER_ADMIN_DT_ID", "")
+    super_admin_dt_numeric_id: str = os.getenv("SUPER_ADMIN_DT_NUMERIC_ID", "")
+
     # Session configuration
     session_secret_key: str = os.getenv("SESSION_SECRET_KEY", "dev-secret-key-change-in-production")
     session_cookie_name: str = "clef_session"

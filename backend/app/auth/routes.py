@@ -147,6 +147,40 @@ async def callback(
             # Use id_token as session token
             session_token = id_token
 
+            # Check if this is the super admin and needs OAuth authorization
+            if auth_settings.super_admin_email and email.lower() == auth_settings.super_admin_email.lower():
+                from app.services.dt_token_service import dt_token_service
+
+                dt_id = auth_settings.super_admin_dt_id
+                if dt_id:
+                    # Check if already authorized
+                    status = await dt_token_service.get_authorization_status(dt_id)
+
+                    if not status.get("authorized", False):
+                        # Build the authorization URL with extended scopes
+                        authorization_url = google_oauth.get_authorization_url(
+                            redirect_uri=f"{auth_settings.backend_url}/auth/callback-dt",
+                            scopes=auth_settings.dt_oauth_scopes,
+                            access_type="offline",
+                            prompt="consent",
+                            state=email,
+                        )
+
+                        # Create redirect response to OAuth authorization
+                        redirect_response = RedirectResponse(url=authorization_url, status_code=302)
+
+                        # Set session cookie so user is authenticated when they return
+                        redirect_response.set_cookie(
+                            key=auth_settings.session_cookie_name,
+                            value=session_token,
+                            max_age=auth_settings.session_max_age,
+                            httponly=True,
+                            secure=False,  # Set to True in production with HTTPS
+                            samesite="lax"
+                        )
+
+                        return redirect_response
+
         # Create redirect response with dynamic URL
         redirect_response = RedirectResponse(url=redirect_url)
 
@@ -306,7 +340,11 @@ async def callback_dt(
             )
 
         # Store tokens securely (encrypted with KMS)
-        dt_id = "DT75"  # TODO: Get from user context
+        # Use super admin DT ID if the email matches, otherwise use default
+        dt_id = "DT75"  # Default
+        if auth_settings.super_admin_email and state.lower() == auth_settings.super_admin_email.lower():
+            dt_id = auth_settings.super_admin_dt_id or "DT75"
+
         success = await dt_token_service.store_tokens(
             dt_id=dt_id,
             email=state,
@@ -321,11 +359,11 @@ async def callback_dt(
                 detail="Failed to store tokens"
             )
 
-        # Redirect to admin app with success message
-        # Use first allowed frontend URL (admin app)
+        # Redirect to frontend
+        # Use first allowed frontend URL
         frontend_url = auth_settings.allowed_frontend_urls[0]
         return RedirectResponse(
-            url=f"{frontend_url}/dt-admin?auth=success",
+            url=frontend_url,
             status_code=302
         )
 
