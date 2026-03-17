@@ -26,3 +26,13 @@ output "valkey_port" {
   value       = 6379
 }
 
+output "kms_keyring_id" {
+  value       = google_kms_key_ring.clef.id
+  description = "KMS Keyring ID"
+}
+
+output "kms_crypto_key_id" {
+  value       = google_kms_crypto_key.oauth_tokens.id
+  description = "KMS Crypto Key ID for OAuth tokens"
+}
+

@@ -18,6 +18,7 @@ resource "google_service_account_key" "clef_backend" {
 resource "google_project_iam_member" "service_account_roles" {
   for_each = toset([
     "roles/compute.instanceAdmin.v1",
+    "roles/cloudkms.cryptoKeyEncrypterDecrypter",
   ])
 
   project = var.project_id

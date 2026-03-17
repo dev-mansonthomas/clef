@@ -22,6 +22,16 @@ class AuthSettings(BaseSettings):
     # OAuth scopes
     google_scopes: list[str] = ["openid", "https://www.googleapis.com/auth/userinfo.email", "https://www.googleapis.com/auth/userinfo.profile"]
 
+    # Scopes for DT Manager authorization (Calendar + Drive + Gmail)
+    dt_oauth_scopes: list[str] = [
+        "openid",
+        "email",
+        "profile",
+        "https://www.googleapis.com/auth/calendar",
+        "https://www.googleapis.com/auth/drive.file",
+        "https://www.googleapis.com/auth/gmail.send",
+    ]
+
     # Email domain validation
     allowed_email_domain: str = "@croix-rouge.fr"
 
@@ -41,6 +51,9 @@ class AuthSettings(BaseSettings):
         "ALLOWED_FRONTEND_URLS",
         "http://localhost:4200,http://localhost:4202"
     ).split(",")
+
+    # Backend URL for OAuth callbacks
+    backend_url: str = os.getenv("BACKEND_URL", "http://localhost:8000")
 
     class Config:
         env_file = ".env"
