@@ -26,6 +26,7 @@ services:
     volumes:
       - ./backend:/app
       - backend-cache:/root/.cache
+      - ~/.cred/CLEF:/credentials:ro
     env_file:
       - ./backend/.env
     environment:
