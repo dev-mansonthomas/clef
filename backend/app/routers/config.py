@@ -3,7 +3,8 @@ Configuration API endpoints.
 DT manager only access.
 """
 from fastapi import APIRouter, Depends, HTTPException, status
-from typing import Annotated, Dict, Any
+from typing import Annotated, Dict, Any, Optional
+from pydantic import BaseModel
 
 from app.models.config import ConfigUpdate, ConfigResponse
 from app.services.config_service import ConfigService
@@ -12,6 +13,12 @@ from app.services.valkey_dependencies import get_valkey_service
 from app.services.calendar_service import calendar_service
 from app.auth.models import User
 from app.auth.dependencies import is_dt_manager
+
+
+class DriveFolderConfig(BaseModel):
+    """Drive folder configuration."""
+    folder_id: str
+    folder_url: Optional[str] = None
 
 
 router = APIRouter(
@@ -185,3 +192,67 @@ async def delete_calendar_config(
         await valkey_service.redis.json().set(config_key, "$", config)
 
     return {"message": "Configuration du calendrier supprimée"}
+
+
+@router.post("/drive-folder")
+async def set_drive_folder(
+    config_data: DriveFolderConfig,
+    valkey_service: Annotated[ValkeyService, Depends(get_valkey_service)],
+    current_user: User = Depends(is_dt_manager)
+) -> Dict[str, Any]:
+    """
+    Configure the Google Drive folder for vehicle photos.
+
+    **Access**: DT manager only
+
+    Args:
+        config_data: Drive folder configuration
+
+    Returns:
+        Success message with folder configuration
+    """
+    dt_id = current_user.dt or "DT75"
+
+    # Get existing config
+    config_key = f"{dt_id}:configuration"
+    config = await valkey_service.redis.json().get(config_key) or {}
+
+    # Update with Drive folder
+    config["drive_folder_id"] = config_data.folder_id
+    config["drive_folder_url"] = config_data.folder_url or f"https://drive.google.com/drive/folders/{config_data.folder_id}"
+
+    await valkey_service.redis.json().set(config_key, "$", config)
+
+    return {
+        "message": "Drive folder configured",
+        "folder_id": config_data.folder_id,
+        "folder_url": config["drive_folder_url"]
+    }
+
+
+@router.get("/drive-folder")
+async def get_drive_folder(
+    valkey_service: Annotated[ValkeyService, Depends(get_valkey_service)],
+    current_user: User = Depends(is_dt_manager)
+) -> Dict[str, Any]:
+    """
+    Get configured Drive folder.
+
+    **Access**: DT manager only
+
+    Returns:
+        Drive folder configuration status
+    """
+    dt_id = current_user.dt or "DT75"
+
+    config_key = f"{dt_id}:configuration"
+    config = await valkey_service.redis.json().get(config_key)
+
+    if not config or not config.get("drive_folder_id"):
+        return {"configured": False}
+
+    return {
+        "configured": True,
+        "folder_id": config["drive_folder_id"],
+        "folder_url": config.get("drive_folder_url"),
+    }

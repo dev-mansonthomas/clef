@@ -1,6 +1,6 @@
 """Vehicle API endpoints."""
 from typing import List, Optional, Dict, Any
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File
 from datetime import datetime
 import urllib.parse
 from app.models.vehicle import Vehicle, VehicleCreate, VehicleUpdate, VehicleListResponse
@@ -13,6 +13,7 @@ from app.services.qr_code_service import QrCodeService
 from app.services.calendar_service import CalendarService
 from app.services.valkey_service import ValkeyService
 from app.services.valkey_dependencies import get_valkey_service
+from app.services.vehicle_photo_service import vehicle_photo_service
 from app.cache import get_cache
 
 
@@ -571,3 +572,118 @@ async def decode_vehicle_qr(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
         )
+
+
+@router.post("/{nom_synthetique}/photos")
+async def upload_vehicle_photo(
+    nom_synthetique: str,
+    photo: UploadFile = File(...),
+    photo_type: str = Query("general", description="Type of photo: general, damage, before, after"),
+    current_user: User = Depends(require_authenticated_user),
+    valkey_service: ValkeyService = Depends(get_valkey_service)
+) -> Dict[str, Any]:
+    """
+    Upload a photo for a vehicle.
+
+    Args:
+        nom_synthetique: Unique synthetic name of the vehicle
+        photo: Photo file to upload
+        photo_type: Type of photo (general, damage, before, after)
+
+    Returns:
+        Upload result with Drive URLs
+
+    Raises:
+        404: Vehicle not found
+        500: Upload failed
+    """
+    # Decode URL-encoded characters
+    nom_synthetique = urllib.parse.unquote(nom_synthetique)
+
+    # Get vehicle to get immatriculation
+    vehicle_data = await get_vehicle_by_nom_synthetique(valkey_service, nom_synthetique)
+
+    if not vehicle_data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Vehicle '{nom_synthetique}' not found"
+        )
+
+    # Check user access
+    vehicle_dict = vehicle_data_to_dict(vehicle_data)
+    filtered = VehicleService.filter_by_user_access([vehicle_dict], current_user)
+    if not filtered:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have access to this vehicle"
+        )
+
+    # Read file content
+    content = await photo.read()
+
+    # Upload to Drive
+    result = await vehicle_photo_service.upload_vehicle_photo(
+        valkey_service=valkey_service,
+        vehicle_id=nom_synthetique,
+        immatriculation=vehicle_data.immat,
+        file_content=content,
+        filename=photo.filename or "photo.jpg",
+        mime_type=photo.content_type or "image/jpeg",
+        photo_type=photo_type,
+    )
+
+    if not result.get("uploaded"):
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=result.get("error", "Upload failed")
+        )
+
+    return result
+
+
+@router.get("/{nom_synthetique}/photos")
+async def list_vehicle_photos(
+    nom_synthetique: str,
+    current_user: User = Depends(require_authenticated_user),
+    valkey_service: ValkeyService = Depends(get_valkey_service)
+) -> Dict[str, Any]:
+    """
+    List all photos for a vehicle.
+
+    Args:
+        nom_synthetique: Unique synthetic name of the vehicle
+
+    Returns:
+        List of photos with Drive metadata
+
+    Raises:
+        404: Vehicle not found
+    """
+    # Decode URL-encoded characters
+    nom_synthetique = urllib.parse.unquote(nom_synthetique)
+
+    # Get vehicle
+    vehicle_data = await get_vehicle_by_nom_synthetique(valkey_service, nom_synthetique)
+
+    if not vehicle_data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Vehicle '{nom_synthetique}' not found"
+        )
+
+    # Check user access
+    vehicle_dict = vehicle_data_to_dict(vehicle_data)
+    filtered = VehicleService.filter_by_user_access([vehicle_dict], current_user)
+    if not filtered:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have access to this vehicle"
+        )
+
+    # List photos
+    photos = await vehicle_photo_service.list_vehicle_photos(
+        valkey_service=valkey_service,
+        immatriculation=vehicle_data.immat,
+    )
+
+    return {"photos": photos}
