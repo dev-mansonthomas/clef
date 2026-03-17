@@ -52,8 +52,17 @@ override.tf.json
 .DS_Store
 Thumbs.db
 
-# Environment
+# Environment files with secrets - NEVER commit
 .env
+.env.*
+!.env.example
+!*.env.example
+backend/.env
+backend/.env.*
+!backend/.env.example
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
 .env.local
 .env.*.local
 
