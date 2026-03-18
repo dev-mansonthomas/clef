@@ -151,9 +151,8 @@ class DriveService:
             return None
         
         service = await self._get_service(dt_id)
-        
+
         query = (
-            f"name='{name}' and "
             f"'{parent_folder_id}' in parents and "
             f"mimeType='application/vnd.google-apps.folder' and "
             f"trashed=false"
@@ -165,7 +164,7 @@ class DriveService:
             **self._shared_drive_kwargs(include_items=True),
         ).execute()
 
-        files = results.get("files", [])
+        files = [file for file in results.get("files", []) if file.get("name") == name]
         return files[0] if files else None
 
     async def get_or_create_folder(

@@ -1,6 +1,6 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { AbstractControl, FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ConfigService } from '../../services/config.service';
 import { ConfigResponse } from '../../models/config.model';
 import { ApiKeysManagerComponent } from '../../components/api-keys-manager/api-keys-manager.component';
@@ -13,7 +13,7 @@ import { ApiKeysService } from '../../services/api-keys.service';
   templateUrl: './config-page.component.html',
   styleUrl: './config-page.component.scss'
 })
-export class ConfigPageComponent implements OnInit {
+export class ConfigPageComponent implements OnInit, OnDestroy {
   private readonly configService = inject(ConfigService);
   private readonly apiKeysService = inject(ApiKeysService);
   private readonly fb = inject(FormBuilder);
@@ -24,6 +24,20 @@ export class ConfigPageComponent implements OnInit {
   saveError = signal<string | null>(null);
   emailGestionnaireDT = signal<string>('');
   syncUrl = signal<string>('');
+  driveSyncStatus = signal<ConfigResponse['drive_sync_status']>('idle');
+  driveSyncProcessed = signal(0);
+  driveSyncTotal = signal(0);
+  driveSyncMessage = signal<string | null>(null);
+  driveSyncError = signal<string | null>(null);
+  private driveSyncPoller: number | null = null;
+
+  readonly driveSyncPercent = computed(() => {
+    const total = this.driveSyncTotal();
+    if (!total) return 0;
+    return Math.min(100, Math.round((this.driveSyncProcessed() / total) * 100));
+  });
+
+  readonly driveSyncActive = computed(() => this.driveSyncStatus() === 'in_progress');
 
   ngOnInit(): void {
     this.initForm();
@@ -31,45 +45,98 @@ export class ConfigPageComponent implements OnInit {
     this.syncUrl.set(this.apiKeysService.getSyncUrlDT());
   }
 
+  ngOnDestroy(): void {
+    this.stopDriveSyncPolling();
+  }
+
   private initForm(): void {
     this.configForm = this.fb.group({
-      sheets_url_vehicules: ['', [Validators.required, this.googleUrlValidator]],
-      sheets_url_benevoles: ['', [Validators.required, this.googleUrlValidator]],
-      sheets_url_responsables: ['', [Validators.required, this.googleUrlValidator]],
-      template_doc_url: ['', [Validators.required, this.googleUrlValidator]],
+      drive_folder_url: ['', [this.driveFolderValidator]],
       email_destinataire_alertes: ['', [Validators.required, Validators.email]]
     });
   }
 
-  private googleUrlValidator(control: any) {
-    const value = control.value;
+  private driveFolderValidator(control: AbstractControl) {
+    const value = String(control.value ?? '').trim();
     if (!value) return null;
-    if (!value.startsWith('https://docs.google.com/')) {
-      return { invalidGoogleUrl: true };
-    }
-    return null;
+
+    const isDriveUrl = value.startsWith('https://drive.google.com/');
+    const isDriveId = /^[A-Za-z0-9_-]{10,}$/.test(value);
+    return isDriveUrl || isDriveId ? null : { invalidDriveFolder: true };
   }
 
-  private loadConfig(): void {
-    this.loading.set(true);
+  private loadConfig(showLoading = true): void {
+    if (showLoading) {
+      this.loading.set(true);
+    }
+
     this.configService.getConfig().subscribe({
       next: (config: ConfigResponse) => {
         this.configForm.patchValue({
-          sheets_url_vehicules: config.sheets_url_vehicules,
-          sheets_url_benevoles: config.sheets_url_benevoles,
-          sheets_url_responsables: config.sheets_url_responsables,
-          template_doc_url: config.template_doc_url,
+          drive_folder_url: config.drive_folder_url || config.drive_folder_id,
           email_destinataire_alertes: config.email_destinataire_alertes
         });
         this.emailGestionnaireDT.set(config.email_gestionnaire_dt);
-        this.loading.set(false);
+        this.applyDriveSyncState(config);
+        if (showLoading) {
+          this.loading.set(false);
+        }
       },
       error: (error) => {
         console.error('Error loading config:', error);
         this.saveError.set('Erreur lors du chargement de la configuration');
-        this.loading.set(false);
+        if (showLoading) {
+          this.loading.set(false);
+        }
       }
     });
+  }
+
+  private applyDriveSyncState(config: ConfigResponse): void {
+    this.driveSyncStatus.set(config.drive_sync_status);
+    this.driveSyncProcessed.set(config.drive_sync_processed);
+    this.driveSyncTotal.set(config.drive_sync_total);
+    this.driveSyncMessage.set(config.drive_sync_message);
+    this.driveSyncError.set(config.drive_sync_error);
+
+    if (config.drive_sync_status === 'in_progress') {
+      this.startDriveSyncPolling();
+      return;
+    }
+
+    if (config.drive_sync_status === 'complete') {
+      this.saveSuccess.set(true);
+      setTimeout(() => this.saveSuccess.set(false), 3000);
+    }
+
+    if (config.drive_sync_status === 'error' && config.drive_sync_error) {
+      this.saveError.set(config.drive_sync_error);
+    }
+
+    this.stopDriveSyncPolling();
+  }
+
+  private startDriveSyncPolling(): void {
+    if (this.driveSyncPoller !== null) {
+      return;
+    }
+
+    this.driveSyncPoller = window.setInterval(() => {
+      this.configService.getConfig().subscribe({
+        next: (config) => this.applyDriveSyncState(config),
+        error: (error) => {
+          console.error('Error polling config status:', error);
+          this.stopDriveSyncPolling();
+        }
+      });
+    }, 1000);
+  }
+
+  private stopDriveSyncPolling(): void {
+    if (this.driveSyncPoller !== null) {
+      window.clearInterval(this.driveSyncPoller);
+      this.driveSyncPoller = null;
+    }
   }
 
   onSubmit(): void {
@@ -83,10 +150,13 @@ export class ConfigPageComponent implements OnInit {
     this.saveError.set(null);
 
     this.configService.updateConfig(this.configForm.value).subscribe({
-      next: () => {
-        this.saveSuccess.set(true);
+      next: (config) => {
+        this.applyDriveSyncState(config);
+        if (config.drive_sync_status !== 'in_progress') {
+          this.saveSuccess.set(true);
+          setTimeout(() => this.saveSuccess.set(false), 3000);
+        }
         this.loading.set(false);
-        setTimeout(() => this.saveSuccess.set(false), 3000);
       },
       error: (error) => {
         console.error('Error saving config:', error);
@@ -102,7 +172,9 @@ export class ConfigPageComponent implements OnInit {
 
     if (field.errors['required']) return 'Ce champ est requis';
     if (field.errors['email']) return 'Email invalide';
-    if (field.errors['invalidGoogleUrl']) return 'L\'URL doit être une URL Google Docs/Sheets';
+    if (field.errors['invalidDriveFolder']) {
+      return 'Renseignez une URL de dossier Google Drive ou un identifiant de dossier valide';
+    }
     return null;
   }
 }
