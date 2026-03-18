@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Awaitable, Callable, Dict
 
 from fastapi import HTTPException, status
 
@@ -67,6 +67,43 @@ MANAGED_DOCUMENT_TYPE_SET = set(MANAGED_DOCUMENT_TYPES)
 
 class VehicleDocumentService:
     """Manage Drive-backed vehicle documents and their current associations."""
+
+    async def ensure_vehicle_trees_for_all_vehicles(
+        self,
+        valkey_service: ValkeyService,
+        root_folder_id: str,
+        progress_callback: Callable[[int, int, VehicleData], Awaitable[None]] | None = None,
+    ) -> int:
+        """Ensure the Google Drive folder tree exists for every vehicle in the DT."""
+        if not root_folder_id:
+            return 0
+
+        vehicle_ids = await valkey_service.list_vehicles()
+        vehicles: list[VehicleData] = []
+        for immat in vehicle_ids:
+            vehicle = await valkey_service.get_vehicle(immat)
+            if vehicle:
+                vehicles.append(vehicle)
+
+        vehicles.sort(
+            key=lambda vehicle: (
+                (vehicle.dt_ul or "").casefold(),
+                (vehicle.indicatif or "").casefold(),
+                (vehicle.nom_synthetique or "").casefold(),
+                (vehicle.immat or "").casefold(),
+            )
+        )
+
+        total_vehicles = len(vehicles)
+        ensured_count = 0
+        for index, vehicle in enumerate(vehicles, start=1):
+            if progress_callback:
+                await progress_callback(index, total_vehicles, vehicle)
+
+            await self._ensure_vehicle_tree(valkey_service, vehicle, root_folder_id)
+            ensured_count += 1
+
+        return ensured_count
 
     async def get_documents_overview(
         self,
