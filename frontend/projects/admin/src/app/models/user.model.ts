@@ -11,5 +11,6 @@ export interface User {
   role: string;
   perimetre: string;
   type_perimetre: string;
+  is_super_admin?: boolean;
 }
 
