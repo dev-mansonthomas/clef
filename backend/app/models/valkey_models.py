@@ -19,6 +19,16 @@ class DTConfiguration(BaseModel):
     template_doc_url: Optional[str] = Field(None, description="URL du template de document véhicule")
     drive_folder_id: Optional[str] = Field(None, description="Identifiant du dossier Google Drive racine de la DT")
     drive_folder_url: Optional[str] = Field(None, description="URL du dossier Google Drive racine de la DT")
+    drive_vehicles_folder_id: Optional[str] = Field(None, description="Identifiant du dossier Drive 'Véhicules'")
+    drive_vehicles_folder_url: Optional[str] = Field(None, description="URL du dossier Drive 'Véhicules'")
+    drive_dt_folder_id: Optional[str] = Field(None, description="Identifiant du dossier Drive de la DT")
+    drive_dt_folder_url: Optional[str] = Field(None, description="URL du dossier Drive de la DT")
+    drive_sync_status: Optional[str] = Field("idle", description="Statut de création de l'arborescence Drive")
+    drive_sync_processed: int = Field(0, description="Nombre de véhicules traités ou index courant")
+    drive_sync_total: int = Field(0, description="Nombre total de véhicules à traiter")
+    drive_sync_current_vehicle: Optional[str] = Field(None, description="Nom du véhicule en cours de traitement")
+    drive_sync_message: Optional[str] = Field(None, description="Message de progression de la synchronisation Drive")
+    drive_sync_error: Optional[str] = Field(None, description="Dernière erreur de synchronisation Drive")
     email_destinataire_alertes: Optional[str] = Field(None, description="Email destinataire des alertes")
     api_keys: List[Dict] = Field(default_factory=list, description="API keys for this DT")
 
@@ -50,6 +60,7 @@ class VehicleData(BaseModel):
     numero_serie_baus: str = Field(default="", description="Numéro de série BAUS")
     suivi_mode: str = Field(default="prise", description="Mode de suivi du véhicule (prise/retour/prise_et_retour)")
     documents: Dict[str, Dict[str, Any]] = Field(default_factory=dict, description="Associated Google Drive documents by type")
+    drive_folders: Dict[str, Any] = Field(default_factory=dict, description="Cached Google Drive folders for the vehicle")
 
     @field_validator('immat', 'indicatif')
     @classmethod
