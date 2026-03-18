@@ -9,7 +9,7 @@ from google.cloud import kms
 
 class KMSService:
     def __init__(self):
-        self.project_id = os.getenv("GCP_PROJECT_ID")
+        self.project_id = os.getenv("GCP_PROJECT_ID") or os.getenv("GCP_PROJECT")
         self.location = os.getenv("GCP_REGION", "europe-west9")
         self.environment = os.getenv("ENVIRONMENT", "local")
         self.keyring_name = f"clef-{self.environment}-keyring"
