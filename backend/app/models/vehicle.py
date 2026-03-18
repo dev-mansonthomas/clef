@@ -1,7 +1,7 @@
 """Vehicle data models and schemas."""
 from datetime import date, datetime
 from enum import Enum
-from typing import Optional, Any
+from typing import Optional, Any, Dict
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 
@@ -318,6 +318,62 @@ class VehicleUpdate(BaseModel):
                 "suivi_mode": "prise"
             }
         }
+
+
+class VehicleDocumentType(str, Enum):
+    """Supported Google Drive document types for a vehicle."""
+    CARTE_GRISE = "carte_grise"
+    CARTE_TOTAL = "carte_total"
+    PLAN_ENTRETIEN = "plan_entretien"
+    FACTURES = "factures"
+    ASSURANCE = "assurance"
+    CONTROLE_TECHNIQUE = "controle_technique"
+    CARNET_SUIVI = "carnet_suivi"
+
+
+class VehicleDriveFile(BaseModel):
+    """A file stored in the vehicle's Google Drive tree."""
+    file_id: str
+    name: str
+    web_view_link: Optional[str] = None
+    mime_type: Optional[str] = None
+    created_time: Optional[str] = None
+    selected_at: Optional[str] = None
+    folder_id: Optional[str] = None
+    folder_name: Optional[str] = None
+
+
+class VehicleDriveDocument(BaseModel):
+    """Folder and current-file state for a vehicle document type."""
+    key: VehicleDocumentType
+    label: str
+    folder_name: str
+    managed: bool = False
+    folder_id: Optional[str] = None
+    folder_url: Optional[str] = None
+    file_count: int = 0
+    current_file: Optional[VehicleDriveFile] = None
+
+
+class VehicleDriveDocumentsResponse(BaseModel):
+    """Overview of the Drive folders/documents linked to a vehicle."""
+    configured: bool
+    root_folder_id: Optional[str] = None
+    root_folder_url: Optional[str] = None
+    vehicle_folder_name: str
+    vehicle_folder_id: Optional[str] = None
+    vehicle_folder_url: Optional[str] = None
+    documents: Dict[VehicleDocumentType, VehicleDriveDocument]
+
+
+class VehicleDriveFileListResponse(BaseModel):
+    """List of files available in a specific vehicle Drive folder."""
+    files: list[VehicleDriveFile]
+
+
+class VehicleDocumentSelectRequest(BaseModel):
+    """Request body for selecting an existing Drive file as the current document."""
+    file_id: str = Field(..., min_length=1)
 
 
 class VehicleListResponse(BaseModel):

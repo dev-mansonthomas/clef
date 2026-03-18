@@ -1,5 +1,5 @@
 """Pydantic models for Valkey data structures."""
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Any
 from datetime import datetime
 from pydantic import BaseModel, Field, ConfigDict, field_validator
 
@@ -47,6 +47,7 @@ class VehicleData(BaseModel):
     assurance_2026: str = Field(default="", description="Informations assurance")
     numero_serie_baus: str = Field(default="", description="Numéro de série BAUS")
     suivi_mode: str = Field(default="prise", description="Mode de suivi du véhicule (prise/retour/prise_et_retour)")
+    documents: Dict[str, Dict[str, Any]] = Field(default_factory=dict, description="Associated Google Drive documents by type")
 
     @field_validator('immat', 'indicatif')
     @classmethod
@@ -77,7 +78,13 @@ class VehicleData(BaseModel):
                 "instructions_recuperation": "https://docs.google.com/...",
                 "assurance_2026": "Contrat #2026-001",
                 "numero_serie_baus": "BAUS-2020-001",
-                "suivi_mode": "prise"
+                "suivi_mode": "prise",
+                "documents": {
+                    "carte_grise": {
+                        "file_id": "drive-file-123",
+                        "name": "carte-grise.pdf"
+                    }
+                }
             }
         }
     )

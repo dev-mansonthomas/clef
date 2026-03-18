@@ -8,6 +8,17 @@ export type DisponibiliteStatus = 'Dispo' | 'Indispo';
 
 export type SuiviMode = 'prise' | 'retour' | 'prise_et_retour';
 
+export type VehicleDocumentType =
+  | 'carte_grise'
+  | 'carte_total'
+  | 'plan_entretien'
+  | 'factures'
+  | 'assurance'
+  | 'controle_technique'
+  | 'carnet_suivi';
+
+export type ManagedVehicleDocumentType = 'carte_grise' | 'carte_total' | 'plan_entretien';
+
 export interface StatusInfo {
   value: string;
   color: StatusColor;
@@ -47,6 +58,42 @@ export interface VehicleUpdate {
   couleur_calendrier?: string | null;
   commentaires?: string | null;
   suivi_mode?: SuiviMode | null;
+}
+
+export interface VehicleDriveFile {
+  file_id: string;
+  name: string;
+  web_view_link?: string | null;
+  mime_type?: string | null;
+  created_time?: string | null;
+  selected_at?: string | null;
+  folder_id?: string | null;
+  folder_name?: string | null;
+}
+
+export interface VehicleDriveDocument {
+  key: VehicleDocumentType;
+  label: string;
+  folder_name: string;
+  managed: boolean;
+  folder_id?: string | null;
+  folder_url?: string | null;
+  file_count: number;
+  current_file?: VehicleDriveFile | null;
+}
+
+export interface VehicleDriveDocumentsResponse {
+  configured: boolean;
+  root_folder_id?: string | null;
+  root_folder_url?: string | null;
+  vehicle_folder_name: string;
+  vehicle_folder_id?: string | null;
+  vehicle_folder_url?: string | null;
+  documents: Record<VehicleDocumentType, VehicleDriveDocument>;
+}
+
+export interface VehicleDriveFileListResponse {
+  files: VehicleDriveFile[];
 }
 
 export interface VehicleListResponse {

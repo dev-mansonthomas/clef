@@ -9,241 +9,254 @@
     <p>Chargement du véhicule...</p>
   </div>
 
-  <!-- Alerts Banner -->
   <div *ngIf="!loading && vehicle && hasAlerts()" class="alerts-banner">
-    <span *ngIf="vehicle.status_disponibilite.value === 'Indispo'" class="alert-chip">
-      Indisponible
-    </span>
-    <span *ngIf="!vehicle.carte_grise || vehicle.carte_grise === 'Manquante'" class="alert-chip">
-      Carte grise manquante
-    </span>
-    <span *ngIf="isCtExpired()" class="alert-chip">
-      CT expiré
-    </span>
-    <span *ngIf="isPollutionExpired()" class="alert-chip">
-      Pollution expirée
-    </span>
+    <span *ngIf="vehicle.status_disponibilite.value === 'Indispo'" class="alert-chip">Indisponible</span>
+    <span *ngIf="!vehicle.carte_grise || vehicle.carte_grise === 'Manquante'" class="alert-chip">Carte grise manquante</span>
+    <span *ngIf="isCtExpired()" class="alert-chip">CT expiré</span>
+    <span *ngIf="isPollutionExpired()" class="alert-chip">Pollution expirée</span>
   </div>
 
   <form *ngIf="!loading && vehicleForm" [formGroup]="vehicleForm" (ngSubmit)="onSubmit()">
-    <!-- Section: Identification -->
-    <mat-card>
-      <mat-card-header>
-        <mat-card-title>Identification</mat-card-title>
-      </mat-card-header>
-      <mat-card-content>
-        <div class="form-row">
-          <mat-form-field appearance="outline">
-            <mat-label>DT / UL</mat-label>
-            <mat-select formControlName="dt_ul">
-              <mat-option *ngFor="let option of dtUlOptions" [value]="option">
-                {{ option }}
-              </mat-option>
-            </mat-select>
-          </mat-form-field>
+    <mat-tab-group [(selectedIndex)]="activeTabIndex" animationDuration="0ms">
+      <mat-tab label="Informations générales">
+        <div class="tab-content">
+          <mat-card class="documents-card">
+            <mat-card-header>
+              <mat-card-title>Documents Google Drive</mat-card-title>
+              <mat-card-subtitle>Carte grise, carte Total et plan d'entretien</mat-card-subtitle>
+            </mat-card-header>
+            <mat-card-content>
+              <div *ngIf="isCreateMode" class="documents-empty-state">Les documents Drive seront disponibles une fois le véhicule créé.</div>
 
-          <mat-form-field appearance="outline">
-            <mat-label>Immatriculation</mat-label>
-            <input matInput formControlName="immat" [readonly]="!isCreateMode" (input)="onImmatInput($event)" class="uppercase-field">
-          </mat-form-field>
+              <div *ngIf="!isCreateMode && driveDocumentsLoading" class="documents-loading">
+                <mat-spinner diameter="32"></mat-spinner>
+                <span>Chargement de l'arborescence Drive…</span>
+              </div>
+
+              <div *ngIf="!isCreateMode && !driveDocumentsLoading && driveDocuments && !driveDocuments.configured" class="documents-empty-state">
+                Le dossier racine Google Drive n'est pas encore configuré pour cette DT.
+              </div>
+
+              <div *ngIf="!isCreateMode && !driveDocumentsLoading && driveDocuments?.configured" class="documents-toolbar">
+                <button mat-stroked-button type="button" (click)="openDriveLink(driveDocuments?.vehicle_folder_url)">Ouvrir le dossier véhicule</button>
+                <span class="documents-path">{{ driveDocuments?.vehicle_folder_name }}</span>
+              </div>
+
+              <div *ngIf="!isCreateMode && !driveDocumentsLoading && driveDocuments?.configured" class="documents-grid">
+                <mat-card *ngFor="let card of managedDocumentCards" class="document-item-card">
+                  <mat-card-header>
+                    <div mat-card-avatar class="document-avatar"><mat-icon>{{ card.icon }}</mat-icon></div>
+                    <mat-card-title>{{ card.label }}</mat-card-title>
+                    <mat-card-subtitle>{{ card.description }}</mat-card-subtitle>
+                  </mat-card-header>
+                  <mat-card-content>
+                    <div class="document-status" [class.has-file]="!!getManagedDocument(card.type)?.current_file">
+                      <mat-icon>{{ getManagedDocument(card.type)?.current_file ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon>
+                      <div>
+                        <strong>{{ getManagedDocument(card.type)?.current_file ? 'Document actuel associé' : 'Aucun document actuel' }}</strong>
+                        <div *ngIf="getManagedDocument(card.type)?.current_file as currentFile" class="document-meta">
+                          <a *ngIf="currentFile.web_view_link" [href]="currentFile.web_view_link" target="_blank" rel="noopener">{{ currentFile.name }}</a>
+                          <span *ngIf="!currentFile.web_view_link">{{ currentFile.name }}</span>
+                          <span *ngIf="currentFile.selected_at">Sélectionné le {{ currentFile.selected_at | date:'short' }}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="document-actions">
+                      <input #fileInput type="file" hidden (change)="onDriveFileSelected(card.type, $event)">
+                      <button mat-raised-button color="primary" type="button" [disabled]="isDocumentActionRunning(card.type)" (click)="fileInput.click()">Envoyer une nouvelle version</button>
+                      <button mat-stroked-button type="button" [disabled]="isDocumentActionRunning(card.type)" (click)="toggleDriveBrowser(card.type)">Parcourir le dossier</button>
+                      <button mat-button type="button" [disabled]="!getManagedDocument(card.type)?.folder_url" (click)="openDriveLink(getManagedDocument(card.type)?.folder_url)">Ouvrir dans Drive</button>
+                    </div>
+
+                    <div *ngIf="driveBrowserOpenType === card.type" class="document-browser">
+                      <div *ngIf="driveBrowserLoadingType === card.type" class="documents-loading inline">
+                        <mat-spinner diameter="24"></mat-spinner>
+                        <span>Chargement des fichiers…</span>
+                      </div>
+
+                      <div *ngIf="driveBrowserLoadingType !== card.type && !(driveBrowserFiles[card.type]?.length)">Aucun fichier trouvé dans ce sous-dossier.</div>
+
+                      <div *ngIf="driveBrowserLoadingType !== card.type && driveBrowserFiles[card.type]?.length" class="browser-file-list">
+                        <div *ngFor="let file of driveBrowserFiles[card.type]" class="browser-file-row">
+                          <div>
+                            <a *ngIf="file.web_view_link" [href]="file.web_view_link" target="_blank" rel="noopener">{{ file.name }}</a>
+                            <span *ngIf="!file.web_view_link">{{ file.name }}</span>
+                            <div class="document-meta" *ngIf="file.created_time">Créé le {{ file.created_time | date:'short' }}</div>
+                          </div>
+                          <button mat-stroked-button type="button" [disabled]="isDocumentActionRunning(card.type) || getManagedDocument(card.type)?.current_file?.file_id === file.file_id" (click)="selectDriveFile(card.type, file.file_id)">
+                            {{ getManagedDocument(card.type)?.current_file?.file_id === file.file_id ? 'Actuel' : 'Associer' }}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </mat-card-content>
+                </mat-card>
+              </div>
+            </mat-card-content>
+          </mat-card>
+
+          <mat-card>
+            <mat-card-header><mat-card-title>Identification</mat-card-title></mat-card-header>
+            <mat-card-content>
+              <div class="form-row">
+                <mat-form-field appearance="outline">
+                  <mat-label>DT / UL</mat-label>
+                  <mat-select formControlName="dt_ul">
+                    <mat-option *ngFor="let option of dtUlOptions" [value]="option">{{ option }}</mat-option>
+                  </mat-select>
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>Immatriculation</mat-label>
+                  <input matInput formControlName="immat" [readonly]="!isCreateMode" (input)="onImmatInput($event)" class="uppercase-field">
+                </mat-form-field>
+              </div>
+
+              <div class="form-row">
+                <mat-form-field appearance="outline">
+                  <mat-label>Indicatif Radio</mat-label>
+                  <input matInput formControlName="indicatif" [readonly]="!isCreateMode" (input)="onIndicatifInput($event)" class="uppercase-field">
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>Nom Synthétique</mat-label>
+                  <input matInput formControlName="nom_synthetique" readonly>
+                </mat-form-field>
+              </div>
+            </mat-card-content>
+          </mat-card>
+
+          <mat-card>
+            <mat-card-header><mat-card-title>Caractéristiques</mat-card-title></mat-card-header>
+            <mat-card-content>
+              <div class="form-row">
+                <mat-form-field appearance="outline"><mat-label>Marque</mat-label><input matInput formControlName="marque"></mat-form-field>
+                <mat-form-field appearance="outline"><mat-label>Modèle</mat-label><input matInput formControlName="modele"></mat-form-field>
+              </div>
+              <div class="form-row">
+                <mat-form-field appearance="outline">
+                  <mat-label>Type</mat-label>
+                  <mat-select formControlName="type">
+                    <mat-option *ngFor="let option of typeOptions" [value]="option">{{ option }}</mat-option>
+                  </mat-select>
+                </mat-form-field>
+                <mat-form-field appearance="outline"><mat-label>Date de MEC</mat-label><input matInput formControlName="date_mec" type="date"></mat-form-field>
+              </div>
+              <div class="form-row">
+                <mat-form-field appearance="outline"><mat-label>Nombre de Places</mat-label><input matInput formControlName="nb_places"></mat-form-field>
+                <mat-form-field appearance="outline" [ngClass]="getCarteGriseClass()">
+                  <mat-label>Carte Grise</mat-label>
+                  <mat-select formControlName="carte_grise">
+                    <mat-option *ngFor="let option of carteGriseOptions" [value]="option">{{ option }}</mat-option>
+                  </mat-select>
+                </mat-form-field>
+              </div>
+            </mat-card-content>
+          </mat-card>
+
+          <mat-card>
+            <mat-card-header><mat-card-title>Disponibilité</mat-card-title></mat-card-header>
+            <mat-card-content>
+              <div class="form-row">
+                <mat-form-field appearance="outline" [ngClass]="getDisponibiliteClass()">
+                  <mat-label>Opérationnel Mécanique</mat-label>
+                  <mat-select formControlName="operationnel_mecanique">
+                    <mat-option *ngFor="let option of disponibiliteOptions" [value]="option.value">{{ option.label }}</mat-option>
+                  </mat-select>
+                </mat-form-field>
+                <mat-form-field appearance="outline"><mat-label>Raison Indisponibilité</mat-label><input matInput formControlName="raison_indispo" [readonly]="!isCreateMode"></mat-form-field>
+              </div>
+            </mat-card-content>
+          </mat-card>
+
+          <mat-card>
+            <mat-card-header><mat-card-title>Contrôles Techniques</mat-card-title></mat-card-header>
+            <mat-card-content>
+              <div class="form-row">
+                <mat-form-field appearance="outline" [ngClass]="getCtClass()"><mat-label>Prochain Contrôle Technique</mat-label><input matInput formControlName="prochain_controle_technique" type="date"></mat-form-field>
+                <mat-form-field appearance="outline" [class.field-alert]="isPollutionExpired()"><mat-label>Prochain Contrôle Pollution</mat-label><input matInput formControlName="prochain_controle_pollution" type="date"></mat-form-field>
+              </div>
+            </mat-card-content>
+          </mat-card>
+
+          <mat-card>
+            <mat-card-header><mat-card-title>Localisation &amp; Instructions</mat-card-title></mat-card-header>
+            <mat-card-content>
+              <mat-form-field appearance="outline" class="full-width"><mat-label>Lieu de Stationnement</mat-label><input matInput formControlName="lieu_stationnement"></mat-form-field>
+              <mat-form-field appearance="outline" class="full-width"><mat-label>Instructions de Récupération (Lien Google Doc)</mat-label><input matInput formControlName="instructions_recuperation" type="url"></mat-form-field>
+            </mat-card-content>
+          </mat-card>
+
+          <mat-card>
+            <mat-card-header><mat-card-title>Informations Administratives</mat-card-title></mat-card-header>
+            <mat-card-content>
+              <div class="form-row">
+                <mat-form-field appearance="outline">
+                  <mat-label>Assurance</mat-label>
+                  <mat-select formControlName="assurance_2026">
+                    <mat-option *ngFor="let option of assuranceOptions" [value]="option">{{ option }}</mat-option>
+                  </mat-select>
+                </mat-form-field>
+                <mat-form-field appearance="outline"><mat-label>N° de série constructeur</mat-label><input matInput formControlName="numero_serie_baus"></mat-form-field>
+              </div>
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Commentaires</mat-label>
+                <textarea matInput formControlName="commentaires" rows="4"></textarea>
+                <mat-hint>Commentaires libres sur le véhicule</mat-hint>
+              </mat-form-field>
+            </mat-card-content>
+          </mat-card>
+
+          <mat-card>
+            <mat-card-header><mat-card-title>Calendrier</mat-card-title></mat-card-header>
+            <mat-card-content>
+              <mat-form-field appearance="outline"><mat-label>Couleur Calendrier</mat-label><input matInput formControlName="couleur_calendrier" type="color"><mat-hint>Couleur pour l'affichage dans le calendrier de réservations</mat-hint></mat-form-field>
+            </mat-card-content>
+          </mat-card>
+
+          <mat-card>
+            <mat-card-header>
+              <mat-card-title>Configuration du suivi</mat-card-title>
+              <mat-card-subtitle>Quand remplir le Carnet de suivi CLEF pour ce véhicule</mat-card-subtitle>
+            </mat-card-header>
+            <mat-card-content>
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Mode de suivi</mat-label>
+                <mat-select formControlName="suivi_mode">
+                  <mat-option *ngFor="let option of suiviModeOptions" [value]="option.value">{{ option.label }}</mat-option>
+                </mat-select>
+                <mat-hint>Détermine quand les bénévoles doivent remplir le formulaire de suivi</mat-hint>
+              </mat-form-field>
+            </mat-card-content>
+          </mat-card>
         </div>
+      </mat-tab>
 
-        <div class="form-row">
-          <mat-form-field appearance="outline">
-            <mat-label>Indicatif Radio</mat-label>
-            <input matInput formControlName="indicatif" [readonly]="!isCreateMode" (input)="onIndicatifInput($event)" class="uppercase-field">
-          </mat-form-field>
+      <mat-tab *ngFor="let tab of secondaryTabs">
+        <ng-template mat-tab-label>
+          <mat-icon class="tab-icon" [class.inactive]="getTabIcon(tab.type) === 'folder'">{{ getTabIcon(tab.type) }}</mat-icon>
+          <span>{{ tab.label }}</span>
+        </ng-template>
 
-          <mat-form-field appearance="outline">
-            <mat-label>Nom Synthétique</mat-label>
-            <input matInput formControlName="nom_synthetique" readonly>
-          </mat-form-field>
+        <div class="tab-content secondary-tab-content">
+          <mat-card>
+            <mat-card-header>
+              <mat-card-title>{{ tab.label }}</mat-card-title>
+              <mat-card-subtitle>{{ tab.description }}</mat-card-subtitle>
+            </mat-card-header>
+            <mat-card-content>
+              <p>Cette vue prépare l'intégration future. Pour le moment, vous pouvez ouvrir directement le sous-dossier Drive correspondant.</p>
+              <div class="documents-toolbar" *ngIf="getDriveFolder(tab.type) as folder">
+                <button mat-raised-button color="primary" type="button" [disabled]="!folder.folder_url" (click)="openDriveLink(folder.folder_url)">Ouvrir le dossier {{ folder.folder_name }}</button>
+                <span class="documents-path">{{ folder.folder_name }}</span>
+              </div>
+            </mat-card-content>
+          </mat-card>
         </div>
-      </mat-card-content>
-    </mat-card>
+      </mat-tab>
+    </mat-tab-group>
 
-    <!-- Section: Caractéristiques -->
-    <mat-card>
-      <mat-card-header>
-        <mat-card-title>Caractéristiques</mat-card-title>
-      </mat-card-header>
-      <mat-card-content>
-        <div class="form-row">
-          <mat-form-field appearance="outline">
-            <mat-label>Marque</mat-label>
-            <input matInput formControlName="marque">
-          </mat-form-field>
-
-          <mat-form-field appearance="outline">
-            <mat-label>Modèle</mat-label>
-            <input matInput formControlName="modele">
-          </mat-form-field>
-        </div>
-
-        <div class="form-row">
-          <mat-form-field appearance="outline">
-            <mat-label>Type</mat-label>
-            <mat-select formControlName="type">
-              <mat-option *ngFor="let option of typeOptions" [value]="option">
-                {{ option }}
-              </mat-option>
-            </mat-select>
-          </mat-form-field>
-
-          <mat-form-field appearance="outline">
-            <mat-label>Date de MEC</mat-label>
-            <input matInput formControlName="date_mec" type="date">
-          </mat-form-field>
-        </div>
-
-        <div class="form-row">
-          <mat-form-field appearance="outline">
-            <mat-label>Nombre de Places</mat-label>
-            <input matInput formControlName="nb_places">
-          </mat-form-field>
-
-          <mat-form-field appearance="outline" [ngClass]="getCarteGriseClass()">
-            <mat-label>Carte Grise</mat-label>
-            <mat-select formControlName="carte_grise">
-              <mat-option *ngFor="let option of carteGriseOptions" [value]="option">
-                {{ option }}
-              </mat-option>
-            </mat-select>
-          </mat-form-field>
-        </div>
-      </mat-card-content>
-    </mat-card>
-
-    <!-- Section: Disponibilité -->
-    <mat-card>
-      <mat-card-header>
-        <mat-card-title>Disponibilité</mat-card-title>
-      </mat-card-header>
-      <mat-card-content>
-        <div class="form-row">
-          <mat-form-field appearance="outline" [ngClass]="getDisponibiliteClass()">
-            <mat-label>Opérationnel Mécanique</mat-label>
-            <mat-select formControlName="operationnel_mecanique">
-              <mat-option *ngFor="let option of disponibiliteOptions" [value]="option.value">
-                {{ option.label }}
-              </mat-option>
-            </mat-select>
-          </mat-form-field>
-
-          <mat-form-field appearance="outline">
-            <mat-label>Raison Indisponibilité</mat-label>
-            <input matInput formControlName="raison_indispo" [readonly]="!isCreateMode">
-          </mat-form-field>
-        </div>
-      </mat-card-content>
-    </mat-card>
-
-    <!-- Section: Contrôles -->
-    <mat-card>
-      <mat-card-header>
-        <mat-card-title>Contrôles Techniques</mat-card-title>
-      </mat-card-header>
-      <mat-card-content>
-        <div class="form-row">
-          <mat-form-field appearance="outline" [ngClass]="getCtClass()">
-            <mat-label>Prochain Contrôle Technique</mat-label>
-            <input matInput formControlName="prochain_controle_technique" type="date">
-          </mat-form-field>
-
-          <mat-form-field appearance="outline" [class.field-alert]="isPollutionExpired()">
-            <mat-label>Prochain Contrôle Pollution</mat-label>
-            <input matInput formControlName="prochain_controle_pollution" type="date">
-          </mat-form-field>
-        </div>
-      </mat-card-content>
-    </mat-card>
-
-    <!-- Section: Localisation & Instructions -->
-    <mat-card>
-      <mat-card-header>
-        <mat-card-title>Localisation & Instructions</mat-card-title>
-      </mat-card-header>
-      <mat-card-content>
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>Lieu de Stationnement</mat-label>
-          <input matInput formControlName="lieu_stationnement">
-        </mat-form-field>
-
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>Instructions de Récupération (Lien Google Doc)</mat-label>
-          <input matInput formControlName="instructions_recuperation" type="url">
-        </mat-form-field>
-      </mat-card-content>
-    </mat-card>
-
-    <!-- Section: Administratif -->
-    <mat-card>
-      <mat-card-header>
-        <mat-card-title>Informations Administratives</mat-card-title>
-      </mat-card-header>
-      <mat-card-content>
-        <div class="form-row">
-          <mat-form-field appearance="outline">
-            <mat-label>Assurance</mat-label>
-            <mat-select formControlName="assurance_2026">
-              <mat-option *ngFor="let option of assuranceOptions" [value]="option">
-                {{ option }}
-              </mat-option>
-            </mat-select>
-          </mat-form-field>
-
-          <mat-form-field appearance="outline">
-            <mat-label>N° de série constructeur</mat-label>
-            <input matInput formControlName="numero_serie_baus">
-          </mat-form-field>
-        </div>
-
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>Commentaires</mat-label>
-          <textarea matInput formControlName="commentaires" rows="4"></textarea>
-          <mat-hint>Commentaires libres sur le véhicule</mat-hint>
-        </mat-form-field>
-      </mat-card-content>
-    </mat-card>
-
-    <!-- Section: Calendrier -->
-    <mat-card>
-      <mat-card-header>
-        <mat-card-title>Calendrier</mat-card-title>
-      </mat-card-header>
-      <mat-card-content>
-        <mat-form-field appearance="outline">
-          <mat-label>Couleur Calendrier</mat-label>
-          <input matInput formControlName="couleur_calendrier" type="color">
-          <mat-hint>Couleur pour l'affichage dans le calendrier de réservations</mat-hint>
-        </mat-form-field>
-      </mat-card-content>
-    </mat-card>
-
-    <!-- Section: Configuration du suivi -->
-    <mat-card>
-      <mat-card-header>
-        <mat-card-title>Configuration du suivi</mat-card-title>
-        <mat-card-subtitle>Quand remplir le Carnet de suivi CLEF pour ce véhicule</mat-card-subtitle>
-      </mat-card-header>
-      <mat-card-content>
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>Mode de suivi</mat-label>
-          <mat-select formControlName="suivi_mode">
-            <mat-option *ngFor="let option of suiviModeOptions" [value]="option.value">
-              {{ option.label }}
-            </mat-option>
-          </mat-select>
-          <mat-hint>Détermine quand les bénévoles doivent remplir le formulaire de suivi</mat-hint>
-        </mat-form-field>
-      </mat-card-content>
-    </mat-card>
-
-    <!-- Actions -->
     <div class="form-actions">
-      <button mat-raised-button type="button" (click)="onCancel()">
-        Annuler
-      </button>
+      <button mat-raised-button type="button" (click)="onCancel()">Annuler</button>
       <button mat-raised-button color="primary" type="submit" [disabled]="vehicleForm.invalid || saving">
         <span *ngIf="!saving">Enregistrer</span>
         <span *ngIf="saving">Enregistrement...</span>
