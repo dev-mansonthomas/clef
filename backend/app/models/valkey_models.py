@@ -17,6 +17,8 @@ class DTConfiguration(BaseModel):
     sheets_url_benevoles: Optional[str] = Field(None, description="URL du référentiel bénévoles (Google Sheets)")
     sheets_url_responsables: Optional[str] = Field(None, description="URL du référentiel responsables (Google Sheets)")
     template_doc_url: Optional[str] = Field(None, description="URL du template de document véhicule")
+    drive_folder_id: Optional[str] = Field(None, description="Identifiant du dossier Google Drive racine de la DT")
+    drive_folder_url: Optional[str] = Field(None, description="URL du dossier Google Drive racine de la DT")
     email_destinataire_alertes: Optional[str] = Field(None, description="Email destinataire des alertes")
     api_keys: List[Dict] = Field(default_factory=list, description="API keys for this DT")
 
