@@ -21,6 +21,14 @@ class DriveService:
     
     def __init__(self):
         self.use_mocks = auth_settings.use_mocks
+
+    @staticmethod
+    def _shared_drive_kwargs(*, include_items: bool = False) -> dict[str, bool]:
+        """Return Google Drive API flags required for shared drives."""
+        kwargs = {"supportsAllDrives": True}
+        if include_items:
+            kwargs["includeItemsFromAllDrives"] = True
+        return kwargs
     
     async def _get_service(self, dt_id: str):
         """Get authenticated Drive service using DT manager tokens."""
@@ -84,6 +92,7 @@ class DriveService:
             body=file_metadata,
             media_body=media,
             fields="id,name,webViewLink,webContentLink,mimeType",
+            **self._shared_drive_kwargs(),
         ).execute()
         
         logger.info(f"Uploaded file {file['id']} to folder {parent_folder_id}")
@@ -120,6 +129,7 @@ class DriveService:
         folder = service.files().create(
             body=folder_metadata,
             fields="id,name,webViewLink,mimeType",
+            **self._shared_drive_kwargs(),
         ).execute()
         
         logger.info(f"Created folder {folder['id']} in {parent_folder_id}")
@@ -152,6 +162,7 @@ class DriveService:
         results = service.files().list(
             q=query,
             fields="files(id,name,webViewLink)",
+            **self._shared_drive_kwargs(include_items=True),
         ).execute()
 
         files = results.get("files", [])
@@ -181,7 +192,10 @@ class DriveService:
             return True
 
         service = await self._get_service(dt_id)
-        service.files().delete(fileId=file_id).execute()
+        service.files().delete(
+            fileId=file_id,
+            **self._shared_drive_kwargs(),
+        ).execute()
         logger.info(f"Deleted file {file_id}")
         return True
 
@@ -203,6 +217,7 @@ class DriveService:
             q=query,
             pageSize=max_results,
             fields="files(id,name,webViewLink,mimeType,createdTime)",
+            **self._shared_drive_kwargs(include_items=True),
         ).execute()
 
         return results.get("files", [])
