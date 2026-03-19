@@ -221,6 +221,19 @@ class DriveService:
         logger.info(f"Renamed file {file_id} to {new_name}")
         return file
 
+    async def list_subfolders(self, dt_id: str, parent_folder_id: str) -> list:
+        """List only subfolders (not files) in a folder."""
+        if self.use_mocks:
+            return []
+        service = await self._get_service(dt_id)
+        query = f"'{parent_folder_id}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false"
+        results = service.files().list(
+            q=query, pageSize=100,
+            fields="files(id,name,webViewLink,mimeType)",
+            **self._shared_drive_kwargs(include_items=True),
+        ).execute()
+        return results.get("files", [])
+
     async def list_files(
         self,
         dt_id: str,

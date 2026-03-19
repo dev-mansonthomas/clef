@@ -1,6 +1,7 @@
 """Google Drive document management for vehicle admin."""
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Dict
@@ -17,6 +18,8 @@ from app.models.vehicle import (
 )
 from app.services.drive_service import drive_service
 from app.services.valkey_service import ValkeyService
+
+logger = logging.getLogger(__name__)
 
 
 DOCUMENT_CONFIG: dict[VehicleDocumentType, dict[str, Any]] = {
@@ -294,6 +297,7 @@ class VehicleDocumentService:
         valkey_service: ValkeyService,
         vehicle: VehicleData,
         root_folder_id: str,
+        folder_names: list[str] | None = None,
     ) -> dict[str, Any]:
         vehicles_root = await drive_service.get_or_create_folder(
             dt_id=valkey_service.dt,
@@ -312,12 +316,29 @@ class VehicleDocumentService:
         )
 
         document_folders: dict[VehicleDocumentType, dict[str, Any]] = {}
-        for document_type, config in DOCUMENT_CONFIG.items():
-            document_folders[document_type] = await drive_service.get_or_create_folder(
-                dt_id=valkey_service.dt,
-                name=config["folder_name"],
-                parent_folder_id=vehicle_folder["id"],
-            )
+
+        if folder_names is not None:
+            # Use dynamic folder names from config
+            for name in folder_names:
+                await drive_service.get_or_create_folder(
+                    dt_id=valkey_service.dt,
+                    name=name,
+                    parent_folder_id=vehicle_folder["id"],
+                )
+            # Still create DOCUMENT_CONFIG folders for managed types tracking
+            for document_type, config in DOCUMENT_CONFIG.items():
+                document_folders[document_type] = await drive_service.get_or_create_folder(
+                    dt_id=valkey_service.dt,
+                    name=config["folder_name"],
+                    parent_folder_id=vehicle_folder["id"],
+                )
+        else:
+            for document_type, config in DOCUMENT_CONFIG.items():
+                document_folders[document_type] = await drive_service.get_or_create_folder(
+                    dt_id=valkey_service.dt,
+                    name=config["folder_name"],
+                    parent_folder_id=vehicle_folder["id"],
+                )
 
         # Store folder URLs in vehicle.drive_folders and persist
         drive_folders: dict[str, Any] = {
@@ -338,6 +359,77 @@ class VehicleDocumentService:
             "vehicle_folder": vehicle_folder,
             "document_folders": document_folders,
         }
+
+    async def sync_vehicle_folders(
+        self,
+        valkey_service: ValkeyService,
+        vehicle: VehicleData,
+        root_folder_id: str,
+        configured_folder_names: list[str],
+        progress_callback: Callable[[int, int, VehicleData], Awaitable[None]] | None = None,
+    ) -> dict:
+        """Sync folders for a vehicle: create missing, delete empty removed ones."""
+        # Get or create vehicle folder hierarchy
+        vehicles_root = await drive_service.get_or_create_folder(
+            dt_id=valkey_service.dt,
+            name="Véhicules",
+            parent_folder_id=root_folder_id,
+        )
+        perimeter_folder = await drive_service.get_or_create_folder(
+            dt_id=valkey_service.dt,
+            name=vehicle.dt_ul,
+            parent_folder_id=vehicles_root["id"],
+        )
+        vehicle_folder = await drive_service.get_or_create_folder(
+            dt_id=valkey_service.dt,
+            name=vehicle.nom_synthetique,
+            parent_folder_id=perimeter_folder["id"],
+        )
+
+        # List existing subfolders
+        existing_subfolders = await drive_service.list_subfolders(
+            dt_id=valkey_service.dt,
+            parent_folder_id=vehicle_folder["id"],
+        )
+        existing_by_name = {f["name"]: f for f in existing_subfolders}
+
+        created = 0
+        deleted = 0
+        skipped = 0
+
+        # Create missing folders
+        for folder_name in configured_folder_names:
+            if folder_name not in existing_by_name:
+                await drive_service.create_folder(
+                    dt_id=valkey_service.dt,
+                    name=folder_name,
+                    parent_folder_id=vehicle_folder["id"],
+                )
+                created += 1
+
+        # Delete empty folders not in config
+        configured_set = set(configured_folder_names)
+        for folder_name, folder_data in existing_by_name.items():
+            if folder_name not in configured_set:
+                # Check if folder is empty
+                contents = await drive_service.list_files(
+                    dt_id=valkey_service.dt,
+                    folder_id=folder_data["id"],
+                )
+                if len(contents) == 0:
+                    await drive_service.delete_file(
+                        dt_id=valkey_service.dt,
+                        file_id=folder_data["id"],
+                    )
+                    deleted += 1
+                else:
+                    logger.warning(
+                        f"Skipping non-empty folder '{folder_name}' in vehicle {vehicle.immat} "
+                        f"(contains {len(contents)} items)"
+                    )
+                    skipped += 1
+
+        return {"created": created, "deleted": deleted, "skipped": skipped}
 
     async def _get_document_folder(
         self,

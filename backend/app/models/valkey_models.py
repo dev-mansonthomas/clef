@@ -32,6 +32,22 @@ class DTConfiguration(BaseModel):
     drive_sync_cancel_requested: bool = Field(False, description="Flag de demande d'annulation de la synchronisation Drive")
     email_destinataire_alertes: Optional[str] = Field(None, description="Email destinataire des alertes")
     api_keys: List[Dict] = Field(default_factory=list, description="API keys for this DT")
+    document_folders: List[Dict] = Field(
+        default_factory=lambda: [
+            {"name": "Assurance", "mandatory": True},
+            {"name": "Carnet de Bord - Documentation CRF", "mandatory": False},
+            {"name": "Carte Grise", "mandatory": True},
+            {"name": "Carte Total", "mandatory": True},
+            {"name": "Commande", "mandatory": False},
+            {"name": "Controle Technique", "mandatory": True},
+            {"name": "Documentation Technique", "mandatory": False},
+            {"name": "Factures", "mandatory": True},
+            {"name": "Photos", "mandatory": False},
+            {"name": "Plan d'Entretien", "mandatory": True},
+            {"name": "Sinistres", "mandatory": True},
+        ],
+        description="Liste des types de sous-dossiers par véhicule"
+    )
 
 
 class VehicleData(BaseModel):
