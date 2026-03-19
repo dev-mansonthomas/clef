@@ -28,11 +28,11 @@ export const routes: Routes = [
         component: VehicleSelectorComponent
       },
       {
-        path: 'prise/:nomSynthetique',
+        path: 'prise/:immat',
         component: PriseComponent
       },
       {
-        path: 'retour/:nomSynthetique',
+        path: 'retour/:immat',
         component: RetourFormComponent
       },
       {

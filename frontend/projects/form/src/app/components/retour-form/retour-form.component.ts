@@ -76,9 +76,9 @@ export class RetourFormComponent implements OnInit {
     this.initForm();
     
     // Get vehicle from route params or QR scan
-    const nomSynthetique = this.route.snapshot.paramMap.get('nomSynthetique');
-    if (nomSynthetique) {
-      this.loadPriseData(nomSynthetique);
+    const immat = this.route.snapshot.paramMap.get('immat');
+    if (immat) {
+      this.loadPriseData(immat);
     }
   }
 

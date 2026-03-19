@@ -41,6 +41,7 @@ export class VehicleSelectorComponent implements OnInit, OnDestroy {
 
   private html5QrCode: Html5Qrcode | null = null;
   private readonly qrCodeRegionId = 'qr-reader';
+  private pendingNomSynthetique: string | null = null;
 
   constructor(
     private vehicleService: VehicleService,
@@ -62,7 +63,8 @@ export class VehicleSelectorComponent implements OnInit, OnDestroy {
       try {
         // Decode the base64 encoded nom_synthetique
         const nomSynthetique = atob(encodedId);
-        this.navigateToForm(nomSynthetique);
+        // Store for lookup after vehicles are loaded
+        this.pendingNomSynthetique = nomSynthetique;
       } catch (error) {
         console.error('Error decoding vehicle ID:', error);
         this.error.set('QR code invalide. Veuillez sélectionner un véhicule manuellement.');
@@ -85,6 +87,16 @@ export class VehicleSelectorComponent implements OnInit, OnDestroy {
       next: (response) => {
         this.vehicles.set(response.vehicles);
         this.loading.set(false);
+        // Handle pending QR code decode
+        if (this.pendingNomSynthetique) {
+          const vehicle = response.vehicles.find(v => v.nom_synthetique === this.pendingNomSynthetique);
+          if (vehicle) {
+            this.navigateToForm(vehicle.immat);
+          } else {
+            this.error.set('Véhicule du QR code introuvable.');
+          }
+          this.pendingNomSynthetique = null;
+        }
       },
       error: (err) => {
         console.error('Error loading vehicles:', err);
@@ -160,7 +172,13 @@ export class VehicleSelectorComponent implements OnInit, OnDestroy {
 
     if (nomSynthetique) {
       this.stopScanning();
-      this.navigateToForm(nomSynthetique);
+      // Look up vehicle by nom_synthetique to get immat
+      const vehicle = this.vehicles().find(v => v.nom_synthetique === nomSynthetique);
+      if (vehicle) {
+        this.navigateToForm(vehicle.immat);
+      } else {
+        this.error.set('Véhicule du QR code introuvable.');
+      }
     } else {
       this.error.set('QR code invalide. Veuillez réessayer ou utiliser la sélection manuelle.');
     }
@@ -179,9 +197,9 @@ export class VehicleSelectorComponent implements OnInit, OnDestroy {
    * Handle manual vehicle selection
    */
   protected onVehicleSelected(): void {
-    const nomSynthetique = this.selectedVehicle();
-    if (nomSynthetique) {
-      this.navigateToForm(nomSynthetique);
+    const immat = this.selectedVehicle();
+    if (immat) {
+      this.navigateToForm(immat);
     }
   }
 
@@ -189,10 +207,10 @@ export class VehicleSelectorComponent implements OnInit, OnDestroy {
    * Navigate to the appropriate form (prise or retour)
    * For now, defaulting to 'prise' - context detection can be added later
    */
-  private navigateToForm(nomSynthetique: string): void {
+  private navigateToForm(immat: string): void {
     // TODO: Add context detection to determine if it's prise or retour
     // For MVP, defaulting to prise
-    this.router.navigate(['/prise', nomSynthetique]);
+    this.router.navigate(['/prise', immat]);
   }
 }
 
