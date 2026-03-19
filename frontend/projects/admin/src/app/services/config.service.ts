@@ -18,5 +18,9 @@ export class ConfigService {
   updateConfig(updates: ConfigUpdate): Observable<ConfigResponse> {
     return this.http.patch<ConfigResponse>(`${this.apiUrl}/api/config`, updates);
   }
+
+  resetDriveSync(): Observable<{message: string}> {
+    return this.http.delete<{message: string}>(`${this.apiUrl}/api/config/drive-sync`);
+  }
 }
 

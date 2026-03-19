@@ -30,6 +30,8 @@ export class ConfigPageComponent implements OnInit, OnDestroy {
   driveSyncMessage = signal<string | null>(null);
   driveSyncError = signal<string | null>(null);
   driveSyncCurrentVehicle = signal<string | null>(null);
+  resetDriveSuccess = signal<string | null>(null);
+  resetDriveLoading = signal(false);
   private driveSyncPoller: number | null = null;
 
   readonly driveSyncPercent = computed(() => {
@@ -164,6 +166,37 @@ export class ConfigPageComponent implements OnInit, OnDestroy {
         console.error('Error saving config:', error);
         this.saveError.set(error.error?.detail || 'Erreur lors de la sauvegarde');
         this.loading.set(false);
+      }
+    });
+  }
+
+  resetDriveSync(): void {
+    if (!confirm('Êtes-vous sûr de vouloir supprimer la synchronisation Drive ?\n\nCette action va :\n- Supprimer le lien vers le dossier Google Drive\n- Réinitialiser l\'état de progression\n- Supprimer les liens vers les dossiers véhicules\n\n⚠️ Les fichiers dans Google Drive ne seront PAS supprimés. Vous devrez nettoyer le contenu du dossier manuellement.')) {
+      return;
+    }
+
+    this.resetDriveLoading.set(true);
+    this.resetDriveSuccess.set(null);
+    this.saveError.set(null);
+
+    this.configService.resetDriveSync().subscribe({
+      next: (response) => {
+        this.resetDriveSuccess.set(response.message);
+        this.resetDriveLoading.set(false);
+        // Clear the form field
+        this.configForm.patchValue({ drive_folder_url: '' });
+        // Reset sync state
+        this.driveSyncStatus.set('idle');
+        this.driveSyncProcessed.set(0);
+        this.driveSyncTotal.set(0);
+        this.driveSyncCurrentVehicle.set(null);
+        this.driveSyncMessage.set(null);
+        this.driveSyncError.set(null);
+        this.stopDriveSyncPolling();
+      },
+      error: (error) => {
+        this.saveError.set(error.error?.detail || 'Erreur lors de la suppression');
+        this.resetDriveLoading.set(false);
       }
     });
   }

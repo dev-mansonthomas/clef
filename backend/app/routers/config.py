@@ -291,6 +291,44 @@ async def delete_calendar_config(
     return {"message": "Configuration du calendrier supprimée"}
 
 
+@router.delete("/drive-sync")
+async def reset_drive_sync(
+    valkey_service: Annotated[ValkeyService, Depends(get_valkey_service)],
+    current_user: User = Depends(is_dt_manager)
+) -> Dict[str, Any]:
+    """
+    Reset Drive sync: remove drive folder config and sync state.
+    Does NOT delete files from Google Drive (user must clean up manually).
+    """
+    # Clear drive-related fields from DT configuration
+    dt_config = await valkey_service.get_configuration()
+    if dt_config:
+        dt_config.drive_folder_id = None
+        dt_config.drive_folder_url = None
+        dt_config.drive_vehicles_folder_id = None
+        dt_config.drive_vehicles_folder_url = None
+        dt_config.drive_dt_folder_id = None
+        dt_config.drive_dt_folder_url = None
+        dt_config.drive_sync_status = "idle"
+        dt_config.drive_sync_processed = 0
+        dt_config.drive_sync_total = 0
+        dt_config.drive_sync_current_vehicle = None
+        dt_config.drive_sync_message = None
+        dt_config.drive_sync_error = None
+        await valkey_service.set_configuration(dt_config)
+
+    # Clear drive_folders and documents from all vehicles
+    vehicle_ids = await valkey_service.list_vehicles()
+    for immat in vehicle_ids:
+        vehicle = await valkey_service.get_vehicle(immat)
+        if vehicle and (vehicle.drive_folders or vehicle.documents):
+            vehicle.drive_folders = {}
+            vehicle.documents = {}
+            await valkey_service.set_vehicle(vehicle)
+
+    return {"message": "Synchronisation Drive supprimée. Veuillez nettoyer le contenu du dossier Google Drive manuellement."}
+
+
 @router.post("/drive-folder")
 async def set_drive_folder(
     config_data: DriveFolderConfig,

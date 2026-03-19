@@ -51,6 +51,27 @@
             }
           </div>
         }
+
+        @if (configForm.get('drive_folder_url')?.value || driveSyncStatus() !== 'idle') {
+          <div class="drive-reset-section">
+            <button
+              type="button"
+              class="btn btn-danger"
+              [disabled]="resetDriveLoading()"
+              (click)="resetDriveSync()"
+            >
+              {{ resetDriveLoading() ? 'Suppression...' : 'Supprimer la synchronisation Drive' }}
+            </button>
+          </div>
+        }
+
+        @if (resetDriveSuccess()) {
+          <div class="alert alert-warning">
+            <strong>⚠️ Synchronisation supprimée.</strong><br>
+            Les liens vers les dossiers Google Drive ont été supprimés de l'application CLEF.<br>
+            <strong>Vous devez nettoyer le contenu du dossier Google Drive précédent manuellement</strong> (trop risqué de tout supprimer depuis l'application).
+          </div>
+        }
       </div>
 
       <div class="form-section">
