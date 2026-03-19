@@ -14,6 +14,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatIconModule } from '@angular/material/icon';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { VehicleService } from '../../services/vehicle.service';
 import { ErrorService } from '../../services/error.service';
 import { UniteLocaleService } from '../../services/unite-locale.service';
@@ -43,7 +44,8 @@ import {
     MatProgressSpinnerModule,
     MatChipsModule,
     MatTabsModule,
-    MatIconModule
+    MatIconModule,
+    MatTooltipModule
   ],
   templateUrl: './vehicle-edit.html',
   styleUrl: './vehicle-edit.scss',
@@ -115,6 +117,12 @@ export class VehicleEdit implements OnInit {
       label: "Plan d'entretien",
       description: 'Référentiel ou planning de maintenance du véhicule.',
       icon: 'build'
+    },
+    {
+      type: 'assurance',
+      label: 'Assurance (MVA)',
+      description: 'Mémo Véhicule Assuré.',
+      icon: 'security'
     }
   ];
 
@@ -124,7 +132,6 @@ export class VehicleEdit implements OnInit {
     description: string;
   }> = [
     { type: 'factures', label: 'Factures', description: 'Visualisation du dossier Drive des factures.' },
-    { type: 'assurance', label: 'Assurance', description: "Visualisation du dossier Drive des documents d'assurance." },
     { type: 'controle_technique', label: 'CT / Pollution', description: 'Visualisation du dossier Drive des contrôles techniques.' },
     { type: 'carnet_suivi', label: 'Carnet de suivi', description: 'Visualisation du dossier Drive du carnet de bord.' }
   ];

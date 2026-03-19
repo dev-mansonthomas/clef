@@ -124,12 +124,21 @@
 
       .documents-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-        gap: 16px;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 10px;
       }
 
       .document-item-card {
         margin-bottom: 0;
+        padding: 8px;
+
+        mat-card-header {
+          margin-bottom: 8px;
+        }
+
+        mat-card-content {
+          padding: 0 8px 8px;
+        }
       }
 
       .document-avatar {
@@ -142,12 +151,12 @@
 
       .document-status {
         display: flex;
-        gap: 12px;
+        gap: 8px;
         align-items: flex-start;
-        padding: 12px;
-        border-radius: 8px;
+        padding: 8px;
+        border-radius: 6px;
         background: rgba(0, 0, 0, 0.03);
-        margin-bottom: 16px;
+        margin-bottom: 8px;
 
         &.has-file {
           background: rgba(76, 175, 80, 0.08);
@@ -174,8 +183,9 @@
       .document-actions {
         display: flex;
         flex-wrap: wrap;
-        gap: 8px;
-        margin-bottom: 16px;
+        gap: 4px;
+        margin-bottom: 8px;
+        align-items: center;
       }
 
       .document-browser {

@@ -17,7 +17,7 @@ export type VehicleDocumentType =
   | 'controle_technique'
   | 'carnet_suivi';
 
-export type ManagedVehicleDocumentType = 'carte_grise' | 'carte_total' | 'plan_entretien';
+export type ManagedVehicleDocumentType = 'carte_grise' | 'carte_total' | 'plan_entretien' | 'assurance';
 
 export interface StatusInfo {
   value: string;

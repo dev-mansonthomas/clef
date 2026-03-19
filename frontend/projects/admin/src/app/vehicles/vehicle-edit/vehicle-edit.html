@@ -23,7 +23,6 @@
           <mat-card class="documents-card">
             <mat-card-header>
               <mat-card-title>Documents Google Drive</mat-card-title>
-              <mat-card-subtitle>Carte grise, carte Total et plan d'entretien</mat-card-subtitle>
             </mat-card-header>
             <mat-card-content>
               <div *ngIf="isCreateMode" class="documents-empty-state">Les documents Drive seront disponibles une fois le véhicule créé.</div>
@@ -47,7 +46,6 @@
                   <mat-card-header>
                     <div mat-card-avatar class="document-avatar"><mat-icon>{{ card.icon }}</mat-icon></div>
                     <mat-card-title>{{ card.label }}</mat-card-title>
-                    <mat-card-subtitle>{{ card.description }}</mat-card-subtitle>
                   </mat-card-header>
                   <mat-card-content>
                     <div class="document-status" [class.has-file]="!!getManagedDocument(card.type)?.current_file">
@@ -64,9 +62,9 @@
 
                     <div class="document-actions">
                       <input #fileInput type="file" hidden (change)="onDriveFileSelected(card.type, $event)">
-                      <button mat-raised-button color="primary" type="button" [disabled]="isDocumentActionRunning(card.type)" (click)="fileInput.click()">Envoyer une nouvelle version</button>
-                      <button mat-stroked-button type="button" [disabled]="isDocumentActionRunning(card.type)" (click)="toggleDriveBrowser(card.type)">Parcourir le dossier</button>
-                      <button mat-button type="button" [disabled]="!getManagedDocument(card.type)?.folder_url" (click)="openDriveLink(getManagedDocument(card.type)?.folder_url)">Ouvrir dans Drive</button>
+                      <button mat-icon-button color="primary" type="button" [disabled]="isDocumentActionRunning(card.type)" (click)="fileInput.click()" matTooltip="Envoyer une nouvelle version"><mat-icon>upload_file</mat-icon></button>
+                      <button mat-icon-button type="button" [disabled]="isDocumentActionRunning(card.type)" (click)="toggleDriveBrowser(card.type)" matTooltip="Parcourir le dossier"><mat-icon>folder_open</mat-icon></button>
+                      <button mat-icon-button type="button" [disabled]="!getManagedDocument(card.type)?.folder_url" (click)="openDriveLink(getManagedDocument(card.type)?.folder_url)" matTooltip="Ouvrir dans Drive"><mat-icon>open_in_new</mat-icon></button>
                     </div>
 
                     <div *ngIf="driveBrowserOpenType === card.type" class="document-browser">
