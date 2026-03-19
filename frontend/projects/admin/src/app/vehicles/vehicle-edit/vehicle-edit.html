@@ -38,7 +38,7 @@
 
               <div *ngIf="!isCreateMode && !driveDocumentsLoading && driveDocuments?.error" class="documents-error">
                 <mat-icon color="warn">warning</mat-icon>
-                <span>{{ driveDocuments.error }}</span>
+                <span>{{ driveDocuments?.error }}</span>
               </div>
 
               <div *ngIf="!isCreateMode && !driveDocumentsLoading && driveDocuments?.configured && !driveDocuments?.error" class="documents-toolbar">
