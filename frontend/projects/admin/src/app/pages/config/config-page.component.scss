@@ -320,8 +320,22 @@
       }
 
       .progress-actions {
-        margin-top: 0.75rem;
-        text-align: right;
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.5rem;
+        margin-top: 0.5rem;
+
+        .btn-secondary {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.25rem;
+
+          .mat-icon {
+            font-size: 16px;
+            width: 16px;
+            height: 16px;
+          }
+        }
       }
 
       .btn-cancel {

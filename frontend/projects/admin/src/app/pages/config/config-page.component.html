@@ -127,6 +127,15 @@
             <div class="progress-actions">
               <button
                 type="button"
+                class="btn btn-secondary"
+                [disabled]="loading() || cancelDriveLoading()"
+                (click)="restartDriveSync()"
+              >
+                <mat-icon>refresh</mat-icon>
+                Relancer
+              </button>
+              <button
+                type="button"
                 class="btn btn-cancel"
                 [disabled]="cancelDriveLoading()"
                 (click)="cancelDriveSync()"
@@ -145,12 +154,12 @@
           </div>
         }
 
-        @if (configForm.get('drive_folder_url')?.value) {
+        @if (!driveSyncActive() && configForm.get('drive_folder_url')?.value) {
           <div class="restart-sync-section">
             <button
               type="button"
               class="btn btn-secondary"
-              [disabled]="loading() || cancelDriveLoading()"
+              [disabled]="loading()"
               (click)="restartDriveSync()"
             >
               <mat-icon>refresh</mat-icon>
