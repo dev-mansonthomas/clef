@@ -342,10 +342,22 @@ export class ConfigPageComponent implements OnInit, OnDestroy {
     const folder = this.documentFolders()[index];
     if (folder.mandatory) return;
 
-    if (!confirm(`Supprimer le dossier "${folder.name}" ?`)) return;
+    const dialogRef = this.dialog.open(ConfirmDialogComponent, {
+      width: '400px',
+      data: {
+        title: 'Supprimer le dossier',
+        message: `Supprimer le dossier "${folder.name}" de la configuration ?`,
+        confirmLabel: 'Supprimer',
+        confirmColor: 'warn',
+        icon: 'delete'
+      } as ConfirmDialogData
+    });
 
-    const updated = this.documentFolders().filter((_, i) => i !== index);
-    this.documentFolders.set(updated);
+    dialogRef.afterClosed().subscribe(confirmed => {
+      if (!confirmed) return;
+      const updated = this.documentFolders().filter((_, i) => i !== index);
+      this.documentFolders.set(updated);
+    });
   }
 
   saveDocumentFolders(): void {

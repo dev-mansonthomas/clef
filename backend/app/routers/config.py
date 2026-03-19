@@ -408,7 +408,7 @@ async def update_document_folders(
     body: DocumentFoldersUpdate,
     valkey_service: Annotated[ValkeyService, Depends(get_valkey_service)],
     current_user: User = Depends(is_dt_manager),
-) -> Dict[str, Any]:
+) -> List[Dict[str, Any]]:
     """
     Update the document folder types configuration.
 
@@ -428,7 +428,7 @@ async def update_document_folders(
     dt_config.document_folders = [f.model_dump() for f in body.folders]
     await valkey_service.set_configuration(dt_config)
 
-    return {"message": "Configuration des dossiers mise à jour", "folders": dt_config.document_folders}
+    return dt_config.document_folders
 
 
 @router.post("/document-folders/sync", response_model=ConfigResponse)
