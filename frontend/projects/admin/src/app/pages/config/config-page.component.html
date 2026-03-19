@@ -40,7 +40,7 @@
         @if (driveSyncActive()) {
           <div class="drive-sync-progress">
             <div class="progress-header">
-              <span>Synchronisation Drive en cours...</span>
+              <span>{{ driveSyncMessage() || 'Synchronisation Drive en cours...' }}</span>
               <span class="progress-percent">{{ driveSyncPercent() }}%</span>
             </div>
             <div class="progress-bar-container">

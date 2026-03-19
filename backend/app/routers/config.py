@@ -198,14 +198,32 @@ async def _run_drive_sync(valkey_service: ValkeyService, folder_id: str) -> None
                 progress_callback=progress_callback,
             )
         except asyncio.CancelledError:
-            # Cancelled by user
+            # Cancelled by user — clean up all Drive folder data
             cfg = await valkey_service.get_configuration()
             if cfg:
+                cfg.drive_folder_id = None
+                cfg.drive_folder_url = None
+                cfg.drive_vehicles_folder_id = None
+                cfg.drive_vehicles_folder_url = None
+                cfg.drive_dt_folder_id = None
+                cfg.drive_dt_folder_url = None
                 cfg.drive_sync_status = "idle"
+                cfg.drive_sync_processed = 0
+                cfg.drive_sync_total = 0
                 cfg.drive_sync_cancel_requested = False
                 cfg.drive_sync_current_vehicle = None
-                cfg.drive_sync_message = f"Synchronisation annulée ({cfg.drive_sync_processed}/{cfg.drive_sync_total} véhicules traités)"
+                cfg.drive_sync_message = "Synchronisation stoppée"
+                cfg.drive_sync_error = None
                 await valkey_service.set_configuration(cfg)
+
+            # Clear drive_folders and documents from all vehicles
+            vehicle_ids = await valkey_service.list_vehicles()
+            for immat in vehicle_ids:
+                vehicle = await valkey_service.get_vehicle(immat)
+                if vehicle and (vehicle.drive_folders or vehicle.documents):
+                    vehicle.drive_folders = {}
+                    vehicle.documents = {}
+                    await valkey_service.set_vehicle(vehicle)
             return
 
         # Mark sync as complete

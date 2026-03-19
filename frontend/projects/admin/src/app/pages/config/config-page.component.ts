@@ -229,7 +229,19 @@ export class ConfigPageComponent implements OnInit, OnDestroy {
     this.configService.cancelDriveSync().subscribe({
       next: () => {
         this.cancelDriveLoading.set(false);
-        // Polling will pick up the status change automatically
+        this.stopDriveSyncPolling();
+        // Reset sync state
+        this.driveSyncStatus.set('idle');
+        this.driveSyncProcessed.set(0);
+        this.driveSyncTotal.set(0);
+        this.driveSyncCurrentVehicle.set(null);
+        this.driveSyncMessage.set(null);
+        this.driveSyncError.set(null);
+        // Clear the form field since backend cleared the drive folder
+        this.configForm.patchValue({ drive_folder_url: '' });
+        // Show success message
+        this.resetDriveSuccess.set('Synchronisation stoppée. Les liens vers les dossiers Google Drive ont été supprimés.');
+        setTimeout(() => this.resetDriveSuccess.set(null), 5000);
       },
       error: (error) => {
         console.error('Error cancelling sync:', error);
