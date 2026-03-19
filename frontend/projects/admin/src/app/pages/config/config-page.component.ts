@@ -391,6 +391,10 @@ export class ConfigPageComponent implements OnInit, OnDestroy {
         next: (config) => {
           this.savingFolders.set(false);
           this.applyDriveSyncState(config);
+          // Safety: ensure polling starts for folder sync
+          if (config.drive_sync_status === 'in_progress') {
+            this.startDriveSyncPolling();
+          }
         },
         error: (error) => {
           this.savingFolders.set(false);
