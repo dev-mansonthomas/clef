@@ -32,11 +32,14 @@
         <tbody>
           @for (folder of documentFolders(); track folder.name; let i = $index) {
             <tr [class.mandatory]="folder.mandatory">
-              <td>
-                @if (folder.mandatory) {
-                  <mat-icon class="lock-icon">lock</mat-icon>
-                }
-                {{ folder.name }}
+              <td class="folder-name-cell">
+                <div class="folder-name">
+                  <mat-icon class="folder-icon">folder</mat-icon>
+                  @if (folder.mandatory) {
+                    <mat-icon class="lock-badge">lock</mat-icon>
+                  }
+                  <span>{{ folder.name }}</span>
+                </div>
               </td>
               <td class="actions-col">
                 @if (!folder.mandatory) {
