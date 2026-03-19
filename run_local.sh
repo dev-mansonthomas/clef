@@ -14,19 +14,19 @@ if ! docker info > /dev/null 2>&1; then
     exit 1
 fi
 
-# Check if docker-compose is available
-if ! command -v docker-compose &> /dev/null; then
-    echo "❌ Error: docker-compose is not installed. Please install it and try again."
+# Check if docker compose is available
+if ! docker compose version > /dev/null 2>&1; then
+    echo "❌ Error: 'docker compose' is not available. Please update Docker and try again."
     exit 1
 fi
 
 # Stop any existing containers
 echo "🛑 Stopping any existing containers..."
-docker-compose down
+docker compose down
 
 # Build and start services
 echo "🔨 Building and starting services..."
-docker-compose up --build -d
+docker compose up --build -d
 
 # Wait for services to be healthy
 echo ""
@@ -36,7 +36,7 @@ echo ""
 # Wait for Valkey
 echo -n "  Valkey: "
 for i in {1..30}; do
-    if docker-compose exec -T valkey valkey-cli ping > /dev/null 2>&1; then
+    if docker compose exec -T valkey valkey-cli ping > /dev/null 2>&1; then
         echo "✅ Ready"
         break
     fi
@@ -85,10 +85,10 @@ echo "  - API Docs:  http://localhost:8000/docs"
 echo "  - Valkey:    localhost:6379"
 echo ""
 echo "📝 Useful commands:"
-echo "  - View logs:        docker-compose logs -f"
-echo "  - View logs (service): docker-compose logs -f [frontend|backend|valkey]"
-echo "  - Stop services:    docker-compose down"
-echo "  - Restart service:  docker-compose restart [frontend|backend|valkey]"
+echo "  - View logs:        docker compose logs -f"
+echo "  - View logs (service): docker compose logs -f [frontend|backend|valkey]"
+echo "  - Stop services:    docker compose down"
+echo "  - Restart service:  docker compose restart [frontend|backend|valkey]"
 echo ""
 echo "🔄 Hot-reload is enabled for both frontend and backend"
 echo ""
