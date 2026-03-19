@@ -63,7 +63,7 @@ export class VehicleEdit implements OnInit {
   vehicleForm!: FormGroup;
   loading = false;
   saving = false;
-  nomSynthetique: string | null = null;
+  vehicleImmat: string | null = null;
   vehicle: Vehicle | null = null;
   isCreateMode = false;
   activeTabIndex = 0;
@@ -139,14 +139,14 @@ export class VehicleEdit implements OnInit {
   ngOnInit(): void {
     this.initForm();
     this.loadUnitesLocales();
-    this.nomSynthetique = this.route.snapshot.paramMap.get('nomSynthetique');
+    this.vehicleImmat = this.route.snapshot.paramMap.get('immat');
 
     // Check if we're in create mode by examining the actual route URL
     // The route /vehicles/new/edit is a static route with no parameters
     const url = this.router.url;
     this.isCreateMode = url.includes('/vehicles/new/edit');
 
-    if (this.nomSynthetique && !this.isCreateMode) {
+    if (this.vehicleImmat && !this.isCreateMode) {
       this.loadVehicle();
     }
 
@@ -230,10 +230,10 @@ export class VehicleEdit implements OnInit {
   }
 
   private loadVehicle(): void {
-    if (!this.nomSynthetique) return;
+    if (!this.vehicleImmat) return;
 
     this.loading = true;
-    this.vehicleService.getVehicle(this.nomSynthetique).subscribe({
+    this.vehicleService.getVehicle(this.vehicleImmat).subscribe({
       next: (vehicle) => {
         this.vehicle = vehicle;
         this.populateForm(vehicle);
@@ -277,13 +277,13 @@ export class VehicleEdit implements OnInit {
   }
 
   private loadDriveDocuments(): void {
-    if (!this.nomSynthetique || this.isCreateMode) {
+    if (!this.vehicleImmat || this.isCreateMode) {
       this.driveDocuments = null;
       return;
     }
 
     this.driveDocumentsLoading = true;
-    this.vehicleService.getVehicleDriveDocuments(this.nomSynthetique).subscribe({
+    this.vehicleService.getVehicleDriveDocuments(this.vehicleImmat).subscribe({
       next: (response) => {
         this.driveDocuments = response;
         this.driveDocumentsLoading = false;
@@ -319,7 +319,7 @@ export class VehicleEdit implements OnInit {
   }
 
   toggleDriveBrowser(type: ManagedVehicleDocumentType): void {
-    if (!this.nomSynthetique || !this.driveDocuments?.configured) {
+    if (!this.vehicleImmat || !this.driveDocuments?.configured) {
       return;
     }
 
@@ -333,7 +333,7 @@ export class VehicleEdit implements OnInit {
   }
 
   loadDriveBrowserFiles(type: ManagedVehicleDocumentType, forceRefresh = false): void {
-    if (!this.nomSynthetique) {
+    if (!this.vehicleImmat) {
       return;
     }
 
@@ -342,7 +342,7 @@ export class VehicleEdit implements OnInit {
     }
 
     this.driveBrowserLoadingType = type;
-    this.vehicleService.listVehicleDriveDocumentFiles(this.nomSynthetique, type).subscribe({
+    this.vehicleService.listVehicleDriveDocumentFiles(this.vehicleImmat, type).subscribe({
       next: (response) => {
         this.driveBrowserFiles[type] = response.files;
         this.driveBrowserLoadingType = null;
@@ -360,12 +360,12 @@ export class VehicleEdit implements OnInit {
   }
 
   selectDriveFile(type: ManagedVehicleDocumentType, fileId: string): void {
-    if (!this.nomSynthetique) {
+    if (!this.vehicleImmat) {
       return;
     }
 
     this.driveActionType = type;
-    this.vehicleService.selectVehicleDriveDocument(this.nomSynthetique, type, fileId).subscribe({
+    this.vehicleService.selectVehicleDriveDocument(this.vehicleImmat, type, fileId).subscribe({
       next: (document) => {
         this.applyDriveDocumentUpdate(type, document);
         this.loadDriveBrowserFiles(type, true);
@@ -389,12 +389,12 @@ export class VehicleEdit implements OnInit {
     const file = input.files?.[0];
     input.value = '';
 
-    if (!file || !this.nomSynthetique) {
+    if (!file || !this.vehicleImmat) {
       return;
     }
 
     this.driveActionType = type;
-    this.vehicleService.uploadVehicleDriveDocument(this.nomSynthetique, type, file).subscribe({
+    this.vehicleService.uploadVehicleDriveDocument(this.vehicleImmat, type, file).subscribe({
       next: (document) => {
         this.applyDriveDocumentUpdate(type, document);
         this.driveBrowserOpenType = type;
@@ -488,7 +488,7 @@ export class VehicleEdit implements OnInit {
       });
     } else {
       // Update existing vehicle - send all editable fields
-      if (!this.nomSynthetique) {
+      if (!this.vehicleImmat) {
         return;
       }
 
@@ -526,7 +526,7 @@ export class VehicleEdit implements OnInit {
         suivi_mode: formValue.suivi_mode
       };
 
-      this.vehicleService.updateVehicle(this.nomSynthetique, updateData).subscribe({
+      this.vehicleService.updateVehicle(this.vehicleImmat, updateData).subscribe({
         next: () => {
           this.snackBar.open('Véhicule mis à jour avec succès', 'Fermer', {
             duration: 3000

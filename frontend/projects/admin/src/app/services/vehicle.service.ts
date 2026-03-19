@@ -28,24 +28,24 @@ export class VehicleService {
   }
 
   /**
-   * Get a specific vehicle by its synthetic name
+   * Get a specific vehicle by its registration plate
    */
-  getVehicle(nomSynthetique: string): Observable<Vehicle> {
-    return this.http.get<Vehicle>(`${this.apiUrl}/${nomSynthetique}`, { withCredentials: true });
+  getVehicle(immat: string): Observable<Vehicle> {
+    return this.http.get<Vehicle>(`${this.apiUrl}/${immat}`, { withCredentials: true });
   }
 
   /**
    * Update vehicle metadata (calendar color, comments, etc.)
    */
-  updateVehicle(nomSynthetique: string, update: VehicleUpdate): Observable<Vehicle> {
-    return this.http.patch<Vehicle>(`${this.apiUrl}/${nomSynthetique}`, update, { withCredentials: true });
+  updateVehicle(immat: string, update: VehicleUpdate): Observable<Vehicle> {
+    return this.http.patch<Vehicle>(`${this.apiUrl}/${immat}`, update, { withCredentials: true });
   }
 
   /**
    * Get the Google Drive document overview for a vehicle.
    */
-  getVehicleDriveDocuments(nomSynthetique: string): Observable<VehicleDriveDocumentsResponse> {
-    return this.http.get<VehicleDriveDocumentsResponse>(`${this.apiUrl}/${nomSynthetique}/drive-documents`, {
+  getVehicleDriveDocuments(immat: string): Observable<VehicleDriveDocumentsResponse> {
+    return this.http.get<VehicleDriveDocumentsResponse>(`${this.apiUrl}/${immat}/drive-documents`, {
       withCredentials: true,
     });
   }
@@ -54,11 +54,11 @@ export class VehicleService {
    * List existing files in a managed Drive subfolder.
    */
   listVehicleDriveDocumentFiles(
-    nomSynthetique: string,
+    immat: string,
     documentType: ManagedVehicleDocumentType,
   ): Observable<VehicleDriveFileListResponse> {
     return this.http.get<VehicleDriveFileListResponse>(
-      `${this.apiUrl}/${nomSynthetique}/drive-documents/${documentType}/files`,
+      `${this.apiUrl}/${immat}/drive-documents/${documentType}/files`,
       { withCredentials: true },
     );
   }
@@ -67,12 +67,12 @@ export class VehicleService {
    * Associate an existing Drive file to the vehicle.
    */
   selectVehicleDriveDocument(
-    nomSynthetique: string,
+    immat: string,
     documentType: ManagedVehicleDocumentType,
     fileId: string,
   ): Observable<VehicleDriveDocument> {
     return this.http.post<VehicleDriveDocument>(
-      `${this.apiUrl}/${nomSynthetique}/drive-documents/${documentType}/select`,
+      `${this.apiUrl}/${immat}/drive-documents/${documentType}/select`,
       { file_id: fileId },
       { withCredentials: true },
     );
@@ -82,7 +82,7 @@ export class VehicleService {
    * Upload a new Drive file and select it as current document.
    */
   uploadVehicleDriveDocument(
-    nomSynthetique: string,
+    immat: string,
     documentType: ManagedVehicleDocumentType,
     file: File,
   ): Observable<VehicleDriveDocument> {
@@ -90,7 +90,7 @@ export class VehicleService {
     formData.append('file', file);
 
     return this.http.post<VehicleDriveDocument>(
-      `${this.apiUrl}/${nomSynthetique}/drive-documents/${documentType}/upload`,
+      `${this.apiUrl}/${immat}/drive-documents/${documentType}/upload`,
       formData,
       { withCredentials: true },
     );

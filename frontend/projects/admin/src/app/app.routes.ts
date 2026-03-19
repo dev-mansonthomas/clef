@@ -37,7 +37,7 @@ export const routes: Routes = [
         component: VehicleEdit
       },
       {
-        path: 'vehicles/:nomSynthetique/edit',
+        path: 'vehicles/:immat/edit',
         component: VehicleEdit
       },
       {
