@@ -100,5 +100,19 @@ export class AuthService {
   isDTManager(user: User | null): boolean {
     return user?.role === 'Gestionnaire DT';
   }
+
+  /**
+   * Check if user is Super Admin
+   */
+  isSuperAdmin(user: User | null): boolean {
+    return user?.is_super_admin === true;
+  }
+
+  /**
+   * Check if user is UL Responsable
+   */
+  isUlResponsable(user: User | null): boolean {
+    return user?.role === 'Responsable UL';
+  }
 }
 
