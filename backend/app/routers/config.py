@@ -431,12 +431,13 @@ async def update_document_folders(
     return {"message": "Configuration des dossiers mise à jour", "folders": dt_config.document_folders}
 
 
-@router.post("/document-folders/sync")
+@router.post("/document-folders/sync", response_model=ConfigResponse)
 async def sync_document_folders(
     body: DocumentFoldersUpdate,
+    config_service: Annotated[ConfigService, Depends(get_config_service)],
     valkey_service: Annotated[ValkeyService, Depends(get_valkey_service)],
     current_user: User = Depends(is_dt_manager),
-) -> Dict[str, Any]:
+) -> ConfigResponse:
     """
     Update document folder types and launch async sync to Google Drive.
 
@@ -480,11 +481,9 @@ async def sync_document_folders(
         _run_folder_sync(valkey_service, dt_config.drive_folder_id, folder_names)
     )
 
-    return {
-        "message": "Synchronisation des dossiers lancée",
-        "folders": dt_config.document_folders,
-        "sync_status": "in_progress",
-    }
+    # Re-read config to include the in_progress status in the response
+    updated_config = await config_service.get_config()
+    return ConfigResponse(**updated_config)
 
 
 async def _run_folder_sync(
@@ -502,6 +501,15 @@ async def _run_folder_sync(
             vehicle = await valkey_service.get_vehicle(immat)
             if vehicle and vehicle.drive_folders:
                 vehicles.append(vehicle)
+
+        vehicles.sort(
+            key=lambda v: (
+                (v.dt_ul or "").casefold(),
+                (v.indicatif or "").casefold(),
+                (v.nom_synthetique or "").casefold(),
+                (v.immat or "").casefold(),
+            )
+        )
 
         total = len(vehicles)
         for index, vehicle in enumerate(vehicles, start=1):
