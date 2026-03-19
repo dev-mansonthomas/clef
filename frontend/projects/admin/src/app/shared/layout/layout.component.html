@@ -63,6 +63,9 @@
         <h1 class="app-title">Admin</h1>
       </div>
       <div class="header-right">
+        <button mat-icon-button (click)="toggleTutorial()" matTooltip="Aide à la configuration">
+          <mat-icon>help_outline</mat-icon>
+        </button>
         @if (currentUser$ | async; as user) {
           <span class="user-name">{{ user.prenom }} {{ user.nom }}</span>
           <button mat-icon-button (click)="logout()">
@@ -71,6 +74,47 @@
         }
       </div>
     </header>
+
+    <!-- Tutorial panel -->
+    @if (showTutorial()) {
+      <div class="tutorial-panel">
+        <div class="tutorial-header">
+          <div class="tutorial-title">
+            <mat-icon class="tutorial-icon">school</mat-icon>
+            <h3>Guide de configuration</h3>
+          </div>
+          <button mat-icon-button (click)="toggleTutorial()" class="tutorial-close">
+            <mat-icon>close</mat-icon>
+          </button>
+        </div>
+        <ol class="tutorial-steps">
+          <li>
+            <mat-icon>upload_file</mat-icon>
+            <span>Utiliser la fonction d'import pour importer vos véhicules</span>
+          </li>
+          <li>
+            <mat-icon>folder</mat-icon>
+            <span>Définissez le folder Racine pour les documents de gestion des véhicules (Shared Folder de la DT)</span>
+          </li>
+          <li>
+            <mat-icon>people</mat-icon>
+            <span>Configurer le Google Spreadsheet qui upload les bénévoles dans CLEF</span>
+          </li>
+          <li>
+            <mat-icon>manage_accounts</mat-icon>
+            <span>Désigner les responsables véhicules de chaque UL</span>
+          </li>
+          <li>
+            <mat-icon>sync</mat-icon>
+            <span>Configurer le Google Spreadsheet qui va récupérer les données véhicules depuis l'application CLEF (pour avoir un miroir exploitable dans Google Workspace)</span>
+          </li>
+          <li>
+            <mat-icon>group_work</mat-icon>
+            <span>Configurer le Google Spreadsheet qui va récupérer les responsables véhicules depuis l'application CLEF</span>
+          </li>
+        </ol>
+      </div>
+    }
 
     <!-- Page content -->
     <div class="layout-content">
