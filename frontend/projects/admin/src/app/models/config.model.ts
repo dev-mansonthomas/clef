@@ -3,10 +3,6 @@
  */
 
 export interface ConfigResponse {
-  sheets_url_vehicules: string;
-  sheets_url_benevoles: string;
-  sheets_url_responsables: string;
-  template_doc_url: string;
   email_destinataire_alertes: string;
   email_gestionnaire_dt: string;
   drive_folder_id?: string;
@@ -16,13 +12,11 @@ export interface ConfigResponse {
   drive_sync_total: number;
   drive_sync_message: string | null;
   drive_sync_error: string | null;
+  drive_sync_current_vehicle?: string;
 }
 
 export interface ConfigUpdate {
-  sheets_url_vehicules?: string;
-  sheets_url_benevoles?: string;
-  sheets_url_responsables?: string;
-  template_doc_url?: string;
+  drive_folder_url?: string;
   email_destinataire_alertes?: string;
 }
 

@@ -29,6 +29,7 @@ export class ConfigPageComponent implements OnInit, OnDestroy {
   driveSyncTotal = signal(0);
   driveSyncMessage = signal<string | null>(null);
   driveSyncError = signal<string | null>(null);
+  driveSyncCurrentVehicle = signal<string | null>(null);
   private driveSyncPoller: number | null = null;
 
   readonly driveSyncPercent = computed(() => {
@@ -98,6 +99,7 @@ export class ConfigPageComponent implements OnInit, OnDestroy {
     this.driveSyncTotal.set(config.drive_sync_total);
     this.driveSyncMessage.set(config.drive_sync_message);
     this.driveSyncError.set(config.drive_sync_error);
+    this.driveSyncCurrentVehicle.set(config.drive_sync_current_vehicle ?? null);
 
     if (config.drive_sync_status === 'in_progress') {
       this.startDriveSyncPolling();

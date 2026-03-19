@@ -1,7 +1,7 @@
 <div class="config-page">
   <div class="container">
     <h1>Configuration DT</h1>
-    <p class="subtitle">Gestion des URLs des référentiels et des alertes</p>
+    <p class="subtitle">Gestion du dossier Google Drive et des alertes</p>
 
     @if (loading()) {
       <div class="loading">Chargement...</div>
@@ -21,67 +21,36 @@
 
     <form [formGroup]="configForm" (ngSubmit)="onSubmit()" class="config-form">
       <div class="form-section">
-        <h2>URLs des Référentiels Google Sheets</h2>
+        <h2>Dossier Racine Google Drive</h2>
 
         <div class="form-group">
-          <label for="sheets_url_vehicules">URL Référentiel Véhicules *</label>
+          <label for="drive_folder_url">URL ou ID du Dossier Google Drive</label>
           <input
-            type="url"
-            id="sheets_url_vehicules"
-            formControlName="sheets_url_vehicules"
-            placeholder="https://docs.google.com/spreadsheets/d/..."
-            [class.error]="getFieldError('sheets_url_vehicules')"
+            type="text"
+            id="drive_folder_url"
+            formControlName="drive_folder_url"
+            placeholder="https://drive.google.com/drive/folders/... ou ID du dossier"
+            [class.error]="getFieldError('drive_folder_url')"
           />
-          @if (getFieldError('sheets_url_vehicules')) {
-            <span class="error-message">{{ getFieldError('sheets_url_vehicules') }}</span>
+          @if (getFieldError('drive_folder_url')) {
+            <span class="error-message">{{ getFieldError('drive_folder_url') }}</span>
           }
         </div>
 
-        <div class="form-group">
-          <label for="sheets_url_benevoles">URL Référentiel Bénévoles *</label>
-          <input
-            type="url"
-            id="sheets_url_benevoles"
-            formControlName="sheets_url_benevoles"
-            placeholder="https://docs.google.com/spreadsheets/d/..."
-            [class.error]="getFieldError('sheets_url_benevoles')"
-          />
-          @if (getFieldError('sheets_url_benevoles')) {
-            <span class="error-message">{{ getFieldError('sheets_url_benevoles') }}</span>
-          }
-        </div>
-
-        <div class="form-group">
-          <label for="sheets_url_responsables">URL Référentiel Responsables *</label>
-          <input
-            type="url"
-            id="sheets_url_responsables"
-            formControlName="sheets_url_responsables"
-            placeholder="https://docs.google.com/spreadsheets/d/..."
-            [class.error]="getFieldError('sheets_url_responsables')"
-          />
-          @if (getFieldError('sheets_url_responsables')) {
-            <span class="error-message">{{ getFieldError('sheets_url_responsables') }}</span>
-          }
-        </div>
-      </div>
-
-      <div class="form-section">
-        <h2>Template de Document</h2>
-
-        <div class="form-group">
-          <label for="template_doc_url">URL Template Document Véhicule *</label>
-          <input
-            type="url"
-            id="template_doc_url"
-            formControlName="template_doc_url"
-            placeholder="https://docs.google.com/document/d/..."
-            [class.error]="getFieldError('template_doc_url')"
-          />
-          @if (getFieldError('template_doc_url')) {
-            <span class="error-message">{{ getFieldError('template_doc_url') }}</span>
-          }
-        </div>
+        @if (driveSyncActive()) {
+          <div class="drive-sync-progress">
+            <div class="progress-header">
+              <span>Synchronisation Drive en cours...</span>
+              <span class="progress-percent">{{ driveSyncPercent() }}%</span>
+            </div>
+            <div class="progress-bar-container">
+              <div class="progress-bar" [style.width.%]="driveSyncPercent()"></div>
+            </div>
+            @if (driveSyncCurrentVehicle()) {
+              <div class="progress-vehicle">Véhicule en cours : {{ driveSyncCurrentVehicle() }}</div>
+            }
+          </div>
+        }
       </div>
 
       <div class="form-section">
