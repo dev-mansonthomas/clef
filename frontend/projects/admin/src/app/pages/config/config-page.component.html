@@ -124,9 +124,6 @@
             <div class="progress-bar-container">
               <div class="progress-bar" [style.width.%]="driveSyncPercent()"></div>
             </div>
-            @if (driveSyncCurrentVehicle()) {
-              <div class="progress-vehicle">Véhicule en cours : {{ driveSyncCurrentVehicle() }}</div>
-            }
             <div class="progress-actions">
               <button
                 type="button"
