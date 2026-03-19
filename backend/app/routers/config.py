@@ -89,7 +89,14 @@ async def get_config(
         Current configuration including URLs and email settings
     """
     config = await config_service.get_config()
-    return ConfigResponse(**config)
+    response = ConfigResponse(**config)
+
+    # Enrich sync message with subfolder progress if sync is in_progress
+    if response.drive_sync_status == 'in_progress' and response.drive_sync_message:
+        valkey_service = config_service.valkey_service
+        response = await _enrich_sync_message_with_subfolder_count(valkey_service, response)
+
+    return response
 
 
 @router.patch("", response_model=ConfigResponse)
@@ -213,6 +220,45 @@ async def restart_drive_sync(
     )
 
     return {"message": "Synchronisation relancée", "status": "in_progress"}
+
+
+
+async def _enrich_sync_message_with_subfolder_count(
+    valkey_service: ValkeyService, response: ConfigResponse
+) -> ConfigResponse:
+    """Add (X/Y) subfolder count to sync message if not already present."""
+    msg = response.drive_sync_message or ""
+    # Skip if already has subfolder count
+    if "(" in msg and "/" in msg.split("(")[-1]:
+        return response
+
+    # Try to find the current vehicle and count its folders
+    current_vehicle_label = response.drive_sync_current_vehicle
+    if not current_vehicle_label:
+        return response
+
+    # Extract immat from label (format: "UL XX - INDICATIF - IMMAT" or "UL XX - IMMAT")
+    parts = current_vehicle_label.split(" - ")
+    if len(parts) >= 2:
+        immat = parts[-1].strip()
+        vehicle = await valkey_service.get_vehicle(immat)
+        if vehicle:
+            drive_folders = vehicle.drive_folders or {}
+            subfolder_count = sum(
+                1 for key, val in drive_folders.items()
+                if isinstance(val, dict) and val.get('folder_url')
+            )
+            dt_config = await valkey_service.get_configuration()
+            total_folders = len(dt_config.document_folders) if dt_config and dt_config.document_folders else 11
+
+            # Append (X/Y) to message and current_vehicle
+            suffix = f" ({subfolder_count}/{total_folders})"
+            response = response.model_copy(update={
+                "drive_sync_message": msg + suffix,
+                "drive_sync_current_vehicle": current_vehicle_label + suffix,
+            })
+
+    return response
 
 
 async def _run_drive_sync(valkey_service: ValkeyService, folder_id: str) -> None:
