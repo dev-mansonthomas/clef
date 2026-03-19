@@ -232,6 +232,24 @@ export class ConfigPageComponent implements OnInit, OnDestroy {
     });
   }
 
+  restartDriveSync(): void {
+    this.loading.set(true);
+    this.configService.restartDriveSync().subscribe({
+      next: () => {
+        this.loading.set(false);
+        this.driveSyncStatus.set('in_progress');
+        this.driveSyncMessage.set('Relancement de la création des dossiers...');
+        this.driveSyncProcessed.set(0);
+        this.driveSyncTotal.set(0);
+        this.startDriveSyncPolling();
+      },
+      error: (error) => {
+        this.loading.set(false);
+        this.saveError.set(error.error?.detail || 'Erreur lors du relancement');
+      }
+    });
+  }
+
   cancelDriveSync(): void {
     this.cancelDriveLoading.set(true);
     this.configService.cancelDriveSync().subscribe({

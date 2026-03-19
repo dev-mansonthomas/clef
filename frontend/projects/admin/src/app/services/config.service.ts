@@ -27,6 +27,10 @@ export class ConfigService {
     return this.http.post<{message: string}>(`${this.apiUrl}/api/config/drive-sync/cancel`, {});
   }
 
+  restartDriveSync(): Observable<any> {
+    return this.http.post(`${this.apiUrl}/api/config/drive-sync/restart`, {});
+  }
+
   getDocumentFolders(): Observable<DocumentFolder[]> {
     return this.http.get<DocumentFolder[]>(`${this.apiUrl}/api/config/document-folders`);
   }

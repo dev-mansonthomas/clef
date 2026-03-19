@@ -355,6 +355,22 @@
       margin-top: 1rem;
     }
 
+    .restart-sync-section {
+      margin-top: 0.75rem;
+
+      .btn-secondary {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+
+        .mat-icon {
+          font-size: 18px;
+          width: 18px;
+          height: 18px;
+        }
+      }
+    }
+
     .form-actions {
       margin-top: 2rem;
       text-align: right;

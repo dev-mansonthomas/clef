@@ -132,12 +132,15 @@ async def update_config(
         updates_dict["drive_folder_id"] = folder_id
 
     try:
+        # Read current config BEFORE update to compare drive_folder_id
+        valkey_service = config_service.valkey_service
+        previous_config = await valkey_service.get_configuration()
+        previous_folder_id = previous_config.drive_folder_id if previous_config else None
+
         updated_config = await config_service.update_config(updates_dict)
 
-        # If drive_folder_url changed, launch background sync
-        if folder_id:
-            valkey_service = config_service.valkey_service
-
+        # Only launch sync if folder_id actually changed (new URL or was previously empty)
+        if folder_id and folder_id != previous_folder_id:
             # Set sync status BEFORE returning response so frontend starts polling
             dt_config = await valkey_service.get_configuration()
             if dt_config:
@@ -181,6 +184,40 @@ async def cancel_drive_sync(
     dt_config.drive_sync_message = "Annulation en cours..."
     await valkey_service.set_configuration(dt_config)
     return {"message": "Annulation demandée"}
+
+
+@router.post("/drive-sync/restart")
+async def restart_drive_sync(
+    valkey_service: Annotated[ValkeyService, Depends(get_valkey_service)],
+    current_user: User = Depends(is_dt_manager)
+) -> Dict[str, Any]:
+    """Restart the Drive folder creation for all vehicles."""
+    dt_config = await valkey_service.get_configuration()
+    if not dt_config or not dt_config.drive_folder_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Aucun dossier Google Drive configuré"
+        )
+    if dt_config.drive_sync_status == "in_progress":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Une synchronisation est déjà en cours"
+        )
+
+    dt_config.drive_sync_status = "in_progress"
+    dt_config.drive_sync_processed = 0
+    dt_config.drive_sync_total = 0
+    dt_config.drive_sync_error = None
+    dt_config.drive_sync_current_vehicle = None
+    dt_config.drive_sync_cancel_requested = False
+    dt_config.drive_sync_message = "Relancement de la création des dossiers..."
+    await valkey_service.set_configuration(dt_config)
+
+    asyncio.create_task(
+        _run_drive_sync(valkey_service, dt_config.drive_folder_id)
+    )
+
+    return {"message": "Synchronisation relancée", "status": "in_progress"}
 
 
 async def _run_drive_sync(valkey_service: ValkeyService, folder_id: str) -> None:
