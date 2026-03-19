@@ -244,16 +244,21 @@ async def _enrich_sync_message_with_subfolder_count(
     immat = parts[-1].strip()
     vehicle = await valkey_service.get_vehicle(immat)
     if not vehicle:
+        logger.warning(f"Subfolder enrichment: vehicle not found for immat={immat}")
         return response
 
     drive_folders = vehicle.drive_folders or {}
+    # Count document type subfolders (exclude top-level keys like vehicle_folder_id)
     subfolder_count = sum(
         1 for key, val in drive_folders.items()
         if isinstance(val, dict) and val.get('folder_url')
     )
     dt_config = await valkey_service.get_configuration()
-    total_folders = len(dt_config.document_folders) if dt_config and dt_config.document_folders else 11
+    total_folders = len(dt_config.document_folders) if dt_config and dt_config.document_folders else len(drive_folders) if drive_folders else 11
 
+    logger.info(f"Enrichment: immat={immat}, found_vehicle={vehicle is not None}, drive_folders_keys={list(drive_folders.keys())}, subfolder_count={subfolder_count}")
+
+    # Build suffix — always show it (even 0) so user sees the state
     suffix = f" ({subfolder_count}/{total_folders})"
 
     # Also clean the base message

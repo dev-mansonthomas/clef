@@ -26,11 +26,28 @@
     border-bottom: 3px solid #E30613;
   }
 
-  .sidenav-title {
+  .sidenav-logo {
+    height: 40px;
+    width: auto;
+    object-fit: contain;
+
+    // Hide on mobile, show on desktop
+    @media (max-width: 768px) {
+      display: none;
+    }
+  }
+
+  .sidenav-title-mobile {
+    display: none;
     margin: 0;
-    font-size: 1rem; // Reduced from 24px
+    font-size: 1rem;
     font-weight: 500;
     color: #333;
+
+    // Show only on mobile
+    @media (max-width: 768px) {
+      display: block;
+    }
   }
 
   mat-nav-list {
