@@ -145,12 +145,12 @@
           </div>
         }
 
-        @if (!driveSyncActive() && configForm.get('drive_folder_url')?.value && driveSyncStatus() !== 'in_progress') {
+        @if (configForm.get('drive_folder_url')?.value) {
           <div class="restart-sync-section">
             <button
               type="button"
               class="btn btn-secondary"
-              [disabled]="loading()"
+              [disabled]="loading() || cancelDriveLoading()"
               (click)="restartDriveSync()"
             >
               <mat-icon>refresh</mat-icon>

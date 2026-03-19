@@ -233,21 +233,42 @@ export class ConfigPageComponent implements OnInit, OnDestroy {
   }
 
   restartDriveSync(): void {
-    this.loading.set(true);
-    this.configService.restartDriveSync().subscribe({
-      next: () => {
-        this.loading.set(false);
-        this.driveSyncStatus.set('in_progress');
-        this.driveSyncMessage.set('Relancement de la création des dossiers...');
-        this.driveSyncProcessed.set(0);
-        this.driveSyncTotal.set(0);
-        this.startDriveSyncPolling();
-      },
-      error: (error) => {
-        this.loading.set(false);
-        this.saveError.set(error.error?.detail || 'Erreur lors du relancement');
-      }
-    });
+    const doRestart = () => {
+      this.loading.set(true);
+      this.configService.restartDriveSync().subscribe({
+        next: () => {
+          this.loading.set(false);
+          this.driveSyncStatus.set('in_progress');
+          this.driveSyncMessage.set('Relancement de la création des dossiers...');
+          this.driveSyncProcessed.set(0);
+          this.driveSyncTotal.set(0);
+          this.startDriveSyncPolling();
+        },
+        error: (error) => {
+          this.loading.set(false);
+          this.saveError.set(error.error?.detail || 'Erreur lors du relancement');
+        }
+      });
+    };
+
+    // If sync appears active, cancel first then restart
+    if (this.driveSyncActive() || this.driveSyncStatus() === 'in_progress') {
+      this.configService.cancelDriveSync().subscribe({
+        next: () => {
+          // Reset local state
+          this.driveSyncStatus.set('idle');
+          this.stopDriveSyncPolling();
+          // Now restart
+          doRestart();
+        },
+        error: () => {
+          // Cancel failed (maybe sync already dead) — try restart anyway
+          doRestart();
+        }
+      });
+    } else {
+      doRestart();
+    }
   }
 
   cancelDriveSync(): void {

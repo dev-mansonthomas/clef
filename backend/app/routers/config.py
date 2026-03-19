@@ -198,12 +198,7 @@ async def restart_drive_sync(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Aucun dossier Google Drive configuré"
         )
-    if dt_config.drive_sync_status == "in_progress":
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Une synchronisation est déjà en cours"
-        )
-
+    # Reset sync state and relaunch (works even if previous sync is stuck)
     dt_config.drive_sync_status = "in_progress"
     dt_config.drive_sync_processed = 0
     dt_config.drive_sync_total = 0
