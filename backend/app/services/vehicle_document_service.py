@@ -159,7 +159,7 @@ class VehicleDocumentService:
         valkey_service: ValkeyService,
         vehicle: VehicleData,
     ) -> VehicleDriveDocumentsResponse:
-        """Return the Drive overview for a vehicle and ensure folders exist."""
+        """Return the Drive overview for a vehicle using cached folder data from Valkey."""
         root_config = await self._get_drive_root(valkey_service)
         documents = self._build_empty_documents()
 
@@ -174,60 +174,54 @@ class VehicleDocumentService:
                 documents=documents,
             )
 
-        try:
-            folders = await self._ensure_vehicle_tree(valkey_service, vehicle, root_config["folder_id"])
-        except Exception as e:
-            logger.error(f"Failed to ensure Drive tree for vehicle {vehicle.immat}: {e}")
-            # Return a degraded response — configured but folders unavailable
-            return VehicleDriveDocumentsResponse(
-                configured=True,
-                root_folder_id=root_config["folder_id"],
-                root_folder_url=root_config.get("folder_url"),
-                vehicle_folder_name=vehicle.nom_synthetique,
-                vehicle_folder_id=None,
-                vehicle_folder_url=None,
-                documents=documents,
-                error=f"Erreur d'accès aux dossiers Google Drive: {e}",
-            )
+        # Use cached folder data from Valkey — NO Drive API calls needed
+        drive_folders = getattr(vehicle, "drive_folders", {}) or {}
 
-        for document_type, folder in folders["document_folders"].items():
-            document = documents[document_type]
-            document.folder_id = folder.get("id")
-            document.folder_url = folder.get("webViewLink")
-
-        stored_documents = getattr(vehicle, "documents", {}) or {}
-
-        for document_type in MANAGED_DOCUMENT_TYPES:
-            folder = folders["document_folders"][document_type]
+        if not drive_folders.get("vehicle_folder_id"):
+            # No cached data — need to build tree (first time only)
             try:
-                available_files = await self._list_folder_files(
-                    valkey_service,
-                    folder_id=folder["id"],
-                )
-                documents[document_type].file_count = len(available_files)
-
-                stored_file = stored_documents.get(document_type.value)
-                if stored_file:
-                    matching_file = next(
-                        (file for file in available_files if file["id"] == stored_file.get("file_id")),
-                        None,
-                    )
-                    documents[document_type].current_file = self._serialize_file(
-                        matching_file or stored_file,
-                        stored_file=stored_file,
-                        folder=folder,
-                    )
+                await self._ensure_vehicle_tree(valkey_service, vehicle, root_config["folder_id"])
             except Exception as e:
-                logger.error(f"Failed to list files for {document_type} of vehicle {vehicle.immat}: {e}")
-                # Continue with empty file list for this document type
+                logger.error(f"Failed to ensure Drive tree for vehicle {vehicle.immat}: {e}")
+                return VehicleDriveDocumentsResponse(
+                    configured=True,
+                    root_folder_id=root_config["folder_id"],
+                    root_folder_url=root_config.get("folder_url"),
+                    vehicle_folder_name=vehicle.nom_synthetique,
+                    vehicle_folder_id=None,
+                    vehicle_folder_url=None,
+                    documents=documents,
+                    error=f"Erreur d'accès aux dossiers Google Drive: {e}",
+                )
+            # After _ensure_vehicle_tree, drive_folders is now populated
+            drive_folders = vehicle.drive_folders or {}
+
+        # Populate folder info from cache
+        for document_type in DOCUMENT_CONFIG:
+            cached = drive_folders.get(document_type.value)
+            if cached and isinstance(cached, dict):
+                documents[document_type].folder_id = cached.get("folder_id")
+                documents[document_type].folder_url = cached.get("folder_url")
+
+        # Populate current file from stored documents (also in Valkey — no Drive API)
+        stored_documents = getattr(vehicle, "documents", {}) or {}
+        for document_type in MANAGED_DOCUMENT_TYPES:
+            stored_file = stored_documents.get(document_type.value)
+            if stored_file:
+                documents[document_type].current_file = self._serialize_file(
+                    stored_file,
+                    stored_file=stored_file,
+                )
+                # file_count = 1 if we have a current file (we don't need exact count from Drive)
+                documents[document_type].file_count = 1
 
         return VehicleDriveDocumentsResponse(
             configured=True,
             root_folder_id=root_config["folder_id"],
             root_folder_url=root_config["folder_url"],
             vehicle_folder_name=vehicle.nom_synthetique,
-            vehicle_folder_id=folders["vehicle_folder"].get("id"),
-            vehicle_folder_url=folders["vehicle_folder"].get("webViewLink"),
+            vehicle_folder_id=drive_folders.get("vehicle_folder_id"),
+            vehicle_folder_url=drive_folders.get("vehicle_folder_url"),
             documents=documents,
         )
 
@@ -480,6 +474,17 @@ class VehicleDocumentService:
         vehicle: VehicleData,
         document_type: VehicleDocumentType,
     ) -> dict[str, Any]:
+        # Try cached folder data first
+        drive_folders = getattr(vehicle, "drive_folders", {}) or {}
+        cached = drive_folders.get(document_type.value)
+        if cached and isinstance(cached, dict) and cached.get("folder_id"):
+            return {
+                "id": cached["folder_id"],
+                "webViewLink": cached.get("folder_url"),
+                "name": DOCUMENT_CONFIG[document_type]["folder_name"],
+            }
+
+        # Fallback: build tree if no cache (should be rare)
         root_config = await self._get_drive_root(valkey_service)
         if not root_config["folder_id"]:
             raise HTTPException(

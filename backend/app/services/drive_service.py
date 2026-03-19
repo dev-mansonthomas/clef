@@ -256,7 +256,7 @@ class DriveService:
 
         service = await self._get_service(dt_id)
 
-        query = f"'{folder_id}' in parents and trashed=false"
+        query = f"'{folder_id}' in parents and mimeType!='application/vnd.google-apps.folder' and trashed=false"
 
         request = service.files().list(
             q=query,
