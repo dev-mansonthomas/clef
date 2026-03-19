@@ -36,12 +36,17 @@
                 Le dossier racine Google Drive n'est pas encore configuré pour cette DT.
               </div>
 
-              <div *ngIf="!isCreateMode && !driveDocumentsLoading && driveDocuments?.configured" class="documents-toolbar">
+              <div *ngIf="!isCreateMode && !driveDocumentsLoading && driveDocuments?.error" class="documents-error">
+                <mat-icon color="warn">warning</mat-icon>
+                <span>{{ driveDocuments.error }}</span>
+              </div>
+
+              <div *ngIf="!isCreateMode && !driveDocumentsLoading && driveDocuments?.configured && !driveDocuments?.error" class="documents-toolbar">
                 <button mat-stroked-button type="button" (click)="openDriveLink(driveDocuments?.vehicle_folder_url)">Ouvrir le dossier véhicule</button>
                 <span class="documents-path">{{ driveDocuments?.vehicle_folder_name }}</span>
               </div>
 
-              <div *ngIf="!isCreateMode && !driveDocumentsLoading && driveDocuments?.configured" class="documents-grid">
+              <div *ngIf="!isCreateMode && !driveDocumentsLoading && driveDocuments?.configured && !driveDocuments?.error" class="documents-grid">
                 <mat-card *ngFor="let card of managedDocumentCards" class="document-item-card">
                   <mat-card-header>
                     <div mat-card-avatar class="document-avatar"><mat-icon>{{ card.icon }}</mat-icon></div>

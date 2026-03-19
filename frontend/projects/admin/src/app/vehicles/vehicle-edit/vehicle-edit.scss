@@ -98,6 +98,17 @@
         color: rgba(0, 0, 0, 0.7);
       }
 
+      .documents-error {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.75rem;
+        background-color: #fff3e0;
+        border-radius: 4px;
+        color: #e65100;
+        font-size: 0.9rem;
+      }
+
       .documents-loading {
         display: flex;
         align-items: center;

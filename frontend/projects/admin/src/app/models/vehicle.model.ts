@@ -90,6 +90,7 @@ export interface VehicleDriveDocumentsResponse {
   vehicle_folder_id?: string | null;
   vehicle_folder_url?: string | null;
   documents: Record<VehicleDocumentType, VehicleDriveDocument>;
+  error?: string;
 }
 
 export interface VehicleDriveFileListResponse {

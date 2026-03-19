@@ -174,7 +174,21 @@ class VehicleDocumentService:
                 documents=documents,
             )
 
-        folders = await self._ensure_vehicle_tree(valkey_service, vehicle, root_config["folder_id"])
+        try:
+            folders = await self._ensure_vehicle_tree(valkey_service, vehicle, root_config["folder_id"])
+        except Exception as e:
+            logger.error(f"Failed to ensure Drive tree for vehicle {vehicle.immat}: {e}")
+            # Return a degraded response — configured but folders unavailable
+            return VehicleDriveDocumentsResponse(
+                configured=True,
+                root_folder_id=root_config["folder_id"],
+                root_folder_url=root_config.get("folder_url"),
+                vehicle_folder_name=vehicle.nom_synthetique,
+                vehicle_folder_id=None,
+                vehicle_folder_url=None,
+                documents=documents,
+                error=f"Erreur d'accès aux dossiers Google Drive: {e}",
+            )
 
         for document_type, folder in folders["document_folders"].items():
             document = documents[document_type]
@@ -185,23 +199,27 @@ class VehicleDocumentService:
 
         for document_type in MANAGED_DOCUMENT_TYPES:
             folder = folders["document_folders"][document_type]
-            available_files = await self._list_folder_files(
-                valkey_service,
-                folder_id=folder["id"],
-            )
-            documents[document_type].file_count = len(available_files)
+            try:
+                available_files = await self._list_folder_files(
+                    valkey_service,
+                    folder_id=folder["id"],
+                )
+                documents[document_type].file_count = len(available_files)
 
-            stored_file = stored_documents.get(document_type.value)
-            if stored_file:
-                matching_file = next(
-                    (file for file in available_files if file["id"] == stored_file.get("file_id")),
-                    None,
-                )
-                documents[document_type].current_file = self._serialize_file(
-                    matching_file or stored_file,
-                    stored_file=stored_file,
-                    folder=folder,
-                )
+                stored_file = stored_documents.get(document_type.value)
+                if stored_file:
+                    matching_file = next(
+                        (file for file in available_files if file["id"] == stored_file.get("file_id")),
+                        None,
+                    )
+                    documents[document_type].current_file = self._serialize_file(
+                        matching_file or stored_file,
+                        stored_file=stored_file,
+                        folder=folder,
+                    )
+            except Exception as e:
+                logger.error(f"Failed to list files for {document_type} of vehicle {vehicle.immat}: {e}")
+                # Continue with empty file list for this document type
 
         return VehicleDriveDocumentsResponse(
             configured=True,

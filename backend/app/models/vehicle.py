@@ -368,6 +368,7 @@ class VehicleDriveDocumentsResponse(BaseModel):
     vehicle_folder_id: Optional[str] = None
     vehicle_folder_url: Optional[str] = None
     documents: Dict[VehicleDocumentType, VehicleDriveDocument]
+    error: Optional[str] = None
 
 
 class VehicleDriveFileListResponse(BaseModel):
