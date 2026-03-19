@@ -3,15 +3,18 @@ import { CommonModule } from '@angular/common';
 import { AbstractControl, FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { ConfigService } from '../../services/config.service';
-import { ConfigResponse } from '../../models/config.model';
+import { ConfigResponse, DocumentFolder } from '../../models/config.model';
 import { ApiKeysManagerComponent } from '../../components/api-keys-manager/api-keys-manager.component';
 import { ApiKeysService } from '../../services/api-keys.service';
 import { ConfirmDialogComponent, ConfirmDialogData } from '../../shared/confirm-dialog/confirm-dialog.component';
+import { MatIconModule } from '@angular/material/icon';
+import { MatButtonModule } from '@angular/material/button';
+import { MatTooltipModule } from '@angular/material/tooltip';
 
 @Component({
   selector: 'app-config-page',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, MatDialogModule, ApiKeysManagerComponent],
+  imports: [CommonModule, ReactiveFormsModule, MatDialogModule, ApiKeysManagerComponent, MatIconModule, MatButtonModule, MatTooltipModule],
   templateUrl: './config-page.component.html',
   styleUrl: './config-page.component.scss'
 })
@@ -36,6 +39,10 @@ export class ConfigPageComponent implements OnInit, OnDestroy {
   resetDriveSuccess = signal<string | null>(null);
   resetDriveLoading = signal(false);
   cancelDriveLoading = signal(false);
+  documentFolders = signal<DocumentFolder[]>([]);
+  newFolderName = signal('');
+  savingFolders = signal(false);
+  saveFoldersSuccess = signal(false);
   private driveSyncPoller: number | null = null;
 
   readonly driveSyncPercent = computed(() => {
@@ -49,6 +56,7 @@ export class ConfigPageComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.initForm();
     this.loadConfig();
+    this.loadDocumentFolders();
     this.syncUrl.set(this.apiKeysService.getSyncUrlDT());
   }
 
@@ -261,6 +269,96 @@ export class ConfigPageComponent implements OnInit, OnDestroy {
       return 'Renseignez une URL de dossier Google Drive ou un identifiant de dossier valide';
     }
     return null;
+  }
+
+  private loadDocumentFolders(): void {
+    this.configService.getDocumentFolders().subscribe({
+      next: (folders) => {
+        this.documentFolders.set(folders.slice().sort((a, b) => a.name.localeCompare(b.name)));
+      },
+      error: (error) => {
+        console.error('Error loading document folders:', error);
+      }
+    });
+  }
+
+  addFolder(): void {
+    const name = this.newFolderName().trim();
+    if (!name) return;
+
+    const existing = this.documentFolders().some(f => f.name.toLowerCase() === name.toLowerCase());
+    if (existing) {
+      this.saveError.set('Un dossier avec ce nom existe déjà');
+      setTimeout(() => this.saveError.set(null), 3000);
+      return;
+    }
+
+    const updated = [...this.documentFolders(), { name, mandatory: false }]
+      .sort((a, b) => a.name.localeCompare(b.name));
+    this.documentFolders.set(updated);
+    this.newFolderName.set('');
+  }
+
+  removeFolder(index: number): void {
+    const folder = this.documentFolders()[index];
+    if (folder.mandatory) return;
+
+    if (!confirm(`Supprimer le dossier "${folder.name}" ?`)) return;
+
+    const updated = this.documentFolders().filter((_, i) => i !== index);
+    this.documentFolders.set(updated);
+  }
+
+  saveDocumentFolders(): void {
+    this.savingFolders.set(true);
+    this.saveFoldersSuccess.set(false);
+    this.saveError.set(null);
+
+    this.configService.saveDocumentFolders(this.documentFolders()).subscribe({
+      next: (folders) => {
+        this.documentFolders.set(folders.slice().sort((a, b) => a.name.localeCompare(b.name)));
+        this.savingFolders.set(false);
+        this.saveFoldersSuccess.set(true);
+        setTimeout(() => this.saveFoldersSuccess.set(false), 3000);
+      },
+      error: (error) => {
+        this.savingFolders.set(false);
+        this.saveError.set(error.error?.detail || 'Erreur lors de la sauvegarde des dossiers');
+      }
+    });
+  }
+
+  syncDocumentFolders(): void {
+    const dialogRef = this.dialog.open(ConfirmDialogComponent, {
+      width: '500px',
+      data: {
+        title: 'Synchroniser les répertoires',
+        message: `Cette action va :<ul>
+          <li>Sauvegarder la définition des dossiers</li>
+          <li>Créer les dossiers manquants pour chaque véhicule</li>
+          <li>Supprimer les dossiers vides qui ne sont plus dans la configuration</li>
+        </ul><p><strong>Les dossiers non-vides ne seront pas supprimés.</strong></p>`,
+        confirmLabel: 'Synchroniser',
+        confirmColor: 'primary',
+        icon: 'sync'
+      } as ConfirmDialogData
+    });
+
+    dialogRef.afterClosed().subscribe(confirmed => {
+      if (!confirmed) return;
+      this.savingFolders.set(true);
+      this.saveError.set(null);
+      this.configService.syncDocumentFolders(this.documentFolders()).subscribe({
+        next: (config) => {
+          this.savingFolders.set(false);
+          this.applyDriveSyncState(config);
+        },
+        error: (error) => {
+          this.savingFolders.set(false);
+          this.saveError.set(error.error?.detail || 'Erreur lors de la synchronisation');
+        }
+      });
+    });
   }
 }
 

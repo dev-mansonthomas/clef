@@ -20,3 +20,8 @@ export interface ConfigUpdate {
   email_destinataire_alertes?: string;
 }
 
+export interface DocumentFolder {
+  name: string;
+  mandatory: boolean;
+}
+

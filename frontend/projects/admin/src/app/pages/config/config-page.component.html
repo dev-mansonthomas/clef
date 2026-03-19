@@ -19,6 +19,66 @@
       </div>
     }
 
+    <div class="form-section">
+      <h2>Types de sous-dossiers véhicule</h2>
+
+      <table class="folders-table">
+        <thead>
+          <tr>
+            <th>Nom du dossier</th>
+            <th class="actions-col">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (folder of documentFolders(); track folder.name; let i = $index) {
+            <tr [class.mandatory]="folder.mandatory">
+              <td>
+                @if (folder.mandatory) {
+                  <mat-icon class="lock-icon">lock</mat-icon>
+                }
+                {{ folder.name }}
+              </td>
+              <td class="actions-col">
+                @if (!folder.mandatory) {
+                  <button type="button" mat-icon-button color="warn"
+                          (click)="removeFolder(i)" matTooltip="Supprimer">
+                    <mat-icon>delete</mat-icon>
+                  </button>
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+
+      <div class="add-folder-row">
+        <input type="text" placeholder="Nom du nouveau dossier"
+               [value]="newFolderName()"
+               (input)="newFolderName.set($any($event.target).value)" />
+        <button type="button" class="btn btn-secondary" (click)="addFolder()"
+                [disabled]="!newFolderName()">
+          Ajouter
+        </button>
+      </div>
+
+      <div class="folder-actions">
+        <button type="button" class="btn btn-secondary"
+                [disabled]="savingFolders()"
+                (click)="saveDocumentFolders()">
+          {{ savingFolders() ? 'Sauvegarde...' : 'Sauvegarder' }}
+        </button>
+        <button type="button" class="btn btn-primary"
+                [disabled]="savingFolders() || driveSyncActive()"
+                (click)="syncDocumentFolders()">
+          Synchroniser les répertoires
+        </button>
+      </div>
+
+      @if (saveFoldersSuccess()) {
+        <div class="alert alert-success">✓ Définition des dossiers sauvegardée</div>
+      }
+    </div>
+
     <form [formGroup]="configForm" (ngSubmit)="onSubmit()" class="config-form">
       <div class="form-section">
         <h2>Dossier Racine Google Drive</h2>
