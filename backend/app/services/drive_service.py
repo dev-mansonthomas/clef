@@ -198,6 +198,29 @@ class DriveService:
         logger.info(f"Deleted file {file_id}")
         return True
 
+    async def rename_file(
+        self,
+        dt_id: str,
+        file_id: str,
+        new_name: str,
+    ) -> Dict[str, Any]:
+        """Rename a file in Google Drive."""
+        if self.use_mocks:
+            return {
+                "id": file_id,
+                "name": new_name,
+            }
+
+        service = await self._get_service(dt_id)
+        file = service.files().update(
+            fileId=file_id,
+            body={"name": new_name},
+            fields="id,name,webViewLink,mimeType",
+            **self._shared_drive_kwargs(),
+        ).execute()
+        logger.info(f"Renamed file {file_id} to {new_name}")
+        return file
+
     async def list_files(
         self,
         dt_id: str,
@@ -206,7 +229,10 @@ class DriveService:
     ) -> list:
         """List files in a folder."""
         if self.use_mocks:
-            return []
+            return [
+                {"id": "mock-file-1", "name": "document-exemple-1.pdf", "webViewLink": "https://drive.google.com/file/d/mock-1/view", "mimeType": "application/pdf", "createdTime": "2026-01-15T10:00:00Z"},
+                {"id": "mock-file-2", "name": "document-exemple-2.pdf", "webViewLink": "https://drive.google.com/file/d/mock-2/view", "mimeType": "application/pdf", "createdTime": "2026-02-20T14:30:00Z"},
+            ]
 
         service = await self._get_service(dt_id)
 

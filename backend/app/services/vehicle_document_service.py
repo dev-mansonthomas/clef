@@ -43,7 +43,7 @@ DOCUMENT_CONFIG: dict[VehicleDocumentType, dict[str, Any]] = {
     VehicleDocumentType.ASSURANCE: {
         "label": "Assurance",
         "folder_name": "Assurance",
-        "managed": False,
+        "managed": True,
     },
     VehicleDocumentType.CONTROLE_TECHNIQUE: {
         "label": "Controle Technique",
@@ -61,6 +61,7 @@ MANAGED_DOCUMENT_TYPES = (
     VehicleDocumentType.CARTE_GRISE,
     VehicleDocumentType.CARTE_TOTAL,
     VehicleDocumentType.PLAN_ENTRETIEN,
+    VehicleDocumentType.ASSURANCE,
 )
 MANAGED_DOCUMENT_TYPE_SET = set(MANAGED_DOCUMENT_TYPES)
 
@@ -197,6 +198,18 @@ class VehicleDocumentService:
                 detail="File not found in the selected Drive folder",
             )
 
+        # Rename the file in Drive to match the standard naming convention
+        original_name = selected_file.get("name", "")
+        extension = Path(original_name).suffix if original_name else ""
+        label = DOCUMENT_CONFIG[document_type]["label"]
+        new_name = f"{vehicle.nom_synthetique} - {label}{extension}"
+        await drive_service.rename_file(
+            dt_id=valkey_service.dt,
+            file_id=file_id,
+            new_name=new_name,
+        )
+        selected_file["name"] = new_name
+
         stored_file = self._build_stored_file(selected_file, folder)
         await self._persist_document_selection(valkey_service, vehicle, document_type, stored_file)
 
@@ -223,7 +236,7 @@ class VehicleDocumentService:
         """Upload a new document version and make it the current association."""
         self._ensure_managed_document(document_type)
         folder = await self._get_document_folder(valkey_service, vehicle, document_type)
-        upload_name = self._build_upload_filename(document_type, filename)
+        upload_name = self._build_upload_filename(document_type, filename, vehicle.nom_synthetique)
         uploaded_file = await drive_service.upload_file(
             dt_id=valkey_service.dt,
             file_content=file_content,
@@ -379,12 +392,10 @@ class VehicleDocumentService:
             folder_name=(folder or {}).get("name") or stored_file.get("folder_name"),
         )
 
-    def _build_upload_filename(self, document_type: VehicleDocumentType, filename: str) -> str:
-        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    def _build_upload_filename(self, document_type: VehicleDocumentType, filename: str, nom_synthetique: str) -> str:
         extension = Path(filename).suffix
-        stem = Path(filename).stem or document_type.value
-        safe_stem = stem.replace(" ", "-")
-        return f"{document_type.value}-{timestamp}-{safe_stem}{extension}"
+        label = DOCUMENT_CONFIG[document_type]["label"]
+        return f"{nom_synthetique} - {label}{extension}"
 
     def _ensure_managed_document(self, document_type: VehicleDocumentType) -> None:
         if document_type not in MANAGED_DOCUMENT_TYPE_SET:
