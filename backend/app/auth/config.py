@@ -28,7 +28,7 @@ class AuthSettings(BaseSettings):
         "email",
         "profile",
         "https://www.googleapis.com/auth/calendar",
-        "https://www.googleapis.com/auth/drive.file",
+        "https://www.googleapis.com/auth/drive",
         "https://www.googleapis.com/auth/gmail.send",
     ]
 
