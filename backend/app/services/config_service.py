@@ -31,27 +31,19 @@ class ConfigService:
 
         # Build config dict with fallback to environment variables
         config = {
-            "sheets_url_vehicules": (
-                dt_config.sheets_url_vehicules if dt_config and dt_config.sheets_url_vehicules
-                else os.getenv("SHEETS_URL_VEHICULES", "")
-            ),
-            "sheets_url_benevoles": (
-                dt_config.sheets_url_benevoles if dt_config and dt_config.sheets_url_benevoles
-                else os.getenv("SHEETS_URL_BENEVOLES", "")
-            ),
-            "sheets_url_responsables": (
-                dt_config.sheets_url_responsables if dt_config and dt_config.sheets_url_responsables
-                else os.getenv("SHEETS_URL_RESPONSABLES", "")
-            ),
-            "template_doc_url": (
-                dt_config.template_doc_url if dt_config and dt_config.template_doc_url
-                else os.getenv("TEMPLATE_DOCUMENT_VEHICULE_URL", "")
-            ),
             "email_destinataire_alertes": (
                 dt_config.email_destinataire_alertes if dt_config and dt_config.email_destinataire_alertes
                 else os.getenv("EMAIL_DESTINATAIRE_ALERTES", "")
             ),
             "email_gestionnaire_dt": os.getenv("EMAIL_GESTIONNAIRE_DT", ""),
+            "drive_folder_id": dt_config.drive_folder_id if dt_config else None,
+            "drive_folder_url": dt_config.drive_folder_url if dt_config else None,
+            "drive_sync_status": dt_config.drive_sync_status if dt_config else "idle",
+            "drive_sync_processed": dt_config.drive_sync_processed if dt_config else 0,
+            "drive_sync_total": dt_config.drive_sync_total if dt_config else 0,
+            "drive_sync_message": dt_config.drive_sync_message if dt_config else None,
+            "drive_sync_error": dt_config.drive_sync_error if dt_config else None,
+            "drive_sync_current_vehicle": dt_config.drive_sync_current_vehicle if dt_config else None,
         }
 
         return config

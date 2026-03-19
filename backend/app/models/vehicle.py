@@ -329,6 +329,10 @@ class VehicleDocumentType(str, Enum):
     ASSURANCE = "assurance"
     CONTROLE_TECHNIQUE = "controle_technique"
     CARNET_SUIVI = "carnet_suivi"
+    COMMANDE = "commande"
+    DOCUMENTATION_TECHNIQUE = "documentation_technique"
+    PHOTOS = "photos"
+    SINISTRES = "sinistres"
 
 
 class VehicleDriveFile(BaseModel):

@@ -2,23 +2,42 @@
 Configuration API endpoints.
 DT manager only access.
 """
+import asyncio
+import logging
+import re
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import Annotated, Dict, Any, Optional
 from pydantic import BaseModel
 
 from app.models.config import ConfigUpdate, ConfigResponse
+from app.models.valkey_models import DTConfiguration
 from app.services.config_service import ConfigService
 from app.services.valkey_service import ValkeyService
 from app.services.valkey_dependencies import get_valkey_service
 from app.services.calendar_service import calendar_service
+from app.services.vehicle_document_service import vehicle_document_service
 from app.auth.models import User
 from app.auth.dependencies import is_dt_manager
+
+logger = logging.getLogger(__name__)
 
 
 class DriveFolderConfig(BaseModel):
     """Drive folder configuration."""
     folder_id: str
     folder_url: Optional[str] = None
+
+
+def _extract_folder_id_from_url(url: str) -> Optional[str]:
+    """Extract Google Drive folder ID from a URL.
+
+    Supports formats:
+    - https://drive.google.com/drive/folders/FOLDER_ID
+    - https://drive.google.com/drive/folders/FOLDER_ID?...
+    - https://drive.google.com/drive/u/0/folders/FOLDER_ID
+    """
+    match = re.search(r'/folders/([a-zA-Z0-9_-]+)', url)
+    return match.group(1) if match else None
 
 
 router = APIRouter(
@@ -62,6 +81,10 @@ async def update_config(
 
     **Access**: DT manager only
 
+    When drive_folder_url is provided, extracts the folder ID from the URL,
+    saves it to config, and launches Drive tree creation for all vehicles
+    as a background task.
+
     Args:
         updates: Configuration updates (only non-null fields will be updated)
 
@@ -74,14 +97,88 @@ async def update_config(
     # Convert Pydantic model to dict, excluding None values
     updates_dict = updates.model_dump(exclude_none=True)
 
+    # If drive_folder_url is provided, extract folder_id
+    drive_folder_url = updates_dict.get("drive_folder_url")
+    folder_id = None
+    if drive_folder_url:
+        folder_id = _extract_folder_id_from_url(drive_folder_url)
+        if not folder_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Could not extract folder ID from the provided Google Drive URL"
+            )
+        updates_dict["drive_folder_id"] = folder_id
+
     try:
         updated_config = await config_service.update_config(updates_dict)
+
+        # If drive_folder_url changed, launch background sync
+        if folder_id:
+            valkey_service = config_service.valkey_service
+            asyncio.create_task(
+                _run_drive_sync(valkey_service, folder_id)
+            )
+
         return ConfigResponse(**updated_config)
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Failed to update configuration: {str(e)}"
         )
+
+
+async def _run_drive_sync(valkey_service: ValkeyService, folder_id: str) -> None:
+    """Background task: create Drive tree for all vehicles with progress updates."""
+    try:
+        # Set sync status to in_progress
+        dt_config = await valkey_service.get_configuration()
+        if not dt_config:
+            return
+        dt_config.drive_sync_status = "in_progress"
+        dt_config.drive_sync_processed = 0
+        dt_config.drive_sync_total = 0
+        dt_config.drive_sync_error = None
+        dt_config.drive_sync_message = "Démarrage de la synchronisation..."
+        dt_config.drive_sync_current_vehicle = None
+        await valkey_service.set_configuration(dt_config)
+
+        async def progress_callback(index: int, total: int, vehicle) -> None:
+            """Update sync progress in Valkey config."""
+            cfg = await valkey_service.get_configuration()
+            if cfg:
+                cfg.drive_sync_status = "in_progress"
+                cfg.drive_sync_processed = index
+                cfg.drive_sync_total = total
+                vehicle_label = f"{vehicle.dt_ul} - {vehicle.indicatif} - {vehicle.immat}" if vehicle.indicatif else f"{vehicle.dt_ul} - {vehicle.immat}"
+                cfg.drive_sync_current_vehicle = vehicle_label
+                cfg.drive_sync_message = f"Traitement {index}/{total}: {vehicle_label}"
+                await valkey_service.set_configuration(cfg)
+
+        count = await vehicle_document_service.ensure_vehicle_trees_for_all_vehicles(
+            valkey_service=valkey_service,
+            root_folder_id=folder_id,
+            progress_callback=progress_callback,
+        )
+
+        # Mark sync as complete
+        cfg = await valkey_service.get_configuration()
+        if cfg:
+            cfg.drive_sync_status = "complete"
+            cfg.drive_sync_processed = count
+            cfg.drive_sync_total = count
+            cfg.drive_sync_current_vehicle = None
+            cfg.drive_sync_message = f"Synchronisation terminée: {count} véhicules traités"
+            await valkey_service.set_configuration(cfg)
+
+    except Exception as e:
+        logger.error(f"Drive sync failed: {e}")
+        cfg = await valkey_service.get_configuration()
+        if cfg:
+            cfg.drive_sync_status = "error"
+            cfg.drive_sync_error = str(e)
+            cfg.drive_sync_message = f"Erreur: {str(e)}"
+            cfg.drive_sync_current_vehicle = None
+            await valkey_service.set_configuration(cfg)
 
 
 @router.post("/calendar")

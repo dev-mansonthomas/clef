@@ -55,6 +55,26 @@ DOCUMENT_CONFIG: dict[VehicleDocumentType, dict[str, Any]] = {
         "folder_name": "Carnet de Bord - Documentation CRF",
         "managed": False,
     },
+    VehicleDocumentType.COMMANDE: {
+        "label": "Commande",
+        "folder_name": "Commande",
+        "managed": False,
+    },
+    VehicleDocumentType.DOCUMENTATION_TECHNIQUE: {
+        "label": "Documentation Technique",
+        "folder_name": "Documentation Technique",
+        "managed": False,
+    },
+    VehicleDocumentType.PHOTOS: {
+        "label": "Photos",
+        "folder_name": "Photos",
+        "managed": False,
+    },
+    VehicleDocumentType.SINISTRES: {
+        "label": "Sinistres",
+        "folder_name": "Sinistres",
+        "managed": False,
+    },
 }
 
 MANAGED_DOCUMENT_TYPES = (
@@ -298,6 +318,19 @@ class VehicleDocumentService:
                 name=config["folder_name"],
                 parent_folder_id=vehicle_folder["id"],
             )
+
+        # Store folder URLs in vehicle.drive_folders and persist
+        drive_folders: dict[str, Any] = {
+            "vehicle_folder_id": vehicle_folder.get("id"),
+            "vehicle_folder_url": vehicle_folder.get("webViewLink"),
+        }
+        for document_type, folder in document_folders.items():
+            drive_folders[document_type.value] = {
+                "folder_id": folder.get("id"),
+                "folder_url": folder.get("webViewLink"),
+            }
+        vehicle.drive_folders = drive_folders
+        await valkey_service.set_vehicle(vehicle)
 
         return {
             "vehicles_root": vehicles_root,
