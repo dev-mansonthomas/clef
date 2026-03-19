@@ -22,5 +22,9 @@ export class ConfigService {
   resetDriveSync(): Observable<{message: string}> {
     return this.http.delete<{message: string}>(`${this.apiUrl}/api/config/drive-sync`);
   }
+
+  cancelDriveSync(): Observable<{message: string}> {
+    return this.http.post<{message: string}>(`${this.apiUrl}/api/config/drive-sync/cancel`, {});
+  }
 }
 

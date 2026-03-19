@@ -49,6 +49,16 @@
             @if (driveSyncCurrentVehicle()) {
               <div class="progress-vehicle">Véhicule en cours : {{ driveSyncCurrentVehicle() }}</div>
             }
+            <div class="progress-actions">
+              <button
+                type="button"
+                class="btn btn-cancel"
+                [disabled]="cancelDriveLoading()"
+                (click)="cancelDriveSync()"
+              >
+                {{ cancelDriveLoading() ? 'Annulation...' : 'Arrêter la création' }}
+              </button>
+            </div>
           </div>
         }
 

@@ -35,6 +35,7 @@ export class ConfigPageComponent implements OnInit, OnDestroy {
   driveSyncCurrentVehicle = signal<string | null>(null);
   resetDriveSuccess = signal<string | null>(null);
   resetDriveLoading = signal(false);
+  cancelDriveLoading = signal(false);
   private driveSyncPoller: number | null = null;
 
   readonly driveSyncPercent = computed(() => {
@@ -220,6 +221,21 @@ export class ConfigPageComponent implements OnInit, OnDestroy {
           this.resetDriveLoading.set(false);
         }
       });
+    });
+  }
+
+  cancelDriveSync(): void {
+    this.cancelDriveLoading.set(true);
+    this.configService.cancelDriveSync().subscribe({
+      next: () => {
+        this.cancelDriveLoading.set(false);
+        // Polling will pick up the status change automatically
+      },
+      error: (error) => {
+        console.error('Error cancelling sync:', error);
+        this.cancelDriveLoading.set(false);
+        this.saveError.set(error.error?.detail || 'Erreur lors de l\'annulation');
+      }
     });
   }
 

@@ -29,6 +29,7 @@ class DTConfiguration(BaseModel):
     drive_sync_current_vehicle: Optional[str] = Field(None, description="Nom du véhicule en cours de traitement")
     drive_sync_message: Optional[str] = Field(None, description="Message de progression de la synchronisation Drive")
     drive_sync_error: Optional[str] = Field(None, description="Dernière erreur de synchronisation Drive")
+    drive_sync_cancel_requested: bool = Field(False, description="Flag de demande d'annulation de la synchronisation Drive")
     email_destinataire_alertes: Optional[str] = Field(None, description="Email destinataire des alertes")
     api_keys: List[Dict] = Field(default_factory=list, description="API keys for this DT")
 

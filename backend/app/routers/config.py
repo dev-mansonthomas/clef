@@ -127,6 +127,24 @@ async def update_config(
         )
 
 
+@router.post("/drive-sync/cancel")
+async def cancel_drive_sync(
+    valkey_service: Annotated[ValkeyService, Depends(get_valkey_service)],
+    current_user: User = Depends(is_dt_manager)
+) -> Dict[str, Any]:
+    """Request cancellation of the ongoing Drive sync."""
+    dt_config = await valkey_service.get_configuration()
+    if not dt_config or dt_config.drive_sync_status != "in_progress":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Aucune synchronisation en cours"
+        )
+    dt_config.drive_sync_cancel_requested = True
+    dt_config.drive_sync_message = "Annulation en cours..."
+    await valkey_service.set_configuration(dt_config)
+    return {"message": "Annulation demandée"}
+
+
 async def _run_drive_sync(valkey_service: ValkeyService, folder_id: str) -> None:
     """Background task: create Drive tree for all vehicles with progress updates."""
     try:
@@ -140,11 +158,19 @@ async def _run_drive_sync(valkey_service: ValkeyService, folder_id: str) -> None
         dt_config.drive_sync_error = None
         dt_config.drive_sync_message = "Démarrage de la synchronisation..."
         dt_config.drive_sync_current_vehicle = None
+        dt_config.drive_sync_cancel_requested = False
         await valkey_service.set_configuration(dt_config)
 
+        cancelled = False
+
         async def progress_callback(index: int, total: int, vehicle) -> None:
-            """Update sync progress in Valkey config."""
+            nonlocal cancelled
+            # Check for cancellation before processing each vehicle
             cfg = await valkey_service.get_configuration()
+            if cfg and cfg.drive_sync_cancel_requested:
+                cancelled = True
+                raise asyncio.CancelledError("Sync cancelled by user")
+
             if cfg:
                 cfg.drive_sync_status = "in_progress"
                 cfg.drive_sync_processed = index
@@ -154,11 +180,22 @@ async def _run_drive_sync(valkey_service: ValkeyService, folder_id: str) -> None
                 cfg.drive_sync_message = f"Traitement {index}/{total}: {vehicle_label}"
                 await valkey_service.set_configuration(cfg)
 
-        count = await vehicle_document_service.ensure_vehicle_trees_for_all_vehicles(
-            valkey_service=valkey_service,
-            root_folder_id=folder_id,
-            progress_callback=progress_callback,
-        )
+        try:
+            count = await vehicle_document_service.ensure_vehicle_trees_for_all_vehicles(
+                valkey_service=valkey_service,
+                root_folder_id=folder_id,
+                progress_callback=progress_callback,
+            )
+        except asyncio.CancelledError:
+            # Cancelled by user
+            cfg = await valkey_service.get_configuration()
+            if cfg:
+                cfg.drive_sync_status = "idle"
+                cfg.drive_sync_cancel_requested = False
+                cfg.drive_sync_current_vehicle = None
+                cfg.drive_sync_message = f"Synchronisation annulée ({cfg.drive_sync_processed}/{cfg.drive_sync_total} véhicules traités)"
+                await valkey_service.set_configuration(cfg)
+            return
 
         # Mark sync as complete
         cfg = await valkey_service.get_configuration()
@@ -167,6 +204,7 @@ async def _run_drive_sync(valkey_service: ValkeyService, folder_id: str) -> None
             cfg.drive_sync_processed = count
             cfg.drive_sync_total = count
             cfg.drive_sync_current_vehicle = None
+            cfg.drive_sync_cancel_requested = False
             cfg.drive_sync_message = f"Synchronisation terminée: {count} véhicules traités"
             await valkey_service.set_configuration(cfg)
 
@@ -178,6 +216,7 @@ async def _run_drive_sync(valkey_service: ValkeyService, folder_id: str) -> None
             cfg.drive_sync_error = str(e)
             cfg.drive_sync_message = f"Erreur: {str(e)}"
             cfg.drive_sync_current_vehicle = None
+            cfg.drive_sync_cancel_requested = False
             await valkey_service.set_configuration(cfg)
 
 
