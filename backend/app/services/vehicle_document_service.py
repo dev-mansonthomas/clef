@@ -125,14 +125,8 @@ class VehicleDocumentService:
         total_folders = len(dt_config.document_folders) if dt_config and dt_config.document_folders else len(DOCUMENT_CONFIG)
 
         for index, vehicle in enumerate(vehicles, start=1):
-            # Count existing subfolders BEFORE processing
             if progress_callback:
-                drive_folders = vehicle.drive_folders or {}
-                existing_count = sum(
-                    1 for key, val in drive_folders.items()
-                    if isinstance(val, dict) and val.get('folder_url')
-                )
-                await progress_callback(index, total_vehicles, vehicle, existing_count, total_folders)
+                await progress_callback(index, total_vehicles, vehicle)
 
             await self._ensure_vehicle_tree(valkey_service, vehicle, root_folder_id)
 
