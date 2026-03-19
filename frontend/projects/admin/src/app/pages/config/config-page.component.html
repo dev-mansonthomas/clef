@@ -45,8 +45,7 @@
               </td>
               <td class="actions-col">
                 @if (!folder.mandatory) {
-                  <button type="button" mat-icon-button color="warn"
-                          (click)="removeFolder(i)" matTooltip="Supprimer">
+                  <button type="button" class="delete-btn" (click)="removeFolder(i)" title="Supprimer">
                     <mat-icon>delete</mat-icon>
                   </button>
                 }
