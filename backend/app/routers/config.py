@@ -228,7 +228,7 @@ async def _run_drive_sync(valkey_service: ValkeyService, folder_id: str) -> None
 
         cancelled = False
 
-        async def progress_callback(index: int, total: int, vehicle) -> None:
+        async def progress_callback(index: int, total: int, vehicle, subfolder_created: int = 0, subfolder_total: int = 0) -> None:
             nonlocal cancelled
             # Check for cancellation before processing each vehicle
             cfg = await valkey_service.get_configuration()
@@ -241,6 +241,8 @@ async def _run_drive_sync(valkey_service: ValkeyService, folder_id: str) -> None
                 cfg.drive_sync_processed = index
                 cfg.drive_sync_total = total
                 vehicle_label = f"{vehicle.dt_ul} - {vehicle.indicatif} - {vehicle.immat}" if vehicle.indicatif else f"{vehicle.dt_ul} - {vehicle.immat}"
+                if subfolder_total > 0:
+                    vehicle_label += f" ({subfolder_created}/{subfolder_total})"
                 cfg.drive_sync_current_vehicle = vehicle_label
                 cfg.drive_sync_message = f"Traitement {index}/{total}: {vehicle_label}"
                 await valkey_service.set_configuration(cfg)
