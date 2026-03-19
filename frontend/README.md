@@ -1,59 +1,122 @@
-# Frontend
+# CLEF Frontend
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 21.1.2.
+Angular 21 apps for Croix-Rouge vehicle fleet management. Two separate Angular projects in a monorepo workspace.
 
-## Development server
+## Architecture — Two Apps
 
-To start a local development server, run:
+### App Admin (`projects/admin/`) — Port 4200
 
-```bash
-ng serve
+For DT managers and UL vehicle responsables:
+
+- **Dashboard**: Statistics, alerts overview
+- **Vehicle List**: Sortable/filterable table, status indicators (CT, pollution, disponibilité)
+- **Vehicle Edit**: Full vehicle form, Google Drive document management (Carte Grise, Assurance, CT, Carte Total, Plan d'Entretien, Factures, Sinistres), photo management
+- **Reservations**: Calendar view (FullCalendar), create/edit/cancel reservations
+- **Import**: CSV vehicle import
+- **Configuration DT**: Google Drive folder setup, document folder types, DT Manager OAuth authorization
+- **Configuration UL**: UL-level settings
+- **Super Admin**: Multi-DT management
+- **QR Code Generator**: Generate QR codes for vehicles
+- **API Key Management**: For Google Apps Script sync
+
+Key components:
+
+```
+projects/admin/src/app/
+├── components/
+│   ├── vehicle-list/          # Main vehicle table
+│   ├── calendar-view/         # FullCalendar reservation view
+│   ├── reservation-form/      # Create/edit reservations
+│   ├── dt-admin/              # DT administration
+│   ├── qr-code-generator/     # QR code generation
+│   └── api-keys-manager/      # API key CRUD
+├── vehicles/
+│   └── vehicle-edit/          # Vehicle detail/edit form
+├── features/
+│   ├── auth/                  # Login page
+│   ├── dashboard/             # Stats dashboard
+│   └── import-vehicles/       # CSV import
+├── pages/
+│   ├── config/                # DT Configuration page
+│   ├── configuration-ul/      # UL Configuration page
+│   └── super-admin/           # Super admin panel
+├── services/                  # HTTP services (vehicle, reservation, calendar, etc.)
+├── guards/                    # Route guards (dt-manager, super-admin, ul-responsable)
+├── models/                    # TypeScript interfaces
+└── shared/                    # Layout, dialogs
 ```
 
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
+### App Form (`projects/form/`) — Port 4202
 
-## Code scaffolding
+For field volunteers (bénévoles):
 
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
+- **Vehicle Selector**: Select vehicle from list or scan QR code
+- **Prise Form**: Vehicle checkout form (kilomètres, photos, état)
+- **Retour Form**: Vehicle return form (kilomètres, photos, anomalies)
+- **Reservations**: View/create reservations
 
-```bash
-ng generate component component-name
+Key components:
+
+```
+projects/form/src/app/
+├── components/
+│   ├── vehicle-selector/      # Vehicle picker (list + QR code scan)
+│   ├── prise-form/            # Vehicle checkout form
+│   └── retour-form/           # Vehicle return form
+├── features/
+│   ├── auth/                  # Login
+│   ├── prise/                 # Prise feature wrapper
+│   ├── retour/                # Retour feature wrapper
+│   ├── reservations/          # Reservation list/form/detail
+│   └── vehicle-selection/     # Vehicle selection feature
+├── services/                  # HTTP services
+├── models/                    # TypeScript interfaces
+└── shared/                    # Layout
 ```
 
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
+## Tech Stack
+
+- Angular 21 (standalone components, signals)
+- Angular Material (UI components)
+- PWA support (both apps)
+- TypeScript strict mode
+
+## Dev Setup
 
 ```bash
-ng generate --help
+# Via Docker Compose (recommended)
+docker compose up
+# Admin: http://localhost:4200
+# Form:  http://localhost:4202
+
+# Manual
+cd frontend
+npm install
+npx ng serve admin          # Admin app on port 4200
+npx ng serve form --port 4202  # Form app on port 4202
 ```
 
 ## Building
 
-To build the project run:
-
 ```bash
-ng build
+npx ng build admin    # Production build of admin app
+npx ng build form     # Production build of form app
 ```
 
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
-
-## Running unit tests
-
-To execute unit tests with the [Vitest](https://vitest.dev/) test runner, use the following command:
+## Testing
 
 ```bash
-ng test
+npx ng test admin     # Vitest unit tests for admin
+npx ng test form      # Vitest unit tests for form
+npx playwright test   # E2E tests
 ```
 
-## Running end-to-end tests
+## API Proxy
 
-For end-to-end (e2e) testing, run:
+Both apps proxy `/api/*` and `/auth/*` to the backend (port 8000) via `proxy.conf.json`.
 
-```bash
-ng e2e
-```
+## Authentication
 
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
-
-## Additional Resources
-
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+- Google OAuth 2.0 SSO (restricted to @croix-rouge.fr domain)
+- Session cookie-based auth
+- Route guards for role-based access (DT Manager, UL Responsable, Super Admin)
