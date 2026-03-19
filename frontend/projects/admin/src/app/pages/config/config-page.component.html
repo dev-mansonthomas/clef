@@ -85,7 +85,21 @@
 
     <form [formGroup]="configForm" (ngSubmit)="onSubmit()" class="config-form">
       <div class="form-section">
-        <h2>Dossier Racine Google Drive</h2>
+        <div class="section-header-row">
+          <h2>Dossier Racine Google Drive</h2>
+          @if (configForm.get('drive_folder_url')?.value || driveSyncStatus() !== 'idle') {
+            <button
+              type="button"
+              class="btn-delete-sync"
+              [disabled]="resetDriveLoading()"
+              (click)="resetDriveSync()"
+              title="Supprimer la synchronisation Drive"
+            >
+              <mat-icon>delete</mat-icon>
+              {{ resetDriveLoading() ? 'Suppression...' : 'Supprimer' }}
+            </button>
+          }
+        </div>
 
         <div class="form-group">
           <label for="drive_folder_url">URL ou ID du Dossier Google Drive</label>
@@ -123,19 +137,6 @@
                 {{ cancelDriveLoading() ? 'Annulation...' : 'Arrêter la création' }}
               </button>
             </div>
-          </div>
-        }
-
-        @if (configForm.get('drive_folder_url')?.value || driveSyncStatus() !== 'idle') {
-          <div class="drive-reset-section">
-            <button
-              type="button"
-              class="btn btn-danger"
-              [disabled]="resetDriveLoading()"
-              (click)="resetDriveSync()"
-            >
-              {{ resetDriveLoading() ? 'Suppression...' : 'Supprimer la synchronisation Drive' }}
-            </button>
           </div>
         }
 
