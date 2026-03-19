@@ -115,9 +115,25 @@ async def update_config(
         # If drive_folder_url changed, launch background sync
         if folder_id:
             valkey_service = config_service.valkey_service
+
+            # Set sync status BEFORE returning response so frontend starts polling
+            dt_config = await valkey_service.get_configuration()
+            if dt_config:
+                dt_config.drive_sync_status = "in_progress"
+                dt_config.drive_sync_processed = 0
+                dt_config.drive_sync_total = 0
+                dt_config.drive_sync_error = None
+                dt_config.drive_sync_current_vehicle = None
+                dt_config.drive_sync_cancel_requested = False
+                dt_config.drive_sync_message = "Démarrage de la synchronisation..."
+                await valkey_service.set_configuration(dt_config)
+
             asyncio.create_task(
                 _run_drive_sync(valkey_service, folder_id)
             )
+
+            # Re-read config to include the in_progress status in the response
+            updated_config = await config_service.get_config()
 
         return ConfigResponse(**updated_config)
     except Exception as e:
@@ -148,16 +164,11 @@ async def cancel_drive_sync(
 async def _run_drive_sync(valkey_service: ValkeyService, folder_id: str) -> None:
     """Background task: create Drive tree for all vehicles with progress updates."""
     try:
-        # Set sync status to in_progress
         dt_config = await valkey_service.get_configuration()
         if not dt_config:
             return
-        dt_config.drive_sync_status = "in_progress"
-        dt_config.drive_sync_processed = 0
-        dt_config.drive_sync_total = 0
-        dt_config.drive_sync_error = None
-        dt_config.drive_sync_message = "Démarrage de la synchronisation..."
-        dt_config.drive_sync_current_vehicle = None
+        # Status was already set to in_progress by the caller
+        # Just ensure cancel flag is reset
         dt_config.drive_sync_cancel_requested = False
         await valkey_service.set_configuration(dt_config)
 
