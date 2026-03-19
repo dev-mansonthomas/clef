@@ -1,6 +1,7 @@
 """
 Service for Google Drive operations using DT manager's OAuth tokens.
 """
+import asyncio
 import io
 import logging
 from typing import Optional, Dict, Any
@@ -88,12 +89,13 @@ class DriveService:
             resumable=True,
         )
         
-        file = service.files().create(
+        request = service.files().create(
             body=file_metadata,
             media_body=media,
             fields="id,name,webViewLink,webContentLink,mimeType",
             **self._shared_drive_kwargs(),
-        ).execute()
+        )
+        file = await asyncio.to_thread(request.execute)
         
         logger.info(f"Uploaded file {file['id']} to folder {parent_folder_id}")
         return file
@@ -126,11 +128,12 @@ class DriveService:
             "parents": [parent_folder_id],
         }
         
-        folder = service.files().create(
+        request = service.files().create(
             body=folder_metadata,
             fields="id,name,webViewLink,mimeType",
             **self._shared_drive_kwargs(),
-        ).execute()
+        )
+        folder = await asyncio.to_thread(request.execute)
         
         logger.info(f"Created folder {folder['id']} in {parent_folder_id}")
         return folder
@@ -158,11 +161,12 @@ class DriveService:
             f"trashed=false"
         )
 
-        results = service.files().list(
+        request = service.files().list(
             q=query,
             fields="files(id,name,webViewLink)",
             **self._shared_drive_kwargs(include_items=True),
-        ).execute()
+        )
+        results = await asyncio.to_thread(request.execute)
 
         files = [file for file in results.get("files", []) if file.get("name") == name]
         return files[0] if files else None
@@ -191,10 +195,11 @@ class DriveService:
             return True
 
         service = await self._get_service(dt_id)
-        service.files().delete(
+        request = service.files().delete(
             fileId=file_id,
             **self._shared_drive_kwargs(),
-        ).execute()
+        )
+        await asyncio.to_thread(request.execute)
         logger.info(f"Deleted file {file_id}")
         return True
 
@@ -212,12 +217,13 @@ class DriveService:
             }
 
         service = await self._get_service(dt_id)
-        file = service.files().update(
+        request = service.files().update(
             fileId=file_id,
             body={"name": new_name},
             fields="id,name,webViewLink,mimeType",
             **self._shared_drive_kwargs(),
-        ).execute()
+        )
+        file = await asyncio.to_thread(request.execute)
         logger.info(f"Renamed file {file_id} to {new_name}")
         return file
 
@@ -227,11 +233,12 @@ class DriveService:
             return []
         service = await self._get_service(dt_id)
         query = f"'{parent_folder_id}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false"
-        results = service.files().list(
+        request = service.files().list(
             q=query, pageSize=100,
             fields="files(id,name,webViewLink,mimeType)",
             **self._shared_drive_kwargs(include_items=True),
-        ).execute()
+        )
+        results = await asyncio.to_thread(request.execute)
         return results.get("files", [])
 
     async def list_files(
@@ -251,12 +258,13 @@ class DriveService:
 
         query = f"'{folder_id}' in parents and trashed=false"
 
-        results = service.files().list(
+        request = service.files().list(
             q=query,
             pageSize=max_results,
             fields="files(id,name,webViewLink,mimeType,createdTime)",
             **self._shared_drive_kwargs(include_items=True),
-        ).execute()
+        )
+        results = await asyncio.to_thread(request.execute)
 
         return results.get("files", [])
 

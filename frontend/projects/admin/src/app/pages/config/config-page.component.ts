@@ -145,7 +145,7 @@ export class ConfigPageComponent implements OnInit, OnDestroy {
           this.stopDriveSyncPolling();
         }
       });
-    }, 1000);
+    }, 3000);
   }
 
   private stopDriveSyncPolling(): void {
