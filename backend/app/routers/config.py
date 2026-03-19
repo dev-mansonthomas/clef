@@ -305,7 +305,7 @@ async def _run_drive_sync(valkey_service: ValkeyService, folder_id: str) -> None
                 await valkey_service.set_configuration(cfg)
 
         try:
-            count = await vehicle_document_service.ensure_vehicle_trees_for_all_vehicles(
+            count, errors = await vehicle_document_service.ensure_vehicle_trees_for_all_vehicles(
                 valkey_service=valkey_service,
                 root_folder_id=folder_id,
                 progress_callback=progress_callback,
@@ -342,12 +342,23 @@ async def _run_drive_sync(valkey_service: ValkeyService, folder_id: str) -> None
         # Mark sync as complete
         cfg = await valkey_service.get_configuration()
         if cfg:
-            cfg.drive_sync_status = "complete"
-            cfg.drive_sync_processed = count
-            cfg.drive_sync_total = count
-            cfg.drive_sync_current_vehicle = None
-            cfg.drive_sync_cancel_requested = False
-            cfg.drive_sync_message = f"Synchronisation terminée: {count} véhicules traités"
+            total_vehicles = count + len(errors)
+            if errors:
+                cfg.drive_sync_status = "complete"
+                cfg.drive_sync_processed = total_vehicles
+                cfg.drive_sync_total = total_vehicles
+                cfg.drive_sync_current_vehicle = None
+                cfg.drive_sync_cancel_requested = False
+                error_summary = f"{len(errors)} erreur(s) sur {total_vehicles} véhicules"
+                cfg.drive_sync_message = f"Synchronisation terminée avec erreurs: {error_summary}"
+                cfg.drive_sync_error = "; ".join(errors[:5])  # Keep first 5 errors
+            else:
+                cfg.drive_sync_status = "complete"
+                cfg.drive_sync_processed = count
+                cfg.drive_sync_total = count
+                cfg.drive_sync_current_vehicle = None
+                cfg.drive_sync_cancel_requested = False
+                cfg.drive_sync_message = f"Synchronisation terminée: {count} véhicules traités"
             await valkey_service.set_configuration(cfg)
 
     except Exception as e:
@@ -512,6 +523,7 @@ async def _run_folder_sync(
         )
 
         total = len(vehicles)
+        errors = []
         for index, vehicle in enumerate(vehicles, start=1):
             # Check for cancellation
             cfg = await valkey_service.get_configuration()
@@ -535,22 +547,36 @@ async def _run_folder_sync(
                 cfg.drive_sync_message = f"Synchronisation dossiers {index}/{total}: {vehicle_label}"
                 await valkey_service.set_configuration(cfg)
 
-            await vehicle_document_service.sync_vehicle_folders(
-                valkey_service=valkey_service,
-                vehicle=vehicle,
-                root_folder_id=root_folder_id,
-                configured_folder_names=folder_names,
-            )
+            try:
+                await vehicle_document_service.sync_vehicle_folders(
+                    valkey_service=valkey_service,
+                    vehicle=vehicle,
+                    root_folder_id=root_folder_id,
+                    configured_folder_names=folder_names,
+                )
+            except Exception as e:
+                logger.error(f"Folder sync failed for vehicle {vehicle.immat}: {e}")
+                errors.append(f"{vehicle.immat}: {str(e)}")
 
         # Mark complete
         cfg = await valkey_service.get_configuration()
         if cfg:
-            cfg.drive_sync_status = "complete"
-            cfg.drive_sync_processed = total
-            cfg.drive_sync_total = total
-            cfg.drive_sync_current_vehicle = None
-            cfg.drive_sync_cancel_requested = False
-            cfg.drive_sync_message = f"Synchronisation des dossiers terminée: {total} véhicules traités"
+            if errors:
+                cfg.drive_sync_status = "complete"
+                cfg.drive_sync_processed = total
+                cfg.drive_sync_total = total
+                cfg.drive_sync_current_vehicle = None
+                cfg.drive_sync_cancel_requested = False
+                error_summary = f"{len(errors)} erreur(s) sur {total} véhicules"
+                cfg.drive_sync_message = f"Synchronisation terminée avec erreurs: {error_summary}"
+                cfg.drive_sync_error = "; ".join(errors[:5])  # Keep first 5 errors
+            else:
+                cfg.drive_sync_status = "complete"
+                cfg.drive_sync_processed = total
+                cfg.drive_sync_total = total
+                cfg.drive_sync_current_vehicle = None
+                cfg.drive_sync_cancel_requested = False
+                cfg.drive_sync_message = f"Synchronisation des dossiers terminée: {total} véhicules traités"
             await valkey_service.set_configuration(cfg)
 
     except Exception as e:

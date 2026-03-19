@@ -97,10 +97,15 @@ class VehicleDocumentService:
         valkey_service: ValkeyService,
         root_folder_id: str,
         progress_callback: Callable[..., Awaitable[None]] | None = None,
-    ) -> int:
-        """Ensure the Google Drive folder tree exists for every vehicle in the DT."""
+    ) -> tuple[int, list[str]]:
+        """Ensure the Google Drive folder tree exists for every vehicle in the DT.
+
+        Returns:
+            A tuple of (ensured_count, errors) where errors is a list of
+            error descriptions for vehicles that failed.
+        """
         if not root_folder_id:
-            return 0
+            return 0, []
 
         vehicle_ids = await valkey_service.list_vehicles()
         vehicles: list[VehicleData] = []
@@ -120,6 +125,7 @@ class VehicleDocumentService:
 
         total_vehicles = len(vehicles)
         ensured_count = 0
+        errors: list[str] = []
         # Get total configured folders for subfolder progress reporting
         dt_config = await valkey_service.get_configuration()
         total_folders = len(dt_config.document_folders) if dt_config and dt_config.document_folders else len(DOCUMENT_CONFIG)
@@ -128,7 +134,12 @@ class VehicleDocumentService:
             if progress_callback:
                 await progress_callback(index, total_vehicles, vehicle)
 
-            await self._ensure_vehicle_tree(valkey_service, vehicle, root_folder_id)
+            try:
+                await self._ensure_vehicle_tree(valkey_service, vehicle, root_folder_id)
+            except Exception as e:
+                logger.error(f"Failed to ensure tree for vehicle {vehicle.immat}: {e}")
+                errors.append(f"{vehicle.immat}: {str(e)}")
+                continue
 
             # Report updated subfolder progress AFTER processing
             if progress_callback:
@@ -141,7 +152,7 @@ class VehicleDocumentService:
 
             ensured_count += 1
 
-        return ensured_count
+        return ensured_count, errors
 
     async def get_documents_overview(
         self,
