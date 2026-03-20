@@ -1,296 +1,239 @@
-# Clef
+# CLEF — Croix-Rouge Fleet Management
 
-Monorepo project with Angular 21 frontend and Python 3.13/FastAPI backend.
+Web application for managing vehicles of the Croix-Rouge Française (French Red Cross) Délégation Territoriale: vehicle checkout/return by volunteers, administrative tracking (CT, insurance), reservations, and alerts.
+
+## Architecture Overview
+
+- **Frontend**: Angular 21 monorepo with 2 PWA apps
+  - **Admin** (`projects/admin/`, port 4200): Vehicle management, reservations calendar, Drive documents, configuration
+  - **Form** (`projects/form/`, port 4202): Vehicle checkout/return forms, QR code scanning, reservations
+- **Backend**: Python 3.13 / FastAPI (async), port 8000
+- **Database**: Valkey 8 (Redis-compatible) with native JSON module — single source of truth, no SQL
+- **Google APIs**: Drive (documents), Calendar (reservations), Gmail (alerts), Sheets (referentials via Apps Script)
+- **Auth**: Google OAuth 2.0 SSO restricted to `@croix-rouge.fr`
+- **Infrastructure**: GCP Cloud Run, Memorystore for Valkey 8, Cloud KMS
+- **Sync**: Google Apps Scripts in the referential Spreadsheet push data to the API
 
 ## Project Structure
 
 ```
 clef/
-├── frontend/          # Angular 21 workspace
-│   ├── projects/
-│   │   ├── admin/    # Admin application (admin.{DOMAIN})
-│   │   └── form/     # Form application ({DOMAIN})
-│   └── src/          # Default application
-├── backend/           # FastAPI backend
-│   └── app/          # Application modules
-└── README.md
+├── frontend/                   # Angular 21 workspace
+│   └── projects/
+│       ├── admin/              # Admin PWA (port 4200)
+│       └── form/               # Volunteer form PWA (port 4202)
+├── backend/                    # FastAPI backend (port 8000)
+│   ├── app/
+│   │   ├── auth/               # Google OAuth 2.0
+│   │   ├── routers/            # API endpoints
+│   │   ├── services/           # Business logic + Google API integrations
+│   │   ├── models/             # Pydantic models
+│   │   └── cache/              # Valkey connection layer
+│   ├── tests/                  # pytest tests
+│   └── terraform/              # Infrastructure as Code
+├── google-apps-scripts/        # Apps Script for Spreadsheet ↔ API sync
+├── docker/                     # Docker configuration (Valkey)
+├── infra/                      # Terraform/OpenTofu GCP setup
+└── docker-compose.yml          # Local dev environment
 ```
 
-## Requirements
+## Quick Start (Docker Compose — recommended)
 
-### Frontend
-- Node.js 18+ (tested with v22.22.0)
-- npm 9+ (tested with 10.9.4)
+```bash
+# Clone and start all services
+docker compose up
+
+# Services:
+# - Admin app:  http://localhost:4200
+# - Form app:   http://localhost:4202
+# - Backend:    http://localhost:8000 (API docs at /docs)
+# - Valkey:     localhost:6379
+```
+
+## Manual Setup
 
 ### Backend
-- Python 3.13+
-- pip
-
-## Environment Configuration
-
-The project supports three environments: **dev**, **test**, and **prod**.
-
-### Backend Environment Variables
-
-Copy the example file and configure:
 
 ```bash
 cd backend
-cp .env.example .env
-# Edit .env with your values
-```
-
-Key variables:
-
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `ENVIRONMENT` | Current environment | `dev`, `test`, or `prod` |
-| `GCP_PROJECT` | GCP project | `rcq-fr-dev`, `rcq-fr-test`, `rcq-fr-prod` |
-| `GCP_RESOURCE_PREFIX` | GCP resource prefix | `clef-` (required) |
-| `DOMAIN` | Main domain | `clef.example.com` |
-| `REDIS_URL` | MemoryStore URL | `redis://localhost:6379/0` |
-| `SHEETS_URL_VEHICULES` | Vehicles registry | Google Sheets URL |
-| `SHEETS_URL_BENEVOLES` | Volunteers registry | Google Sheets URL |
-| `SHEETS_URL_RESPONSABLES` | Managers registry | Google Sheets URL |
-| `GOOGLE_DOMAIN` | Google OAuth domain | `croix-rouge.okta.com` |
-| `GOOGLE_CLIENT_ID` | Google OAuth client ID | Provided by Google OAuth |
-| `GOOGLE_CLIENT_SECRET` | Google OAuth client secret | Provided by Google OAuth |
-| `EMAIL_GESTIONNAIRE_DT` | DT manager email | `thomas.manson@croix-rouge.fr` |
-| `QR_CODE_SALT` | QR code salt | Unique random string |
-
-**⚠️ Important**:
-- All GCP resources must be prefixed with `clef-`
-- There are 3 copies of each Google Sheets registry (DEV, TEST, PROD)
-- `QR_CODE_SALT` must be unique per environment
-
-Validate configuration:
-
-```bash
-cd backend
-python validate_env.py
-```
-
-### Frontend Environment Variables
-
-Copy the example file and configure:
-
-```bash
-cd frontend
-cp .env.example .env
-# Edit .env with your values
-```
-
-Key variables:
-
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `ENVIRONMENT` | Current environment | `dev`, `test`, or `prod` |
-| `API_URL` | Backend API URL | `http://localhost:8000` (dev) |
-| `DOMAIN` | Main domain | `clef.example.com` |
-| `GCP_PROJECT` | GCP project | `rcq-fr-dev`, `rcq-fr-test`, `rcq-fr-prod` |
-| `GOOGLE_DOMAIN` | Google OAuth domain | `croix-rouge.okta.com` |
-| `GOOGLE_CLIENT_ID` | Google OAuth client ID | Provided by Google OAuth |
-| `THEME_COLOR` | Theme color | `#E30613` (Red Cross red) |
-
-Validate configuration:
-
-```bash
-cd frontend
-node validate-env.js
-```
-
-### GCP Projects by Environment
-
-| Environment | GCP Project | Domain |
-|-------------|-------------|--------|
-| **dev** | `rcq-fr-dev` | `dev.clef.example.com` |
-| **test** | `rcq-fr-test` | `test.clef.example.com` |
-| **prod** | `rcq-fr-prod` | `clef.croix-rouge.fr` |
-
-All GCP resources (Cloud Run, MemoryStore, etc.) are prefixed with `clef-` as projects are shared.
-
-## Getting Started
-
-### Frontend Setup
-
-```bash
-cd frontend
-
-# Install dependencies
-npm install
-
-# Serve the default app (development)
-npm start
-# Available at http://localhost:4200
-
-# Serve the admin app
-npx ng serve admin
-# Available at http://localhost:4200
-
-# Serve the form app
-npx ng serve form
-# Available at http://localhost:4200
-
-# Build all apps
-npm run build           # Default app
-npx ng build admin      # Admin app
-npx ng build form       # Form app
-```
-
-### Backend Setup
-
-```bash
-cd backend
-
-# Install dependencies
-pip install -e .
-
-# Install dev dependencies (optional)
 pip install -e ".[dev]"
-
-# Run the server
 uvicorn app.main:app --reload
-# Available at http://localhost:8000
+# Requires Valkey on localhost:6379
+# API available at http://localhost:8000
 # API docs at http://localhost:8000/docs
 ```
 
-## Development
-
-### Frontend Applications
-
-- **Default App**: General purpose application
-- **Admin App**: Administration interface (admin.{DOMAIN})
-  - Configured with Angular Material
-  - Located in `frontend/projects/admin/`
-- **Form App**: Public form interface ({DOMAIN})
-  - Configured with Angular Material
-  - Located in `frontend/projects/form/`
-
-### Backend API
-
-- **FastAPI**: Modern Python web framework
-- **CORS**: Configured for local development (localhost:4200)
-- **Endpoints**:
-  - `GET /` - Root endpoint
-  - `GET /health` - Health check
-  - `GET /docs` - Swagger UI documentation
-  - `GET /redoc` - ReDoc documentation
-
-## Testing
-
-### Frontend E2E Tests
-
-End-to-end tests using Playwright:
+### Frontend
 
 ```bash
 cd frontend
-
-# Run all E2E tests
-npm run e2e
-
-# Run in UI mode (interactive)
-npm run e2e:ui
-
-# Run in headed mode (see browser)
-npm run e2e:headed
+npm install
+npx ng serve admin              # Admin on port 4200
+npx ng serve form --port 4202   # Form on port 4202
 ```
 
-**Test Coverage**:
-- Admin vehicle management flow
-- Form vehicle prise submission
-- Reservation and calendar management
-- 13 test scenarios across 3 critical user journeys
+See [`backend/README.md`](backend/README.md) and [`frontend/README.md`](frontend/README.md) for detailed setup instructions.
 
-See `frontend/e2e/README.md` for detailed documentation.
+## Environment Configuration
 
-### Backend Unit Tests
+### Backend Environment Variables
 
 ```bash
 cd backend
-pytest
+cp .env.example .env
+# Edit .env with your values
 ```
 
-## Accès à Valkey (Cache)
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `ENVIRONMENT` | Current environment | `dev`, `test`, or `prod` |
+| `GCP_PROJECT` | GCP project | `rcq-fr-dev` |
+| `GCP_RESOURCE_PREFIX` | GCP resource prefix | `clef-` (required) |
+| `DOMAIN` | Main domain | `clef.example.com` |
+| `REDIS_URL` | Valkey connection URL (primary database) | `redis://localhost:6379/0` |
+| `USE_MOCKS` | Enable mock Google APIs for dev without credentials | `true` or `false` |
+| `SESSION_SECRET_KEY` | Secret key for session encryption | Unique random string |
+| `GOOGLE_CLIENT_ID` | Google OAuth client ID | Provided by Google OAuth |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth client secret | Provided by Google OAuth |
+| `EMAIL_GESTIONNAIRE_DT` | DT manager email | `manager@croix-rouge.fr` |
+| `QR_CODE_SALT` | QR code salt (unique per environment) | Unique random string |
+| `SHEETS_URL_VEHICULES` | Vehicles registry | Google Sheets URL |
+| `SHEETS_URL_BENEVOLES` | Volunteers registry | Google Sheets URL |
+| `SHEETS_URL_RESPONSABLES` | Managers registry | Google Sheets URL |
 
-L'application utilise **Memorystore for Valkey** (service managé Google Cloud) pour le cache.
+### Frontend Environment Variables
 
-### Configuration
+```bash
+cd frontend
+cp .env.example .env
+```
 
-| Environnement | Instance | Région |
-|---------------|----------|--------|
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `ENVIRONMENT` | Current environment | `dev`, `test`, or `prod` |
+| `API_URL` | Backend API URL | `http://localhost:8000` |
+| `DOMAIN` | Main domain | `clef.example.com` |
+| `GCP_PROJECT` | GCP project | `rcq-fr-dev` |
+| `GOOGLE_CLIENT_ID` | Google OAuth client ID | Provided by Google OAuth |
+| `THEME_COLOR` | Theme color | `#E30613` (Red Cross red) |
+
+### Validate Configuration
+
+```bash
+cd backend && python validate_env.py
+cd frontend && node validate-env.js
+```
+
+## Google APIs Integration
+
+| API | Scope | Purpose |
+|-----|-------|---------|
+| **Drive** | `drive` | Vehicle documents organized in folders per vehicle |
+| **Calendar** | `calendar` | Reservations synced as calendar events |
+| **Gmail** | `gmail.send` | Automated alerts for expiring CT/insurance |
+| **Sheets** | Read-only | Referential data (synced via Google Apps Script triggers) |
+
+The DT Manager authorizes via OAuth; tokens are encrypted with Cloud KMS.
+
+## Google Apps Script Sync
+
+Scripts in [`google-apps-scripts/`](google-apps-scripts/) are installed in the referential Spreadsheet. Automatic triggers sync data to the backend API:
+
+| Data | Sync Frequency | Endpoint |
+|------|---------------|----------|
+| Vehicles | Every 1 minute | `/api/sync/vehicules` |
+| Responsables | Every hour | `/api/sync/responsables` |
+| Bénévoles | Every hour | `/api/sync/benevoles` |
+
+Uses API Key authentication. See [`google-apps-scripts/README.md`](google-apps-scripts/README.md) for installation guide.
+
+## Testing
+
+```bash
+# Backend unit tests
+cd backend && python -m pytest tests/ -x -q
+
+# Frontend unit tests
+cd frontend && npx ng test admin
+cd frontend && npx ng test form
+
+# E2E tests (Playwright)
+cd frontend && npx playwright test
+```
+
+See [`frontend/e2e/README.md`](frontend/e2e/README.md) for detailed E2E test documentation.
+
+## Infrastructure (GCP)
+
+| Environment | GCP Project | Services |
+|-------------|-------------|----------|
+| dev | `rcq-fr-dev` | Cloud Run, Memorystore for Valkey 8, Cloud KMS |
+| test | `rcq-fr-test` | Cloud Run, Memorystore for Valkey 8, Cloud KMS |
+| prod | `rcq-fr-prod` | Cloud Run, Memorystore for Valkey 8, Cloud KMS |
+
+- All resources prefixed with `clef-` (shared GCP projects)
+- IaC: OpenTofu/Terraform in [`infra/main.tf`](infra/main.tf) and [`backend/terraform/`](backend/terraform/)
+
+## Connecting to Remote Valkey
+
+Memorystore for Valkey is the **primary database** and is only accessible from the GCP VPC network. The backend connects automatically via the internal VPC; the `REDIS_URL` variable is configured by Terraform.
+
+### Valkey Instances
+
+| Environment | Instance | Region |
+|-------------|----------|--------|
 | dev | clef-valkey-dev | europe-west9 |
 | test | clef-valkey-test | europe-west9 |
 | prod | clef-valkey-prod | europe-west9 |
 
-### Connexion depuis le backend
-
-Le backend se connecte automatiquement via le réseau VPC interne. La variable d'environnement `REDIS_URL` est configurée par Terraform.
-
-### Connexion depuis votre machine locale (Redis Insight)
-
-Memorystore for Valkey n'est accessible que depuis le réseau VPC Google Cloud. Pour vous connecter localement avec Redis Insight ou redis-cli :
-
-#### 1. Via IAP Tunnel (recommandé)
+### Via IAP Tunnel (recommended)
 
 ```bash
-# Créer un tunnel SSH via IAP vers une VM bastion
 gcloud compute ssh BASTION_VM \
   --zone=europe-west9-b \
   --tunnel-through-iap \
   -- -N -L 6379:VALKEY_INTERNAL_IP:6379
 ```
 
-Remplacez :
-- `BASTION_VM` : nom d'une VM dans le même VPC
-- `VALKEY_INTERNAL_IP` : IP interne de Valkey (visible dans la console GCP ou via `tofu output`)
+Replace `BASTION_VM` with a VM in the same VPC, and `VALKEY_INTERNAL_IP` with the Valkey internal IP (from GCP console or `tofu output`).
 
-#### 2. Via Cloud Shell
+### Via Cloud Shell
 
-Cloud Shell est dans le même réseau que Memorystore :
+Cloud Shell has access to the Memorystore network:
 
 ```bash
-# Depuis Cloud Shell
 redis-cli -h VALKEY_INTERNAL_IP -p 6379
 ```
 
-#### 3. Connexion avec Redis Insight
+### Via Redis Insight
 
-1. Créer le tunnel IAP (voir ci-dessus)
-2. Ouvrir Redis Insight
-3. Ajouter une connexion :
-   - **Host** : `localhost`
-   - **Port** : `6379`
-   - **Name** : `CLEF Dev` (ou Test/Prod)
+1. Create the IAP tunnel (see above)
+2. Open Redis Insight → Add connection: **Host** `localhost`, **Port** `6379`
 
-### Authentification
+### Authentication
 
-Memorystore for Valkey utilise **IAM** pour l'authentification. Le Service Account `clef-backend@{project}.iam.gserviceaccount.com` a le rôle `roles/memorystore.dbConnectionUser`.
+Memorystore for Valkey uses **IAM** authentication. The Service Account `clef-backend@{project}.iam.gserviceaccount.com` has the `roles/memorystore.dbConnectionUser` role.
 
-### Commandes utiles
+### Useful Commands
 
 ```bash
-# Voir les endpoints Valkey
-cd backend/terraform
-tofu output valkey_endpoints
+# View Valkey endpoints
+cd backend/terraform && tofu output valkey_endpoints
 
-# Vérifier la connexion (depuis Cloud Shell ou via tunnel)
+# Test connection (from Cloud Shell or via tunnel)
 redis-cli -h VALKEY_IP ping
-# Réponse attendue: PONG
+# Expected response: PONG
 ```
 
-## Technology Stack
+## Tech Stack
 
-### Frontend
-- Angular 21
-- Angular Material
-- TypeScript
-- SCSS
-- Playwright (E2E testing)
-
-### Backend
-- Python 3.13
-- FastAPI
-- Pydantic
-- Uvicorn
-- Memorystore for Valkey (cache)
-- pytest (testing)
+| Layer | Technology |
+|-------|-----------|
+| Frontend | Angular 21, Angular Material, TypeScript, PWA |
+| Backend | Python 3.13, FastAPI, Pydantic v2 |
+| Database | Valkey 8 (JSON module) |
+| Auth | Google OAuth 2.0, Cloud KMS |
+| Cloud | GCP Cloud Run, Memorystore |
+| Testing | pytest, Vitest, Playwright |
+| IaC | OpenTofu/Terraform |
+| CI/CD | GitHub Actions |
