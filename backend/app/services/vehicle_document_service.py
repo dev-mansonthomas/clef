@@ -303,6 +303,11 @@ class VehicleDocumentService:
         existing_file_id = existing_file.get("file_id") if existing_file else None
 
         if existing_file_id:
+            # Ensure the first revision is kept forever (it may have been uploaded outside CLEF)
+            await drive_service.ensure_first_revision_kept(
+                dt_id=valkey_service.dt,
+                file_id=existing_file_id,
+            )
             # Update existing file with new version (Google Drive versioning)
             uploaded_file = await drive_service.update_file_version(
                 dt_id=valkey_service.dt,

@@ -152,6 +152,69 @@ class DriveService:
         logger.info(f"Updated file {file_id} with new version (keepForever={keep_forever})")
         return file
 
+    async def list_revisions(
+        self,
+        dt_id: str,
+        file_id: str,
+    ) -> list[Dict[str, Any]]:
+        """
+        List all revisions of a file.
+
+        Returns:
+            List of revision resources with id, modifiedTime, keepForever.
+        """
+        if self.use_mocks:
+            return [
+                {"id": "1", "modifiedTime": "2026-01-15T10:00:00Z", "keepForever": False},
+            ]
+
+        service = await self._get_service(dt_id)
+        request = service.revisions().list(
+            fileId=file_id,
+            fields="revisions(id,modifiedTime,keepForever)",
+        )
+        result = await asyncio.to_thread(request.execute)
+        return result.get("revisions", [])
+
+    async def ensure_first_revision_kept(
+        self,
+        dt_id: str,
+        file_id: str,
+    ) -> bool:
+        """
+        Ensure the first revision of a file has keepForever=true.
+        If it's already set, this is a no-op.
+
+        Returns:
+            True if keepForever was set (or was already set), False on error.
+        """
+        if self.use_mocks:
+            return True
+
+        try:
+            revisions = await self.list_revisions(dt_id, file_id)
+            if not revisions:
+                return False
+
+            first_revision = revisions[0]
+            if first_revision.get("keepForever"):
+                logger.info(f"First revision of {file_id} already has keepForever=true")
+                return True
+
+            # Set keepForever on the first revision
+            service = await self._get_service(dt_id)
+            request = service.revisions().update(
+                fileId=file_id,
+                revisionId=first_revision["id"],
+                body={"keepForever": True},
+            )
+            await asyncio.to_thread(request.execute)
+            logger.info(f"Set keepForever=true on first revision {first_revision['id']} of file {file_id}")
+            return True
+        except Exception as e:
+            logger.warning(f"Failed to ensure keepForever on first revision of {file_id}: {e}")
+            return False
+
     async def create_folder(
         self,
         dt_id: str,
