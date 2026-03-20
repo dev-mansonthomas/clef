@@ -516,7 +516,7 @@ class VehicleDocumentService:
         files = await drive_service.list_files(dt_id=valkey_service.dt, folder_id=folder_id)
         return sorted(
             files,
-            key=lambda file: file.get("createdTime") or "",
+            key=lambda file: file.get("modifiedTime") or file.get("createdTime") or "",
             reverse=True,
         )
 
@@ -558,6 +558,7 @@ class VehicleDocumentService:
             "web_view_link": file_data.get("webViewLink") or file_data.get("web_view_link"),
             "mime_type": file_data.get("mimeType") or file_data.get("mime_type"),
             "created_time": file_data.get("createdTime") or file_data.get("created_time"),
+            "modified_time": file_data.get("modifiedTime") or file_data.get("modified_time"),
             "selected_at": datetime.now(timezone.utc).isoformat(),
             "folder_id": folder.get("id"),
             "folder_name": folder.get("name"),
@@ -577,6 +578,7 @@ class VehicleDocumentService:
             web_view_link=file_data.get("webViewLink") or file_data.get("web_view_link") or stored_file.get("web_view_link"),
             mime_type=file_data.get("mimeType") or file_data.get("mime_type") or stored_file.get("mime_type"),
             created_time=file_data.get("createdTime") or file_data.get("created_time") or stored_file.get("created_time"),
+            modified_time=file_data.get("modifiedTime") or file_data.get("modified_time") or stored_file.get("modified_time"),
             selected_at=stored_file.get("selected_at"),
             folder_id=(folder or {}).get("id") or stored_file.get("folder_id"),
             folder_name=(folder or {}).get("name") or stored_file.get("folder_name"),

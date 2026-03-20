@@ -93,7 +93,7 @@ class DriveService:
             body=file_metadata,
             media_body=media,
             keepRevisionForever=True,
-            fields="id,name,webViewLink,webContentLink,mimeType",
+            fields="id,name,webViewLink,webContentLink,mimeType,modifiedTime",
             **self._shared_drive_kwargs(),
         )
         file = await asyncio.to_thread(request.execute)
@@ -144,7 +144,7 @@ class DriveService:
             fileId=file_id,
             media_body=media,
             keepRevisionForever=keep_forever,
-            fields="id,name,webViewLink,webContentLink,mimeType",
+            fields="id,name,webViewLink,webContentLink,mimeType,modifiedTime",
             **self._shared_drive_kwargs(),
         )
         file = await asyncio.to_thread(request.execute)
@@ -302,8 +302,8 @@ class DriveService:
         """List files in a folder."""
         if self.use_mocks:
             return [
-                {"id": "mock-file-1", "name": "document-exemple-1.pdf", "webViewLink": "https://drive.google.com/file/d/mock-1/view", "mimeType": "application/pdf", "createdTime": "2026-01-15T10:00:00Z"},
-                {"id": "mock-file-2", "name": "document-exemple-2.pdf", "webViewLink": "https://drive.google.com/file/d/mock-2/view", "mimeType": "application/pdf", "createdTime": "2026-02-20T14:30:00Z"},
+                {"id": "mock-file-1", "name": "document-exemple-1.pdf", "webViewLink": "https://drive.google.com/file/d/mock-1/view", "mimeType": "application/pdf", "createdTime": "2026-01-15T10:00:00Z", "modifiedTime": "2026-03-10T10:00:00Z"},
+                {"id": "mock-file-2", "name": "document-exemple-2.pdf", "webViewLink": "https://drive.google.com/file/d/mock-2/view", "mimeType": "application/pdf", "createdTime": "2026-02-20T14:30:00Z", "modifiedTime": "2026-03-15T14:30:00Z"},
             ]
 
         service = await self._get_service(dt_id)
@@ -313,7 +313,7 @@ class DriveService:
         request = service.files().list(
             q=query,
             pageSize=max_results,
-            fields="files(id,name,webViewLink,mimeType,createdTime)",
+            fields="files(id,name,webViewLink,mimeType,createdTime,modifiedTime)",
             **self._shared_drive_kwargs(include_items=True),
         )
         results = await asyncio.to_thread(request.execute)

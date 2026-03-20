@@ -342,6 +342,7 @@ class VehicleDriveFile(BaseModel):
     web_view_link: Optional[str] = None
     mime_type: Optional[str] = None
     created_time: Optional[str] = None
+    modified_time: Optional[str] = None
     selected_at: Optional[str] = None
     folder_id: Optional[str] = None
     folder_name: Optional[str] = None

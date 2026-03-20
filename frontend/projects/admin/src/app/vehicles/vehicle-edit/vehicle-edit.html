@@ -85,7 +85,7 @@
                           <div>
                             <a *ngIf="file.web_view_link" [href]="file.web_view_link" target="_blank" rel="noopener">{{ file.name }}</a>
                             <span *ngIf="!file.web_view_link">{{ file.name }}</span>
-                            <div class="document-meta" *ngIf="file.created_time">Créé le {{ file.created_time | date:'short' }}</div>
+                            <div class="document-meta" *ngIf="file.modified_time || file.created_time">Mis à jour le {{ (file.modified_time || file.created_time) | date:'short' }}</div>
                           </div>
                           <button mat-stroked-button type="button" [disabled]="isDocumentActionRunning(card.type) || getManagedDocument(card.type)?.current_file?.file_id === file.file_id" (click)="selectDriveFile(card.type, file.file_id)">
                             {{ getManagedDocument(card.type)?.current_file?.file_id === file.file_id ? 'Actuel' : 'Associer' }}

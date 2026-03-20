@@ -66,6 +66,7 @@ export interface VehicleDriveFile {
   web_view_link?: string | null;
   mime_type?: string | null;
   created_time?: string | null;
+  modified_time?: string | null;
   selected_at?: string | null;
   folder_id?: string | null;
   folder_name?: string | null;
