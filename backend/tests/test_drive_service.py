@@ -95,8 +95,10 @@ class TestDriveService:
         )
         
         assert isinstance(result, list)
-        assert len(result) == 0  # Mock mode returns empty list
-    
+        assert len(result) == 2  # Mock mode returns 2 example files
+        assert result[0]["name"] == "document-exemple-1.pdf"
+        assert result[1]["name"] == "document-exemple-2.pdf"
+
     @pytest.mark.asyncio
     async def test_list_files_with_max_results_mock(self):
         """Test listing files with max_results parameter."""
@@ -105,9 +107,9 @@ class TestDriveService:
             folder_id="folder-123",
             max_results=50,
         )
-        
+
         assert isinstance(result, list)
-        assert len(result) == 0
+        assert len(result) == 2
 
 
 class TestDriveServiceWithRealAPI:
