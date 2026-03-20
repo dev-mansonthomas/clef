@@ -284,7 +284,7 @@ class VehicleUpdate(BaseModel):
     modele: Optional[str] = Field(None, description="Modèle du véhicule")
     type: Optional[str] = Field(None, description="Type de véhicule")
     date_mec: Optional[str] = Field(None, description="Date de mise en circulation")
-    nb_places: Optional[int] = Field(None, description="Nombre de places")
+    nb_places: Optional[str] = Field(None, description="Nombre de places")
     carte_grise: Optional[str] = Field(None, description="Statut carte grise")
 
     # Disponibilité
