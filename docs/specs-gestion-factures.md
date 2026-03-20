@@ -1,11 +1,6 @@
 # Spécification — Module Gestion des Dossiers Réparations & Factures
 
-**Application** : CLEF — Gestion de flotte (Croix-Rouge française)
-**Version** : 1.0
-**Date** : 2026-03-20
-**Stack technique** : FastAPI + Valkey (Redis JSON) · Angular 21 · Google Drive · Google OAuth
-
----
+**Application** : CLEF — Gestion de flotte (Croix-Rouge française)**Version** : 1.0**Date** : 2026-03-20**Stack technique** : FastAPI + Valkey (Redis JSON) · Angular 21 · Google Drive · Google OAuth
 
 ## 1. Vue d'ensemble
 
@@ -15,8 +10,6 @@ Le module "Dossiers Réparations & Factures" permet de gérer le cycle de vie de
 - Gestion des devis avec workflow d'approbation
 - Enregistrement des factures
 - Suivi des dépenses par véhicule
-
----
 
 ## 2. Dossier Réparations
 
@@ -33,13 +26,13 @@ Nouvel onglet **"Factures"** dans la fiche véhicule (`vehicle-edit`).
 ### 2.3 Création d'un dossier
 
 | Champ | Type | Obligatoire | Notes |
-|-------|------|:-----------:|-------|
+| --- | --- | --- | --- |
 | Description | textarea | ✅ | — |
 | Photos | upload multiple | ❌ | Upload vers Google Drive dans le dossier Factures du véhicule |
-| N° de dossier | texte, readonly | auto | Format : `REP-{YYYY}-{NNN}` (ex : REP-2026-001). Compteur stocké dans Valkey à `DT75:vehicules:IMMAT:travaux:counter` |
+| N° de dossier | texte, readonly | auto | Format : REP-{YYYY}-{NNN} (ex : REP-2026-001). Compteur stocké dans Valkey à DT75:vehicules:IMMAT:travaux:counter |
 | Date de création | date, readonly | auto | Date du jour |
 
-> **Futur** — Bouton "Lier à un sinistre" : quand le module sinistre sera implémenté, un lien Google Drive sera créé vers le dossier travaux dans le répertoire du sinistre.
+> Futur — Bouton "Lier à un sinistre" : quand le module sinistre sera implémenté, un lien Google Drive sera créé vers le dossier travaux dans le répertoire du sinistre.
 
 ### 2.4 Stockage Valkey
 
@@ -67,7 +60,7 @@ Nouvel onglet **"Factures"** dans la fiche véhicule (`vehicle-edit`).
 }
 ```
 
-> Valeurs de `statut` : `ouvert` | `cloture`
+> Valeurs de statut : ouvert | cloture | annule
 
 ### 2.6 Écran Dossier Réparation
 
@@ -80,16 +73,14 @@ Affiché après création ou clic sur un dossier existant.
 - **Bouton** "Clôturer le dossier" / "Réouvrir le dossier"
 - Quand clôturé → tout est en lecture seule, pas de nouveau devis/facture possible
 
----
-
 ## 3. Devis (Quotes)
 
-> ⚠️ L'enregistrement d'un devis est **optionnel** mais recommandé.
+> ⚠️ L'enregistrement d'un devis est optionnel mais recommandé.
 
 ### 3.1 Formulaire Devis
 
 | Champ | Type | Obligatoire | Notes |
-|-------|------|:-----------:|-------|
+| --- | --- | --- | --- |
 | Date du devis | date picker | ✅ | — |
 | Fournisseur | composant Fournisseurs | ✅ | Voir section 5 |
 | Description des travaux | textarea | ❌ | Pré-remplie depuis la description du dossier. Modifiable. |
@@ -117,6 +108,18 @@ Affiché après création ou clic sur un dossier existant.
     "name": "devis-dupont.pdf",
     "web_view_link": "..."
   },
+  "statut": "en_attente",
+  "valideur_email": null,
+  "valideur_commentaire": null,
+  "token_approbation": null,
+  "date_envoi_approbation": null,
+  "date_decision": null,
+  "cree_par": "thomas.manson@croix-rouge.fr",
+  "cree_le": "2026-03-20T10:00:00Z"
+}
+```
+
+> Valeurs de statut : en_attente | envoye | approuve | refuse | annule
 
 ### 3.3 Workflow d'approbation
 
@@ -137,9 +140,9 @@ stateDiagram-v2
 2. L'utilisateur clique **"Envoyer pour approbation"**
 3. Choix du valideur parmi une liste définie au niveau UL (ou DT pour les véhicules DT)
 4. Envoi d'un **email HTML** bien formaté contenant :
-   - Toutes les données du devis (fournisseur, description, montant)
-   - Lien vers le fichier Google Drive du devis
-   - Lien unique pour approuver/refuser le devis (page dédiée)
+  - Toutes les données du devis (fournisseur, description, montant)
+  - Lien vers le fichier Google Drive du devis
+  - Lien unique pour approuver/refuser le devis (page dédiée)
 5. L'approbateur se connecte avec son email Croix-Rouge (doit correspondre à un des approbateurs définis)
 6. Il visualise les informations et clique **Approuver** ou **Refuser** (avec commentaire optionnel)
 7. Il peut changer sa décision tant qu'une facture n'a pas été enregistrée pour ce devis
@@ -153,8 +156,6 @@ Route publique sécurisée par token.
 - Boutons **Approuver** / **Refuser**
 - Champ commentaire optionnel
 - **Authentification** : l'approbateur doit se connecter avec son email CRF qui doit correspondre au `valideur_email`
-
----
 
 ## 4. Factures (Invoices)
 
@@ -174,7 +175,7 @@ Route publique sécurisée par token.
 ### 4.2 Formulaire Facture
 
 | Champ | Type | Obligatoire | Notes |
-|-------|------|:-----------:|-------|
+| --- | --- | --- | --- |
 | Date de la facture | date picker | ✅ | — |
 | Fournisseur | composant Fournisseurs | ✅ | Voir section 5 |
 | Classification comptable | select | ✅ | Voir valeurs ci-dessous |
@@ -187,14 +188,14 @@ Route publique sécurisée par token.
 **Valeurs de classification comptable** :
 
 | Valeur technique | Libellé |
-|-----------------|---------|
-| `entretien_courant` | Entretien courant |
-| `reparation_carrosserie` | Réparation carrosserie/mécanique |
-| `reparation_sanitaire` | Réparation sanitaire |
-| `reparation_marquage` | Réparation marquage |
-| `controle_technique` | Contrôle technique |
-| `frais_duplicata_cg` | Frais duplicata carte grise |
-| `autre` | Autre |
+| --- | --- |
+| entretien_courant | Entretien courant |
+| reparation_carrosserie | Réparation carrosserie/mécanique |
+| reparation_sanitaire | Réparation sanitaire |
+| reparation_marquage | Réparation marquage |
+| controle_technique | Contrôle technique |
+| frais_duplicata_cg | Frais duplicata carte grise |
+| autre | Autre |
 
 ### 4.3 Modèle de données — `Facture`
 
@@ -212,8 +213,8 @@ Route publique sécurisée par token.
   },
   "classification": "reparation_carrosserie",
   "description": "Remplacement plaquettes de frein + disques",
-  "montant_total": 520.00,
-  "montant_crf": 520.00,
+  "montant_total": 520.00,       // TTC (la CRF ne récupère pas la TVA)
+  "montant_crf": 520.00,         // TTC
   "fichier": {
     "file_id": "...",
     "name": "facture-dupont.pdf",
@@ -225,9 +226,7 @@ Route publique sécurisée par token.
 }
 ```
 
-> `devis_id` : `null` si aucun devis associé.
-
----
+> devis_id : null si aucun devis associé.
 
 ## 5. Fournisseurs (Suppliers)
 
@@ -245,9 +244,9 @@ Affiché sous forme de **dropdown avec recherche** + bouton **"Ajouter un fourni
 ### 5.3 Stockage Valkey
 
 | Niveau | Index (SET) | Données (JSON) |
-|--------|-------------|----------------|
-| DT | `DT75:fournisseurs:index` | `DT75:fournisseurs:{id}` |
-| UL | `DT75:fournisseurs:UL_{ul_id}:index` | `DT75:fournisseurs:UL_{ul_id}:{id}` |
+| --- | --- | --- |
+| DT | DT75:fournisseurs:index | DT75:fournisseurs:{id} |
+| UL | DT75:fournisseurs:UL_{ul_id}:index | DT75:fournisseurs:UL_{ul_id}:{id} |
 
 ### 5.4 Modèle de données — `Fournisseur`
 
@@ -268,12 +267,7 @@ Affiché sous forme de **dropdown avec recherche** + bouton **"Ajouter un fourni
 }
 ```
 
-> Valeurs de `niveau` : `dt` | `ul`
->
-> `ul_id` : `null` si `niveau` = `dt`
-
-
----
+> Valeurs de niveau : dt | ulul_id : null si niveau = dt
 
 ## 6. Onglet Dépenses
 
@@ -286,17 +280,15 @@ Nouvel onglet dans la fiche véhicule, à côté de l'onglet "Factures".
 - **Tableau** groupé par année :
 
 | Date | N° Dossier | Coût Total | Coût CRF |
-|------|-----------|------------|----------|
-| **2026** — 3 dossiers — Total : 1 520,00 € — CRF : 1 200,00 € | | | |
+| --- | --- | --- | --- |
+| 2026 — 3 dossiers — Total : 1 520,00 € — CRF : 1 200,00 € |  |  |  |
 | 15/04/2026 | REP-2026-003 | 520,00 € | 520,00 € |
 | 01/03/2026 | REP-2026-002 | 350,00 € | 350,00 € |
 | 15/01/2026 | REP-2026-001 | 650,00 € | 330,00 € |
-| **2025** — 2 dossiers — Total : 800,00 € — CRF : 800,00 € | | | |
-| ... | | | |
+| 2025 — 2 dossiers — Total : 800,00 € — CRF : 800,00 € |  |  |  |
+| ... |  |  |  |
 
 - Clic sur une ligne → ouvre le dossier réparation correspondant
-
----
 
 ## 7. Analyse & Points d'attention
 
@@ -305,56 +297,102 @@ Nouvel onglet dans la fiche véhicule, à côté de l'onglet "Factures".
 Les scans PDF/photos des devis et factures sont stockés dans Google Drive, dans le sous-dossier `Factures` du véhicule.
 
 **Structure** :
+
 - `{Véhicule}/Factures/{REP-2026-001}/devis-fournisseur.pdf`
 - `{Véhicule}/Factures/{REP-2026-001}/facture-fournisseur.pdf`
 
 ### 7.2 Permissions
 
 | Action | Qui peut ? |
-|--------|-----------|
+| --- | --- |
 | Création dossier/devis/facture | Tout utilisateur ayant accès au véhicule |
 | Approbation devis | Uniquement les valideurs définis (niveau UL ou DT) |
 | Clôture dossier | Créateur du dossier ou gestionnaire DT |
-| Voir/modifier les fournisseurs | ❓ À définir — probablement tout utilisateur du DT/UL concerné |
+| Gérer les fournisseurs UL | Responsable véhicule de l'UL |
+| Gérer les fournisseurs DT | Responsable DT |
 
 ### 7.3 Édition
 
 - Un devis/facture **peut être modifié** tant que le dossier n'est pas clôturé.
-- Un devis **approuvé ne devrait pas être modifiable** (sauf par le valideur qui peut changer sa décision).
-- ❓ À confirmer.
+- Un devis **approuvé n'est pas modifiable** (sauf le valideur qui peut changer sa décision tant qu'une facture n'a pas été enregistrée).
 
-### 7.4 Suppression
+### 7.4 Suppression / Annulation
 
-- **Pas de suppression** pour l'audit trail.
-- Préférer un marquage **"annulé"** si nécessaire.
-- ❓ À confirmer : faut-il ajouter un statut `annule` aux devis et factures ?
+- **Pas de suppression physique** pour l'audit trail.
+- Un statut **"annulé"** est disponible sur le devis et le dossier de réparation.
+- Valeurs de statut dossier : `ouvert` | `cloture` | `annule`
+- Valeurs de statut devis : `en_attente` | `envoye` | `approuve` | `refuse` | `annule`
 
 ### 7.5 Multi-fournisseurs par dossier
 
-- Un dossier peut avoir **plusieurs devis** de fournisseurs différents (mise en concurrence).
-- Un dossier peut avoir **plusieurs factures** si les travaux sont répartis entre plusieurs prestataires.
+- Un **fournisseur par devis/facture**, mais un dossier peut avoir **plusieurs devis/factures** avec des fournisseurs différents.
+- Cela permet la mise en concurrence (plusieurs devis) et la répartition des travaux (plusieurs factures).
 
 ### 7.6 Lien devis ↔ facture
 
 - Un devis peut avoir **une seule facture** associée.
 - Un dossier peut avoir des **factures sans devis**.
 
-### 7.7 Notifications
+### 7.7 Notifications / Rappels
 
 - ✅ Email au demandeur quand le devis est approuvé/refusé.
-- ❓ Faut-il des **rappels** si le devis n'est pas traité après X jours ?
+- ✅ **Rappel automatique** : délai paramétrable au niveau de la configuration de l'UL. Un rappel email est envoyé si un devis n'a pas été traité (approuvé/refusé) après le délai configuré.
 
-### 7.8 Historique / Audit
+### 7.8 Historique / Audit trail
 
-Garder un **log des actions** (création, modification, approbation, clôture) avec timestamp et utilisateur.
+Chaque dossier a un historique stocké dans Valkey à `{DT}:vehicules:{IMMAT}:travaux:{N°DOSSIER}:historique`.
 
-❓ Sous quelle forme ? Champ `historique: []` dans le document JSON ?
+**Format** : array JSON d'entrées :
+
+```json
+[
+  {
+    "date": "2026-03-20T14:30:00Z",
+    "auteur": "thomas.manson@croix-rouge.fr",
+    "action": "creation",
+    "details": "Dossier créé",
+    "ref": "DT75:vehicules:AB-123-CD:travaux:REP-2026-001"
+  },
+  {
+    "date": "2026-03-20T15:00:00Z",
+    "auteur": "thomas.manson@croix-rouge.fr",
+    "action": "devis_ajoute",
+    "details": "Devis #1 - Garage Martin - 850€",
+    "ref": "DT75:vehicules:AB-123-CD:travaux:REP-2026-001:devis:1"
+  },
+  {
+    "date": "2026-03-21T09:00:00Z",
+    "auteur": "chef.ul15@croix-rouge.fr",
+    "action": "devis_approuve",
+    "details": "Devis #1 approuvé",
+    "ref": "DT75:vehicules:AB-123-CD:travaux:REP-2026-001:devis:1"
+  },
+  {
+    "date": "2026-03-25T16:00:00Z",
+    "auteur": "thomas.manson@croix-rouge.fr",
+    "action": "facture_ajoutee",
+    "details": "Facture #1 - Garage Martin - 920€ TTC",
+    "ref": "DT75:vehicules:AB-123-CD:travaux:REP-2026-001:factures:1"
+  },
+  {
+    "date": "2026-04-01T10:00:00Z",
+    "auteur": "thomas.manson@croix-rouge.fr",
+    "action": "cloture",
+    "details": "Dossier clôturé",
+    "ref": "DT75:vehicules:AB-123-CD:travaux:REP-2026-001"
+  }
+]
+```
+
+Le champ `ref` pointe vers la clé Valkey de l'objet concerné.
+
+**Actions tracées** : `creation`, `modification`, `devis_ajoute`, `devis_modifie`, `devis_annule`, `devis_envoye_approbation`, `devis_approuve`, `devis_refuse`, `facture_ajoutee`, `facture_modifiee`, `cloture`, `reouverture`, `annulation`.
+
+Affiché comme un **timeline** dans le détail du dossier.
 
 ### 7.9 Valideurs
 
-Où et comment définit-on la **liste des valideurs** par UL/DT ?
-
-→ Configuration à ajouter dans les paramètres du DT/UL.
+Liste des valideurs configurée au niveau de la **configuration de l'UL** ou du **DT** (pour les véhicules DT). Géré dans l'écran de configuration existant.
 
 ### 7.10 Token d'approbation
 
@@ -362,7 +400,7 @@ Le lien d'approbation par email doit utiliser un **token sécurisé** (JWT ou UU
 
 ### 7.11 TVA
 
-❓ Faut-il gérer les montants **HT/TTC** ? La CRF est-elle assujettie à la TVA sur ces dépenses ?
+Toutes les factures sont en **TTC** (la Croix-Rouge ne récupère pas la TVA). Pas de champ HT/TVA séparé. Les champs `montant_total` et `montant_crf` du modèle Facture sont en TTC.
 
 ### 7.12 Devise
 
@@ -370,20 +408,17 @@ Le lien d'approbation par email doit utiliser un **token sécurisé** (JWT ou UU
 
 ### 7.13 Export
 
-❓ Faut-il pouvoir **exporter** les données de dépenses (CSV, PDF) ?
+✅ Export **CSV** et **PDF** des dépenses disponible depuis l'onglet Dépenses.
 
 ### 7.14 Mobile
 
 Les utilisateurs terrain utilisent des smartphones. Le formulaire de création de dossier (avec photos) doit être **mobile-friendly**.
 
-### 7.15 Montant facture vs devis
+### 7.15 Écart devis / facture
 
 Le montant de la facture peut être différent du devis.
 
-❓ Faut-il un **warning** si l'écart dépasse un certain seuil (ex : > 20 %) ?
-
-
----
+✅ **Warning non bloquant** affiché si l'écart entre le montant du devis et le montant de la facture dépasse **20%**.
 
 ## 8. Google Drive — Structure des dossiers
 
@@ -403,56 +438,52 @@ Le montant de la facture peut être différent du devis.
                     └── ...
 ```
 
----
-
 ## 9. API Endpoints (Backend)
 
 ### 9.1 Dossiers Réparations
 
 | Méthode | Endpoint | Description |
-|---------|----------|-------------|
-| `POST` | `/api/{dt}/vehicles/{immat}/dossiers-reparation` | Créer un dossier |
-| `GET` | `/api/{dt}/vehicles/{immat}/dossiers-reparation` | Lister les dossiers |
-| `GET` | `/api/{dt}/vehicles/{immat}/dossiers-reparation/{numero}` | Détails d'un dossier |
-| `PATCH` | `/api/{dt}/vehicles/{immat}/dossiers-reparation/{numero}` | Modifier (clôturer/réouvrir) |
+| --- | --- | --- |
+| POST | /api/{dt}/vehicles/{immat}/dossiers-reparation | Créer un dossier |
+| GET | /api/{dt}/vehicles/{immat}/dossiers-reparation | Lister les dossiers |
+| GET | /api/{dt}/vehicles/{immat}/dossiers-reparation/{numero} | Détails d'un dossier |
+| PATCH | /api/{dt}/vehicles/{immat}/dossiers-reparation/{numero} | Modifier (clôturer/réouvrir) |
 
 ### 9.2 Devis
 
 | Méthode | Endpoint | Description |
-|---------|----------|-------------|
-| `POST` | `/api/{dt}/vehicles/{immat}/dossiers-reparation/{numero}/devis` | Ajouter un devis |
-| `GET` | `/api/{dt}/vehicles/{immat}/dossiers-reparation/{numero}/devis/{id}` | Détails devis |
-| `POST` | `/api/{dt}/vehicles/{immat}/dossiers-reparation/{numero}/devis/{id}/envoyer-approbation` | Envoyer pour approbation |
+| --- | --- | --- |
+| POST | /api/{dt}/vehicles/{immat}/dossiers-reparation/{numero}/devis | Ajouter un devis |
+| GET | /api/{dt}/vehicles/{immat}/dossiers-reparation/{numero}/devis/{id} | Détails devis |
+| POST | /api/{dt}/vehicles/{immat}/dossiers-reparation/{numero}/devis/{id}/envoyer-approbation | Envoyer pour approbation |
 
 ### 9.3 Approbation (route avec token)
 
 | Méthode | Endpoint | Description |
-|---------|----------|-------------|
-| `GET` | `/api/approbation/{token}` | Afficher la page d'approbation |
-| `POST` | `/api/approbation/{token}` | Soumettre la décision |
+| --- | --- | --- |
+| GET | /api/approbation/{token} | Afficher la page d'approbation |
+| POST | /api/approbation/{token} | Soumettre la décision |
 
 ### 9.4 Factures
 
 | Méthode | Endpoint | Description |
-|---------|----------|-------------|
-| `POST` | `/api/{dt}/vehicles/{immat}/dossiers-reparation/{numero}/factures` | Ajouter une facture |
-| `GET` | `/api/{dt}/vehicles/{immat}/dossiers-reparation/{numero}/factures/{id}` | Détails facture |
+| --- | --- | --- |
+| POST | /api/{dt}/vehicles/{immat}/dossiers-reparation/{numero}/factures | Ajouter une facture |
+| GET | /api/{dt}/vehicles/{immat}/dossiers-reparation/{numero}/factures/{id} | Détails facture |
 
 ### 9.5 Dépenses (agrégation)
 
 | Méthode | Endpoint | Description |
-|---------|----------|-------------|
-| `GET` | `/api/{dt}/vehicles/{immat}/depenses` | Données du tableau dépenses |
+| --- | --- | --- |
+| GET | /api/{dt}/vehicles/{immat}/depenses | Données du tableau dépenses |
 
 ### 9.6 Fournisseurs
 
 | Méthode | Endpoint | Description |
-|---------|----------|-------------|
-| `GET` | `/api/{dt}/fournisseurs` | Lister (DT + UL de l'utilisateur) |
-| `POST` | `/api/{dt}/fournisseurs` | Ajouter un fournisseur |
-| `PATCH` | `/api/{dt}/fournisseurs/{id}` | Modifier un fournisseur |
-
----
+| --- | --- | --- |
+| GET | /api/{dt}/fournisseurs | Lister (DT + UL de l'utilisateur) |
+| POST | /api/{dt}/fournisseurs | Ajouter un fournisseur |
+| PATCH | /api/{dt}/fournisseurs/{id} | Modifier un fournisseur |
 
 ## 10. Composants Frontend (Angular)
 
