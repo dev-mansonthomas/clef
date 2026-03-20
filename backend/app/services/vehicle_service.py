@@ -3,7 +3,7 @@ from datetime import datetime, date
 from typing import Optional, List, Dict, Any
 from app.models.vehicle import Vehicle, StatusInfo, StatusColor, DisponibiliteStatus, VehicleBase
 from app.auth.models import User
-from app.auth.service import AuthService
+
 
 
 class VehicleService:
@@ -140,9 +140,7 @@ class VehicleService:
         Returns:
             Filtered list of vehicles
         """
-        auth_service = AuthService()
-
-        if auth_service.is_dt_manager(user):
+        if user.role == "Gestionnaire DT":
             # DT manager sees all vehicles
             return vehicles
 

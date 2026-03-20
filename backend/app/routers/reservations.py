@@ -8,8 +8,7 @@ from app.auth.dependencies import require_authenticated_user
 from app.services.calendar_service import CalendarService
 from app.mocks.service_factory import get_sheets_service
 from app.services.vehicle_service import VehicleService
-from app.cache import get_cache
-import redis.asyncio as redis
+
 
 
 router = APIRouter(
@@ -19,10 +18,8 @@ router = APIRouter(
 
 
 async def get_calendar_service() -> CalendarService:
-    """Get CalendarService instance with Redis client."""
-    cache = get_cache()
-    redis_client = cache.client if cache._connected else None
-    return CalendarService(redis_client=redis_client)
+    """Get CalendarService instance."""
+    return CalendarService()
 
 
 @router.post("", response_model=ReservationResponse, status_code=status.HTTP_201_CREATED)
@@ -77,17 +74,19 @@ async def create_reservation(
     color_id = None
     
     try:
-        # Create reservation in calendar
-        event = calendar_service.create_reservation(
-            indicatif=reservation.indicatif,
-            chauffeur=reservation.chauffeur,
-            mission=reservation.mission,
+        # Build summary in standard format
+        summary = f"{reservation.indicatif} - {reservation.chauffeur} - {reservation.mission}"
+
+        # Create event in calendar
+        event = await calendar_service.create_event(
+            dt_id=current_user.dt,
+            calendar_id="primary",
+            summary=summary,
             start=reservation.start,
             end=reservation.end,
-            description=reservation.description,
-            color_id=color_id
+            description=reservation.description or "",
         )
-        
+
         # Parse response
         return ReservationResponse(
             id=event['id'],

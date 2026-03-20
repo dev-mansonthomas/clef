@@ -61,7 +61,7 @@ class TestCreateReservation:
         end = start + timedelta(hours=4)
 
         reservation_data = {
-            "indicatif": "VL75-01",
+            "indicatif": "DT-PARIS-01",
             "chauffeur": "Jean Dupont",
             "mission": "Mission Secours",
             "start": start.isoformat(),
@@ -73,7 +73,7 @@ class TestCreateReservation:
 
         assert response.status_code == 201
         data = response.json()
-        assert data["indicatif"] == "VL75-01"
+        assert data["indicatif"] == "DT-PARIS-01"
         assert data["chauffeur"] == "Jean Dupont"
         assert data["mission"] == "Mission Secours"
         assert "id" in data

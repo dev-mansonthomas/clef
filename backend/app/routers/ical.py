@@ -18,8 +18,7 @@ router = APIRouter(
 async def get_calendar_service_with_cache() -> tuple[CalendarService, Optional[RedisCache]]:
     """Get CalendarService instance with Redis client."""
     cache = get_cache()
-    redis_client = cache.client if cache and cache._connected else None
-    calendar_service = CalendarService(redis_client=redis_client)
+    calendar_service = CalendarService()
     return calendar_service, cache
 
 

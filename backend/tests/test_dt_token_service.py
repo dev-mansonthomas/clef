@@ -10,38 +10,41 @@ os.environ["USE_MOCKS"] = "true"
 
 @pytest.fixture
 def mock_cache():
-    """Create a mock cache with mocked JSON operations."""
-    # Import the module first to ensure it exists
+    """Create a mock cache with mocked Redis operations."""
     import app.services.dt_token_service
 
     with patch("app.services.dt_token_service.get_cache") as mock_get_cache:
         cache = MagicMock()
         cache._connected = True
 
-        # Mock the Redis client with JSON support
+        # Mock the Redis client with plain set/get (service uses json.dumps/loads)
         redis_client = MagicMock()
-        json_interface = MagicMock()
 
-        # Storage for JSON data
-        json_storage = {}
+        # Storage for string data (like real Redis)
+        string_storage = {}
 
-        async def json_set(key, path, value):
-            json_storage[key] = value
+        async def redis_set(key, value):
+            string_storage[key] = value
             return True
 
-        async def json_get(key, *args):
-            return json_storage.get(key)
+        async def redis_get(key):
+            return string_storage.get(key)
 
-        async def delete(key):
-            if key in json_storage:
-                del json_storage[key]
+        async def redis_delete(key):
+            if key in string_storage:
+                del string_storage[key]
                 return 1
             return 0
 
-        json_interface.set = AsyncMock(side_effect=json_set)
-        json_interface.get = AsyncMock(side_effect=json_get)
+        redis_client.set = AsyncMock(side_effect=redis_set)
+        redis_client.get = AsyncMock(side_effect=redis_get)
+        redis_client.delete = AsyncMock(side_effect=redis_delete)
+
+        # Also mock json() interface for backward compatibility
+        json_interface = MagicMock()
+        json_interface.set = AsyncMock()
+        json_interface.get = AsyncMock()
         redis_client.json = MagicMock(return_value=json_interface)
-        redis_client.delete = AsyncMock(side_effect=delete)
 
         cache.client = redis_client
         mock_get_cache.return_value = cache
@@ -62,8 +65,9 @@ class TestDTTokenService:
     @pytest.mark.asyncio
     async def test_store_tokens(self, mock_cache, mock_kms):
         from app.services.dt_token_service import DTTokenService
+        import json as _json
         service = DTTokenService()
-        
+
         result = await service.store_tokens(
             dt_id="DT75",
             email="test@croix-rouge.fr",
@@ -71,23 +75,23 @@ class TestDTTokenService:
             refresh_token="refresh456",
             expires_in=3600,
         )
-        
+
         assert result is True
 
-        # Verify KMS encryption was called only for refresh token
-        mock_kms.encrypt.assert_called_once_with("refresh456")
+        # Verify KMS encryption was called for both tokens
+        assert mock_kms.encrypt.call_count == 2
 
-        # Verify Valkey storage
-        stored_data = await mock_cache.client.json().get("DT75:dt_tokens")
-        assert stored_data is not None
+        # Verify Valkey storage (service uses plain set with json.dumps)
+        stored_raw = await mock_cache.client.get("DT75:oauth:dt_manager_tokens")
+        assert stored_raw is not None
+        stored_data = _json.loads(stored_raw)
         assert stored_data["email"] == "test@croix-rouge.fr"
-        assert stored_data["access_token"] == "access123"  # Not encrypted
-        assert stored_data["refresh_token_encrypted"] == "encrypted:refresh456"
-        assert stored_data["authorized"] == True
+        assert stored_data["access_token"] == "encrypted:access123"
+        assert stored_data["refresh_token"] == "encrypted:refresh456"
         assert "authorized_at" in stored_data
     
     @pytest.mark.asyncio
-    async def test_get_tokens_decrypts_refresh(self, mock_cache, mock_kms):
+    async def test_get_access_token_decrypts(self, mock_cache, mock_kms):
         from app.services.dt_token_service import DTTokenService
         service = DTTokenService()
 
@@ -100,14 +104,12 @@ class TestDTTokenService:
             expires_in=3600,
         )
 
-        # Get tokens (should decrypt refresh token)
-        tokens = await service.get_tokens("DT75")
+        # Get access token (should decrypt)
+        token = await service.get_access_token("DT75")
 
-        assert tokens is not None
-        assert tokens["access_token"] == "access123"
-        assert tokens["refresh_token"] == "refresh456"
-        # Verify decrypt was called for refresh token
-        mock_kms.decrypt.assert_called_once_with("encrypted:refresh456")
+        assert token == "access123"
+        # Verify decrypt was called for the encrypted access token
+        mock_kms.decrypt.assert_called_with("encrypted:access123")
     
     @pytest.mark.asyncio
     async def test_get_access_token_valid(self, mock_cache, mock_kms):

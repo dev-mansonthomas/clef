@@ -1,6 +1,8 @@
 """Tests for vehicle API endpoints."""
 import os
+import json
 import pytest
+import asyncio
 from datetime import date, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -18,6 +20,49 @@ from app.models.vehicle import VehicleDocumentSelectRequest
 from app.routers.vehicles import get_vehicle_drive_documents, select_vehicle_drive_document
 from app.auth import routes as auth_routes
 from app.auth.config import auth_settings
+
+# Load mock vehicle data
+_mock_data_path = os.path.join(os.path.dirname(__file__), "..", "app", "mocks", "data", "vehicules.json")
+with open(_mock_data_path) as _f:
+    MOCK_VEHICLES = json.load(_f)
+for _v in MOCK_VEHICLES:
+    _v["dt"] = "DT75"
+
+# Build a mock ValkeyService that returns only the 4 mock vehicles
+from app.models.valkey_models import VehicleData as _VehicleData
+_MOCK_VEHICLE_DATA = {v["immat"]: _VehicleData(**v) for v in MOCK_VEHICLES}
+
+
+class _MockValkeyService:
+    """Mock ValkeyService that returns only the 4 test vehicles."""
+    async def list_vehicles(self):
+        return list(_MOCK_VEHICLE_DATA.keys())
+
+    async def get_vehicle(self, immat: str):
+        return _MOCK_VEHICLE_DATA.get(immat)
+
+    async def set_vehicle(self, vehicle_data):
+        _MOCK_VEHICLE_DATA[vehicle_data.immat] = vehicle_data
+        return True
+
+    async def get_configuration(self):
+        return None
+
+
+def _override_valkey():
+    return _MockValkeyService()
+
+
+from app.routers.vehicles import get_valkey_service
+
+
+@pytest.fixture(autouse=True)
+def _mock_valkey_dependency():
+    """Override ValkeyService dependency for all tests in this module."""
+    app.dependency_overrides[get_valkey_service] = _override_valkey
+    yield
+    app.dependency_overrides.pop(get_valkey_service, None)
+
 
 client = TestClient(app)
 
@@ -147,12 +192,12 @@ class TestVehicleListEndpoint:
 
 
 class TestVehicleDetailEndpoint:
-    """Test GET /api/vehicles/{nom_synthetique} endpoint."""
-    
+    """Test GET /api/vehicles/{immat} endpoint."""
+
     def test_get_vehicle_success(self):
-        """Test getting a specific vehicle."""
+        """Test getting a specific vehicle by immat."""
         auth_client = get_authenticated_client("thomas.manson@croix-rouge.fr")
-        response = auth_client.get("/api/vehicles/VSAV-PARIS15-01")
+        response = auth_client.get("/api/vehicles/AB-123-CD")
 
         assert response.status_code == 200
         vehicle = response.json()
@@ -170,9 +215,9 @@ class TestVehicleDetailEndpoint:
 
     def test_get_vehicle_forbidden(self):
         """Test that user cannot access vehicle from another UL."""
-        # Jean is from UL Paris 15, trying to access UL Paris 16 vehicle
+        # Jean is from UL Paris 15, trying to access UL Paris 16 vehicle (IJ-789-KL)
         auth_client = get_authenticated_client("jean.dupont@croix-rouge.fr")
-        response = auth_client.get("/api/vehicles/VPSP-PARIS16-01")
+        response = auth_client.get("/api/vehicles/IJ-789-KL")
 
         assert response.status_code == 403
 
@@ -261,13 +306,13 @@ class TestVehicleDriveDocumentsEndpoints:
 
 
 class TestVehicleUpdateEndpoint:
-    """Test PATCH /api/vehicles/{nom_synthetique} endpoint."""
+    """Test PATCH /api/vehicles/{immat} endpoint."""
 
     def test_update_vehicle_success(self):
         """Test updating vehicle metadata."""
         auth_client = get_authenticated_client("thomas.manson@croix-rouge.fr")
         response = auth_client.patch(
-            "/api/vehicles/VSAV-PARIS15-01",
+            "/api/vehicles/AB-123-CD",
             json={
                 "commentaires": "Updated comment",
                 "couleur_calendrier": "#FF5733"
@@ -290,10 +335,10 @@ class TestVehicleUpdateEndpoint:
 
     def test_update_vehicle_forbidden(self):
         """Test that user cannot update vehicle from another UL."""
-        # Jean is from UL Paris 15, trying to update UL Paris 16 vehicle
+        # Jean is from UL Paris 15, trying to update UL Paris 16 vehicle (IJ-789-KL)
         auth_client = get_authenticated_client("jean.dupont@croix-rouge.fr")
         response = auth_client.patch(
-            "/api/vehicles/VPSP-PARIS16-01",
+            "/api/vehicles/IJ-789-KL",
             json={"commentaires": "Test"}
         )
 
