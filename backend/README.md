@@ -75,6 +75,7 @@ backend/
 - **Alerts**: `/api/alerts/*` — Email alerts for CT/assurance deadlines
 
 API documentation is auto-generated at:
+
 - Swagger UI: [http://localhost:8000/docs](http://localhost:8000/docs)
 - ReDoc: [http://localhost:8000/redoc](http://localhost:8000/redoc)
 
@@ -88,11 +89,11 @@ API documentation is auto-generated at:
 ## Google APIs Integration
 
 | API | Scope | Usage |
-|-----|-------|-------|
-| **Drive** | `drive` | Vehicle documents (Carte Grise, Assurance, CT, etc.) |
-| **Calendar** | — | Reservations synced as calendar events |
-| **Gmail** | — | Alert emails (CT expiring, insurance) |
-| **Sheets** | — | Read-only referential (via Google Apps Script sync) |
+| --- | --- | --- |
+| Drive | drive | Vehicle documents (Carte Grise, Assurance, CT, etc.) |
+| Calendar | — | Reservations synced as calendar events |
+| Gmail | — | Alert emails (CT expiring, insurance) |
+| Sheets | — | Read-only referential (via Google Apps Script sync) |
 
 Auth: DT Manager's OAuth tokens, encrypted via Cloud KMS, stored in Valkey.
 
@@ -118,9 +119,9 @@ cd backend && python -m pytest tests/ -x -q
 ## Environment Variables
 
 | Variable | Description |
-|----------|-------------|
-| `GOOGLE_CLIENT_ID` | Google OAuth client ID |
-| `GOOGLE_CLIENT_SECRET` | Google OAuth client secret |
-| `REDIS_URL` | Valkey/Redis connection URL |
-| `USE_MOCKS` | Enable mock services for dev/testing |
-| `SESSION_SECRET_KEY` | Secret key for session encryption |
+| --- | --- |
+| GOOGLE_CLIENT_ID | Google OAuth client ID |
+| GOOGLE_CLIENT_SECRET | Google OAuth client secret |
+| REDIS_URL | Valkey/Redis connection URL |
+| USE_MOCKS | Enable mock services for dev/testing |
+| SESSION_SECRET_KEY | Secret key for session encryption |
