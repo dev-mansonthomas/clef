@@ -131,6 +131,30 @@ async def require_ul_responsible(
     return current_user
 
 
+def user_is_super_admin(user: User) -> bool:
+    """Check if user is the configured super admin."""
+    if not auth_settings.super_admin_email:
+        return False
+    return user.email == auth_settings.super_admin_email
+
+
+async def require_super_admin(
+    current_user: User = Depends(require_authenticated_user)
+) -> User:
+    """
+    Require super admin role.
+
+    Raises:
+        HTTPException: 403 if not super admin
+    """
+    if not user_is_super_admin(current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Super admin access required"
+        )
+    return current_user
+
+
 # Convenience aliases
 is_authenticated = require_authenticated_user
 is_dt_manager = require_dt_manager

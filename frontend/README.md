@@ -117,6 +117,6 @@ Both apps proxy `/api/*` and `/auth/*` to the backend (port 8000) via `proxy.con
 
 ## Authentication
 
-- Google OAuth 2.0 SSO (restricted to @croix-rouge.fr domain)
+- Google OAuth 2.0 SSO (restricted to croix-rouge.fr domain)
 - Session cookie-based auth
 - Route guards for role-based access (DT Manager, UL Responsable, Super Admin)

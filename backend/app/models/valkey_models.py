@@ -76,6 +76,7 @@ class VehicleData(BaseModel):
     assurance_2026: str = Field(default="", description="Informations assurance")
     numero_serie_baus: str = Field(default="", description="Numéro de série BAUS")
     suivi_mode: str = Field(default="prise", description="Mode de suivi du véhicule (prise/retour/prise_et_retour)")
+    couleur_calendrier: Optional[str] = Field(None, description="Couleur du véhicule dans le calendrier")
     documents: Dict[str, Dict[str, Any]] = Field(default_factory=dict, description="Associated Google Drive documents by type")
     drive_folders: Dict[str, Any] = Field(default_factory=dict, description="Cached Google Drive folders for the vehicle")
 

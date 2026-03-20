@@ -57,7 +57,7 @@ def get_calendar_service(redis_client: Optional[redis.Redis] = None):
         return GoogleCalendarMock()
 
     from app.services.calendar_service import CalendarService
-    return CalendarService(redis_client=redis_client)
+    return CalendarService()
 
 
 def get_gmail_service():

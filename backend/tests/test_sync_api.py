@@ -92,8 +92,20 @@ class TestSyncVehicules:
     async def test_get_vehicules_with_data(self, client, auth_headers, valkey_dt75, redis_client):
         """Test getting vehicles with data."""
         # Setup test data
-        vehicle1 = VehicleData(immat="AB-123-CD", dt="DT75", marque="Renault", modele="Master")
-        vehicle2 = VehicleData(immat="EF-456-GH", dt="DT75", marque="Peugeot", modele="Partner")
+        vehicle1 = VehicleData(
+            immat="AB-123-CD", dt="DT75", dt_ul="UL Paris 15",
+            marque="Renault", modele="Master", indicatif="PARIS-15-01",
+            operationnel_mecanique="Dispo", type="VSAV",
+            nom_synthetique="VSAV-PARIS15-01", carte_grise="CG123456",
+            nb_places="5", lieu_stationnement="Garage UL Paris 15"
+        )
+        vehicle2 = VehicleData(
+            immat="EF-456-GH", dt="DT75", dt_ul="UL Paris 15",
+            marque="Peugeot", modele="Partner", indicatif="PARIS-15-02",
+            operationnel_mecanique="Dispo", type="VL",
+            nom_synthetique="VL-PARIS15-02", carte_grise="CG789012",
+            nb_places="5", lieu_stationnement="Garage UL Paris 15"
+        )
         
         await valkey_dt75.set_vehicle(vehicle1)
         await valkey_dt75.set_vehicle(vehicle2)
