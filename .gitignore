@@ -1,73 +1,157 @@
+# ============================================
 # Python
+# ============================================
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+parts/
+var/
+sdist/
+develop-eggs/
+.installed.cfg
+lib/
+lib64/
 .Python
 .venv/
 venv/
 ENV/
-*.egg-info/
-.eggs/
-dist/
-build/
-*.egg
+env/
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+.cache/
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.dmypy.json
+dmypy.json
 
-# Node.js
+# ============================================
+# Node / Angular
+# ============================================
 node_modules/
+.angular/
+.npm/
+.yarn/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-.npm
-.yarn
-
-# Angular
-.angular/
+lerna-debug.log*
 dist/
 
-# Terraform
-.terraform/
-*.tfstate
-*.tfstate.*
-*.tfvars
-.terraform.lock.hcl
-crash.log
+# ============================================
+# Environment files
+# ============================================
+.env
+.env.*
+!.env.example
+!*.env.example
+backend/.env
+backend/.env.*
+!backend/.env.example
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+.env.local
+.env.*.local
 
-# IDE
+# ============================================
+# IDE / Editors
+# ============================================
 .idea/
 .vscode/
 *.swp
 *.swo
 *~
+.project
+.pydevproject
+.settings/
 
-# OS
+# ============================================
+# OS files
+# ============================================
 .DS_Store
+.DS_Store?
+._*
 Thumbs.db
+ehthumbs.db
+Desktop.ini
 
-# Environment
-.env
-.env.local
-.env.*.local
+# ============================================
+# Terraform / OpenTofu
+# ============================================
+*.tfplan
+*.tfplan.*
+tfplan*
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+.terraform/
+.terraform.lock.hcl
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
 
-# Logs
+# ============================================
+# Logs and temp files
+# ============================================
 logs/
 *.log
+*.tmp
+*.temp
+*.bak
+*.backup
 npm-debug.log*
 
-# Données sensibles (emails, téléphones bénévoles)
-*.csv
-Référentiel*.csv
-
-# Coverage
+# ============================================
+# Test artifacts
+# ============================================
+test-results/
+playwright-report/
+blob-report/
 coverage/
-htmlcov/
-.coverage
-.pytest_cache/
 
+# ============================================
 # Docker
+# ============================================
 .docker/
 
+# ============================================
 # Credentials (ne jamais commiter)
+# ============================================
 *.pem
 *.key
 service-account*.json
+
+# ============================================
+# Service account keys and sensitive JSON - NEVER commit
+# ============================================
+*.json
+!package.json
+!package-lock.json
+!tsconfig.json
+!angular.json
+!*.component.json
+
+# ============================================
+# Données sensibles (emails, téléphones bénévoles)
+# ============================================
+*.csv
+Référentiel*.csv

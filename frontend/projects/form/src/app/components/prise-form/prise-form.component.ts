@@ -49,7 +49,7 @@ export class PriseFormComponent implements OnInit, AfterViewInit {
   loading = signal(false);
   photos = signal<File[]>([]);
   photoPreviewUrls = signal<string[]>([]);
-  nomSynthetique = signal<string>('');
+  vehicleImmat = signal<string>('');
   readonly maxPhotos = 5;
   readonly niveauxCarburant = NIVEAUX_CARBURANT_PRISE;
 
@@ -63,9 +63,9 @@ export class PriseFormComponent implements OnInit, AfterViewInit {
 
   ngOnInit(): void {
     // Get vehicle from route params
-    const nom = this.route.snapshot.paramMap.get('nomSynthetique');
-    if (nom) {
-      this.nomSynthetique.set(nom);
+    const immat = this.route.snapshot.paramMap.get('immat');
+    if (immat) {
+      this.vehicleImmat.set(immat);
     }
 
     this.initForm();
@@ -168,7 +168,7 @@ export class PriseFormComponent implements OnInit, AfterViewInit {
     // Prepare request data
     const formValue = this.priseForm.value;
     const request: PriseVehiculeRequest = {
-      nomSynthetique: this.nomSynthetique(),
+      nomSynthetique: this.vehicleImmat(),
       kmDepart: formValue.kmDepart,
       niveauCarburant: formValue.niveauCarburant,
       etatGeneral: formValue.etatGeneral,
@@ -201,7 +201,7 @@ export class PriseFormComponent implements OnInit, AfterViewInit {
   }
 
   private uploadPhotos(): void {
-    this.carnetBordService.uploadPhotosPrise(this.nomSynthetique(), this.photos()).subscribe({
+    this.carnetBordService.uploadPhotosPrise(this.vehicleImmat(), this.photos()).subscribe({
       next: (response) => {
         this.showSuccessAndNavigate();
       },

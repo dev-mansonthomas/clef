@@ -9,7 +9,7 @@ from fastapi import APIRouter, HTTPException, status, Response, Query, Depends
 from fastapi.responses import RedirectResponse
 from .models import User, LoginResponse
 from .config import auth_settings
-from .dependencies import get_current_user
+from .dependencies import get_current_user, require_dt_manager
 from .google_oauth import GoogleOAuthService
 from .mock_instance import okta_mock
 
@@ -147,6 +147,40 @@ async def callback(
             # Use id_token as session token
             session_token = id_token
 
+            # Check if this is the super admin and needs OAuth authorization
+            if auth_settings.super_admin_email and email.lower() == auth_settings.super_admin_email.lower():
+                from app.services.dt_token_service import dt_token_service
+
+                dt_id = auth_settings.super_admin_dt_id
+                if dt_id:
+                    # Check if already authorized
+                    status = await dt_token_service.get_authorization_status(dt_id)
+
+                    if not status.get("authorized", False):
+                        # Build the authorization URL with extended scopes
+                        authorization_url = google_oauth.get_authorization_url(
+                            redirect_uri=f"{auth_settings.backend_url}/auth/callback-dt",
+                            scopes=auth_settings.dt_oauth_scopes,
+                            access_type="offline",
+                            prompt="consent",
+                            state=email,
+                        )
+
+                        # Create redirect response to OAuth authorization
+                        redirect_response = RedirectResponse(url=authorization_url, status_code=302)
+
+                        # Set session cookie so user is authenticated when they return
+                        redirect_response.set_cookie(
+                            key=auth_settings.session_cookie_name,
+                            value=session_token,
+                            max_age=auth_settings.session_max_age,
+                            httponly=True,
+                            secure=False,  # Set to True in production with HTTPS
+                            samesite="lax"
+                        )
+
+                        return redirect_response
+
         # Create redirect response with dynamic URL
         redirect_response = RedirectResponse(url=redirect_url)
 
@@ -246,4 +280,145 @@ async def mock_login(
 
     # Redirect to callback
     return RedirectResponse(url=f"{redirect_uri}?code={code}&state={state}")
+
+
+# ============================================================================
+# DT Manager OAuth Authorization Endpoints
+# ============================================================================
+
+@router.get("/authorize-dt")
+async def authorize_dt(
+    current_user: User = Depends(require_dt_manager)
+):
+    """
+    Initiate OAuth flow for DT manager to authorize Calendar/Drive/Gmail access.
+    Requires already being logged in as DT manager.
+
+    Returns:
+        Authorization URL with extended scopes
+    """
+    # Build authorization URL with extended scopes
+    authorization_url = google_oauth.get_authorization_url(
+        redirect_uri=f"{auth_settings.backend_url}/auth/callback-dt",
+        scopes=auth_settings.dt_oauth_scopes,
+        access_type="offline",  # For refresh token
+        prompt="consent",  # Force consent to get refresh token
+        state=current_user.email,  # Pass email in state for callback
+    )
+    return {"authorization_url": authorization_url}
+
+
+@router.get("/callback-dt")
+async def callback_dt(
+    code: str = Query(..., description="Authorization code from Google"),
+    state: str = Query(..., description="DT manager email from state"),
+):
+    """
+    OAuth callback for DT manager authorization.
+    Exchanges code for tokens and stores refresh token securely.
+
+    Args:
+        code: Authorization code from Google
+        state: DT manager email passed in state parameter
+
+    Returns:
+        Redirect to admin app with success message
+    """
+    from app.services.dt_token_service import dt_token_service
+
+    try:
+        # Exchange code for tokens
+        tokens = await google_oauth.exchange_code_for_tokens(
+            code=code,
+            redirect_uri=f"{auth_settings.backend_url}/auth/callback-dt",
+        )
+
+        if not tokens.get("refresh_token"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No refresh token received. Please revoke app access in Google settings and try again."
+            )
+
+        # Store tokens securely (encrypted with KMS)
+        # Use super admin DT ID if the email matches, otherwise use default
+        dt_id = "DT75"  # Default
+        if auth_settings.super_admin_email and state.lower() == auth_settings.super_admin_email.lower():
+            dt_id = auth_settings.super_admin_dt_id or "DT75"
+
+        success = await dt_token_service.store_tokens(
+            dt_id=dt_id,
+            email=state,
+            access_token=tokens["access_token"],
+            refresh_token=tokens["refresh_token"],
+            expires_in=tokens.get("expires_in", 3600),
+        )
+
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to store tokens"
+            )
+
+        # Redirect to frontend
+        # Use first allowed frontend URL
+        frontend_url = auth_settings.allowed_frontend_urls[0]
+        return RedirectResponse(
+            url=frontend_url,
+            status_code=302
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Authorization failed: {str(e)}"
+        )
+
+
+@router.get("/dt-authorization-status")
+async def get_dt_authorization_status(
+    current_user: User = Depends(require_dt_manager)
+):
+    """
+    Check if DT manager has authorized Calendar/Drive/Gmail access.
+
+    Returns:
+        Authorization status with email and timestamp
+    """
+    from app.services.dt_token_service import dt_token_service
+
+    dt_id = "DT75"  # TODO: Get from user context
+    status_data = await dt_token_service.get_authorization_status(dt_id)
+
+    return {
+        "authorized": status_data.get("authorized", False),
+        "email": status_data.get("email"),
+        "authorized_at": status_data.get("authorized_at"),
+        "scopes": ["calendar", "drive", "gmail"] if status_data.get("authorized") else [],
+    }
+
+
+@router.post("/revoke-dt-authorization")
+async def revoke_dt_authorization(
+    current_user: User = Depends(require_dt_manager)
+):
+    """
+    Revoke DT manager's Calendar/Drive/Gmail authorization.
+
+    Returns:
+        Success message
+    """
+    from app.services.dt_token_service import dt_token_service
+
+    dt_id = "DT75"  # TODO: Get from user context
+    success = await dt_token_service.revoke_tokens(dt_id)
+
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to revoke authorization"
+        )
+
+    return {"message": "Authorization revoked successfully"}
 

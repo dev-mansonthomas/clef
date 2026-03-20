@@ -124,7 +124,7 @@ export class VehicleListComponent implements OnInit, AfterViewInit {
   }
 
   onRowClick(vehicle: Vehicle): void {
-    this.router.navigate(['/vehicles', vehicle.nom_synthetique, 'edit']);
+    this.router.navigate(['/vehicles', vehicle.immat, 'edit']);
   }
 
   navigateToImport(): void {

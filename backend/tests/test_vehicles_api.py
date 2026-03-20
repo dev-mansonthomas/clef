@@ -2,6 +2,7 @@
 import os
 import pytest
 from datetime import date, timedelta
+from unittest.mock import AsyncMock, MagicMock, patch
 
 # Set USE_MOCKS before importing anything
 os.environ["USE_MOCKS"] = "true"
@@ -12,7 +13,9 @@ auth_settings.use_mocks = True
 
 from fastapi.testclient import TestClient
 from app.main import app
-from app.models.vehicle import StatusColor
+from app.models.vehicle import StatusColor, VehicleDocumentType
+from app.models.vehicle import VehicleDocumentSelectRequest
+from app.routers.vehicles import get_vehicle_drive_documents, select_vehicle_drive_document
 from app.auth import routes as auth_routes
 from app.auth.config import auth_settings
 
@@ -172,6 +175,89 @@ class TestVehicleDetailEndpoint:
         response = auth_client.get("/api/vehicles/VPSP-PARIS16-01")
 
         assert response.status_code == 403
+
+
+class TestVehicleDriveDocumentsEndpoints:
+    """Test Drive-backed vehicle document endpoints."""
+
+    @pytest.mark.asyncio
+    async def test_get_vehicle_drive_documents_success(self):
+        mock_vehicle = MagicMock()
+        mock_valkey = MagicMock()
+        mock_user = MagicMock()
+
+        with patch(
+            "app.routers.vehicles.get_accessible_vehicle_data",
+            new=AsyncMock(return_value=("VSAV-PARIS15-01", mock_vehicle, {})),
+        ), patch(
+            "app.routers.vehicles.vehicle_document_service.get_documents_overview",
+            new=AsyncMock(return_value={
+                "configured": True,
+                "root_folder_id": "root-folder-123",
+                "root_folder_url": "https://drive.google.com/drive/folders/root-folder-123",
+                "vehicle_folder_name": "VSAV-PARIS15-01",
+                "vehicle_folder_id": "vehicle-folder-123",
+                "vehicle_folder_url": "https://drive.google.com/drive/folders/vehicle-folder-123",
+                "documents": {
+                    VehicleDocumentType.CARTE_GRISE.value: {
+                        "key": VehicleDocumentType.CARTE_GRISE.value,
+                        "label": "Carte grise",
+                        "folder_name": "Carte Grise",
+                        "managed": True,
+                        "folder_id": "folder-cg",
+                        "folder_url": "https://drive.google.com/drive/folders/folder-cg",
+                        "file_count": 1,
+                        "current_file": {
+                            "file_id": "file-cg-1",
+                            "name": "carte-grise.pdf"
+                        }
+                    }
+                }
+            }),
+        ):
+            result = await get_vehicle_drive_documents(
+                "VSAV-PARIS15-01",
+                current_user=mock_user,
+                valkey_service=mock_valkey,
+            )
+
+        assert result["configured"] is True
+        assert result["documents"]["carte_grise"]["current_file"]["file_id"] == "file-cg-1"
+
+    @pytest.mark.asyncio
+    async def test_select_vehicle_drive_document_success(self):
+        mock_vehicle = MagicMock()
+        mock_valkey = MagicMock()
+        mock_user = MagicMock()
+
+        with patch(
+            "app.routers.vehicles.get_accessible_vehicle_data",
+            new=AsyncMock(return_value=("VSAV-PARIS15-01", mock_vehicle, {})),
+        ), patch(
+            "app.routers.vehicles.vehicle_document_service.associate_existing_file",
+            new=AsyncMock(return_value={
+                "key": VehicleDocumentType.CARTE_TOTAL.value,
+                "label": "Carte Total",
+                "folder_name": "Carte Total",
+                "managed": True,
+                "folder_id": "folder-total",
+                "folder_url": "https://drive.google.com/drive/folders/folder-total",
+                "file_count": 2,
+                "current_file": {
+                    "file_id": "file-total-1",
+                    "name": "carte-total.pdf"
+                }
+            }),
+        ):
+            result = await select_vehicle_drive_document(
+                "VSAV-PARIS15-01",
+                VehicleDocumentType.CARTE_TOTAL,
+                VehicleDocumentSelectRequest(file_id="file-total-1"),
+                current_user=mock_user,
+                valkey_service=mock_valkey,
+            )
+
+        assert result["current_file"]["file_id"] == "file-total-1"
 
 
 class TestVehicleUpdateEndpoint:

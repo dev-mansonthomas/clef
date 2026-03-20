@@ -106,10 +106,6 @@ def env_vars():
     os.environ.update({
         "USE_MOCKS": "true",
         "REDIS_URL": "redis://localhost:6379/0",
-        "SHEETS_URL_VEHICULES": "https://docs.google.com/spreadsheets/d/test-vehicules",
-        "SHEETS_URL_BENEVOLES": "https://docs.google.com/spreadsheets/d/test-benevoles",
-        "SHEETS_URL_RESPONSABLES": "https://docs.google.com/spreadsheets/d/test-responsables",
-        "TEMPLATE_DOCUMENT_VEHICULE_URL": "https://docs.google.com/document/d/test-template",
         "EMAIL_DESTINATAIRE_ALERTES": "alerts@croix-rouge.fr",
         "EMAIL_GESTIONNAIRE_DT": "thomas.manson@croix-rouge.fr",
     })
@@ -132,12 +128,11 @@ class TestGetConfig:
         assert response.status_code == 200
         data = response.json()
 
-        assert data["sheets_url_vehicules"] == "https://docs.google.com/spreadsheets/d/test-vehicules"
-        assert data["sheets_url_benevoles"] == "https://docs.google.com/spreadsheets/d/test-benevoles"
-        assert data["sheets_url_responsables"] == "https://docs.google.com/spreadsheets/d/test-responsables"
-        assert data["template_doc_url"] == "https://docs.google.com/document/d/test-template"
         assert data["email_destinataire_alertes"] == "alerts@croix-rouge.fr"
         assert data["email_gestionnaire_dt"] == "thomas.manson@croix-rouge.fr"
+        assert data["drive_sync_status"] == "idle"
+        assert data["drive_sync_processed"] == 0
+        assert data["drive_sync_total"] == 0
 
     @pytest.mark.asyncio
     async def test_get_config_from_valkey(self, client, env_vars, mock_valkey_service):
@@ -146,11 +141,12 @@ class TestGetConfig:
             dt="DT75",
             nom="DT Paris",
             gestionnaire_email="thomas.manson@croix-rouge.fr",
-            sheets_url_vehicules="https://docs.google.com/spreadsheets/d/valkey-vehicules",
-            sheets_url_benevoles="https://docs.google.com/spreadsheets/d/valkey-benevoles",
-            sheets_url_responsables="https://docs.google.com/spreadsheets/d/valkey-responsables",
-            template_doc_url="https://docs.google.com/document/d/valkey-template",
             email_destinataire_alertes="valkey-alerts@croix-rouge.fr",
+            drive_folder_id="folder-abc123",
+            drive_folder_url="https://drive.google.com/drive/folders/folder-abc123",
+            drive_sync_status="complete",
+            drive_sync_processed=5,
+            drive_sync_total=5,
         )
 
         # Use side_effect to set the stored config
@@ -162,8 +158,11 @@ class TestGetConfig:
         data = response.json()
 
         # Should use Valkey values
-        assert data["sheets_url_vehicules"] == "https://docs.google.com/spreadsheets/d/valkey-vehicules"
         assert data["email_destinataire_alertes"] == "valkey-alerts@croix-rouge.fr"
+        assert data["drive_folder_id"] == "folder-abc123"
+        assert data["drive_folder_url"] == "https://drive.google.com/drive/folders/folder-abc123"
+        assert data["drive_sync_status"] == "complete"
+        assert data["drive_sync_processed"] == 5
         # email_gestionnaire_dt always comes from env
         assert data["email_gestionnaire_dt"] == "thomas.manson@croix-rouge.fr"
 
@@ -184,38 +183,9 @@ class TestUpdateConfig:
         data = response.json()
 
         assert data["email_destinataire_alertes"] == "new-alerts@croix-rouge.fr"
-        # Other fields should remain from env
-        assert data["sheets_url_vehicules"] == "https://docs.google.com/spreadsheets/d/test-vehicules"
 
         # Verify Valkey was called to store the update
         mock_valkey_service.set_configuration.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_update_multiple_fields(self, client, env_vars, mock_valkey_service):
-        """Test updating multiple configuration fields."""
-        update_data = {
-            "sheets_url_vehicules": "https://docs.google.com/spreadsheets/d/updated-vehicules",
-            "email_destinataire_alertes": "updated@croix-rouge.fr"
-        }
-
-        response = await client.patch("/api/config", json=update_data)
-
-        assert response.status_code == 200
-        data = response.json()
-
-        assert data["sheets_url_vehicules"] == "https://docs.google.com/spreadsheets/d/updated-vehicules"
-        assert data["email_destinataire_alertes"] == "updated@croix-rouge.fr"
-
-    @pytest.mark.asyncio
-    async def test_update_with_invalid_url(self, client, env_vars, mock_valkey_service):
-        """Test that invalid URLs are rejected."""
-        update_data = {
-            "sheets_url_vehicules": "https://example.com/not-google-docs"
-        }
-
-        response = await client.patch("/api/config", json=update_data)
-
-        assert response.status_code == 422  # Validation error
 
     @pytest.mark.asyncio
     async def test_update_with_invalid_email(self, client, env_vars, mock_valkey_service):
@@ -237,46 +207,36 @@ class TestUpdateConfig:
 
         response = await client.patch("/api/config", json=update_data)
 
-        # Should succeed but ignore the field
+        # Should succeed but ignore the field (not in ConfigUpdate model)
         assert response.status_code == 200
         data = response.json()
 
         # Should still be the original value from env
         assert data["email_gestionnaire_dt"] == "thomas.manson@croix-rouge.fr"
 
+    @pytest.mark.asyncio
+    async def test_update_drive_folder_url_invalid(self, client, env_vars, mock_valkey_service):
+        """Test that invalid Drive URLs are rejected."""
+        update_data = {
+            "drive_folder_url": "https://example.com/not-drive"
+        }
+
+        response = await client.patch("/api/config", json=update_data)
+        assert response.status_code == 422  # Validation error
+
 
 class TestConfigValidation:
     """Tests for configuration validation."""
 
     @pytest.mark.asyncio
-    async def test_valid_google_sheets_url(self, client, env_vars, mock_valkey_service):
-        """Test that valid Google Sheets URLs are accepted."""
+    async def test_valid_drive_folder_url(self, client, env_vars, mock_valkey_service):
+        """Test that valid Google Drive folder URLs are accepted."""
         update_data = {
-            "sheets_url_vehicules": "https://docs.google.com/spreadsheets/d/abc123/edit"
+            "drive_folder_url": "https://drive.google.com/drive/folders/abc123xyz"
         }
 
         response = await client.patch("/api/config", json=update_data)
         assert response.status_code == 200
-
-    @pytest.mark.asyncio
-    async def test_valid_google_docs_url(self, client, env_vars, mock_valkey_service):
-        """Test that valid Google Docs URLs are accepted."""
-        update_data = {
-            "template_doc_url": "https://docs.google.com/document/d/xyz789/edit"
-        }
-
-        response = await client.patch("/api/config", json=update_data)
-        assert response.status_code == 200
-
-    @pytest.mark.asyncio
-    async def test_invalid_url_scheme(self, client, env_vars, mock_valkey_service):
-        """Test that non-HTTPS URLs are rejected."""
-        update_data = {
-            "sheets_url_vehicules": "http://docs.google.com/spreadsheets/d/abc123"
-        }
-
-        response = await client.patch("/api/config", json=update_data)
-        assert response.status_code == 422
 
     @pytest.mark.asyncio
     async def test_valid_email_format(self, client, env_vars, mock_valkey_service):

@@ -22,11 +22,26 @@ class AuthSettings(BaseSettings):
     # OAuth scopes
     google_scopes: list[str] = ["openid", "https://www.googleapis.com/auth/userinfo.email", "https://www.googleapis.com/auth/userinfo.profile"]
 
+    # Scopes for DT Manager authorization (Calendar + Drive + Gmail)
+    dt_oauth_scopes: list[str] = [
+        "openid",
+        "email",
+        "profile",
+        "https://www.googleapis.com/auth/calendar",
+        "https://www.googleapis.com/auth/drive",
+        "https://www.googleapis.com/auth/gmail.send",
+    ]
+
     # Email domain validation
     allowed_email_domain: str = "@croix-rouge.fr"
 
     # DT Manager email
     email_gestionnaire_dt: str = os.getenv("EMAIL_GESTIONNAIRE_DT", "thomas.manson@croix-rouge.fr")
+
+    # Super Admin Configuration
+    super_admin_email: str = os.getenv("SUPER_ADMIN_EMAIL", "")
+    super_admin_dt_id: str = os.getenv("SUPER_ADMIN_DT_ID", "")
+    super_admin_dt_numeric_id: str = os.getenv("SUPER_ADMIN_DT_NUMERIC_ID", "")
 
     # Session configuration
     session_secret_key: str = os.getenv("SESSION_SECRET_KEY", "dev-secret-key-change-in-production")
@@ -41,6 +56,9 @@ class AuthSettings(BaseSettings):
         "ALLOWED_FRONTEND_URLS",
         "http://localhost:4200,http://localhost:4202"
     ).split(",")
+
+    # Backend URL for OAuth callbacks
+    backend_url: str = os.getenv("BACKEND_URL", "http://localhost:8000")
 
     class Config:
         env_file = ".env"

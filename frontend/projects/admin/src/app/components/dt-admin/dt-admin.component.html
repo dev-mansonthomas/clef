@@ -54,6 +54,110 @@
     </mat-card-content>
   </mat-card>
 
+  <!-- Google Authorization Section -->
+  <mat-card class="config-card">
+    <mat-card-header>
+      <mat-card-title>🔐 Autorisation Google APIs</mat-card-title>
+      <mat-card-subtitle>Calendar, Drive, Gmail</mat-card-subtitle>
+    </mat-card-header>
+    <mat-card-content>
+      @if (authorizationStatus()?.authorized) {
+        <div class="authorization-status authorized">
+          <mat-icon>check_circle</mat-icon>
+          <div class="status-details">
+            <strong>Autorisé</strong>
+            <span>Par {{ authorizationStatus()?.email }}</span>
+            <span class="date">{{ authorizationStatus()?.authorized_at | date:'medium' }}</span>
+          </div>
+        </div>
+        <div class="authorized-scopes">
+          <mat-chip-set>
+            @for (scope of authorizationStatus()?.scopes; track scope) {
+              <mat-chip>{{ scope }}</mat-chip>
+            }
+          </mat-chip-set>
+        </div>
+      } @else {
+        <div class="authorization-status not-authorized">
+          <mat-icon>warning</mat-icon>
+          <div class="status-details">
+            <strong>Non autorisé</strong>
+            <span>Cliquez sur "Autoriser" pour activer les fonctionnalités Calendar, Drive et Gmail.</span>
+          </div>
+        </div>
+      }
+    </mat-card-content>
+    <mat-card-actions>
+      @if (authorizationStatus()?.authorized) {
+        <button mat-stroked-button color="warn" (click)="revokeAuthorization()">
+          <mat-icon>link_off</mat-icon>
+          Révoquer l'autorisation
+        </button>
+      } @else {
+        <button mat-raised-button color="primary" (click)="authorizeGoogle()">
+          <mat-icon>link</mat-icon>
+          Autoriser l'accès Google
+        </button>
+      }
+    </mat-card-actions>
+  </mat-card>
+
+  <!-- Calendar Configuration Section -->
+  <mat-card class="config-card">
+    <mat-card-header>
+      <mat-card-title>📅 Calendrier des Réservations</mat-card-title>
+      <mat-card-subtitle>Google Calendar pour les réservations véhicules</mat-card-subtitle>
+    </mat-card-header>
+    <mat-card-content>
+      @if (calendarConfig()?.configured) {
+        <div class="calendar-status configured">
+          <mat-icon>event_available</mat-icon>
+          <div class="status-details">
+            <strong>Calendrier configuré</strong>
+            <a [href]="calendarConfig()?.calendar_url" target="_blank" class="calendar-link">
+              <mat-icon>open_in_new</mat-icon>
+              Ouvrir dans Google Calendar
+            </a>
+          </div>
+        </div>
+      } @else {
+        <div class="calendar-status not-configured">
+          <mat-icon>event_busy</mat-icon>
+          <div class="status-details">
+            <strong>Aucun calendrier configuré</strong>
+            <span>Créez un calendrier Google pour gérer les réservations.</span>
+          </div>
+        </div>
+
+        @if (!authorizationStatus()?.authorized) {
+          <div class="warning-message">
+            <mat-icon>warning</mat-icon>
+            <span>Vous devez d'abord autoriser l'accès Google (section ci-dessus).</span>
+          </div>
+        }
+      }
+    </mat-card-content>
+    <mat-card-actions>
+      @if (calendarConfig()?.configured) {
+        <button mat-stroked-button color="warn" (click)="removeCalendarConfig()">
+          <mat-icon>delete</mat-icon>
+          Supprimer la configuration
+        </button>
+      } @else {
+        <button mat-raised-button color="primary"
+                (click)="createCalendar()"
+                [disabled]="!authorizationStatus()?.authorized || creatingCalendar()">
+          @if (creatingCalendar()) {
+            <mat-spinner diameter="20"></mat-spinner>
+          } @else {
+            <mat-icon>add</mat-icon>
+          }
+          Créer le calendrier
+        </button>
+      }
+    </mat-card-actions>
+  </mat-card>
+
   <!-- Bénévoles Section -->
   @if (loading()) {
     <div class="loading-container">

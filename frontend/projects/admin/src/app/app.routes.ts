@@ -11,6 +11,8 @@ import { DashboardComponent } from './features/dashboard/dashboard.component';
 import { ImportWizardComponent } from './features/import-vehicles/import-wizard.component';
 import { authGuard } from './core/guards/auth.guard';
 import { dtManagerGuard } from './guards/dt-manager.guard';
+import { superAdminGuard } from './guards/super-admin.guard';
+import { ulResponsableGuard } from './guards/ul-responsable.guard';
 
 export const routes: Routes = [
   {
@@ -35,7 +37,7 @@ export const routes: Routes = [
         component: VehicleEdit
       },
       {
-        path: 'vehicles/:nomSynthetique/edit',
+        path: 'vehicles/:immat/edit',
         component: VehicleEdit
       },
       {
@@ -56,9 +58,21 @@ export const routes: Routes = [
         canActivate: [dtManagerGuard]
       },
       {
+        path: 'configuration-ul',
+        loadComponent: () => import('./pages/configuration-ul/configuration-ul.component')
+          .then((m) => m.ConfigurationUlComponent),
+        canActivate: [ulResponsableGuard]
+      },
+      {
         path: 'dt-admin',
         component: DtAdminComponent,
         canActivate: [dtManagerGuard]
+      },
+      {
+        path: 'super-admin',
+        loadComponent: () => import('./pages/super-admin/super-admin.component')
+          .then(m => m.SuperAdminComponent),
+        canActivate: [superAdminGuard]
       },
       {
         path: '',

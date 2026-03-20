@@ -1,5 +1,5 @@
 """Pydantic models for Valkey data structures."""
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Any
 from datetime import datetime
 from pydantic import BaseModel, Field, ConfigDict, field_validator
 
@@ -17,8 +17,37 @@ class DTConfiguration(BaseModel):
     sheets_url_benevoles: Optional[str] = Field(None, description="URL du référentiel bénévoles (Google Sheets)")
     sheets_url_responsables: Optional[str] = Field(None, description="URL du référentiel responsables (Google Sheets)")
     template_doc_url: Optional[str] = Field(None, description="URL du template de document véhicule")
+    drive_folder_id: Optional[str] = Field(None, description="Identifiant du dossier Google Drive racine de la DT")
+    drive_folder_url: Optional[str] = Field(None, description="URL du dossier Google Drive racine de la DT")
+    drive_vehicles_folder_id: Optional[str] = Field(None, description="Identifiant du dossier Drive 'Véhicules'")
+    drive_vehicles_folder_url: Optional[str] = Field(None, description="URL du dossier Drive 'Véhicules'")
+    drive_dt_folder_id: Optional[str] = Field(None, description="Identifiant du dossier Drive de la DT")
+    drive_dt_folder_url: Optional[str] = Field(None, description="URL du dossier Drive de la DT")
+    drive_sync_status: Optional[str] = Field("idle", description="Statut de création de l'arborescence Drive")
+    drive_sync_processed: int = Field(0, description="Nombre de véhicules traités ou index courant")
+    drive_sync_total: int = Field(0, description="Nombre total de véhicules à traiter")
+    drive_sync_current_vehicle: Optional[str] = Field(None, description="Nom du véhicule en cours de traitement")
+    drive_sync_message: Optional[str] = Field(None, description="Message de progression de la synchronisation Drive")
+    drive_sync_error: Optional[str] = Field(None, description="Dernière erreur de synchronisation Drive")
+    drive_sync_cancel_requested: bool = Field(False, description="Flag de demande d'annulation de la synchronisation Drive")
     email_destinataire_alertes: Optional[str] = Field(None, description="Email destinataire des alertes")
     api_keys: List[Dict] = Field(default_factory=list, description="API keys for this DT")
+    document_folders: List[Dict] = Field(
+        default_factory=lambda: [
+            {"name": "Assurance", "mandatory": True},
+            {"name": "Carnet de Bord - Documentation CRF", "mandatory": False},
+            {"name": "Carte Grise", "mandatory": True},
+            {"name": "Carte Total", "mandatory": True},
+            {"name": "Commande", "mandatory": False},
+            {"name": "Controle Technique", "mandatory": True},
+            {"name": "Documentation Technique", "mandatory": False},
+            {"name": "Factures", "mandatory": True},
+            {"name": "Photos", "mandatory": False},
+            {"name": "Plan d'Entretien", "mandatory": True},
+            {"name": "Sinistres", "mandatory": True},
+        ],
+        description="Liste des types de sous-dossiers par véhicule"
+    )
 
 
 class VehicleData(BaseModel):
@@ -47,6 +76,8 @@ class VehicleData(BaseModel):
     assurance_2026: str = Field(default="", description="Informations assurance")
     numero_serie_baus: str = Field(default="", description="Numéro de série BAUS")
     suivi_mode: str = Field(default="prise", description="Mode de suivi du véhicule (prise/retour/prise_et_retour)")
+    documents: Dict[str, Dict[str, Any]] = Field(default_factory=dict, description="Associated Google Drive documents by type")
+    drive_folders: Dict[str, Any] = Field(default_factory=dict, description="Cached Google Drive folders for the vehicle")
 
     @field_validator('immat', 'indicatif')
     @classmethod
@@ -77,7 +108,13 @@ class VehicleData(BaseModel):
                 "instructions_recuperation": "https://docs.google.com/...",
                 "assurance_2026": "Contrat #2026-001",
                 "numero_serie_baus": "BAUS-2020-001",
-                "suivi_mode": "prise"
+                "suivi_mode": "prise",
+                "documents": {
+                    "carte_grise": {
+                        "file_id": "drive-file-123",
+                        "name": "carte-grise.pdf"
+                    }
+                }
             }
         }
     )

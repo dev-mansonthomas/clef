@@ -1,9 +1,19 @@
 """Vehicle API endpoints."""
 from typing import List, Optional, Dict, Any
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File
 from datetime import datetime
-import urllib.parse
-from app.models.vehicle import Vehicle, VehicleCreate, VehicleUpdate, VehicleListResponse
+
+from app.models.vehicle import (
+    Vehicle,
+    VehicleCreate,
+    VehicleDocumentSelectRequest,
+    VehicleDocumentType,
+    VehicleDriveDocument,
+    VehicleDriveDocumentsResponse,
+    VehicleDriveFileListResponse,
+    VehicleListResponse,
+    VehicleUpdate,
+)
 from app.models.qr_code import QrEncodeRequest, QrEncodeResponse, QrDecodeRequest, QrDecodeResponse
 from app.models.valkey_models import VehicleData
 from app.auth.models import User
@@ -13,6 +23,8 @@ from app.services.qr_code_service import QrCodeService
 from app.services.calendar_service import CalendarService
 from app.services.valkey_service import ValkeyService
 from app.services.valkey_dependencies import get_valkey_service
+from app.services.vehicle_document_service import vehicle_document_service
+from app.services.vehicle_photo_service import vehicle_photo_service
 from app.cache import get_cache
 
 
@@ -59,6 +71,31 @@ async def get_vehicle_by_nom_synthetique(
             return vehicle_data
 
     return None
+
+
+async def get_accessible_vehicle_data(
+    valkey_service: ValkeyService,
+    current_user: User,
+    immat: str,
+) -> tuple[str, VehicleData, Dict[str, Any]]:
+    """Resolve a vehicle by immat and enforce user access."""
+    vehicle_data = await valkey_service.get_vehicle(immat)
+
+    if not vehicle_data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Vehicle '{immat}' not found"
+        )
+
+    vehicle_dict = vehicle_data_to_dict(vehicle_data)
+    filtered = VehicleService.filter_by_user_access([vehicle_dict], current_user)
+    if not filtered:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have access to this vehicle"
+        )
+
+    return immat, vehicle_data, vehicle_dict
 
 
 @router.get("", response_model=VehicleListResponse)
@@ -188,17 +225,85 @@ async def create_vehicle(
     return VehicleService.enrich_vehicle(vehicle_dict)
 
 
-@router.get("/{nom_synthetique:path}", response_model=Vehicle)
+@router.get("/{immat}/drive-documents", response_model=VehicleDriveDocumentsResponse)
+async def get_vehicle_drive_documents(
+    immat: str,
+    current_user: User = Depends(require_authenticated_user),
+    valkey_service: ValkeyService = Depends(get_valkey_service)
+) -> VehicleDriveDocumentsResponse:
+    """Return Drive folders and current document associations for a vehicle."""
+    _, vehicle_data, _ = await get_accessible_vehicle_data(valkey_service, current_user, immat)
+    return await vehicle_document_service.get_documents_overview(valkey_service, vehicle_data)
+
+
+@router.get("/{immat}/drive-documents/{document_type}/files", response_model=VehicleDriveFileListResponse)
+async def list_vehicle_drive_document_files(
+    immat: str,
+    document_type: VehicleDocumentType,
+    current_user: User = Depends(require_authenticated_user),
+    valkey_service: ValkeyService = Depends(get_valkey_service)
+) -> VehicleDriveFileListResponse:
+    """List the files available in a managed Drive folder for a vehicle."""
+    _, vehicle_data, _ = await get_accessible_vehicle_data(valkey_service, current_user, immat)
+    return await vehicle_document_service.list_document_files(valkey_service, vehicle_data, document_type)
+
+
+@router.post("/{immat}/drive-documents/{document_type}/select", response_model=VehicleDriveDocument)
+async def select_vehicle_drive_document(
+    immat: str,
+    document_type: VehicleDocumentType,
+    request: VehicleDocumentSelectRequest,
+    current_user: User = Depends(require_authenticated_user),
+    valkey_service: ValkeyService = Depends(get_valkey_service)
+) -> VehicleDriveDocument:
+    """Associate an existing Drive file as the active vehicle document."""
+    _, vehicle_data, _ = await get_accessible_vehicle_data(valkey_service, current_user, immat)
+    return await vehicle_document_service.associate_existing_file(
+        valkey_service,
+        vehicle_data,
+        document_type,
+        request.file_id,
+    )
+
+
+@router.post("/{immat}/drive-documents/{document_type}/upload", response_model=VehicleDriveDocument)
+async def upload_vehicle_drive_document(
+    immat: str,
+    document_type: VehicleDocumentType,
+    file: UploadFile = File(...),
+    current_user: User = Depends(require_authenticated_user),
+    valkey_service: ValkeyService = Depends(get_valkey_service)
+) -> VehicleDriveDocument:
+    """Upload a new Drive document version and make it the active one."""
+    _, vehicle_data, _ = await get_accessible_vehicle_data(valkey_service, current_user, immat)
+    file_content = await file.read()
+    if not file_content:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Uploaded file is empty",
+        )
+
+    return await vehicle_document_service.upload_document(
+        valkey_service,
+        vehicle_data,
+        document_type,
+        file_content,
+        file.filename or f"{document_type.value}.bin",
+        file.content_type or "application/octet-stream",
+    )
+
+
+@router.get("/{immat}", response_model=Vehicle)
 async def get_vehicle(
-    nom_synthetique: str,
+    immat: str,
     current_user: User = Depends(require_authenticated_user),
     valkey_service: ValkeyService = Depends(get_valkey_service)
 ) -> Vehicle:
     """
-    Get a specific vehicle by its synthetic name.
+    Get a specific vehicle by its registration plate (immat).
 
     Args:
-        nom_synthetique: Unique synthetic name of the vehicle
+        immat: Vehicle registration plate
 
     Returns:
         Vehicle details with computed status fields
@@ -206,40 +311,15 @@ async def get_vehicle(
     Raises:
         404: Vehicle not found or user doesn't have access
     """
-    # Decode URL-encoded characters (e.g., %2F for /)
-    nom_synthetique = urllib.parse.unquote(nom_synthetique)
-
-    # Try by nom_synthetique first
-    vehicle_data = await get_vehicle_by_nom_synthetique(valkey_service, nom_synthetique)
-
-    # If not found, try as immat (fallback)
-    if not vehicle_data:
-        vehicle_data = await valkey_service.get_vehicle(nom_synthetique)
-
-    if not vehicle_data:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Vehicle '{nom_synthetique}' not found"
-        )
-
-    # Convert to dict for filtering
-    vehicle_dict = vehicle_data_to_dict(vehicle_data)
-
-    # Check user access
-    filtered = VehicleService.filter_by_user_access([vehicle_dict], current_user)
-    if not filtered:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You don't have access to this vehicle"
-        )
+    _, _, vehicle_dict = await get_accessible_vehicle_data(valkey_service, current_user, immat)
 
     # Enrich with status calculations
     return VehicleService.enrich_vehicle(vehicle_dict)
 
 
-@router.patch("/{nom_synthetique:path}", response_model=Vehicle)
+@router.patch("/{immat}", response_model=Vehicle)
 async def update_vehicle(
-    nom_synthetique: str,
+    immat: str,
     update_data: VehicleUpdate,
     current_user: User = Depends(require_authenticated_user),
     valkey_service: ValkeyService = Depends(get_valkey_service)
@@ -251,7 +331,7 @@ async def update_vehicle(
     The main vehicle data (19 columns) is managed in Valkey.
 
     Args:
-        nom_synthetique: Unique synthetic name of the vehicle
+        immat: Vehicle registration plate
         update_data: Fields to update
 
     Returns:
@@ -260,28 +340,7 @@ async def update_vehicle(
     Raises:
         404: Vehicle not found or user doesn't have access
     """
-    # Decode URL-encoded characters (e.g., %2F for /)
-    nom_synthetique = urllib.parse.unquote(nom_synthetique)
-
-    # Get vehicle from Valkey
-    vehicle_data = await get_vehicle_by_nom_synthetique(valkey_service, nom_synthetique)
-
-    if not vehicle_data:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Vehicle '{nom_synthetique}' not found"
-        )
-
-    # Convert to dict for filtering
-    vehicle_dict = vehicle_data_to_dict(vehicle_data)
-
-    # Check user access
-    filtered = VehicleService.filter_by_user_access([vehicle_dict], current_user)
-    if not filtered:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You don't have access to this vehicle"
-        )
+    _, vehicle_data, vehicle_dict = await get_accessible_vehicle_data(valkey_service, current_user, immat)
 
     # Update fields in Valkey
     updated = False
@@ -571,3 +630,80 @@ async def decode_vehicle_qr(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
         )
+
+
+@router.post("/{immat}/photos")
+async def upload_vehicle_photo(
+    immat: str,
+    photo: UploadFile = File(...),
+    photo_type: str = Query("general", description="Type of photo: general, damage, before, after"),
+    current_user: User = Depends(require_authenticated_user),
+    valkey_service: ValkeyService = Depends(get_valkey_service)
+) -> Dict[str, Any]:
+    """
+    Upload a photo for a vehicle.
+
+    Args:
+        immat: Vehicle registration plate
+        photo: Photo file to upload
+        photo_type: Type of photo (general, damage, before, after)
+
+    Returns:
+        Upload result with Drive URLs
+
+    Raises:
+        404: Vehicle not found
+        500: Upload failed
+    """
+    _, vehicle_data, _ = await get_accessible_vehicle_data(valkey_service, current_user, immat)
+
+    # Read file content
+    content = await photo.read()
+
+    # Upload to Drive
+    result = await vehicle_photo_service.upload_vehicle_photo(
+        valkey_service=valkey_service,
+        vehicle_id=immat,
+        immatriculation=vehicle_data.immat,
+        file_content=content,
+        filename=photo.filename or "photo.jpg",
+        mime_type=photo.content_type or "image/jpeg",
+        photo_type=photo_type,
+    )
+
+    if not result.get("uploaded"):
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=result.get("error", "Upload failed")
+        )
+
+    return result
+
+
+@router.get("/{immat}/photos")
+async def list_vehicle_photos(
+    immat: str,
+    current_user: User = Depends(require_authenticated_user),
+    valkey_service: ValkeyService = Depends(get_valkey_service)
+) -> Dict[str, Any]:
+    """
+    List all photos for a vehicle.
+
+    Args:
+        immat: Vehicle registration plate
+
+    Returns:
+        List of photos with Drive metadata
+
+    Raises:
+        404: Vehicle not found
+    """
+    _, vehicle_data, _ = await get_accessible_vehicle_data(valkey_service, current_user, immat)
+
+    # List photos
+    photos = await vehicle_photo_service.list_vehicle_photos(
+        valkey_service=valkey_service,
+        immatriculation=vehicle_data.immat,
+    )
+
+    return {"photos": photos}

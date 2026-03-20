@@ -44,6 +44,170 @@
     }
   }
 
+  .folders-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 1rem;
+
+    th, td {
+      padding: 0.25rem 0.5rem;
+      text-align: left;
+      border-bottom: 1px solid #e0e0e0;
+      height: 36px;
+      vertical-align: middle;
+    }
+
+    th {
+      font-weight: 600;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      color: #666;
+    }
+
+    .actions-col {
+      width: 50px;
+      text-align: center;
+    }
+
+    .delete-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: #999;
+      padding: 2px;
+      display: inline-flex;
+      align-items: center;
+
+      &:hover {
+        color: #dc3545;
+      }
+
+      .mat-icon {
+        font-size: 18px;
+        width: 18px;
+        height: 18px;
+      }
+    }
+
+    .mandatory td {
+      color: #333;
+    }
+
+    .folder-name {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .folder-icon-wrapper {
+      position: relative;
+      width: 20px;
+      height: 20px;
+      flex-shrink: 0;
+    }
+
+    .folder-icon {
+      font-size: 20px;
+      width: 20px;
+      height: 20px;
+      color: #f9a825;
+    }
+
+    .lock-badge {
+      position: absolute;
+      bottom: -2px;
+      right: -4px;
+      font-size: 10px;
+      width: 10px;
+      height: 10px;
+      color: #999;
+    }
+  }
+
+  .add-folder-row {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+
+    input {
+      flex: 1;
+      padding: 0.5rem;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+  }
+
+  .folder-actions {
+    display: flex;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .btn-secondary {
+    background-color: #6c757d;
+    color: white;
+    padding: 0.5rem 1.5rem;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+
+    &:hover:not(:disabled) { background-color: #5a6268; }
+    &:disabled { background-color: #ccc; cursor: not-allowed; }
+  }
+
+  .form-section {
+    margin-bottom: 2rem;
+    padding-bottom: 2rem;
+    border-bottom: 1px solid #e0e0e0;
+
+    h2 {
+      font-size: 1.25rem;
+      color: #333;
+      margin-bottom: 1.5rem;
+    }
+  }
+
+  .section-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0;
+
+    h2 {
+      margin-bottom: 0;
+    }
+  }
+
+  .btn-delete-sync {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    background: none;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    color: #999;
+    font-size: 0.8rem;
+    padding: 0.25rem 0.75rem;
+    cursor: pointer;
+    transition: all 0.2s;
+
+    .mat-icon {
+      font-size: 16px;
+      width: 16px;
+      height: 16px;
+    }
+
+    &:hover:not(:disabled) {
+      color: #dc3545;
+      border-color: #dc3545;
+    }
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  }
+
   .config-form {
     .form-section {
       margin-bottom: 2rem;
@@ -111,6 +275,114 @@
 
       &.readonly {
         opacity: 0.7;
+      }
+    }
+
+    .drive-sync-progress {
+      margin-top: 1rem;
+      padding: 1rem;
+      background-color: #f0f7ff;
+      border: 1px solid #b3d4fc;
+      border-radius: 4px;
+
+      .progress-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.5rem;
+        font-size: 0.875rem;
+        color: #333;
+      }
+
+      .progress-percent {
+        font-weight: 600;
+      }
+
+      .progress-bar-container {
+        width: 100%;
+        height: 8px;
+        background-color: #e0e0e0;
+        border-radius: 4px;
+        overflow: hidden;
+      }
+
+      .progress-bar {
+        height: 100%;
+        background-color: #E30613;
+        border-radius: 4px;
+        transition: width 0.3s ease;
+      }
+
+      .progress-vehicle {
+        margin-top: 0.5rem;
+        font-size: 0.8125rem;
+        color: #555;
+        font-style: italic;
+      }
+
+      .progress-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.5rem;
+        margin-top: 0.5rem;
+
+        .btn-secondary {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.25rem;
+
+          .mat-icon {
+            font-size: 16px;
+            width: 16px;
+            height: 16px;
+          }
+        }
+      }
+
+      .btn-cancel {
+        background-color: #6c757d;
+        color: white;
+        padding: 0.4rem 1rem;
+        border: none;
+        border-radius: 4px;
+        font-size: 0.85rem;
+        cursor: pointer;
+
+        &:hover:not(:disabled) {
+          background-color: #5a6268;
+        }
+
+        &:disabled {
+          background-color: #ccc;
+          cursor: not-allowed;
+        }
+      }
+    }
+
+
+
+    .alert-warning {
+      background-color: #fff3cd;
+      color: #856404;
+      border: 1px solid #ffc107;
+      padding: 1rem;
+      border-radius: 4px;
+      margin-top: 1rem;
+    }
+
+    .restart-sync-section {
+      margin-top: 0.75rem;
+
+      .btn-secondary {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+
+        .mat-icon {
+          font-size: 18px;
+          width: 18px;
+          height: 18px;
+        }
       }
     }
 

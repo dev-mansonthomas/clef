@@ -1,0 +1,1 @@
+"""Super admin backend routes package."""

@@ -45,6 +45,8 @@ class ValkeyReservation(ValkeyReservationCreate):
     id: str = Field(..., description="Unique reservation ID (UUID)")
     created_by: str = Field(..., description="Email of user who created the reservation")
     created_at: datetime = Field(..., description="Creation timestamp")
+    google_event_id: Optional[str] = Field(None, description="Google Calendar event ID (if synced)")
+    google_event_link: Optional[str] = Field(None, description="Google Calendar event HTML link (if synced)")
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -59,7 +61,9 @@ class ValkeyReservation(ValkeyReservationCreate):
                 "lieu_depart": "45 rue de la Paix",
                 "commentaire": "Prévoir matériel pédagogique",
                 "created_by": "user@croix-rouge.fr",
-                "created_at": "2026-03-13T10:00:00Z"
+                "created_at": "2026-03-13T10:00:00Z",
+                "google_event_id": "abc123xyz",
+                "google_event_link": "https://calendar.google.com/calendar/event?eid=abc123xyz"
             }
         }
     )

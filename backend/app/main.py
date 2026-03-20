@@ -88,33 +88,37 @@ async def startup_event():
         await init_data_async(cache.client)
         logger.info("DT and UL initialization complete")
 
-        # Preload référentiels from Google Sheets
-        sheets_service = get_sheets_service()
+        # Preload référentiels from Google Sheets (optional - continue if not configured)
+        try:
+            sheets_service = get_sheets_service()
 
-        # Preload bénévoles into Valkey with DT prefix
-        benevoles = sheets_service.get_benevoles()
-        from app.models.valkey_models import BenevoleData
-        for benevole_dict in benevoles:
-            # Map email to nivol if nivol not present (temporary compatibility)
-            if "nivol" not in benevole_dict:
-                benevole_dict["nivol"] = benevole_dict.get("email", "unknown")
-            # Ensure dt field is present
-            if "dt" not in benevole_dict:
-                benevole_dict["dt"] = "DT75"
-            benevole = BenevoleData(**benevole_dict)
-            await valkey.set_benevole(benevole)
-        logger.info(f"Preloaded {len(benevoles)} bénévoles into Valkey with DT prefix")
+            # Preload bénévoles into Valkey with DT prefix
+            benevoles = sheets_service.get_benevoles()
+            from app.models.valkey_models import BenevoleData
+            for benevole_dict in benevoles:
+                # Map email to nivol if nivol not present (temporary compatibility)
+                if "nivol" not in benevole_dict:
+                    benevole_dict["nivol"] = benevole_dict.get("email", "unknown")
+                # Ensure dt field is present
+                if "dt" not in benevole_dict:
+                    benevole_dict["dt"] = "DT75"
+                benevole = BenevoleData(**benevole_dict)
+                await valkey.set_benevole(benevole)
+            logger.info(f"Preloaded {len(benevoles)} bénévoles into Valkey with DT prefix")
 
-        # Preload responsables into Valkey with DT prefix
-        responsables = sheets_service.get_responsables()
-        from app.models.valkey_models import ResponsableData
-        for responsable_dict in responsables:
-            # Ensure dt field is present
-            if "dt" not in responsable_dict:
-                responsable_dict["dt"] = "DT75"
-            responsable = ResponsableData(**responsable_dict)
-            await valkey.set_responsable(responsable)
-        logger.info(f"Preloaded {len(responsables)} responsables into Valkey with DT prefix")
+            # Preload responsables into Valkey with DT prefix
+            responsables = sheets_service.get_responsables()
+            from app.models.valkey_models import ResponsableData
+            for responsable_dict in responsables:
+                # Ensure dt field is present
+                if "dt" not in responsable_dict:
+                    responsable_dict["dt"] = "DT75"
+                responsable = ResponsableData(**responsable_dict)
+                await valkey.set_responsable(responsable)
+            logger.info(f"Preloaded {len(responsables)} responsables into Valkey with DT prefix")
+        except Exception as e:
+            logger.warning(f"Could not preload référentiels from Google Sheets: {e}")
+            logger.warning("Application will continue without preloaded référentiels")
 
         # Start scheduler for alerts
         start_scheduler()
@@ -122,7 +126,7 @@ async def startup_event():
 
     except Exception as e:
         logger.error(f"Error during startup: {e}")
-        raise
+        logger.warning("Application will continue despite startup errors")
 
 
 @app.on_event("shutdown")

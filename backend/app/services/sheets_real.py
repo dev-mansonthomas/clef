@@ -1,12 +1,15 @@
 """Real Google Sheets service implementation using google-api-python-client."""
 import os
 import time
+import logging
 from typing import Any, Dict, List, Optional
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
 from app.services.sheets import SheetsService
+
+logger = logging.getLogger(__name__)
 
 
 class GoogleSheetsService(SheetsService):
@@ -108,23 +111,26 @@ class GoogleSheetsService(SheetsService):
         """Get all vehicles from the referential."""
         sheet_id = spreadsheet_id or self.vehicules_spreadsheet_id
         if not sheet_id:
-            raise ValueError("No vehicles spreadsheet ID provided")
-        
+            logger.warning("No vehicles spreadsheet ID configured - Sheets features for vehicles disabled")
+            return []
+
         return self._read_sheet(sheet_id, "Sheet1!A:S")  # 19 columns (A-S)
     
     def get_benevoles(self, spreadsheet_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """Get all volunteers from the referential."""
         sheet_id = spreadsheet_id or self.benevoles_spreadsheet_id
         if not sheet_id:
-            raise ValueError("No volunteers spreadsheet ID provided")
-        
+            logger.warning("No volunteers spreadsheet ID configured - Sheets features for volunteers disabled")
+            return []
+
         return self._read_sheet(sheet_id)
     
     def get_responsables(self, spreadsheet_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """Get all managers from the referential."""
         sheet_id = spreadsheet_id or self.responsables_spreadsheet_id
         if not sheet_id:
-            raise ValueError("No managers spreadsheet ID provided")
+            logger.warning("No managers spreadsheet ID configured - Sheets features for managers disabled")
+            return []
 
         return self._read_sheet(sheet_id)
 

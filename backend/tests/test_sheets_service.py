@@ -64,7 +64,7 @@ class TestGoogleSheetsMock:
         service = get_sheets_service()
         benevoles = service.get_benevoles()
         
-        assert len(benevoles) == 5
+        assert len(benevoles) == 6
         assert benevoles[0]["email"] == "jean.dupont@croix-rouge.fr"
         assert benevoles[0]["ul"] == "UL Paris 15"
     
@@ -198,6 +198,42 @@ class TestGoogleSheetsServiceReal:
         assert mock_sleep.call_count == 2
         assert mock_sleep.call_args_list[0][0][0] == 1  # First retry: 2^0 = 1s
         assert mock_sleep.call_args_list[1][0][0] == 2  # Second retry: 2^1 = 2s
+
+    @patch('app.services.sheets_real.logger.warning')
+    @patch('app.services.sheets_real.service_account')
+    @patch('app.services.sheets_real.build')
+    def test_get_benevoles_without_sheet_id_is_silent(self, mock_build, mock_service_account, mock_warning):
+        """Missing optional volunteer sheet should not emit warning logs."""
+        with patch.dict(os.environ, {
+            "GOOGLE_APPLICATION_CREDENTIALS": "/path/to/creds.json",
+            "USE_MOCKS": "false",
+        }, clear=False):
+            os.environ.pop("BENEVOLES_SPREADSHEET_ID", None)
+
+            from app.services.sheets_real import GoogleSheetsService
+
+            service = GoogleSheetsService()
+
+        assert service.get_benevoles() == []
+        mock_warning.assert_not_called()
+
+    @patch('app.services.sheets_real.logger.warning')
+    @patch('app.services.sheets_real.service_account')
+    @patch('app.services.sheets_real.build')
+    def test_get_responsables_without_sheet_id_is_silent(self, mock_build, mock_service_account, mock_warning):
+        """Missing optional manager sheet should not emit warning logs."""
+        with patch.dict(os.environ, {
+            "GOOGLE_APPLICATION_CREDENTIALS": "/path/to/creds.json",
+            "USE_MOCKS": "false",
+        }, clear=False):
+            os.environ.pop("RESPONSABLES_SPREADSHEET_ID", None)
+
+            from app.services.sheets_real import GoogleSheetsService
+
+            service = GoogleSheetsService()
+
+        assert service.get_responsables() == []
+        mock_warning.assert_not_called()
 
     @patch('app.services.sheets_real.service_account')
     @patch('app.services.sheets_real.build')

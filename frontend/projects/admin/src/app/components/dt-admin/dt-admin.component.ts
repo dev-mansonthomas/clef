@@ -1,5 +1,6 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { HttpClient } from '@angular/common/http';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -9,11 +10,13 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatTableModule } from '@angular/material/table';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatChipsModule } from '@angular/material/chips';
 import { BenevoleService, Benevole } from '../../services/benevole.service';
 import { AuthService } from '../../services/auth.service';
 import { UniteLocaleService } from '../../services/unite-locale.service';
 import { UniteLocale } from '../../models/unite-locale.model';
 import { ULDialogComponent } from './ul-dialog/ul-dialog.component';
+import { environment } from '../../../environments/environment';
 
 /**
  * Bénévoles grouped by UL
@@ -21,6 +24,25 @@ import { ULDialogComponent } from './ul-dialog/ul-dialog.component';
 interface BenevolesByUL {
   ul: string;
   benevoles: Benevole[];
+}
+
+/**
+ * Calendar configuration
+ */
+interface CalendarConfig {
+  configured: boolean;
+  calendar_id?: string;
+  calendar_url?: string;
+}
+
+/**
+ * Google authorization status
+ */
+interface AuthorizationStatus {
+  authorized: boolean;
+  email?: string;
+  authorized_at?: string;
+  scopes?: string[];
 }
 
 /**
@@ -39,7 +61,8 @@ interface BenevolesByUL {
     MatSnackBarModule,
     MatDialogModule,
     MatTableModule,
-    MatTooltipModule
+    MatTooltipModule,
+    MatChipsModule
   ],
   templateUrl: './dt-admin.component.html',
   styleUrl: './dt-admin.component.scss'
@@ -50,6 +73,8 @@ export class DtAdminComponent implements OnInit {
   private readonly uniteLocaleService = inject(UniteLocaleService);
   private readonly snackBar = inject(MatSnackBar);
   private readonly dialog = inject(MatDialog);
+  private readonly http = inject(HttpClient);
+  private readonly apiUrl = environment.apiUrl;
 
   // State
   loading = signal(true);
@@ -61,6 +86,13 @@ export class DtAdminComponent implements OnInit {
   ulLoading = signal(false);
   displayedColumns = ['id', 'nom', 'actions'];
 
+  // Google Authorization State
+  authorizationStatus = signal<AuthorizationStatus | null>(null);
+
+  // Calendar Configuration State
+  calendarConfig = signal<CalendarConfig | null>(null);
+  creatingCalendar = signal(false);
+
   ngOnInit(): void {
     // Get current user's DT
     this.authService.currentUser$.subscribe(user => {
@@ -68,6 +100,8 @@ export class DtAdminComponent implements OnInit {
         this.currentUserDT.set(user.dt);
         this.loadBenevoles();
         this.loadUnitesLocales();
+        this.loadAuthorizationStatus();
+        this.loadCalendarConfig();
       }
     });
   }
@@ -328,6 +362,122 @@ export class DtAdminComponent implements OnInit {
         }
       });
     }
+  }
+
+  // ========== Google Authorization Methods ==========
+
+  /**
+   * Load Google authorization status
+   */
+  loadAuthorizationStatus(): void {
+    this.http.get<AuthorizationStatus>(`${this.apiUrl}/auth/dt-authorization-status`)
+      .subscribe({
+        next: (status) => this.authorizationStatus.set(status),
+        error: (err) => {
+          console.error('Failed to load authorization status:', err);
+          this.authorizationStatus.set({ authorized: false });
+        }
+      });
+  }
+
+  /**
+   * Initiate Google OAuth authorization flow
+   */
+  authorizeGoogle(): void {
+    this.http.get<{ authorization_url: string }>(`${this.apiUrl}/auth/authorize-dt`)
+      .subscribe({
+        next: (response) => {
+          // Redirect to Google OAuth
+          window.location.href = response.authorization_url;
+        },
+        error: (err) => {
+          console.error('Failed to get authorization URL:', err);
+          this.snackBar.open('Erreur lors de l\'autorisation', 'Fermer', { duration: 3000 });
+        }
+      });
+  }
+
+  /**
+   * Revoke Google authorization
+   */
+  revokeAuthorization(): void {
+    if (!confirm('Êtes-vous sûr de vouloir révoquer l\'autorisation ? Les fonctionnalités Calendar, Drive et Gmail ne fonctionneront plus.')) {
+      return;
+    }
+
+    this.http.post(`${this.apiUrl}/auth/revoke-dt-authorization`, {})
+      .subscribe({
+        next: () => {
+          this.authorizationStatus.set({ authorized: false });
+          this.snackBar.open('Autorisation révoquée', 'OK', { duration: 3000 });
+        },
+        error: (err) => {
+          console.error('Failed to revoke authorization:', err);
+          this.snackBar.open('Erreur lors de la révocation', 'Fermer', { duration: 3000 });
+        }
+      });
+  }
+
+  // ========== Calendar Configuration Methods ==========
+
+  /**
+   * Load calendar configuration
+   */
+  loadCalendarConfig(): void {
+    this.http.get<CalendarConfig>(`${this.apiUrl}/api/config/calendar`)
+      .subscribe({
+        next: (config) => this.calendarConfig.set(config),
+        error: (err) => {
+          console.error('Failed to load calendar config:', err);
+          this.calendarConfig.set({ configured: false });
+        }
+      });
+  }
+
+  /**
+   * Create a new Google Calendar
+   */
+  createCalendar(): void {
+    this.creatingCalendar.set(true);
+
+    this.http.post<{ calendar_id: string; calendar_url: string; message: string }>(`${this.apiUrl}/api/config/calendar`, {})
+      .subscribe({
+        next: (response) => {
+          this.calendarConfig.set({
+            configured: true,
+            calendar_id: response.calendar_id,
+            calendar_url: response.calendar_url,
+          });
+          this.snackBar.open(response.message, 'OK', { duration: 3000 });
+          this.creatingCalendar.set(false);
+        },
+        error: (err) => {
+          console.error('Failed to create calendar:', err);
+          this.snackBar.open(err.error?.detail || 'Erreur lors de la création', 'Fermer', { duration: 5000 });
+          this.creatingCalendar.set(false);
+        }
+      });
+  }
+
+  /**
+   * Remove calendar configuration
+   */
+  removeCalendarConfig(): void {
+    if (!confirm('Êtes-vous sûr de vouloir supprimer la configuration du calendrier ?')) {
+      return;
+    }
+
+    this.http.delete(`${this.apiUrl}/api/config/calendar`)
+      .subscribe({
+        next: () => {
+          this.calendarConfig.set({ configured: false });
+          this.snackBar.open('Configuration supprimée', 'OK', { duration: 3000 });
+        },
+        error: (err) => {
+          console.error('Failed to remove calendar config:', err);
+          this.snackBar.open('Erreur lors de la suppression', 'Fermer', { duration: 3000 });
+        }
+      });
   }
 }
 

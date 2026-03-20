@@ -12,10 +12,20 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatCardModule } from '@angular/material/card';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatChipsModule } from '@angular/material/chips';
+import { MatTabsModule } from '@angular/material/tabs';
+import { MatIconModule } from '@angular/material/icon';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { VehicleService } from '../../services/vehicle.service';
 import { ErrorService } from '../../services/error.service';
 import { UniteLocaleService } from '../../services/unite-locale.service';
-import { Vehicle, DisponibiliteStatus } from '../../models/vehicle.model';
+import {
+  ManagedVehicleDocumentType,
+  Vehicle,
+  VehicleDocumentType,
+  VehicleDriveDocument,
+  VehicleDriveDocumentsResponse,
+  VehicleDriveFile,
+} from '../../models/vehicle.model';
 
 @Component({
   selector: 'app-vehicle-edit',
@@ -32,7 +42,10 @@ import { Vehicle, DisponibiliteStatus } from '../../models/vehicle.model';
     MatSnackBarModule,
     MatCardModule,
     MatProgressSpinnerModule,
-    MatChipsModule
+    MatChipsModule,
+    MatTabsModule,
+    MatIconModule,
+    MatTooltipModule
   ],
   templateUrl: './vehicle-edit.html',
   styleUrl: './vehicle-edit.scss',
@@ -50,9 +63,16 @@ export class VehicleEdit implements OnInit {
   vehicleForm!: FormGroup;
   loading = false;
   saving = false;
-  nomSynthetique: string | null = null;
+  vehicleImmat: string | null = null;
   vehicle: Vehicle | null = null;
   isCreateMode = false;
+  activeTabIndex = 0;
+  driveDocuments: VehicleDriveDocumentsResponse | null = null;
+  driveDocumentsLoading = false;
+  driveBrowserOpenType: ManagedVehicleDocumentType | null = null;
+  driveBrowserLoadingType: ManagedVehicleDocumentType | null = null;
+  driveActionType: ManagedVehicleDocumentType | null = null;
+  driveBrowserFiles: Partial<Record<ManagedVehicleDocumentType, VehicleDriveFile[]>> = {};
 
   // DT/UL dropdown options
   dtUlOptions: string[] = [];
@@ -74,17 +94,59 @@ export class VehicleEdit implements OnInit {
     { value: 'prise_et_retour', label: 'Prise et retour' }
   ];
 
+  readonly managedDocumentCards: Array<{
+    type: ManagedVehicleDocumentType;
+    label: string;
+    description: string;
+    icon: string;
+  }> = [
+    {
+      type: 'carte_grise',
+      label: 'Carte grise',
+      description: 'Document administratif principal du véhicule.',
+      icon: 'description'
+    },
+    {
+      type: 'carte_total',
+      label: 'Carte Total',
+      description: 'Carte carburant / péage associée au véhicule.',
+      icon: 'credit_card'
+    },
+    {
+      type: 'plan_entretien',
+      label: "Plan d'entretien",
+      description: 'Référentiel ou planning de maintenance du véhicule.',
+      icon: 'build'
+    },
+    {
+      type: 'assurance',
+      label: 'Assurance (MVA)',
+      description: 'Mémo Véhicule Assuré.',
+      icon: 'security'
+    }
+  ];
+
+  readonly secondaryTabs: Array<{
+    type: VehicleDocumentType;
+    label: string;
+    description: string;
+  }> = [
+    { type: 'factures', label: 'Factures', description: 'Visualisation du dossier Drive des factures.' },
+    { type: 'controle_technique', label: 'CT / Pollution', description: 'Visualisation du dossier Drive des contrôles techniques.' },
+    { type: 'carnet_suivi', label: 'Carnet de suivi', description: 'Visualisation du dossier Drive du carnet de bord.' }
+  ];
+
   ngOnInit(): void {
     this.initForm();
     this.loadUnitesLocales();
-    this.nomSynthetique = this.route.snapshot.paramMap.get('nomSynthetique');
+    this.vehicleImmat = this.route.snapshot.paramMap.get('immat');
 
     // Check if we're in create mode by examining the actual route URL
     // The route /vehicles/new/edit is a static route with no parameters
     const url = this.router.url;
     this.isCreateMode = url.includes('/vehicles/new/edit');
 
-    if (this.nomSynthetique && !this.isCreateMode) {
+    if (this.vehicleImmat && !this.isCreateMode) {
       this.loadVehicle();
     }
 
@@ -168,13 +230,14 @@ export class VehicleEdit implements OnInit {
   }
 
   private loadVehicle(): void {
-    if (!this.nomSynthetique) return;
+    if (!this.vehicleImmat) return;
 
     this.loading = true;
-    this.vehicleService.getVehicle(this.nomSynthetique).subscribe({
+    this.vehicleService.getVehicle(this.vehicleImmat).subscribe({
       next: (vehicle) => {
         this.vehicle = vehicle;
         this.populateForm(vehicle);
+        this.loadDriveDocuments();
         this.loading = false;
         this.cdr.detectChanges();
       },
@@ -211,6 +274,166 @@ export class VehicleEdit implements OnInit {
       commentaires: vehicle.commentaires,
       suivi_mode: vehicle.suivi_mode  // Backend now provides type-based default
     });
+  }
+
+  private loadDriveDocuments(): void {
+    if (!this.vehicleImmat || this.isCreateMode) {
+      this.driveDocuments = null;
+      return;
+    }
+
+    this.driveDocumentsLoading = true;
+    this.vehicleService.getVehicleDriveDocuments(this.vehicleImmat).subscribe({
+      next: (response) => {
+        this.driveDocuments = response;
+        this.driveDocumentsLoading = false;
+        this.cdr.detectChanges();
+      },
+      error: (error) => {
+        console.error('Error loading vehicle drive documents:', error);
+        this.driveDocumentsLoading = false;
+        this.driveDocuments = null;
+        this.snackBar.open('Impossible de charger les documents Drive du véhicule.', 'Fermer', {
+          duration: 5000
+        });
+        this.cdr.detectChanges();
+      }
+    });
+  }
+
+  getManagedDocument(type: ManagedVehicleDocumentType): VehicleDriveDocument | null {
+    return this.driveDocuments?.documents?.[type] ?? null;
+  }
+
+  getDriveFolder(type: VehicleDocumentType): VehicleDriveDocument | null {
+    return this.driveDocuments?.documents?.[type] ?? null;
+  }
+
+  getTabIcon(type: VehicleDocumentType): string {
+    const document = this.getDriveFolder(type);
+    return document?.current_file || (document?.file_count ?? 0) > 0 ? 'folder_open' : 'folder';
+  }
+
+  isDocumentActionRunning(type: ManagedVehicleDocumentType): boolean {
+    return this.driveActionType === type;
+  }
+
+  toggleDriveBrowser(type: ManagedVehicleDocumentType): void {
+    if (!this.vehicleImmat || !this.driveDocuments?.configured) {
+      return;
+    }
+
+    if (this.driveBrowserOpenType === type) {
+      this.driveBrowserOpenType = null;
+      return;
+    }
+
+    this.driveBrowserOpenType = type;
+    this.loadDriveBrowserFiles(type);
+  }
+
+  loadDriveBrowserFiles(type: ManagedVehicleDocumentType, forceRefresh = false): void {
+    if (!this.vehicleImmat) {
+      return;
+    }
+
+    if (!forceRefresh && this.driveBrowserFiles[type]) {
+      return;
+    }
+
+    this.driveBrowserLoadingType = type;
+    this.vehicleService.listVehicleDriveDocumentFiles(this.vehicleImmat, type).subscribe({
+      next: (response) => {
+        this.driveBrowserFiles[type] = response.files;
+        this.driveBrowserLoadingType = null;
+        this.cdr.detectChanges();
+      },
+      error: (error) => {
+        console.error('Error loading Drive folder files:', error);
+        this.driveBrowserLoadingType = null;
+        this.snackBar.open('Impossible de lister les fichiers Drive.', 'Fermer', {
+          duration: 5000
+        });
+        this.cdr.detectChanges();
+      }
+    });
+  }
+
+  selectDriveFile(type: ManagedVehicleDocumentType, fileId: string): void {
+    if (!this.vehicleImmat) {
+      return;
+    }
+
+    this.driveActionType = type;
+    this.vehicleService.selectVehicleDriveDocument(this.vehicleImmat, type, fileId).subscribe({
+      next: (document) => {
+        this.applyDriveDocumentUpdate(type, document);
+        this.loadDriveBrowserFiles(type, true);
+        this.driveActionType = null;
+        this.snackBar.open('Document Drive associé avec succès.', 'Fermer', {
+          duration: 3000
+        });
+        this.cdr.detectChanges();
+      },
+      error: (error) => {
+        console.error('Error selecting Drive document:', error);
+        this.driveActionType = null;
+        this.errorService.handleHttpError(error, 'Impossible d’associer ce document Drive.');
+        this.cdr.detectChanges();
+      }
+    });
+  }
+
+  onDriveFileSelected(type: ManagedVehicleDocumentType, event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+
+    if (!file || !this.vehicleImmat) {
+      return;
+    }
+
+    this.driveActionType = type;
+    this.vehicleService.uploadVehicleDriveDocument(this.vehicleImmat, type, file).subscribe({
+      next: (document) => {
+        this.applyDriveDocumentUpdate(type, document);
+        this.driveBrowserOpenType = type;
+        this.loadDriveBrowserFiles(type, true);
+        this.driveActionType = null;
+        this.snackBar.open('Nouvelle version envoyée dans Drive.', 'Fermer', {
+          duration: 3000
+        });
+        this.cdr.detectChanges();
+      },
+      error: (error) => {
+        console.error('Error uploading Drive document:', error);
+        this.driveActionType = null;
+        this.errorService.handleHttpError(error, 'Impossible d’envoyer ce document dans Drive.');
+        this.cdr.detectChanges();
+      }
+    });
+  }
+
+  openDriveLink(url?: string | null): void {
+    if (!url) {
+      return;
+    }
+
+    window.open(url, '_blank', 'noopener');
+  }
+
+  private applyDriveDocumentUpdate(type: ManagedVehicleDocumentType, document: VehicleDriveDocument): void {
+    if (!this.driveDocuments) {
+      return;
+    }
+
+    this.driveDocuments = {
+      ...this.driveDocuments,
+      documents: {
+        ...this.driveDocuments.documents,
+        [type]: document
+      }
+    };
   }
 
   onSubmit(): void {
@@ -265,7 +488,7 @@ export class VehicleEdit implements OnInit {
       });
     } else {
       // Update existing vehicle - send all editable fields
-      if (!this.nomSynthetique) {
+      if (!this.vehicleImmat) {
         return;
       }
 
@@ -303,7 +526,7 @@ export class VehicleEdit implements OnInit {
         suivi_mode: formValue.suivi_mode
       };
 
-      this.vehicleService.updateVehicle(this.nomSynthetique, updateData).subscribe({
+      this.vehicleService.updateVehicle(this.vehicleImmat, updateData).subscribe({
         next: () => {
           this.snackBar.open('Véhicule mis à jour avec succès', 'Fermer', {
             duration: 3000

@@ -10,6 +10,17 @@ from app.models.reservation import ValkeyReservation, ValkeyReservationCreate
 
 logger = logging.getLogger(__name__)
 
+# Import calendar_service at module level to avoid circular imports
+_calendar_service = None
+
+def _get_calendar_service():
+    """Lazy import of calendar_service to avoid circular dependencies."""
+    global _calendar_service
+    if _calendar_service is None:
+        from app.services.calendar_service import calendar_service
+        _calendar_service = calendar_service
+    return _calendar_service
+
 
 class ValkeyService:
     """
@@ -742,7 +753,7 @@ class ValkeyService:
         created_by: str
     ) -> ValkeyReservation:
         """
-        Create a new reservation.
+        Create a new reservation and sync to Google Calendar if configured.
 
         Args:
             reservation_data: Reservation creation data
@@ -775,8 +786,45 @@ class ValkeyService:
             id=reservation_id,
             **reservation_data.model_dump(),
             created_by=created_by,
-            created_at=now
+            created_at=now,
+            google_event_id=None,
+            google_event_link=None
         )
+
+        # Try to sync to Google Calendar if configured
+        calendar_id = None
+        try:
+            config_data = await self.redis.json().get(self._key("configuration"))
+            calendar_id = config_data.get("calendar_id") if config_data else None
+        except Exception:
+            # JSON not supported (e.g., in tests with fakeredis) or other error
+            pass
+
+        if calendar_id:
+            try:
+                calendar_service = _get_calendar_service()
+
+                # Get vehicle info for better event summary
+                vehicle = await self.get_vehicle(reservation_data.vehicule_immat)
+                vehicle_name = vehicle.indicatif if vehicle else reservation_data.vehicule_immat
+
+                event = await calendar_service.create_event(
+                    dt_id=self.dt,
+                    calendar_id=calendar_id,
+                    summary=f"🚗 {vehicle_name} - {reservation_data.chauffeur_nom}",
+                    start=reservation_data.debut,
+                    end=reservation_data.fin,
+                    description=f"Mission: {reservation_data.mission}\nChauffeur: {reservation_data.chauffeur_nom} (NIVOL: {reservation_data.chauffeur_nivol})\n{reservation_data.commentaire or ''}",
+                    location=reservation_data.lieu_depart or "",
+                    attendees=[created_by] if created_by else None,
+                )
+
+                reservation.google_event_id = event.get("id")
+                reservation.google_event_link = event.get("htmlLink")
+                logger.info(f"Created Google Calendar event {event.get('id')} for reservation {reservation_id}")
+            except Exception as e:
+                logger.warning(f"Failed to create calendar event for reservation {reservation_id}: {e}")
+                # Continue without calendar sync - reservation still valid
 
         try:
             # Store reservation
@@ -918,13 +966,67 @@ class ValkeyService:
             )
 
         try:
-            # Update reservation (keep original metadata)
+            # Update reservation (keep original metadata and Google Calendar info)
             updated = ValkeyReservation(
                 id=reservation_id,
                 **reservation_data.model_dump(),
                 created_by=existing.created_by,
-                created_at=existing.created_at
+                created_at=existing.created_at,
+                google_event_id=existing.google_event_id,
+                google_event_link=existing.google_event_link
             )
+
+            # Update Google Calendar event if exists
+            if existing.google_event_id:
+                calendar_id = None
+                try:
+                    config_data = await self.redis.json().get(self._key("configuration"))
+                    calendar_id = config_data.get("calendar_id") if config_data else None
+                except Exception:
+                    # JSON not supported (e.g., in tests with fakeredis) or other error
+                    pass
+
+                if calendar_id:
+                    try:
+                        calendar_service = _get_calendar_service()
+
+                        # Build updates dict
+                        calendar_updates = {}
+
+                        # Update times if changed
+                        if reservation_data.debut != existing.debut:
+                            calendar_updates["start"] = reservation_data.debut
+                        if reservation_data.fin != existing.fin:
+                            calendar_updates["end"] = reservation_data.fin
+
+                        # Update summary if vehicle or driver changed
+                        if (reservation_data.vehicule_immat != existing.vehicule_immat or
+                            reservation_data.chauffeur_nom != existing.chauffeur_nom):
+                            vehicle = await self.get_vehicle(reservation_data.vehicule_immat)
+                            vehicle_name = vehicle.indicatif if vehicle else reservation_data.vehicule_immat
+                            calendar_updates["summary"] = f"🚗 {vehicle_name} - {reservation_data.chauffeur_nom}"
+
+                        # Update description if mission or comment changed
+                        if (reservation_data.mission != existing.mission or
+                            reservation_data.commentaire != existing.commentaire or
+                            reservation_data.chauffeur_nivol != existing.chauffeur_nivol):
+                            calendar_updates["description"] = f"Mission: {reservation_data.mission}\nChauffeur: {reservation_data.chauffeur_nom} (NIVOL: {reservation_data.chauffeur_nivol})\n{reservation_data.commentaire or ''}"
+
+                        # Update location if changed
+                        if reservation_data.lieu_depart != existing.lieu_depart:
+                            calendar_updates["location"] = reservation_data.lieu_depart or ""
+
+                        if calendar_updates:
+                            await calendar_service.update_event(
+                                dt_id=self.dt,
+                                calendar_id=calendar_id,
+                                event_id=existing.google_event_id,
+                                updates=calendar_updates,
+                            )
+                            logger.info(f"Updated Google Calendar event {existing.google_event_id} for reservation {reservation_id}")
+                    except Exception as e:
+                        logger.warning(f"Failed to update calendar event for reservation {reservation_id}: {e}")
+                        # Continue without calendar sync - reservation update still valid
 
             # Store updated reservation
             key = self._key("reservations", reservation_id)
@@ -968,7 +1070,7 @@ class ValkeyService:
 
     async def delete_reservation(self, reservation_id: str) -> bool:
         """
-        Delete a reservation.
+        Delete a reservation and remove from Google Calendar if synced.
 
         Args:
             reservation_id: Reservation UUID
@@ -980,6 +1082,29 @@ class ValkeyService:
         reservation = await self.get_reservation(reservation_id)
         if not reservation:
             return False
+
+        # Delete from Google Calendar if exists
+        if reservation.google_event_id:
+            calendar_id = None
+            try:
+                config_data = await self.redis.json().get(self._key("configuration"))
+                calendar_id = config_data.get("calendar_id") if config_data else None
+            except Exception:
+                # JSON not supported (e.g., in tests with fakeredis) or other error
+                pass
+
+            if calendar_id:
+                try:
+                    calendar_service = _get_calendar_service()
+                    await calendar_service.delete_event(
+                        dt_id=self.dt,
+                        calendar_id=calendar_id,
+                        event_id=reservation.google_event_id,
+                    )
+                    logger.info(f"Deleted Google Calendar event {reservation.google_event_id} for reservation {reservation_id}")
+                except Exception as e:
+                    logger.warning(f"Failed to delete calendar event for reservation {reservation_id}: {e}")
+                    # Continue with reservation deletion even if calendar delete fails
 
         try:
             # Delete reservation

@@ -69,8 +69,8 @@
             <mat-select 
               [(ngModel)]="selectedVehicle"
               (selectionChange)="onVehicleSelected()">
-              @for (vehicle of vehicles(); track vehicle.nom_synthetique) {
-                <mat-option [value]="vehicle.nom_synthetique">
+              @for (vehicle of vehicles(); track vehicle.immat) {
+                <mat-option [value]="vehicle.immat">
                   {{ vehicle.indicatif }} - {{ vehicle.marque }} {{ vehicle.modele }} ({{ vehicle.immat }})
                 </mat-option>
               }

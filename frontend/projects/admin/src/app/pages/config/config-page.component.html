@@ -1,7 +1,7 @@
 <div class="config-page">
   <div class="container">
     <h1>Configuration DT</h1>
-    <p class="subtitle">Gestion des URLs des référentiels et des alertes</p>
+    <p class="subtitle">Gestion du dossier Google Drive et des alertes</p>
 
     @if (loading()) {
       <div class="loading">Chargement...</div>
@@ -19,69 +19,154 @@
       </div>
     }
 
-    <form [formGroup]="configForm" (ngSubmit)="onSubmit()" class="config-form">
-      <div class="form-section">
-        <h2>URLs des Référentiels Google Sheets</h2>
+    <div class="form-section">
+      <h2>Types de sous-dossiers véhicule</h2>
 
-        <div class="form-group">
-          <label for="sheets_url_vehicules">URL Référentiel Véhicules *</label>
-          <input
-            type="url"
-            id="sheets_url_vehicules"
-            formControlName="sheets_url_vehicules"
-            placeholder="https://docs.google.com/spreadsheets/d/..."
-            [class.error]="getFieldError('sheets_url_vehicules')"
-          />
-          @if (getFieldError('sheets_url_vehicules')) {
-            <span class="error-message">{{ getFieldError('sheets_url_vehicules') }}</span>
+      <table class="folders-table">
+        <thead>
+          <tr>
+            <th>Nom du dossier</th>
+            <th class="actions-col">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (folder of documentFolders(); track folder.name; let i = $index) {
+            <tr [class.mandatory]="folder.mandatory">
+              <td class="folder-name-cell">
+                <div class="folder-name">
+                  <span class="folder-icon-wrapper">
+                    <mat-icon class="folder-icon">folder</mat-icon>
+                    @if (folder.mandatory) {
+                      <mat-icon class="lock-badge">lock</mat-icon>
+                    }
+                  </span>
+                  <span>{{ folder.name }}</span>
+                </div>
+              </td>
+              <td class="actions-col">
+                @if (!folder.mandatory) {
+                  <button type="button" class="delete-btn" (click)="removeFolder(i)" title="Supprimer">
+                    <mat-icon>delete</mat-icon>
+                  </button>
+                }
+              </td>
+            </tr>
           }
-        </div>
+        </tbody>
+      </table>
 
-        <div class="form-group">
-          <label for="sheets_url_benevoles">URL Référentiel Bénévoles *</label>
-          <input
-            type="url"
-            id="sheets_url_benevoles"
-            formControlName="sheets_url_benevoles"
-            placeholder="https://docs.google.com/spreadsheets/d/..."
-            [class.error]="getFieldError('sheets_url_benevoles')"
-          />
-          @if (getFieldError('sheets_url_benevoles')) {
-            <span class="error-message">{{ getFieldError('sheets_url_benevoles') }}</span>
-          }
-        </div>
-
-        <div class="form-group">
-          <label for="sheets_url_responsables">URL Référentiel Responsables *</label>
-          <input
-            type="url"
-            id="sheets_url_responsables"
-            formControlName="sheets_url_responsables"
-            placeholder="https://docs.google.com/spreadsheets/d/..."
-            [class.error]="getFieldError('sheets_url_responsables')"
-          />
-          @if (getFieldError('sheets_url_responsables')) {
-            <span class="error-message">{{ getFieldError('sheets_url_responsables') }}</span>
-          }
-        </div>
+      <div class="add-folder-row">
+        <input type="text" placeholder="Nom du nouveau dossier"
+               [value]="newFolderName()"
+               (input)="newFolderName.set($any($event.target).value)" />
+        <button type="button" class="btn btn-secondary" (click)="addFolder()"
+                [disabled]="!newFolderName()">
+          Ajouter
+        </button>
       </div>
 
-      <div class="form-section">
-        <h2>Template de Document</h2>
+      <div class="folder-actions">
+        <button type="button" class="btn btn-secondary"
+                [disabled]="savingFolders()"
+                (click)="saveDocumentFolders()">
+          {{ savingFolders() ? 'Sauvegarde...' : 'Sauvegarder' }}
+        </button>
+        <button type="button" class="btn btn-primary"
+                [disabled]="savingFolders()"
+                (click)="syncDocumentFolders()">
+          Synchroniser les répertoires
+        </button>
+      </div>
 
-        <div class="form-group">
-          <label for="template_doc_url">URL Template Document Véhicule *</label>
-          <input
-            type="url"
-            id="template_doc_url"
-            formControlName="template_doc_url"
-            placeholder="https://docs.google.com/document/d/..."
-            [class.error]="getFieldError('template_doc_url')"
-          />
-          @if (getFieldError('template_doc_url')) {
-            <span class="error-message">{{ getFieldError('template_doc_url') }}</span>
+      @if (saveFoldersSuccess()) {
+        <div class="alert alert-success">✓ Définition des dossiers sauvegardée</div>
+      }
+    </div>
+
+    <form [formGroup]="configForm" (ngSubmit)="onSubmit()" class="config-form">
+      <div class="form-section">
+        <div class="section-header-row">
+          <h2>Dossier Racine Google Drive</h2>
+          @if (configForm.get('drive_folder_url')?.value || driveSyncStatus() !== 'idle') {
+            <button
+              type="button"
+              class="btn-delete-sync"
+              [disabled]="resetDriveLoading()"
+              (click)="resetDriveSync()"
+              title="Supprimer la synchronisation Drive"
+            >
+              <mat-icon>delete</mat-icon>
+              {{ resetDriveLoading() ? 'Suppression...' : 'Supprimer' }}
+            </button>
           }
         </div>
+
+        <div class="form-group">
+          <label for="drive_folder_url">URL ou ID du Dossier Google Drive</label>
+          <input
+            type="text"
+            id="drive_folder_url"
+            formControlName="drive_folder_url"
+            placeholder="https://drive.google.com/drive/folders/... ou ID du dossier"
+            [class.error]="getFieldError('drive_folder_url')"
+          />
+          @if (getFieldError('drive_folder_url')) {
+            <span class="error-message">{{ getFieldError('drive_folder_url') }}</span>
+          }
+        </div>
+
+        @if (driveSyncActive()) {
+          <div class="drive-sync-progress">
+            <div class="progress-header">
+              <span>{{ driveSyncMessage() || 'Synchronisation Drive en cours...' }}</span>
+              <span class="progress-percent">{{ driveSyncPercent() }}%</span>
+            </div>
+            <div class="progress-bar-container">
+              <div class="progress-bar" [style.width.%]="driveSyncPercent()"></div>
+            </div>
+            <div class="progress-actions">
+              <button
+                type="button"
+                class="btn btn-secondary"
+                [disabled]="loading() || cancelDriveLoading()"
+                (click)="restartDriveSync()"
+              >
+                <mat-icon>refresh</mat-icon>
+                Relancer
+              </button>
+              <button
+                type="button"
+                class="btn btn-cancel"
+                [disabled]="cancelDriveLoading()"
+                (click)="cancelDriveSync()"
+              >
+                {{ cancelDriveLoading() ? 'Annulation...' : 'Arrêter la création' }}
+              </button>
+            </div>
+          </div>
+        }
+
+        @if (resetDriveSuccess()) {
+          <div class="alert alert-warning">
+            <strong>⚠️ Synchronisation supprimée.</strong><br>
+            Les liens vers les dossiers Google Drive ont été supprimés de l'application CLEF.<br>
+            <strong>Vous devez nettoyer le contenu du dossier Google Drive précédent manuellement</strong> (trop risqué de tout supprimer depuis l'application).
+          </div>
+        }
+
+        @if (!driveSyncActive() && configForm.get('drive_folder_url')?.value) {
+          <div class="restart-sync-section">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              [disabled]="loading()"
+              (click)="restartDriveSync()"
+            >
+              <mat-icon>refresh</mat-icon>
+              Relancer la création des dossiers
+            </button>
+          </div>
+        }
       </div>
 
       <div class="form-section">
