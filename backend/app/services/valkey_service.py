@@ -70,7 +70,7 @@ class ValkeyService:
     async def set_configuration(self, config: DTConfiguration) -> bool:
         """Set DT configuration."""
         try:
-            await self.redis.json().set(self._key("configuration"), "$", config.model_dump())
+            await self.redis.json().set(self._key("configuration"), "$", config.model_dump(mode="json"))
             return True
         except Exception as e:
             logger.error(f"Error setting configuration for {self.dt}: {e}")
@@ -307,7 +307,7 @@ class ValkeyService:
         """Set vehicle data and add to index."""
         try:
             key = self._key("vehicules", vehicle.immat)
-            await self.redis.json().set(key, "$", vehicle.model_dump())
+            await self.redis.json().set(key, "$", vehicle.model_dump(mode="json"))
             await self.redis.sadd(self._key("vehicules", "index"), vehicle.immat)
             return True
         except Exception as e:
@@ -360,7 +360,7 @@ class ValkeyService:
         """Set bénévole data and add to indices."""
         try:
             key = self._key("benevoles", benevole.nivol)
-            await self.redis.json().set(key, "$", benevole.model_dump())
+            await self.redis.json().set(key, "$", benevole.model_dump(mode="json"))
 
             # Add to global index
             await self.redis.sadd(self._key("benevoles", "index"), benevole.nivol)
@@ -452,7 +452,7 @@ class ValkeyService:
         """Set responsable data and add to index."""
         try:
             key = self._key("responsables", responsable.email)
-            await self.redis.json().set(key, "$", responsable.model_dump())
+            await self.redis.json().set(key, "$", responsable.model_dump(mode="json"))
 
             # Add to global index
             await self.redis.sadd(self._key("responsables", "index"), responsable.email)
@@ -483,7 +483,7 @@ class ValkeyService:
         """Store responsable véhicule in Valkey."""
         try:
             key = self._key("responsables_vehicules", responsable.email)
-            await self.redis.json().set(key, "$", responsable.model_dump())
+            await self.redis.json().set(key, "$", responsable.model_dump(mode="json"))
             await self.redis.sadd(self._key("responsables_vehicules", "index"), responsable.email)
             return True
         except Exception as e:
@@ -523,7 +523,7 @@ class ValkeyService:
         try:
             timestamp_str = entry.timestamp.isoformat()
             key = self._key("carnet", entry.immat, timestamp_str)
-            await self.redis.json().set(key, "$", entry.model_dump())
+            await self.redis.json().set(key, "$", entry.model_dump(mode="json"))
 
             # Add to vehicle's carnet index
             await self.redis.sadd(
@@ -829,7 +829,7 @@ class ValkeyService:
         try:
             # Store reservation
             key = self._key("reservations", reservation_id)
-            await self.redis.json().set(key, "$", reservation.model_dump())
+            await self.redis.json().set(key, "$", reservation.model_dump(mode="json"))
 
             # Add to global index
             await self.redis.sadd(self._key("reservations", "index"), reservation_id)
@@ -1030,7 +1030,7 @@ class ValkeyService:
 
             # Store updated reservation
             key = self._key("reservations", reservation_id)
-            await self.redis.json().set(key, "$", updated.model_dump())
+            await self.redis.json().set(key, "$", updated.model_dump(mode="json"))
 
             # Update indexes if vehicle or dates changed
             if existing.vehicule_immat != updated.vehicule_immat:
