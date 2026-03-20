@@ -140,13 +140,15 @@ stateDiagram-v2
 2. L'utilisateur clique **"Envoyer pour approbation"**
 3. Choix du valideur parmi une liste définie au niveau UL (ou DT pour les véhicules DT)
 4. Envoi d'un **email HTML** bien formaté contenant :
-  - Toutes les données du devis (fournisseur, description, montant)
-  - Lien vers le fichier Google Drive du devis
-  - Lien unique pour approuver/refuser le devis (page dédiée)
-5. L'approbateur se connecte avec son email Croix-Rouge (doit correspondre à un des approbateurs définis)
-6. Il visualise les informations et clique **Approuver** ou **Refuser** (avec commentaire optionnel)
-7. Il peut changer sa décision tant qu'une facture n'a pas été enregistrée pour ce devis
-8. **Notification email** au demandeur quand la décision est prise
+
+- Toutes les données du devis (fournisseur, description, montant)
+- Lien vers le fichier Google Drive du devis
+- Lien unique pour approuver/refuser le devis (page dédiée)
+
+1. L'approbateur se connecte avec son email Croix-Rouge (doit correspondre à un des approbateurs définis)
+2. Il visualise les informations et clique **Approuver** ou **Refuser** (avec commentaire optionnel)
+3. Il peut changer sa décision tant qu'une facture n'a pas été enregistrée pour ce devis
+4. **Notification email** au demandeur quand la décision est prise
 
 ### 3.4 Page d'approbation
 
