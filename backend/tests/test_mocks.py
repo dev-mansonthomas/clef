@@ -80,7 +80,7 @@ class TestGoogleSheetsMock:
         service = get_sheets_service()
         benevoles = service.get_benevoles()
         
-        assert len(benevoles) == 5
+        assert len(benevoles) == 6
         assert benevoles[0]["email"] == "jean.dupont@croix-rouge.fr"
     
     def test_get_benevole_by_email(self):
@@ -90,7 +90,7 @@ class TestGoogleSheetsMock:
         
         assert benevole is not None
         assert benevole["nom"] == "Manson"
-        assert benevole["role"] == "Gestionnaire DT"
+        assert benevole["role"] == "responsable_dt"
     
     def test_get_responsables(self):
         """Test getting managers from mock data."""
