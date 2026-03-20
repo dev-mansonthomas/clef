@@ -68,17 +68,21 @@ def mock_current_user():
     )
 
 
-# Override authentication dependency
-app.dependency_overrides[require_authenticated_user] = mock_current_user
-
-client = TestClient(app)
+@pytest.fixture
+def client():
+    """Test client with mocked authentication and proper cleanup."""
+    app.dependency_overrides[require_authenticated_user] = mock_current_user
+    c = TestClient(app)
+    yield c
+    app.dependency_overrides.pop(require_authenticated_user, None)
+    app.dependency_overrides.pop(get_valkey_service, None)
 
 
 class TestCarnetDeBordAPI:
     """Test suite for Carnet de Bord API endpoints with Valkey."""
 
     @pytest.mark.asyncio
-    async def test_enregistrer_prise_success(self, valkey_dt75):
+    async def test_enregistrer_prise_success(self, client, valkey_dt75):
         """Test successful prise registration."""
         # Override Valkey dependency
         app.dependency_overrides[get_valkey_service] = lambda: valkey_dt75
@@ -109,7 +113,7 @@ class TestCarnetDeBordAPI:
         assert derniere_prise["kilometrage"] == 12500
 
     @pytest.mark.asyncio
-    async def test_enregistrer_prise_vehicule_not_found(self, valkey_dt75):
+    async def test_enregistrer_prise_vehicule_not_found(self, client, valkey_dt75):
         """Test prise registration with non-existent vehicle."""
         app.dependency_overrides[get_valkey_service] = lambda: valkey_dt75
 
@@ -129,7 +133,7 @@ class TestCarnetDeBordAPI:
         assert "non trouvé" in response.json()["detail"]
 
     @pytest.mark.asyncio
-    async def test_enregistrer_prise_vehicule_deja_pris(self, valkey_dt75):
+    async def test_enregistrer_prise_vehicule_deja_pris(self, client, valkey_dt75):
         """Test prise registration when vehicle is already taken."""
         app.dependency_overrides[get_valkey_service] = lambda: valkey_dt75
 
@@ -161,7 +165,7 @@ class TestCarnetDeBordAPI:
         assert "déjà pris" in response.json()["detail"]
 
     @pytest.mark.asyncio
-    async def test_enregistrer_retour_success(self, valkey_dt75):
+    async def test_enregistrer_retour_success(self, client, valkey_dt75):
         """Test successful retour registration."""
         app.dependency_overrides[get_valkey_service] = lambda: valkey_dt75
 
@@ -201,7 +205,7 @@ class TestCarnetDeBordAPI:
         assert derniere_prise is None
 
     @pytest.mark.asyncio
-    async def test_enregistrer_retour_vehicule_not_found(self, valkey_dt75):
+    async def test_enregistrer_retour_vehicule_not_found(self, client, valkey_dt75):
         """Test retour registration with non-existent vehicle."""
         app.dependency_overrides[get_valkey_service] = lambda: valkey_dt75
 
@@ -221,7 +225,7 @@ class TestCarnetDeBordAPI:
         assert "non trouvé" in response.json()["detail"]
 
     @pytest.mark.asyncio
-    async def test_enregistrer_retour_vehicule_non_pris(self, valkey_dt75):
+    async def test_enregistrer_retour_vehicule_non_pris(self, client, valkey_dt75):
         """Test retour registration when vehicle is not taken."""
         app.dependency_overrides[get_valkey_service] = lambda: valkey_dt75
 
@@ -241,7 +245,7 @@ class TestCarnetDeBordAPI:
         assert "non pris" in response.json()["detail"]
 
     @pytest.mark.asyncio
-    async def test_get_derniere_prise_vehicule_not_found(self, valkey_dt75):
+    async def test_get_derniere_prise_vehicule_not_found(self, client, valkey_dt75):
         """Test getting last prise for non-existent vehicle."""
         app.dependency_overrides[get_valkey_service] = lambda: valkey_dt75
 
@@ -251,7 +255,7 @@ class TestCarnetDeBordAPI:
         assert "non trouvé" in response.json()["detail"]
 
     @pytest.mark.asyncio
-    async def test_get_derniere_prise_no_data(self, valkey_dt75):
+    async def test_get_derniere_prise_no_data(self, client, valkey_dt75):
         """Test getting last prise when no data exists."""
         app.dependency_overrides[get_valkey_service] = lambda: valkey_dt75
 
@@ -263,7 +267,7 @@ class TestCarnetDeBordAPI:
         assert response.json() is None
 
     @pytest.mark.asyncio
-    async def test_get_derniere_prise_with_data(self, valkey_dt75):
+    async def test_get_derniere_prise_with_data(self, client, valkey_dt75):
         """Test getting last prise when data exists."""
         app.dependency_overrides[get_valkey_service] = lambda: valkey_dt75
 
@@ -288,7 +292,7 @@ class TestCarnetDeBordAPI:
         assert data["kilometrage"] == 12500
 
     @pytest.mark.asyncio
-    async def test_prise_validation_negative_kilometrage(self, valkey_dt75):
+    async def test_prise_validation_negative_kilometrage(self, client, valkey_dt75):
         """Test prise validation with negative kilometrage."""
         app.dependency_overrides[get_valkey_service] = lambda: valkey_dt75
 

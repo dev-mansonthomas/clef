@@ -15,8 +15,6 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app.auth import routes as auth_routes
 
-client = TestClient(app)
-
 
 def get_authenticated_client(email: str) -> TestClient:
     """Helper to get an authenticated test client via OAuth flow."""
