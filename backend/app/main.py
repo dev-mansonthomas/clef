@@ -29,6 +29,7 @@ from app.routers import import_vehicles
 from app.routers import api_keys
 from app.routers import benevoles
 from app.routers import stats
+from app.admin.super_admin_routes import router as super_admin_router
 from app.scheduler import start_scheduler, stop_scheduler
 
 app = FastAPI(
@@ -64,6 +65,7 @@ app.include_router(import_vehicles.router)
 app.include_router(api_keys.router)
 app.include_router(benevoles.router)
 app.include_router(stats.router)
+app.include_router(super_admin_router)
 
 # Cache instances
 cache = get_cache()
