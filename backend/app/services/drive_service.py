@@ -92,14 +92,66 @@ class DriveService:
         request = service.files().create(
             body=file_metadata,
             media_body=media,
+            keepRevisionForever=True,
             fields="id,name,webViewLink,webContentLink,mimeType",
             **self._shared_drive_kwargs(),
         )
         file = await asyncio.to_thread(request.execute)
-        
+
         logger.info(f"Uploaded file {file['id']} to folder {parent_folder_id}")
         return file
-    
+
+    async def update_file_version(
+        self,
+        dt_id: str,
+        file_id: str,
+        file_content: bytes,
+        mime_type: str,
+        keep_forever: bool = True,
+    ) -> Dict[str, Any]:
+        """
+        Upload a new version of an existing file in Google Drive.
+        Uses files().update() to create a new revision instead of a new file.
+
+        Args:
+            dt_id: DT identifier
+            file_id: ID of the existing file to update
+            file_content: New file content as bytes
+            mime_type: MIME type
+            keep_forever: If True, marks the revision as keepForever (won't be auto-purged)
+
+        Returns:
+            Updated file resource with id, webViewLink, etc.
+        """
+        if self.use_mocks:
+            return {
+                "id": file_id,
+                "name": f"mock-updated-{file_id}",
+                "webViewLink": f"https://drive.google.com/file/d/{file_id}/view",
+                "webContentLink": f"https://drive.google.com/uc?id={file_id}",
+                "mimeType": mime_type,
+            }
+
+        service = await self._get_service(dt_id)
+
+        media = MediaIoBaseUpload(
+            io.BytesIO(file_content),
+            mimetype=mime_type,
+            resumable=True,
+        )
+
+        request = service.files().update(
+            fileId=file_id,
+            media_body=media,
+            keepRevisionForever=keep_forever,
+            fields="id,name,webViewLink,webContentLink,mimeType",
+            **self._shared_drive_kwargs(),
+        )
+        file = await asyncio.to_thread(request.execute)
+
+        logger.info(f"Updated file {file_id} with new version (keepForever={keep_forever})")
+        return file
+
     async def create_folder(
         self,
         dt_id: str,

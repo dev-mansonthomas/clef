@@ -296,15 +296,32 @@ class VehicleDocumentService:
         """Upload a new document version and make it the current association."""
         self._ensure_managed_document(document_type)
         folder = await self._get_document_folder(valkey_service, vehicle, document_type)
-        upload_name = self._build_upload_filename(document_type, filename, vehicle.nom_synthetique)
-        uploaded_file = await drive_service.upload_file(
-            dt_id=valkey_service.dt,
-            file_content=file_content,
-            filename=upload_name,
-            mime_type=mime_type,
-            parent_folder_id=folder["id"],
-            description=f"{DOCUMENT_CONFIG[document_type]['label']} - {vehicle.nom_synthetique}",
-        )
+
+        # Check if there's already a file for this document type
+        existing_documents = getattr(vehicle, "documents", {}) or {}
+        existing_file = existing_documents.get(document_type.value)
+        existing_file_id = existing_file.get("file_id") if existing_file else None
+
+        if existing_file_id:
+            # Update existing file with new version (Google Drive versioning)
+            uploaded_file = await drive_service.update_file_version(
+                dt_id=valkey_service.dt,
+                file_id=existing_file_id,
+                file_content=file_content,
+                mime_type=mime_type,
+                keep_forever=True,
+            )
+        else:
+            # First upload — create new file
+            upload_name = self._build_upload_filename(document_type, filename, vehicle.nom_synthetique)
+            uploaded_file = await drive_service.upload_file(
+                dt_id=valkey_service.dt,
+                file_content=file_content,
+                filename=upload_name,
+                mime_type=mime_type,
+                parent_folder_id=folder["id"],
+                description=f"{DOCUMENT_CONFIG[document_type]['label']} - {vehicle.nom_synthetique}",
+            )
 
         stored_file = self._build_stored_file(uploaded_file, folder)
         await self._persist_document_selection(valkey_service, vehicle, document_type, stored_file)
