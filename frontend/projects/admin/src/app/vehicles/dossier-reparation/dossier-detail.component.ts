@@ -12,7 +12,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatDialogModule } from '@angular/material/dialog';
 import { RepairService } from '../../services/repair.service';
-import { DossierReparation, Devis, FactureCreateResponse } from '../../models/repair.model';
+import { DossierReparation, Devis, FactureCreateResponse, AuditEntry } from '../../models/repair.model';
 import { DevisFormComponent } from './devis-form.component';
 import { FactureFormComponent } from './facture-form.component';
 
@@ -121,6 +121,22 @@ import { FactureFormComponent } from './facture-form.component';
               <span class="item-montant-crf">CRF: {{ f.montant_crf | number:'1.2-2' }} €</span>
             </div>
           </div>
+          <mat-divider></mat-divider>
+
+          <h4>Historique</h4>
+          <div class="timeline" *ngIf="historique.length">
+            <div class="timeline-entry" *ngFor="let entry of historique">
+              <mat-icon [ngClass]="'timeline-icon timeline-icon-' + entry.action"
+                >{{ actionIcon(entry.action) }}</mat-icon>
+              <div class="timeline-content">
+                <span class="timeline-date">{{ entry.date | date:'dd/MM/yyyy HH:mm' }}</span>
+                <span class="timeline-details">{{ entry.details }}</span>
+                <span class="timeline-auteur">par {{ entry.auteur }}</span>
+              </div>
+            </div>
+          </div>
+          <p class="empty-section" *ngIf="!historique.length && !historiqueLoading">Aucun historique.</p>
+          <mat-spinner diameter="20" *ngIf="historiqueLoading"></mat-spinner>
         </mat-card-content>
       </mat-card>
     </div>
@@ -158,6 +174,24 @@ import { FactureFormComponent } from './facture-form.component';
     .approval-btn { margin-left: auto; }
     .approval-form { display: flex; align-items: center; gap: 12px; padding: 12px 0; flex-wrap: wrap; }
     .approval-email-field { min-width: 280px; }
+    .timeline { margin: 8px 0 16px; }
+    .timeline-entry { display: flex; gap: 12px; align-items: flex-start; padding: 8px 0; border-left: 2px solid rgba(0,0,0,0.12); margin-left: 12px; padding-left: 16px; position: relative; }
+    .timeline-entry::before { content: ''; position: absolute; left: -5px; top: 12px; width: 8px; height: 8px; border-radius: 50%; background: #bdbdbd; }
+    .timeline-icon { font-size: 20px; width: 20px; height: 20px; flex-shrink: 0; }
+    .timeline-icon-creation { color: #2e7d32; }
+    .timeline-icon-cloture { color: #757575; }
+    .timeline-icon-reouverture { color: #1565c0; }
+    .timeline-icon-annulation { color: #c62828; }
+    .timeline-icon-devis_ajoute, .timeline-icon-devis_modifie { color: #1565c0; }
+    .timeline-icon-devis_envoye_approbation { color: #ef6c00; }
+    .timeline-icon-devis_approuve { color: #2e7d32; }
+    .timeline-icon-devis_refuse, .timeline-icon-devis_annule { color: #c62828; }
+    .timeline-icon-facture_ajoutee, .timeline-icon-facture_modifiee { color: #1565c0; }
+    .timeline-icon-modification { color: #1565c0; }
+    .timeline-content { display: flex; flex-direction: column; gap: 2px; }
+    .timeline-date { font-size: 12px; color: rgba(0,0,0,0.54); }
+    .timeline-details { font-size: 14px; }
+    .timeline-auteur { font-size: 12px; color: rgba(0,0,0,0.54); }
   `],
 })
 export class DossierDetailComponent implements OnInit, OnChanges {
@@ -177,13 +211,43 @@ export class DossierDetailComponent implements OnInit, OnChanges {
   approvalDevis: Devis | null = null;
   approvalEmail = '';
   approvalLoading = false;
+  historique: AuditEntry[] = [];
+  historiqueLoading = false;
 
-  ngOnInit(): void { this.loadDossier(); }
+  ngOnInit(): void { this.loadDossier(); this.loadHistorique(); }
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['numero'] && !changes['numero'].firstChange) {
       this.loadDossier();
     }
+  }
+
+  loadHistorique(): void {
+    if (!this.dt || !this.immat || !this.numero) return;
+    this.historiqueLoading = true;
+    this.repairService.getHistorique(this.dt, this.immat, this.numero).subscribe({
+      next: (entries) => { this.historique = entries; this.historiqueLoading = false; },
+      error: () => { this.historiqueLoading = false; },
+    });
+  }
+
+  actionIcon(action: string): string {
+    const icons: Record<string, string> = {
+      creation: 'add_circle',
+      cloture: 'lock',
+      reouverture: 'lock_open',
+      annulation: 'cancel',
+      modification: 'edit',
+      devis_ajoute: 'description',
+      devis_modifie: 'description',
+      devis_envoye_approbation: 'send',
+      devis_approuve: 'check_circle',
+      devis_refuse: 'block',
+      devis_annule: 'block',
+      facture_ajoutee: 'receipt',
+      facture_modifiee: 'receipt',
+    };
+    return icons[action] || 'info';
   }
 
   loadDossier(): void {
@@ -206,6 +270,7 @@ export class DossierDetailComponent implements OnInit, OnChanges {
         this.dossier = d;
         this.actionLoading = false;
         this.snackBar.open('Statut mis à jour', 'Fermer', { duration: 3000 });
+        this.loadHistorique();
       },
       error: () => {
         this.actionLoading = false;
@@ -250,11 +315,13 @@ export class DossierDetailComponent implements OnInit, OnChanges {
   onDevisCreated(_devis: Devis): void {
     this.showDevisForm = false;
     this.loadDossier();
+    this.loadHistorique();
   }
 
   onFactureCreated(_facture: FactureCreateResponse): void {
     this.showFactureForm = false;
     this.loadDossier();
+    this.loadHistorique();
   }
 
   openApprovalForm(devis: Devis): void {

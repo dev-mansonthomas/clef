@@ -429,6 +429,27 @@ async def create_facture(
     )
 
 
+@router.get("/{numero}/historique", response_model=List[HistoriqueEntry])
+async def get_historique(
+    dt: str,
+    immat: str,
+    numero: str,
+    current_user: User = Depends(require_authenticated_user),
+    valkey: ValkeyService = Depends(get_valkey_service),
+) -> List[HistoriqueEntry]:
+    """Get audit trail for a repair dossier, sorted by date descending."""
+    dossier = await valkey.get_dossier_reparation(immat, numero)
+    if not dossier:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Dossier '{numero}' not found for vehicle '{immat}'",
+        )
+    entries = await valkey.get_historique(immat, numero)
+    # Sort by date descending
+    entries.sort(key=lambda e: e.date, reverse=True)
+    return entries
+
+
 @router.get("/{numero}/factures/{facture_id}", response_model=Facture)
 async def get_facture(
     dt: str,

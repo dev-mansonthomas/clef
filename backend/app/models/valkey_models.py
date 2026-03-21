@@ -31,6 +31,7 @@ class DTConfiguration(BaseModel):
     drive_sync_error: Optional[str] = Field(None, description="Dernière erreur de synchronisation Drive")
     drive_sync_cancel_requested: bool = Field(False, description="Flag de demande d'annulation de la synchronisation Drive")
     email_destinataire_alertes: Optional[str] = Field(None, description="Email destinataire des alertes")
+    delai_rappel_devis_jours: int = Field(default=7, description="Délai en jours avant rappel pour devis en attente d'approbation")
     api_keys: List[Dict] = Field(default_factory=list, description="API keys for this DT")
     document_folders: List[Dict] = Field(
         default_factory=lambda: [

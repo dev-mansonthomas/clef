@@ -33,6 +33,7 @@ from app.routers import fournisseurs
 from app.routers import dossiers_reparation
 from app.routers import approbation
 from app.routers import depenses
+from app.routers import reminders
 from app.admin.super_admin_routes import router as super_admin_router
 from app.scheduler import start_scheduler, stop_scheduler
 
@@ -73,6 +74,7 @@ app.include_router(dossiers_reparation.router)
 app.include_router(depenses.router)
 app.include_router(fournisseurs.router)
 app.include_router(approbation.router)
+app.include_router(reminders.router)
 app.include_router(super_admin_router)
 
 # Cache instances
