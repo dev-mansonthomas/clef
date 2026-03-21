@@ -234,6 +234,36 @@
         </div>
       </mat-tab>
 
+      <mat-tab>
+        <ng-template mat-tab-label>
+          <mat-icon class="tab-icon">receipt_long</mat-icon>
+          <span>Dossiers Réparation</span>
+        </ng-template>
+        <div class="tab-content">
+          <app-dossier-create
+            *ngIf="showDossierCreate"
+            [dt]="vehicle?.dt_ul || ''"
+            [immat]="vehicle?.immat || ''"
+            (created)="onDossierCreated()"
+            (cancelled)="onDossierCreateCancelled()">
+          </app-dossier-create>
+          <app-dossier-detail
+            *ngIf="selectedDossierNumero"
+            [dt]="vehicle?.dt_ul || ''"
+            [immat]="vehicle?.immat || ''"
+            [numero]="selectedDossierNumero"
+            (back)="onBackToList()">
+          </app-dossier-detail>
+          <app-dossier-list
+            *ngIf="!selectedDossierNumero"
+            [dt]="vehicle?.dt_ul || ''"
+            [immat]="vehicle?.immat || ''"
+            (dossierSelected)="onDossierSelected($event)"
+            (showCreate)="onShowDossierCreate()">
+          </app-dossier-list>
+        </div>
+      </mat-tab>
+
       <mat-tab *ngFor="let tab of secondaryTabs">
         <ng-template mat-tab-label>
           <mat-icon class="tab-icon" [class.inactive]="getTabIcon(tab.type) === 'folder'">{{ getTabIcon(tab.type) }}</mat-icon>

@@ -18,6 +18,9 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { VehicleService } from '../../services/vehicle.service';
 import { ErrorService } from '../../services/error.service';
 import { UniteLocaleService } from '../../services/unite-locale.service';
+import { DossierListComponent } from '../dossier-reparation/dossier-list.component';
+import { DossierCreateComponent } from '../dossier-reparation/dossier-create.component';
+import { DossierDetailComponent } from '../dossier-reparation/dossier-detail.component';
 import {
   ManagedVehicleDocumentType,
   Vehicle,
@@ -45,7 +48,10 @@ import {
     MatChipsModule,
     MatTabsModule,
     MatIconModule,
-    MatTooltipModule
+    MatTooltipModule,
+    DossierListComponent,
+    DossierCreateComponent,
+    DossierDetailComponent,
   ],
   templateUrl: './vehicle-edit.html',
   styleUrl: './vehicle-edit.scss',
@@ -73,6 +79,10 @@ export class VehicleEdit implements OnInit {
   driveBrowserLoadingType: ManagedVehicleDocumentType | null = null;
   driveActionType: ManagedVehicleDocumentType | null = null;
   driveBrowserFiles: Partial<Record<ManagedVehicleDocumentType, VehicleDriveFile[]>> = {};
+
+  // Dossier réparation state
+  selectedDossierNumero: string | null = null;
+  showDossierCreate = false;
 
   // DT/UL dropdown options
   dtUlOptions: string[] = [];
@@ -131,7 +141,6 @@ export class VehicleEdit implements OnInit {
     label: string;
     description: string;
   }> = [
-    { type: 'factures', label: 'Factures', description: 'Visualisation du dossier Drive des factures.' },
     { type: 'controle_technique', label: 'CT / Pollution', description: 'Visualisation du dossier Drive des contrôles techniques.' },
     { type: 'carnet_suivi', label: 'Carnet de suivi', description: 'Visualisation du dossier Drive du carnet de bord.' }
   ];
@@ -547,6 +556,29 @@ export class VehicleEdit implements OnInit {
 
   onCancel(): void {
     this.router.navigate(['/vehicles']);
+  }
+
+  // ========== Dossier Réparation ==========
+
+  onDossierSelected(numero: string): void {
+    this.selectedDossierNumero = numero;
+    this.showDossierCreate = false;
+  }
+
+  onBackToList(): void {
+    this.selectedDossierNumero = null;
+  }
+
+  onShowDossierCreate(): void {
+    this.showDossierCreate = true;
+  }
+
+  onDossierCreated(): void {
+    this.showDossierCreate = false;
+  }
+
+  onDossierCreateCancelled(): void {
+    this.showDossierCreate = false;
   }
 
   /**
