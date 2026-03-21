@@ -12,6 +12,12 @@ import {
   CreateFactureRequest,
   FactureCreateResponse,
   AuditEntry,
+  SendApprovalRequest,
+  SendApprovalResponse,
+  ApprobationData,
+  SubmitDecisionRequest,
+  SubmitDecisionResponse,
+  DepensesResponse,
 } from '../models/repair.model';
 import { environment } from '../../environments/environment';
 
@@ -114,6 +120,32 @@ export class RepairService {
     });
   }
 
+  // ========== Approbation ==========
+
+  /**
+   * Send a devis for approval
+   */
+  sendApproval(dt: string, immat: string, numero: string, devisId: string, data: SendApprovalRequest): Observable<SendApprovalResponse> {
+    return this.http.post<SendApprovalResponse>(
+      `${this.dossierUrl(dt, immat)}/${numero}/devis/${devisId}/send-approval`, data, {
+        withCredentials: true,
+      });
+  }
+
+  /**
+   * Get approval data (public, no auth)
+   */
+  getApprobationData(token: string): Observable<ApprobationData> {
+    return this.http.get<ApprobationData>(`${this.apiUrl}/api/approbation/${token}`);
+  }
+
+  /**
+   * Submit approval decision (public, no auth)
+   */
+  submitDecision(token: string, data: SubmitDecisionRequest): Observable<SubmitDecisionResponse> {
+    return this.http.post<SubmitDecisionResponse>(`${this.apiUrl}/api/approbation/${token}`, data);
+  }
+
   // ========== Historique ==========
 
   /**
@@ -122,6 +154,28 @@ export class RepairService {
   getHistorique(dt: string, immat: string, numero: string): Observable<AuditEntry[]> {
     return this.http.get<AuditEntry[]>(`${this.dossierUrl(dt, immat)}/${numero}/historique`, {
       withCredentials: true,
+    });
+  }
+
+  // ========== Dépenses ==========
+
+  /**
+   * Get aggregated expenses for a vehicle
+   */
+  getDepenses(dt: string, immat: string): Observable<DepensesResponse> {
+    return this.http.get<DepensesResponse>(`${this.apiUrl}/api/${dt}/vehicles/${immat}/depenses`, {
+      withCredentials: true,
+    });
+  }
+
+  /**
+   * Export expenses as CSV or PDF (returns blob for download)
+   */
+  exportDepenses(dt: string, immat: string, format: 'csv' | 'pdf'): Observable<Blob> {
+    return this.http.get(`${this.apiUrl}/api/${dt}/vehicles/${immat}/depenses/export`, {
+      params: { format },
+      withCredentials: true,
+      responseType: 'blob',
     });
   }
 }

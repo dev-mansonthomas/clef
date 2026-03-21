@@ -1,0 +1,157 @@
+import { Component, OnInit, inject } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
+import { ActivatedRoute } from '@angular/router';
+import { MatCardModule } from '@angular/material/card';
+import { MatButtonModule } from '@angular/material/button';
+import { MatIconModule } from '@angular/material/icon';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { RepairService } from '../services/repair.service';
+import { ApprobationData } from '../models/repair.model';
+
+@Component({
+  selector: 'app-approbation-page',
+  standalone: true,
+  imports: [
+    CommonModule, FormsModule,
+    MatCardModule, MatButtonModule, MatIconModule,
+    MatProgressSpinnerModule, MatFormFieldModule, MatInputModule,
+  ],
+  template: `
+    <div class="approbation-container">
+      <div class="approbation-header">
+        <h1><mat-icon>gavel</mat-icon> Approbation de devis — CLEF</h1>
+      </div>
+
+      <div *ngIf="loading" class="loading">
+        <mat-spinner diameter="40"></mat-spinner>
+        <span>Chargement…</span>
+      </div>
+
+      <div *ngIf="error" class="error-msg">
+        <mat-icon>error</mat-icon>
+        <p>{{ error }}</p>
+      </div>
+
+      <mat-card *ngIf="data && !loading && !submitted">
+        <mat-card-header>
+          <mat-card-title>Devis — {{ data.devis.fournisseur_nom || 'Fournisseur' }}</mat-card-title>
+          <mat-card-subtitle>Dossier {{ data.numero_dossier }} · {{ data.immat }}</mat-card-subtitle>
+        </mat-card-header>
+        <mat-card-content>
+          <div class="info-grid">
+            <div class="info-item"><strong>Dossier</strong><span>{{ data.dossier_description }}</span></div>
+            <div class="info-item"><strong>Fournisseur</strong><span>{{ data.devis.fournisseur_nom }}</span></div>
+            <div class="info-item"><strong>Description</strong><span>{{ data.devis.description_travaux }}</span></div>
+            <div class="info-item highlight"><strong>Montant</strong><span>{{ data.devis.montant | number:'1.2-2' }} €</span></div>
+            <div class="info-item"><strong>Date du devis</strong><span>{{ data.devis.date_devis | date:'dd/MM/yyyy' }}</span></div>
+          </div>
+
+          <div *ngIf="data.devis.fichier_drive_url" class="drive-link">
+            <a [href]="data.devis.fichier_drive_url" target="_blank" rel="noopener">
+              <mat-icon>attach_file</mat-icon> Voir le devis sur Google Drive
+            </a>
+          </div>
+
+          <div *ngIf="data.status !== 'pending'" class="already-decided">
+            <mat-icon>info</mat-icon>
+            Ce devis a déjà été {{ data.status === 'approuve' ? 'approuvé' : 'refusé' }}.
+            Vous pouvez modifier votre décision.
+          </div>
+
+          <mat-form-field appearance="outline" class="comment-field">
+            <mat-label>Commentaire (optionnel)</mat-label>
+            <textarea matInput [(ngModel)]="commentaire" rows="3"></textarea>
+          </mat-form-field>
+
+          <div class="decision-buttons">
+            <button mat-raised-button class="approve-btn" (click)="submitDecision('approuve')" [disabled]="submitting">
+              <mat-icon>check_circle</mat-icon> Approuver
+            </button>
+            <button mat-raised-button class="reject-btn" (click)="submitDecision('refuse')" [disabled]="submitting">
+              <mat-icon>cancel</mat-icon> Refuser
+            </button>
+          </div>
+        </mat-card-content>
+      </mat-card>
+
+      <mat-card *ngIf="submitted" class="confirmation-card">
+        <mat-card-content>
+          <mat-icon class="big-icon" [ngClass]="submittedDecision === 'approuve' ? 'approved' : 'rejected'">
+            {{ submittedDecision === 'approuve' ? 'check_circle' : 'cancel' }}
+          </mat-icon>
+          <h2>{{ submittedMessage }}</h2>
+          <p>Vous pouvez fermer cette page.</p>
+        </mat-card-content>
+      </mat-card>
+    </div>
+  `,
+  styles: [`
+    .approbation-container { max-width: 640px; margin: 24px auto; padding: 0 16px; }
+    .approbation-header h1 { display: flex; align-items: center; gap: 8px; color: #d32f2f; }
+    .loading { display: flex; align-items: center; gap: 12px; padding: 24px 0; }
+    .error-msg { display: flex; align-items: center; gap: 8px; color: #c62828; padding: 16px; background: #ffebee; border-radius: 8px; }
+    .info-grid { display: grid; gap: 12px; margin: 16px 0; }
+    .info-item { display: flex; flex-direction: column; gap: 2px; }
+    .info-item strong { font-size: 12px; color: rgba(0,0,0,0.54); text-transform: uppercase; }
+    .info-item.highlight span { font-size: 20px; font-weight: 600; color: #1565c0; }
+    .drive-link { margin: 16px 0; }
+    .drive-link a { display: inline-flex; align-items: center; gap: 4px; color: #1565c0; text-decoration: none; }
+    .already-decided { display: flex; align-items: center; gap: 8px; padding: 12px; background: #fff9c4; border-radius: 8px; margin: 12px 0; }
+    .comment-field { width: 100%; margin: 16px 0; }
+    .decision-buttons { display: flex; gap: 16px; margin-top: 16px; }
+    .approve-btn { background: #2e7d32 !important; color: white !important; }
+    .reject-btn { background: #c62828 !important; color: white !important; }
+    .confirmation-card { text-align: center; padding: 32px; }
+    .big-icon { font-size: 64px; width: 64px; height: 64px; }
+    .big-icon.approved { color: #2e7d32; }
+    .big-icon.rejected { color: #c62828; }
+  `],
+})
+export class ApprobationPageComponent implements OnInit {
+  private readonly route = inject(ActivatedRoute);
+  private readonly repairService = inject(RepairService);
+
+  data: ApprobationData | null = null;
+  loading = true;
+  error: string | null = null;
+  commentaire = '';
+  submitting = false;
+  submitted = false;
+  submittedDecision = '';
+  submittedMessage = '';
+
+  ngOnInit(): void {
+    const token = this.route.snapshot.paramMap.get('token');
+    if (!token) {
+      this.error = 'Token manquant';
+      this.loading = false;
+      return;
+    }
+    this.repairService.getApprobationData(token).subscribe({
+      next: (data) => { this.data = data; this.loading = false; },
+      error: () => { this.error = 'Token invalide ou expiré'; this.loading = false; },
+    });
+  }
+
+  submitDecision(decision: 'approuve' | 'refuse'): void {
+    const token = this.route.snapshot.paramMap.get('token');
+    if (!token) return;
+    this.submitting = true;
+    this.repairService.submitDecision(token, { decision, commentaire: this.commentaire || undefined }).subscribe({
+      next: (res) => {
+        this.submitting = false;
+        this.submitted = true;
+        this.submittedDecision = decision;
+        this.submittedMessage = res.message;
+      },
+      error: (err) => {
+        this.submitting = false;
+        this.error = err?.error?.detail || 'Erreur lors de la soumission de la décision';
+      },
+    });
+  }
+}
+

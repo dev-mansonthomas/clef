@@ -19,11 +19,15 @@ from app.models.repair_models import (
     StatutDevis,
     ActionHistorique,
     HistoriqueEntry,
+    SendApprovalRequest,
+    SendApprovalResponse,
 )
 from app.auth.models import User
 from app.auth.dependencies import require_authenticated_user
 from app.services.valkey_dependencies import get_valkey_service
 from app.services.valkey_service import ValkeyService
+from app.services.approval_service import ApprovalService
+from app.services.email_service import email_service
 
 logger = logging.getLogger(__name__)
 
@@ -269,6 +273,95 @@ async def update_devis(
     )
 
     return devis
+
+
+@router.post(
+    "/{numero}/devis/{devis_id}/send-approval",
+    response_model=SendApprovalResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def send_devis_for_approval(
+    dt: str,
+    immat: str,
+    numero: str,
+    devis_id: str,
+    body: SendApprovalRequest,
+    current_user: User = Depends(require_authenticated_user),
+    valkey: ValkeyService = Depends(get_valkey_service),
+) -> SendApprovalResponse:
+    """Send a devis for approval: create token, send email, update status."""
+    dossier = await valkey.get_dossier_reparation(immat, numero)
+    if not dossier:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Dossier '{numero}' not found for vehicle '{immat}'",
+        )
+
+    _check_dossier_open(dossier)
+
+    devis = await valkey.get_devis(immat, numero, devis_id)
+    if not devis:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Devis '{devis_id}' not found in dossier '{numero}'",
+        )
+
+    if devis.statut not in (StatutDevis.EN_ATTENTE, StatutDevis.ENVOYE):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot send devis with status '{devis.statut.value}' for approval",
+        )
+
+    # Create approval token
+    approval_svc = ApprovalService(redis_client=valkey.redis, dt=dt)
+    token_data = await approval_svc.create_approval_token(
+        immat=immat,
+        numero_dossier=numero,
+        devis_id=devis_id,
+        valideur_email=body.valideur_email,
+    )
+
+    # Build approval URL
+    import os
+    frontend_url = os.getenv("FRONTEND_URL", "http://localhost:4202")
+    approval_url = f"{frontend_url}/approbation/{token_data['token']}"
+
+    # Send approval email
+    devis_dict = devis.model_dump(mode="json")
+    await email_service.send_approval_email(
+        dt_id=dt,
+        devis_data=devis_dict,
+        valideur_email=body.valideur_email,
+        approval_url=approval_url,
+        sender_email=current_user.email,
+    )
+
+    # Update devis status to "envoye"
+    await valkey.update_devis(immat, numero, devis_id, {
+        "statut": StatutDevis.ENVOYE,
+        "valideur_email": body.valideur_email,
+        "token_approbation": token_data["token"],
+        "date_envoi_approbation": token_data["created_at"],
+    })
+
+    # Add history entry
+    key = f"{valkey.dt}:vehicules:{immat}:travaux:{numero}:devis:{devis_id}"
+    await valkey.add_historique_entry(
+        immat=immat,
+        numero=numero,
+        entry=HistoriqueEntry(
+            auteur=current_user.email,
+            action=ActionHistorique.DEVIS_ENVOYE_APPROBATION,
+            details=f"Devis #{devis_id} envoyé pour approbation à {body.valideur_email}",
+            ref=key,
+        ),
+    )
+
+    return SendApprovalResponse(
+        token=token_data["token"],
+        valideur_email=body.valideur_email,
+        expires_at=token_data["expires_at"],
+    )
 
 
 # ========== Facture Endpoints ==========

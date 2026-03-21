@@ -1,5 +1,6 @@
 import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -7,6 +8,9 @@ import { MatChipsModule } from '@angular/material/chips';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatDividerModule } from '@angular/material/divider';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { MatDialogModule } from '@angular/material/dialog';
 import { RepairService } from '../../services/repair.service';
 import { DossierReparation, Devis, FactureCreateResponse } from '../../models/repair.model';
 import { DevisFormComponent } from './devis-form.component';
@@ -17,6 +21,7 @@ import { FactureFormComponent } from './facture-form.component';
   standalone: true,
   imports: [
     CommonModule,
+    FormsModule,
     MatCardModule,
     MatButtonModule,
     MatIconModule,
@@ -24,6 +29,9 @@ import { FactureFormComponent } from './facture-form.component';
     MatProgressSpinnerModule,
     MatSnackBarModule,
     MatDividerModule,
+    MatFormFieldModule,
+    MatInputModule,
+    MatDialogModule,
     DevisFormComponent,
     FactureFormComponent,
   ],
@@ -81,6 +89,21 @@ import { FactureFormComponent } from './facture-form.component';
               <span class="item-fournisseur">{{ d.fournisseur_nom || d.fournisseur_id }}</span>
               <span class="item-montant">{{ d.montant | number:'1.2-2' }} €</span>
               <span class="devis-statut-badge" [ngClass]="'devis-statut-' + d.statut">{{ devisStatutLabel(d.statut) }}</span>
+              <button mat-stroked-button *ngIf="d.statut === 'en_attente' && dossier.statut === 'ouvert'"
+                (click)="openApprovalForm(d)" [disabled]="approvalLoading" class="approval-btn">
+                <mat-icon>send</mat-icon> Envoyer pour approbation
+              </button>
+            </div>
+            <!-- Inline approval form -->
+            <div class="approval-form" *ngIf="approvalDevis">
+              <mat-form-field appearance="outline" class="approval-email-field">
+                <mat-label>Email du valideur</mat-label>
+                <input matInput [(ngModel)]="approvalEmail" type="email" placeholder="chef@croix-rouge.fr">
+              </mat-form-field>
+              <button mat-raised-button color="primary" (click)="sendForApproval()" [disabled]="approvalLoading || !approvalEmail">
+                <mat-icon>send</mat-icon> Envoyer
+              </button>
+              <button mat-button (click)="approvalDevis = null">Annuler</button>
             </div>
           </div>
 
@@ -132,6 +155,9 @@ import { FactureFormComponent } from './facture-form.component';
     .devis-statut-approuve { background: #e8f5e9; color: #2e7d32; }
     .devis-statut-refuse { background: #ffebee; color: #c62828; }
     .devis-statut-annule { background: #eeeeee; color: #616161; }
+    .approval-btn { margin-left: auto; }
+    .approval-form { display: flex; align-items: center; gap: 12px; padding: 12px 0; flex-wrap: wrap; }
+    .approval-email-field { min-width: 280px; }
   `],
 })
 export class DossierDetailComponent implements OnInit, OnChanges {
@@ -148,6 +174,9 @@ export class DossierDetailComponent implements OnInit, OnChanges {
   actionLoading = false;
   showDevisForm = false;
   showFactureForm = false;
+  approvalDevis: Devis | null = null;
+  approvalEmail = '';
+  approvalLoading = false;
 
   ngOnInit(): void { this.loadDossier(); }
 
@@ -226,6 +255,32 @@ export class DossierDetailComponent implements OnInit, OnChanges {
   onFactureCreated(_facture: FactureCreateResponse): void {
     this.showFactureForm = false;
     this.loadDossier();
+  }
+
+  openApprovalForm(devis: Devis): void {
+    this.approvalDevis = devis;
+    this.approvalEmail = '';
+  }
+
+  sendForApproval(): void {
+    if (!this.approvalDevis || !this.approvalEmail || !this.dossier) return;
+    this.approvalLoading = true;
+    this.repairService.sendApproval(
+      this.dt, this.immat, this.dossier.numero,
+      String(this.approvalDevis.id),
+      { valideur_email: this.approvalEmail }
+    ).subscribe({
+      next: () => {
+        this.approvalLoading = false;
+        this.approvalDevis = null;
+        this.snackBar.open('Devis envoyé pour approbation', 'Fermer', { duration: 5000 });
+        this.loadDossier();
+      },
+      error: () => {
+        this.approvalLoading = false;
+        this.snackBar.open('Erreur lors de l\'envoi pour approbation', 'Fermer', { duration: 5000 });
+      },
+    });
   }
 }
 

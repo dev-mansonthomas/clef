@@ -123,3 +123,64 @@ export interface UpdateFournisseurRequest {
   siret?: string;
 }
 
+// Approbation types
+
+export interface SendApprovalRequest {
+  valideur_email: string;
+}
+
+export interface SendApprovalResponse {
+  token: string;
+  valideur_email: string;
+  expires_at: string;
+  message: string;
+}
+
+export interface ApprobationData {
+  dt: string;
+  immat: string;
+  numero_dossier: string;
+  devis_id: string;
+  devis: Devis;
+  dossier_description: string;
+  valideur_email: string;
+  status: string;
+  created_at: string;
+  expires_at: string;
+}
+
+export interface SubmitDecisionRequest {
+  decision: 'approuve' | 'refuse';
+  commentaire?: string;
+}
+
+export interface SubmitDecisionResponse {
+  decision: string;
+  message: string;
+}
+
+// ========== Dépenses (expenses) ==========
+
+export interface DepenseFacture {
+  date: string;
+  numero_dossier: string;
+  description?: string;
+  fournisseur_nom: string;
+  classification: string;
+  montant_total: number;
+  montant_crf: number;
+}
+
+export interface DepenseYear {
+  year: number;
+  nb_dossiers: number;
+  total_cout: number;
+  total_crf: number;
+  factures: DepenseFacture[];
+}
+
+export interface DepensesResponse {
+  years: DepenseYear[];
+  total_all_years_cout: number;
+  total_all_years_crf: number;
+}
