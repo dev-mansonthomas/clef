@@ -1,4 +1,4 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
@@ -25,41 +25,50 @@ import { ApprobationData } from '../models/repair.model';
         <h1><mat-icon>gavel</mat-icon> Approbation de devis — CLEF</h1>
       </div>
 
-      <div *ngIf="loading" class="loading">
+      @if (loading()) {
+      <div class="loading">
         <mat-spinner diameter="40"></mat-spinner>
         <span>Chargement…</span>
       </div>
+      }
 
-      <div *ngIf="error" class="error-msg">
+      @if (error()) {
+      <div class="error-msg">
         <mat-icon>error</mat-icon>
-        <p>{{ error }}</p>
+        <p>{{ error() }}</p>
       </div>
+      }
 
-      <mat-card *ngIf="data && !loading && !submitted">
+      @if (data() && !loading() && !submitted()) {
+      <mat-card>
         <mat-card-header>
-          <mat-card-title>Devis — {{ data.devis.fournisseur_nom || 'Fournisseur' }}</mat-card-title>
-          <mat-card-subtitle>Dossier {{ data.numero_dossier }} · {{ data.immat }}</mat-card-subtitle>
+          <mat-card-title>Devis — {{ data()!.devis.fournisseur_nom || 'Fournisseur' }}</mat-card-title>
+          <mat-card-subtitle>Dossier {{ data()!.numero_dossier }} · {{ data()!.immat }}</mat-card-subtitle>
         </mat-card-header>
         <mat-card-content>
           <div class="info-grid">
-            <div class="info-item"><strong>Dossier</strong><span>{{ data.dossier_description }}</span></div>
-            <div class="info-item"><strong>Fournisseur</strong><span>{{ data.devis.fournisseur_nom }}</span></div>
-            <div class="info-item"><strong>Description</strong><span>{{ data.devis.description_travaux }}</span></div>
-            <div class="info-item highlight"><strong>Montant</strong><span>{{ data.devis.montant | number:'1.2-2' }} €</span></div>
-            <div class="info-item"><strong>Date du devis</strong><span>{{ data.devis.date_devis | date:'dd/MM/yyyy' }}</span></div>
+            <div class="info-item"><strong>Dossier</strong><span>{{ data()!.dossier_description }}</span></div>
+            <div class="info-item"><strong>Fournisseur</strong><span>{{ data()!.devis.fournisseur_nom }}</span></div>
+            <div class="info-item"><strong>Description</strong><span>{{ data()!.devis.description_travaux }}</span></div>
+            <div class="info-item highlight"><strong>Montant</strong><span>{{ data()!.devis.montant | number:'1.2-2' }} €</span></div>
+            <div class="info-item"><strong>Date du devis</strong><span>{{ data()!.devis.date_devis | date:'dd/MM/yyyy' }}</span></div>
           </div>
 
-          <div *ngIf="data.devis.fichier_drive_url" class="drive-link">
-            <a [href]="data.devis.fichier_drive_url" target="_blank" rel="noopener">
+          @if (data()!.devis.fichier_drive_url) {
+          <div class="drive-link">
+            <a [href]="data()!.devis.fichier_drive_url" target="_blank" rel="noopener">
               <mat-icon>attach_file</mat-icon> Voir le devis sur Google Drive
             </a>
           </div>
+          }
 
-          <div *ngIf="data.status !== 'pending'" class="already-decided">
+          @if (data()!.status !== 'pending') {
+          <div class="already-decided">
             <mat-icon>info</mat-icon>
-            Ce devis a déjà été {{ data.status === 'approuve' ? 'approuvé' : 'refusé' }}.
+            Ce devis a déjà été {{ data()!.status === 'approuve' ? 'approuvé' : 'refusé' }}.
             Vous pouvez modifier votre décision.
           </div>
+          }
 
           <mat-form-field appearance="outline" class="comment-field">
             <mat-label>Commentaire (optionnel)</mat-label>
@@ -67,25 +76,28 @@ import { ApprobationData } from '../models/repair.model';
           </mat-form-field>
 
           <div class="decision-buttons">
-            <button mat-raised-button class="approve-btn" (click)="submitDecision('approuve')" [disabled]="submitting">
+            <button mat-raised-button class="approve-btn" (click)="submitDecision('approuve')" [disabled]="submitting()">
               <mat-icon>check_circle</mat-icon> Approuver
             </button>
-            <button mat-raised-button class="reject-btn" (click)="submitDecision('refuse')" [disabled]="submitting">
+            <button mat-raised-button class="reject-btn" (click)="submitDecision('refuse')" [disabled]="submitting()">
               <mat-icon>cancel</mat-icon> Refuser
             </button>
           </div>
         </mat-card-content>
       </mat-card>
+      }
 
-      <mat-card *ngIf="submitted" class="confirmation-card">
+      @if (submitted()) {
+      <mat-card class="confirmation-card">
         <mat-card-content>
-          <mat-icon class="big-icon" [ngClass]="submittedDecision === 'approuve' ? 'approved' : 'rejected'">
-            {{ submittedDecision === 'approuve' ? 'check_circle' : 'cancel' }}
+          <mat-icon class="big-icon" [ngClass]="submittedDecision() === 'approuve' ? 'approved' : 'rejected'">
+            {{ submittedDecision() === 'approuve' ? 'check_circle' : 'cancel' }}
           </mat-icon>
-          <h2>{{ submittedMessage }}</h2>
+          <h2>{{ submittedMessage() }}</h2>
           <p>Vous pouvez fermer cette page.</p>
         </mat-card-content>
       </mat-card>
+      }
     </div>
   `,
   styles: [`
@@ -114,42 +126,42 @@ export class ApprobationPageComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly repairService = inject(RepairService);
 
-  data: ApprobationData | null = null;
-  loading = true;
-  error: string | null = null;
+  data = signal<ApprobationData | null>(null);
+  loading = signal(true);
+  error = signal<string | null>(null);
   commentaire = '';
-  submitting = false;
-  submitted = false;
-  submittedDecision = '';
-  submittedMessage = '';
+  submitting = signal(false);
+  submitted = signal(false);
+  submittedDecision = signal('');
+  submittedMessage = signal('');
 
   ngOnInit(): void {
     const token = this.route.snapshot.paramMap.get('token');
     if (!token) {
-      this.error = 'Token manquant';
-      this.loading = false;
+      this.error.set('Token manquant');
+      this.loading.set(false);
       return;
     }
     this.repairService.getApprobationData(token).subscribe({
-      next: (data) => { this.data = data; this.loading = false; },
-      error: () => { this.error = 'Token invalide ou expiré'; this.loading = false; },
+      next: (data) => { this.data.set(data); this.loading.set(false); },
+      error: () => { this.error.set('Token invalide ou expiré'); this.loading.set(false); },
     });
   }
 
   submitDecision(decision: 'approuve' | 'refuse'): void {
     const token = this.route.snapshot.paramMap.get('token');
     if (!token) return;
-    this.submitting = true;
+    this.submitting.set(true);
     this.repairService.submitDecision(token, { decision, commentaire: this.commentaire || undefined }).subscribe({
       next: (res) => {
-        this.submitting = false;
-        this.submitted = true;
-        this.submittedDecision = decision;
-        this.submittedMessage = res.message;
+        this.submitting.set(false);
+        this.submitted.set(true);
+        this.submittedDecision.set(decision);
+        this.submittedMessage.set(res.message);
       },
       error: (err) => {
-        this.submitting = false;
-        this.error = err?.error?.detail || 'Erreur lors de la soumission de la décision';
+        this.submitting.set(false);
+        this.error.set(err?.error?.detail || 'Erreur lors de la soumission de la décision');
       },
     });
   }

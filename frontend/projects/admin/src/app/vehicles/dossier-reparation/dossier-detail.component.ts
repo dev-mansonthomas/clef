@@ -38,7 +38,7 @@ import { FactureFormComponent } from './facture-form.component';
   template: `
     <div class="dossier-detail" *ngIf="!loading && dossier">
       <div class="detail-header">
-        <button mat-button (click)="back.emit()"><mat-icon>arrow_back</mat-icon> Retour à la liste</button>
+        <button mat-button type="button" (click)="back.emit()"><mat-icon>arrow_back</mat-icon> Retour à la liste</button>
       </div>
 
       <mat-card>
@@ -57,22 +57,22 @@ import { FactureFormComponent } from './facture-form.component';
           <mat-divider></mat-divider>
 
           <div class="action-buttons">
-            <button mat-raised-button (click)="showDevisForm = true" [disabled]="dossier.statut !== 'ouvert' || showDevisForm">
+            <button mat-raised-button type="button" (click)="showDevisForm = true" [disabled]="dossier.statut !== 'ouvert' || showDevisForm">
               <mat-icon>request_quote</mat-icon> Enregistrer un devis
             </button>
-            <button mat-raised-button (click)="showFactureForm = true" [disabled]="dossier.statut !== 'ouvert' || showFactureForm">
+            <button mat-raised-button type="button" (click)="showFactureForm = true" [disabled]="dossier.statut !== 'ouvert' || showFactureForm">
               <mat-icon>receipt</mat-icon> Enregistrer une facture
             </button>
           </div>
 
           <div class="action-buttons">
-            <button mat-stroked-button *ngIf="dossier.statut === 'ouvert'" (click)="updateStatut('cloture')" [disabled]="actionLoading">
+            <button mat-stroked-button type="button" *ngIf="dossier.statut === 'ouvert'" (click)="updateStatut('cloture')" [disabled]="actionLoading">
               <mat-icon>lock</mat-icon> Clôturer le dossier
             </button>
-            <button mat-stroked-button *ngIf="dossier.statut === 'cloture'" (click)="updateStatut('ouvert')" [disabled]="actionLoading">
+            <button mat-stroked-button type="button" *ngIf="dossier.statut === 'cloture'" (click)="updateStatut('ouvert')" [disabled]="actionLoading">
               <mat-icon>lock_open</mat-icon> Réouvrir le dossier
             </button>
-            <button mat-stroked-button color="warn" *ngIf="dossier.statut === 'ouvert'" (click)="updateStatut('annule')" [disabled]="actionLoading">
+            <button mat-stroked-button type="button" color="warn" *ngIf="dossier.statut === 'ouvert'" (click)="updateStatut('annule')" [disabled]="actionLoading">
               <mat-icon>cancel</mat-icon> Annuler le dossier
             </button>
           </div>
@@ -89,7 +89,7 @@ import { FactureFormComponent } from './facture-form.component';
               <span class="item-fournisseur">{{ d.fournisseur_nom || d.fournisseur_id }}</span>
               <span class="item-montant">{{ d.montant | number:'1.2-2' }} €</span>
               <span class="devis-statut-badge" [ngClass]="'devis-statut-' + d.statut">{{ devisStatutLabel(d.statut) }}</span>
-              <button mat-stroked-button *ngIf="d.statut === 'en_attente' && dossier.statut === 'ouvert'"
+              <button mat-stroked-button type="button" *ngIf="d.statut === 'en_attente' && dossier.statut === 'ouvert'"
                 (click)="openApprovalForm(d)" [disabled]="approvalLoading" class="approval-btn">
                 <mat-icon>send</mat-icon> Envoyer pour approbation
               </button>
@@ -100,10 +100,10 @@ import { FactureFormComponent } from './facture-form.component';
                 <mat-label>Email du valideur</mat-label>
                 <input matInput [(ngModel)]="approvalEmail" type="email" placeholder="chef@croix-rouge.fr">
               </mat-form-field>
-              <button mat-raised-button color="primary" (click)="sendForApproval()" [disabled]="approvalLoading || !approvalEmail">
+              <button mat-raised-button color="primary" type="button" (click)="sendForApproval()" [disabled]="approvalLoading || !approvalEmail">
                 <mat-icon>send</mat-icon> Envoyer
               </button>
-              <button mat-button (click)="approvalDevis = null">Annuler</button>
+              <button mat-button type="button" (click)="approvalDevis = null">Annuler</button>
             </div>
           </div>
 

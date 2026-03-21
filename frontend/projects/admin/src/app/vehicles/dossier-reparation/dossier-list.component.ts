@@ -23,7 +23,7 @@ import { DossierReparation } from '../../models/repair.model';
     <div class="dossier-list">
       <div class="dossier-list-header">
         <h3>Dossiers de réparation</h3>
-        <button mat-raised-button color="primary" (click)="showCreate.emit()">
+        <button mat-raised-button color="primary" type="button" (click)="showCreate.emit()">
           <mat-icon>add</mat-icon> Nouveau Dossier Réparation
         </button>
       </div>
