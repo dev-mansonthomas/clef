@@ -249,3 +249,76 @@ class FactureResponse(BaseModel):
     warning_devis_not_approved: bool = Field(default=False, description="Le devis référencé n'est pas approuvé")
     warning_ecart: bool = Field(default=False, description="Écart > 20% entre devis et facture")
     ecart_pourcentage: Optional[float] = Field(None, description="Pourcentage d'écart devis/facture")
+
+
+# ========== Approbation request/response models ==========
+
+
+class SendApprovalRequest(BaseModel):
+    """Request body for sending a devis for approval."""
+    valideur_email: str = Field(..., description="Email du valideur")
+
+
+class SendApprovalResponse(BaseModel):
+    """Response after sending a devis for approval."""
+    token: str = Field(..., description="Token d'approbation")
+    valideur_email: str = Field(..., description="Email du valideur")
+    expires_at: str = Field(..., description="Date d'expiration du token")
+    message: str = Field(default="Devis envoyé pour approbation", description="Message de confirmation")
+
+
+class ApprobationDataResponse(BaseModel):
+    """Response for GET /api/approbation/{token} — devis data for approval page."""
+    dt: str = Field(..., description="Identifiant DT")
+    immat: str = Field(..., description="Immatriculation du véhicule")
+    numero_dossier: str = Field(..., description="Numéro du dossier")
+    devis_id: str = Field(..., description="UUID du devis")
+    devis: Devis = Field(..., description="Données du devis")
+    dossier_description: str = Field(..., description="Description du dossier")
+    valideur_email: str = Field(..., description="Email du valideur")
+    status: str = Field(..., description="Statut du token: pending, approuve, refuse")
+    created_at: str = Field(..., description="Date de création du token")
+    expires_at: str = Field(..., description="Date d'expiration du token")
+
+
+class SubmitDecisionRequest(BaseModel):
+    """Request body for submitting an approval decision."""
+    decision: str = Field(..., pattern="^(approuve|refuse)$", description="Décision: approuve ou refuse")
+    commentaire: Optional[str] = Field(None, description="Commentaire optionnel")
+
+
+class SubmitDecisionResponse(BaseModel):
+    """Response after submitting an approval decision."""
+    decision: str = Field(..., description="Décision prise")
+    message: str = Field(..., description="Message de confirmation")
+
+
+# ========== Dépenses (expenses) response models ==========
+
+
+class DepenseFacture(BaseModel):
+    """A single facture entry in the depenses response."""
+    date_facture: date = Field(..., alias="date", description="Date de la facture")
+    model_config = ConfigDict(populate_by_name=True)
+    numero_dossier: str = Field(..., description="Numéro du dossier de réparation")
+    description: Optional[str] = Field(None, description="Description des travaux")
+    fournisseur_nom: str = Field(..., description="Nom du fournisseur")
+    classification: str = Field(..., description="Classification comptable")
+    montant_total: float = Field(..., description="Montant total TTC")
+    montant_crf: float = Field(..., description="Montant à charge CRF")
+
+
+class DepenseYear(BaseModel):
+    """Aggregated expenses for a single year."""
+    year: int = Field(..., description="Année")
+    nb_dossiers: int = Field(..., description="Nombre de dossiers avec factures cette année")
+    total_cout: float = Field(..., description="Total coût TTC pour l'année")
+    total_crf: float = Field(..., description="Total coût CRF pour l'année")
+    factures: List[DepenseFacture] = Field(default_factory=list, description="Factures de l'année")
+
+
+class DepensesResponse(BaseModel):
+    """Full response for vehicle expenses endpoint."""
+    years: List[DepenseYear] = Field(default_factory=list, description="Dépenses groupées par année")
+    total_all_years_cout: float = Field(default=0.0, description="Total coût TTC toutes années")
+    total_all_years_crf: float = Field(default=0.0, description="Total coût CRF toutes années")

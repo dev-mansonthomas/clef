@@ -1584,6 +1584,67 @@ class ValkeyService:
             return None
         return Facture(**data)
 
+    # ========== Dépenses (Expenses) ==========
+
+    async def get_vehicle_depenses(self, immat: str) -> dict:
+        """
+        Aggregate all factures across all dossiers for a vehicle,
+        grouped by year, sorted by date.
+
+        Returns a dict matching DepensesResponse structure.
+        """
+        from collections import defaultdict
+
+        dossiers = await self.list_dossiers_reparation(immat)
+
+        # Collect all factures with their dossier numero
+        year_data: dict[int, dict] = defaultdict(lambda: {
+            "factures": [],
+            "dossier_numeros": set(),
+            "total_cout": 0.0,
+            "total_crf": 0.0,
+        })
+        total_cout = 0.0
+        total_crf = 0.0
+
+        for dossier in dossiers:
+            for facture in dossier.factures:
+                year = facture.date_facture.year
+                entry = year_data[year]
+                entry["factures"].append({
+                    "date": facture.date_facture.isoformat(),
+                    "numero_dossier": dossier.numero,
+                    "description": facture.description,
+                    "fournisseur_nom": facture.fournisseur.nom,
+                    "classification": facture.classification.value if hasattr(facture.classification, 'value') else facture.classification,
+                    "montant_total": facture.montant_total,
+                    "montant_crf": facture.montant_crf,
+                })
+                entry["dossier_numeros"].add(dossier.numero)
+                entry["total_cout"] += facture.montant_total
+                entry["total_crf"] += facture.montant_crf
+                total_cout += facture.montant_total
+                total_crf += facture.montant_crf
+
+        # Build response sorted by year descending, factures by date
+        years = []
+        for year in sorted(year_data.keys(), reverse=True):
+            data = year_data[year]
+            sorted_factures = sorted(data["factures"], key=lambda f: f["date"])
+            years.append({
+                "year": year,
+                "nb_dossiers": len(data["dossier_numeros"]),
+                "total_cout": round(data["total_cout"], 2),
+                "total_crf": round(data["total_crf"], 2),
+                "factures": sorted_factures,
+            })
+
+        return {
+            "years": years,
+            "total_all_years_cout": round(total_cout, 2),
+            "total_all_years_crf": round(total_crf, 2),
+        }
+
     # ========== Fournisseurs ==========
 
     async def set_fournisseur(self, fournisseur: Fournisseur) -> bool:

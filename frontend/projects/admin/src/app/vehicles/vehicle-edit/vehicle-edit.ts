@@ -21,6 +21,7 @@ import { UniteLocaleService } from '../../services/unite-locale.service';
 import { DossierListComponent } from '../dossier-reparation/dossier-list.component';
 import { DossierCreateComponent } from '../dossier-reparation/dossier-create.component';
 import { DossierDetailComponent } from '../dossier-reparation/dossier-detail.component';
+import { DepensesTabComponent } from '../dossier-reparation/depenses-tab.component';
 import {
   ManagedVehicleDocumentType,
   Vehicle,
@@ -52,6 +53,7 @@ import {
     DossierListComponent,
     DossierCreateComponent,
     DossierDetailComponent,
+    DepensesTabComponent,
   ],
   templateUrl: './vehicle-edit.html',
   styleUrl: './vehicle-edit.scss',

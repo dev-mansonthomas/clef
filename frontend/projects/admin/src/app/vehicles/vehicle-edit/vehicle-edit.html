@@ -264,6 +264,19 @@
         </div>
       </mat-tab>
 
+      <mat-tab>
+        <ng-template mat-tab-label>
+          <mat-icon class="tab-icon">payments</mat-icon>
+          <span>Dépenses</span>
+        </ng-template>
+        <div class="tab-content">
+          <app-depenses-tab
+            [dt]="vehicle?.dt_ul || ''"
+            [immat]="vehicle?.immat || ''">
+          </app-depenses-tab>
+        </div>
+      </mat-tab>
+
       <mat-tab *ngFor="let tab of secondaryTabs">
         <ng-template mat-tab-label>
           <mat-icon class="tab-icon" [class.inactive]="getTabIcon(tab.type) === 'folder'">{{ getTabIcon(tab.type) }}</mat-icon>
