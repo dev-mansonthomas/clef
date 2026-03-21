@@ -156,3 +156,55 @@ class DossierReparation(BaseModel):
     devis: List[Devis] = Field(default_factory=list, description="Devis associés")
     factures: List[Facture] = Field(default_factory=list, description="Factures associées")
 
+
+
+
+# ========== Request / Response models for API ==========
+
+
+class DossierReparationCreate(BaseModel):
+    """Request body for creating a new dossier de réparation."""
+    description: str = Field(..., min_length=1, description="Description des travaux")
+
+
+class DossierReparationUpdate(BaseModel):
+    """Request body for updating a dossier de réparation (description, close, reopen, cancel)."""
+    description: Optional[str] = Field(None, description="Nouvelle description")
+    statut: Optional[StatutDossier] = Field(None, description="Nouveau statut (cloture, ouvert, annule)")
+
+
+class DossierReparationListResponse(BaseModel):
+    """Response for listing dossiers de réparation."""
+    count: int = Field(..., description="Nombre de dossiers")
+    dossiers: List[DossierReparation] = Field(default_factory=list, description="Liste des dossiers")
+
+
+
+class FournisseurCreate(BaseModel):
+    """Request body for creating a new fournisseur."""
+    nom: str = Field(..., min_length=1, description="Nom du fournisseur")
+    adresse: Optional[str] = Field(None, description="Adresse")
+    telephone: Optional[str] = Field(None, description="Téléphone")
+    siret: Optional[str] = Field(None, description="Numéro SIRET")
+    email: Optional[str] = Field(None, description="Email de contact")
+    contact_nom: Optional[str] = Field(None, description="Nom du contact")
+    specialites: List[str] = Field(default_factory=list, description="Spécialités")
+    niveau: NiveauFournisseur = Field(..., description="Niveau: dt ou ul")
+    ul_id: Optional[str] = Field(None, description="ID de l'UL (requis si niveau=ul)")
+
+
+class FournisseurUpdate(BaseModel):
+    """Request body for updating a fournisseur."""
+    nom: Optional[str] = Field(None, min_length=1, description="Nom du fournisseur")
+    adresse: Optional[str] = Field(None, description="Adresse")
+    telephone: Optional[str] = Field(None, description="Téléphone")
+    siret: Optional[str] = Field(None, description="Numéro SIRET")
+    email: Optional[str] = Field(None, description="Email de contact")
+    contact_nom: Optional[str] = Field(None, description="Nom du contact")
+    specialites: Optional[List[str]] = Field(None, description="Spécialités")
+
+
+class FournisseurListResponse(BaseModel):
+    """Response for listing fournisseurs."""
+    count: int = Field(..., description="Nombre de fournisseurs")
+    fournisseurs: List[Fournisseur] = Field(default_factory=list, description="Liste des fournisseurs")
