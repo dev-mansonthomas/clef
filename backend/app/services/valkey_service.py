@@ -9,7 +9,8 @@ from app.models.valkey_models import VehicleData, BenevoleData, ResponsableData,
 from app.models.reservation import ValkeyReservation, ValkeyReservationCreate
 from app.models.repair_models import (
     DossierReparation, Devis, Facture, Fournisseur, HistoriqueEntry,
-    StatutDossier, ActionHistorique
+    FournisseurSnapshot,
+    StatutDossier, StatutDevis, ActionHistorique
 )
 
 logger = logging.getLogger(__name__)
@@ -1397,6 +1398,191 @@ class ValkeyService:
         if not data:
             return []
         return [HistoriqueEntry(**entry) for entry in data]
+
+    # ========== Devis ==========
+
+    async def add_devis(
+        self, immat: str, numero_dossier: str, devis_data: dict
+    ) -> "Devis":
+        """
+        Add a devis to a dossier. Auto-increment devis ID within the dossier.
+
+        Args:
+            immat: Vehicle license plate
+            numero_dossier: Dossier number
+            devis_data: Devis data dict (date_devis, fournisseur_id, fournisseur_nom, etc.)
+
+        Returns:
+            Created Devis object
+        """
+        # Auto-increment devis counter for this dossier
+        counter_key = self._key("vehicules", immat, "travaux", numero_dossier, "devis", "counter")
+        devis_id = str(await self.redis.incr(counter_key))
+
+        # Build fournisseur snapshot
+        fournisseur_snapshot = FournisseurSnapshot(
+            id=devis_data["fournisseur_id"],
+            nom=devis_data["fournisseur_nom"],
+        )
+
+        devis = Devis(
+            id=devis_id,
+            date_devis=devis_data["date_devis"],
+            fournisseur=fournisseur_snapshot,
+            description=devis_data.get("description_travaux"),
+            montant=devis_data["montant"],
+            statut=StatutDevis.EN_ATTENTE,
+            cree_par=devis_data["cree_par"],
+            cree_le=datetime.utcnow(),
+        )
+
+        # Store devis at its own key
+        devis_key = self._key("vehicules", immat, "travaux", numero_dossier, "devis", devis_id)
+        await self.redis.json().set(devis_key, "$", devis.model_dump(mode="json"))
+
+        # Update the dossier's devis list
+        dossier = await self.get_dossier_reparation(immat, numero_dossier)
+        if dossier:
+            dossier.devis.append(devis)
+            await self.update_dossier_reparation(immat, numero_dossier, dossier)
+
+        # Add history entry
+        await self.add_historique_entry(
+            immat=immat,
+            numero=numero_dossier,
+            entry=HistoriqueEntry(
+                auteur=devis_data["cree_par"],
+                action=ActionHistorique.DEVIS_AJOUTE,
+                details=f"Devis #{devis_id} - {devis_data['fournisseur_nom']} - {devis_data['montant']}€",
+                ref=devis_key,
+            ),
+        )
+
+        logger.info(f"Added devis {devis_id} to dossier {numero_dossier}")
+        return devis
+
+    async def get_devis(
+        self, immat: str, numero_dossier: str, devis_id: str
+    ) -> Optional["Devis"]:
+        """Get a specific devis."""
+        devis_key = self._key("vehicules", immat, "travaux", numero_dossier, "devis", devis_id)
+        data = await self.redis.json().get(devis_key)
+        if not data:
+            return None
+        return Devis(**data)
+
+    async def update_devis(
+        self, immat: str, numero_dossier: str, devis_id: str, data: dict
+    ) -> Optional["Devis"]:
+        """
+        Update a devis (e.g. status change).
+
+        Args:
+            immat: Vehicle license plate
+            numero_dossier: Dossier number
+            devis_id: Devis ID
+            data: Dict of fields to update (e.g. {"statut": "approuve"})
+
+        Returns:
+            Updated Devis or None if not found
+        """
+        devis = await self.get_devis(immat, numero_dossier, devis_id)
+        if not devis:
+            return None
+
+        # Apply updates
+        for field, value in data.items():
+            if hasattr(devis, field):
+                setattr(devis, field, value)
+
+        # Save updated devis
+        devis_key = self._key("vehicules", immat, "travaux", numero_dossier, "devis", devis_id)
+        await self.redis.json().set(devis_key, "$", devis.model_dump(mode="json"))
+
+        # Also update in the dossier's devis list
+        dossier = await self.get_dossier_reparation(immat, numero_dossier)
+        if dossier:
+            for i, d in enumerate(dossier.devis):
+                if d.id == devis_id:
+                    dossier.devis[i] = devis
+                    break
+            await self.update_dossier_reparation(immat, numero_dossier, dossier)
+
+        return devis
+
+    # ========== Factures ==========
+
+    async def add_facture(
+        self, immat: str, numero_dossier: str, facture_data: dict
+    ) -> "Facture":
+        """
+        Add a facture to a dossier. Auto-increment facture ID.
+
+        Args:
+            immat: Vehicle license plate
+            numero_dossier: Dossier number
+            facture_data: Facture data dict
+
+        Returns:
+            Created Facture object
+        """
+        # Auto-increment facture counter for this dossier
+        counter_key = self._key("vehicules", immat, "travaux", numero_dossier, "factures", "counter")
+        facture_id = str(await self.redis.incr(counter_key))
+
+        # Build fournisseur snapshot
+        fournisseur_snapshot = FournisseurSnapshot(
+            id=facture_data["fournisseur_id"],
+            nom=facture_data["fournisseur_nom"],
+        )
+
+        facture = Facture(
+            id=facture_id,
+            date_facture=facture_data["date_facture"],
+            fournisseur=fournisseur_snapshot,
+            classification=facture_data["classification"],
+            description=facture_data.get("description_travaux"),
+            montant_total=facture_data["montant_total"],
+            montant_crf=facture_data["montant_crf"],
+            devis_id=facture_data.get("devis_id"),
+            cree_par=facture_data["cree_par"],
+            cree_le=datetime.utcnow(),
+        )
+
+        # Store facture at its own key
+        facture_key = self._key("vehicules", immat, "travaux", numero_dossier, "factures", facture_id)
+        await self.redis.json().set(facture_key, "$", facture.model_dump(mode="json"))
+
+        # Update the dossier's factures list
+        dossier = await self.get_dossier_reparation(immat, numero_dossier)
+        if dossier:
+            dossier.factures.append(facture)
+            await self.update_dossier_reparation(immat, numero_dossier, dossier)
+
+        # Add history entry
+        await self.add_historique_entry(
+            immat=immat,
+            numero=numero_dossier,
+            entry=HistoriqueEntry(
+                auteur=facture_data["cree_par"],
+                action=ActionHistorique.FACTURE_AJOUTEE,
+                details=f"Facture #{facture_id} - {facture_data['fournisseur_nom']} - {facture_data['montant_total']}€ TTC",
+                ref=facture_key,
+            ),
+        )
+
+        logger.info(f"Added facture {facture_id} to dossier {numero_dossier}")
+        return facture
+
+    async def get_facture(
+        self, immat: str, numero_dossier: str, facture_id: str
+    ) -> Optional["Facture"]:
+        """Get a specific facture."""
+        facture_key = self._key("vehicules", immat, "travaux", numero_dossier, "factures", facture_id)
+        data = await self.redis.json().get(facture_key)
+        if not data:
+            return None
+        return Facture(**data)
 
     # ========== Fournisseurs ==========
 

@@ -208,3 +208,44 @@ class FournisseurListResponse(BaseModel):
     """Response for listing fournisseurs."""
     count: int = Field(..., description="Nombre de fournisseurs")
     fournisseurs: List[Fournisseur] = Field(default_factory=list, description="Liste des fournisseurs")
+
+
+# ========== Devis request/response models ==========
+
+
+class DevisCreate(BaseModel):
+    """Request body for creating a new devis."""
+    date_devis: date = Field(..., description="Date du devis")
+    fournisseur_id: str = Field(..., description="UUID du fournisseur")
+    fournisseur_nom: str = Field(..., description="Nom du fournisseur")
+    description_travaux: Optional[str] = Field(None, description="Description des travaux")
+    montant: float = Field(..., gt=0, description="Montant du devis en euros TTC")
+
+
+class DevisUpdate(BaseModel):
+    """Request body for updating a devis (status change)."""
+    statut: StatutDevis = Field(..., description="Nouveau statut du devis")
+
+
+# ========== Facture request/response models ==========
+
+
+class FactureCreate(BaseModel):
+    """Request body for creating a new facture."""
+    date_facture: date = Field(..., description="Date de la facture")
+    fournisseur_id: str = Field(..., description="UUID du fournisseur")
+    fournisseur_nom: str = Field(..., description="Nom du fournisseur")
+    classification: ClassificationComptable = Field(..., description="Classification comptable")
+    description_travaux: Optional[str] = Field(None, description="Description des travaux")
+    montant_total: float = Field(..., gt=0, description="Montant total TTC en euros")
+    montant_crf: float = Field(..., gt=0, description="Montant à charge CRF TTC en euros")
+    devis_id: Optional[str] = Field(None, description="UUID du devis associé (optionnel)")
+
+
+class FactureResponse(BaseModel):
+    """Response for facture creation with optional warnings."""
+    facture: Facture = Field(..., description="La facture créée")
+    warning_no_devis: bool = Field(default=False, description="Aucun devis approuvé trouvé")
+    warning_devis_not_approved: bool = Field(default=False, description="Le devis référencé n'est pas approuvé")
+    warning_ecart: bool = Field(default=False, description="Écart > 20% entre devis et facture")
+    ecart_pourcentage: Optional[float] = Field(None, description="Pourcentage d'écart devis/facture")
