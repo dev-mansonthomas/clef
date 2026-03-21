@@ -85,6 +85,7 @@ export class VehicleEdit implements OnInit {
   // Dossier réparation state
   selectedDossierNumero: string | null = null;
   showDossierCreate = false;
+  dossierListRefreshCounter = 0;
 
   // DT/UL dropdown options
   dtUlOptions: string[] = [];
@@ -577,6 +578,7 @@ export class VehicleEdit implements OnInit {
 
   onDossierCreated(): void {
     this.showDossierCreate = false;
+    this.dossierListRefreshCounter++;
   }
 
   onDossierCreateCancelled(): void {

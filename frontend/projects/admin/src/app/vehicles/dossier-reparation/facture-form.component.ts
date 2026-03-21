@@ -46,7 +46,7 @@ import { FournisseurSelectorComponent } from '../shared/fournisseur-selector.com
           <mat-icon>warning</mat-icon> Écart de {{ ecartPourcentage }}% entre le devis et la facture
         </div>
 
-        <form [formGroup]="form" (ngSubmit)="onSubmit()">
+        <form [formGroup]="form" (ngSubmit)="onSubmit()" (submit)="$event.stopPropagation()">
           <mat-form-field appearance="outline" class="full-width">
             <mat-label>Date de la facture</mat-label>
             <input matInput [matDatepicker]="picker" formControlName="date_facture">

@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, OnInit, inject } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
@@ -79,9 +79,10 @@ import { DossierReparation } from '../../models/repair.model';
     .small-icon { font-size: 16px; width: 16px; height: 16px; vertical-align: middle; margin-right: 2px; }
   `],
 })
-export class DossierListComponent implements OnInit {
+export class DossierListComponent implements OnInit, OnChanges {
   @Input() dt!: string;
   @Input() immat!: string;
+  @Input() refreshTrigger = 0;
   @Output() dossierSelected = new EventEmitter<string>();
   @Output() showCreate = new EventEmitter<void>();
 
@@ -91,6 +92,12 @@ export class DossierListComponent implements OnInit {
 
   ngOnInit(): void {
     this.loadDossiers();
+  }
+
+  ngOnChanges(changes: SimpleChanges): void {
+    if (changes['refreshTrigger'] && !changes['refreshTrigger'].firstChange) {
+      this.loadDossiers();
+    }
   }
 
   loadDossiers(): void {

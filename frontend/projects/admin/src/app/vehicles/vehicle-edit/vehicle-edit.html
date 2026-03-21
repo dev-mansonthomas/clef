@@ -248,16 +248,17 @@
             (cancelled)="onDossierCreateCancelled()">
           </app-dossier-create>
           <app-dossier-detail
-            *ngIf="selectedDossierNumero"
+            *ngIf="!showDossierCreate && selectedDossierNumero"
             [dt]="vehicle?.dt_ul || ''"
             [immat]="vehicle?.immat || ''"
             [numero]="selectedDossierNumero"
             (back)="onBackToList()">
           </app-dossier-detail>
           <app-dossier-list
-            *ngIf="!selectedDossierNumero"
+            *ngIf="!showDossierCreate && !selectedDossierNumero"
             [dt]="vehicle?.dt_ul || ''"
             [immat]="vehicle?.immat || ''"
+            [refreshTrigger]="dossierListRefreshCounter"
             (dossierSelected)="onDossierSelected($event)"
             (showCreate)="onShowDossierCreate()">
           </app-dossier-list>

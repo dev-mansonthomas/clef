@@ -31,7 +31,7 @@ import { DossierReparation } from '../../models/repair.model';
         <mat-card-title>Nouveau dossier de réparation</mat-card-title>
       </mat-card-header>
       <mat-card-content>
-        <form [formGroup]="form" (ngSubmit)="onSubmit()">
+        <form [formGroup]="form" (ngSubmit)="onSubmit()" (submit)="$event.stopPropagation()">
           <mat-form-field appearance="outline" class="full-width">
             <mat-label>Description des travaux</mat-label>
             <textarea matInput formControlName="description" rows="4" placeholder="Décrivez les réparations nécessaires…"></textarea>

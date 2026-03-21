@@ -37,7 +37,7 @@ import { FournisseurSelectorComponent } from '../shared/fournisseur-selector.com
         <mat-card-title>Nouveau devis</mat-card-title>
       </mat-card-header>
       <mat-card-content>
-        <form [formGroup]="form" (ngSubmit)="onSubmit()">
+        <form [formGroup]="form" (ngSubmit)="onSubmit()" (submit)="$event.stopPropagation()">
           <mat-form-field appearance="outline" class="full-width">
             <mat-label>Date du devis</mat-label>
             <input matInput [matDatepicker]="picker" formControlName="date_devis">
