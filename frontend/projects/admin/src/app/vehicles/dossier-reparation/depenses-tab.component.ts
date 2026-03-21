@@ -1,4 +1,4 @@
-import { Component, Input, OnInit, OnChanges, SimpleChanges, inject, ViewChild, ElementRef } from '@angular/core';
+import { Component, Input, OnInit, OnChanges, SimpleChanges, inject, ViewChild, ElementRef, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
@@ -149,6 +149,7 @@ export class DepensesTabComponent implements OnInit, OnChanges {
 
   private readonly repairService = inject(RepairService);
   private readonly router = inject(Router);
+  private readonly cdr = inject(ChangeDetectorRef);
 
   loading = false;
   depenses: DepensesResponse | null = null;
@@ -174,10 +175,12 @@ export class DepensesTabComponent implements OnInit, OnChanges {
         this.depenses = data;
         this.totalDossiers = data.years.reduce((sum, y) => sum + y.nb_dossiers, 0);
         this.loading = false;
+        this.cdr.detectChanges();
         setTimeout(() => this.buildChart(), 100);
       },
       error: () => {
         this.loading = false;
+        this.cdr.detectChanges();
       },
     });
   }

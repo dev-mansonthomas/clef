@@ -42,21 +42,21 @@ import { ApprobationData } from '../models/repair.model';
       @if (data() && !loading() && !submitted()) {
       <mat-card>
         <mat-card-header>
-          <mat-card-title>Devis — {{ data()!.devis.fournisseur_nom || 'Fournisseur' }}</mat-card-title>
+          <mat-card-title>Devis — {{ data()!.devis.fournisseur?.nom || 'Fournisseur' }}</mat-card-title>
           <mat-card-subtitle>Dossier {{ data()!.numero_dossier }} · {{ data()!.immat }}</mat-card-subtitle>
         </mat-card-header>
         <mat-card-content>
           <div class="info-grid">
             <div class="info-item"><strong>Dossier</strong><span>{{ data()!.dossier_description }}</span></div>
-            <div class="info-item"><strong>Fournisseur</strong><span>{{ data()!.devis.fournisseur_nom }}</span></div>
-            <div class="info-item"><strong>Description</strong><span>{{ data()!.devis.description_travaux }}</span></div>
+            <div class="info-item"><strong>Fournisseur</strong><span>{{ data()!.devis.fournisseur?.nom }}</span></div>
+            <div class="info-item"><strong>Description</strong><span>{{ data()!.devis.description }}</span></div>
             <div class="info-item highlight"><strong>Montant</strong><span>{{ data()!.devis.montant | number:'1.2-2' }} €</span></div>
             <div class="info-item"><strong>Date du devis</strong><span>{{ data()!.devis.date_devis | date:'dd/MM/yyyy' }}</span></div>
           </div>
 
-          @if (data()!.devis.fichier_drive_url) {
+          @if (data()!.devis.fichier?.web_view_link) {
           <div class="drive-link">
-            <a [href]="data()!.devis.fichier_drive_url" target="_blank" rel="noopener">
+            <a [href]="data()!.devis.fichier!.web_view_link" target="_blank" rel="noopener">
               <mat-icon>attach_file</mat-icon> Voir le devis sur Google Drive
             </a>
           </div>

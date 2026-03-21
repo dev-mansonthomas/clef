@@ -2,43 +2,64 @@
  * Repair dossier models matching backend API structure
  */
 
+export interface FichierDrive {
+  file_id: string;
+  name: string;
+  web_view_link: string;
+}
+
+export interface FournisseurSnapshot {
+  id: string;
+  nom: string;
+  adresse?: string;
+  telephone?: string;
+  siret?: string;
+  email?: string;
+}
+
 export interface DossierReparation {
   numero: string;  // REP-2026-001
+  immat: string;
+  dt: string;
   description: string;
   statut: 'ouvert' | 'cloture' | 'annule';
-  date_creation: string;
-  photos?: string[];
-  sinistre_ref?: string;
+  cree_par: string;
+  cree_le: string;
+  cloture_le?: string;
+  photos?: FichierDrive[];
+  sinistre_id?: string;
   devis: Devis[];
   factures: Facture[];
 }
 
 export interface Devis {
-  id: number;
+  id: string;
   date_devis: string;
-  fournisseur_id: string;
-  fournisseur_nom?: string;
-  description_travaux: string;
+  fournisseur: FournisseurSnapshot;
+  description?: string;
   montant: number;
   statut: 'en_attente' | 'envoye' | 'approuve' | 'refuse' | 'annule';
+  fichier?: FichierDrive;
   valideur_email?: string;
+  valideur_commentaire?: string;
+  date_envoi_approbation?: string;
   date_decision?: string;
-  fichier_drive_id?: string;
-  fichier_drive_url?: string;
+  cree_par: string;
+  cree_le: string;
 }
 
 export interface Facture {
-  id: number;
+  id: string;
   date_facture: string;
-  fournisseur_id: string;
-  fournisseur_nom?: string;
+  fournisseur: FournisseurSnapshot;
   classification: string;
-  description_travaux: string;
+  description?: string;
   montant_total: number;
   montant_crf: number;
-  devis_id?: number;
-  fichier_drive_id?: string;
-  fichier_drive_url?: string;
+  fichier?: FichierDrive;
+  devis_id?: string;
+  cree_par: string;
+  cree_le: string;
 }
 
 export interface Fournisseur {
@@ -62,12 +83,12 @@ export interface AuditEntry {
 
 export interface DossierListResponse {
   dossiers: DossierReparation[];
-  total: number;
+  count: number;
 }
 
 export interface FournisseurListResponse {
   fournisseurs: Fournisseur[];
-  total: number;
+  count: number;
 }
 
 // Request types
@@ -96,7 +117,7 @@ export interface CreateFactureRequest {
   description_travaux: string;
   montant_total: number;
   montant_crf: number;
-  devis_id?: number;
+  devis_id?: string;
 }
 
 export interface FactureCreateResponse extends Facture {

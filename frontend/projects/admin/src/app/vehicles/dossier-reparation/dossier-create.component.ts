@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, inject } from '@angular/core';
+import { Component, Input, Output, EventEmitter, inject, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
@@ -66,6 +66,7 @@ export class DossierCreateComponent {
   private readonly fb = inject(FormBuilder);
   private readonly repairService = inject(RepairService);
   private readonly snackBar = inject(MatSnackBar);
+  private readonly cdr = inject(ChangeDetectorRef);
 
   form = this.fb.group({
     description: ['', Validators.required],
@@ -82,11 +83,13 @@ export class DossierCreateComponent {
       next: (dossier) => {
         this.snackBar.open('Dossier créé avec succès', 'Fermer', { duration: 3000 });
         this.saving = false;
+        this.cdr.detectChanges();
         this.created.emit(dossier);
       },
       error: () => {
         this.snackBar.open('Erreur lors de la création du dossier', 'Fermer', { duration: 5000 });
         this.saving = false;
+        this.cdr.detectChanges();
       },
     });
   }

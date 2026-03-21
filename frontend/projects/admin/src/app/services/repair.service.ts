@@ -85,7 +85,7 @@ export class RepairService {
   /**
    * Get a specific devis
    */
-  getDevis(dt: string, immat: string, numero: string, devisId: number): Observable<Devis> {
+  getDevis(dt: string, immat: string, numero: string, devisId: string): Observable<Devis> {
     return this.http.get<Devis>(`${this.dossierUrl(dt, immat)}/${numero}/devis/${devisId}`, {
       withCredentials: true,
     });
@@ -94,7 +94,7 @@ export class RepairService {
   /**
    * Update a devis
    */
-  updateDevis(dt: string, immat: string, numero: string, devisId: number, data: Partial<CreateDevisRequest>): Observable<Devis> {
+  updateDevis(dt: string, immat: string, numero: string, devisId: string, data: Partial<CreateDevisRequest>): Observable<Devis> {
     return this.http.patch<Devis>(`${this.dossierUrl(dt, immat)}/${numero}/devis/${devisId}`, data, {
       withCredentials: true,
     });
@@ -114,7 +114,7 @@ export class RepairService {
   /**
    * Get a specific facture
    */
-  getFacture(dt: string, immat: string, numero: string, factureId: number): Observable<Facture> {
+  getFacture(dt: string, immat: string, numero: string, factureId: string): Observable<Facture> {
     return this.http.get<Facture>(`${this.dossierUrl(dt, immat)}/${numero}/factures/${factureId}`, {
       withCredentials: true,
     });

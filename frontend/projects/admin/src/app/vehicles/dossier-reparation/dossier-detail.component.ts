@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges, inject } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges, inject, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
@@ -44,7 +44,7 @@ import { FactureFormComponent } from './facture-form.component';
       <mat-card>
         <mat-card-header>
           <mat-card-title>{{ dossier.numero }}</mat-card-title>
-          <mat-card-subtitle>Créé le {{ dossier.date_creation | date:'dd/MM/yyyy HH:mm' }}</mat-card-subtitle>
+          <mat-card-subtitle>Créé le {{ dossier.cree_le | date:'dd/MM/yyyy HH:mm' }}</mat-card-subtitle>
         </mat-card-header>
         <mat-card-content>
           <div class="status-row">
@@ -86,7 +86,7 @@ import { FactureFormComponent } from './facture-form.component';
           <div class="item-list" *ngIf="dossier.devis?.length">
             <div class="item-row" *ngFor="let d of dossier.devis">
               <span class="item-date">{{ d.date_devis | date:'dd/MM/yyyy' }}</span>
-              <span class="item-fournisseur">{{ d.fournisseur_nom || d.fournisseur_id }}</span>
+              <span class="item-fournisseur">{{ d.fournisseur?.nom || d.id }}</span>
               <span class="item-montant">{{ d.montant | number:'1.2-2' }} €</span>
               <span class="devis-statut-badge" [ngClass]="'devis-statut-' + d.statut">{{ devisStatutLabel(d.statut) }}</span>
               <button mat-stroked-button type="button" *ngIf="d.statut === 'en_attente' && dossier.statut === 'ouvert'"
@@ -115,7 +115,7 @@ import { FactureFormComponent } from './facture-form.component';
           <div class="item-list" *ngIf="dossier.factures?.length">
             <div class="item-row" *ngFor="let f of dossier.factures">
               <span class="item-date">{{ f.date_facture | date:'dd/MM/yyyy' }}</span>
-              <span class="item-fournisseur">{{ f.fournisseur_nom || f.fournisseur_id }}</span>
+              <span class="item-fournisseur">{{ f.fournisseur?.nom || f.id }}</span>
               <span class="item-classification">{{ classificationLabel(f.classification) }}</span>
               <span class="item-montant">{{ f.montant_total | number:'1.2-2' }} €</span>
               <span class="item-montant-crf">CRF: {{ f.montant_crf | number:'1.2-2' }} €</span>
@@ -202,6 +202,7 @@ export class DossierDetailComponent implements OnInit, OnChanges {
 
   private readonly repairService = inject(RepairService);
   private readonly snackBar = inject(MatSnackBar);
+  private readonly cdr = inject(ChangeDetectorRef);
 
   dossier: DossierReparation | null = null;
   loading = false;
@@ -226,8 +227,8 @@ export class DossierDetailComponent implements OnInit, OnChanges {
     if (!this.dt || !this.immat || !this.numero) return;
     this.historiqueLoading = true;
     this.repairService.getHistorique(this.dt, this.immat, this.numero).subscribe({
-      next: (entries) => { this.historique = entries; this.historiqueLoading = false; },
-      error: () => { this.historiqueLoading = false; },
+      next: (entries) => { this.historique = entries; this.historiqueLoading = false; this.cdr.detectChanges(); },
+      error: () => { this.historiqueLoading = false; this.cdr.detectChanges(); },
     });
   }
 
@@ -254,10 +255,11 @@ export class DossierDetailComponent implements OnInit, OnChanges {
     if (!this.dt || !this.immat || !this.numero) return;
     this.loading = true;
     this.repairService.getDossier(this.dt, this.immat, this.numero).subscribe({
-      next: (d) => { this.dossier = d; this.loading = false; },
+      next: (d) => { this.dossier = d; this.loading = false; this.cdr.detectChanges(); },
       error: () => {
         this.snackBar.open('Erreur lors du chargement du dossier', 'Fermer', { duration: 5000 });
         this.loading = false;
+        this.cdr.detectChanges();
       },
     });
   }
@@ -270,11 +272,13 @@ export class DossierDetailComponent implements OnInit, OnChanges {
         this.dossier = d;
         this.actionLoading = false;
         this.snackBar.open('Statut mis à jour', 'Fermer', { duration: 3000 });
+        this.cdr.detectChanges();
         this.loadHistorique();
       },
       error: () => {
         this.actionLoading = false;
         this.snackBar.open('Erreur lors de la mise à jour du statut', 'Fermer', { duration: 5000 });
+        this.cdr.detectChanges();
       },
     });
   }
@@ -341,11 +345,13 @@ export class DossierDetailComponent implements OnInit, OnChanges {
         this.approvalLoading = false;
         this.approvalDevis = null;
         this.snackBar.open('Devis envoyé pour approbation', 'Fermer', { duration: 5000 });
+        this.cdr.detectChanges();
         this.loadDossier();
       },
       error: () => {
         this.approvalLoading = false;
         this.snackBar.open('Erreur lors de l\'envoi pour approbation', 'Fermer', { duration: 5000 });
+        this.cdr.detectChanges();
       },
     });
   }

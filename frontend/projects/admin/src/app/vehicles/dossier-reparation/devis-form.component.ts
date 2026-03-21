@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, inject } from '@angular/core';
+import { Component, Input, Output, EventEmitter, inject, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
@@ -92,6 +92,7 @@ export class DevisFormComponent {
   private readonly fb = inject(FormBuilder);
   private readonly repairService = inject(RepairService);
   private readonly snackBar = inject(MatSnackBar);
+  private readonly cdr = inject(ChangeDetectorRef);
 
   selectedFournisseur: Fournisseur | null = null;
   saving = false;
@@ -126,11 +127,13 @@ export class DevisFormComponent {
       next: (devis) => {
         this.saving = false;
         this.snackBar.open('Devis enregistré', 'Fermer', { duration: 3000 });
+        this.cdr.detectChanges();
         this.devisCreated.emit(devis);
       },
       error: () => {
         this.saving = false;
         this.snackBar.open('Erreur lors de l\'enregistrement du devis', 'Fermer', { duration: 5000 });
+        this.cdr.detectChanges();
       },
     });
   }

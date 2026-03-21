@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, inject } from '@angular/core';
+import { Component, Input, Output, EventEmitter, inject, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
@@ -92,7 +92,7 @@ import { FournisseurSelectorComponent } from '../shared/fournisseur-selector.com
             <mat-select formControlName="devis_id">
               <mat-option [value]="null">Aucun</mat-option>
               <mat-option *ngFor="let d of devisList" [value]="d.id">
-                #{{ d.id }} — {{ d.fournisseur_nom || d.fournisseur_id }} — {{ d.montant | number:'1.2-2' }} €
+                #{{ d.id }} — {{ d.fournisseur?.nom || d.id }} — {{ d.montant | number:'1.2-2' }} €
               </mat-option>
             </mat-select>
           </mat-form-field>
@@ -128,6 +128,7 @@ export class FactureFormComponent {
   private readonly fb = inject(FormBuilder);
   private readonly repairService = inject(RepairService);
   private readonly snackBar = inject(MatSnackBar);
+  private readonly cdr = inject(ChangeDetectorRef);
 
   selectedFournisseur: Fournisseur | null = null;
   saving = false;
@@ -152,7 +153,7 @@ export class FactureFormComponent {
     description_travaux: ['', Validators.required],
     montant_total: [null as number | null, [Validators.required, Validators.min(0)]],
     montant_crf: [null as number | null, [Validators.required, Validators.min(0)]],
-    devis_id: [null as number | null],
+    devis_id: [null as string | null],
   });
 
   onFournisseurSelected(f: Fournisseur): void {
@@ -184,11 +185,13 @@ export class FactureFormComponent {
         this.warningEcart = !!result.warning_ecart;
         this.ecartPourcentage = result.ecart_pourcentage ?? null;
         this.snackBar.open('Facture enregistrée', 'Fermer', { duration: 3000 });
+        this.cdr.detectChanges();
         this.factureCreated.emit(result);
       },
       error: () => {
         this.saving = false;
         this.snackBar.open('Erreur lors de l\'enregistrement de la facture', 'Fermer', { duration: 5000 });
+        this.cdr.detectChanges();
       },
     });
   }

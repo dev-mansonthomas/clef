@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges, inject } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges, inject, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
@@ -41,7 +41,7 @@ import { DossierReparation } from '../../models/repair.model';
       <mat-card *ngFor="let d of dossiers" class="dossier-card" (click)="dossierSelected.emit(d.numero)">
         <mat-card-header>
           <mat-card-title>{{ d.numero }}</mat-card-title>
-          <mat-card-subtitle>{{ d.date_creation | date:'dd/MM/yyyy' }}</mat-card-subtitle>
+          <mat-card-subtitle>{{ d.cree_le | date:'dd/MM/yyyy' }}</mat-card-subtitle>
         </mat-card-header>
         <mat-card-content>
           <p class="dossier-description">{{ truncate(d.description, 80) }}</p>
@@ -87,6 +87,7 @@ export class DossierListComponent implements OnInit, OnChanges {
   @Output() showCreate = new EventEmitter<void>();
 
   private readonly repairService = inject(RepairService);
+  private readonly cdr = inject(ChangeDetectorRef);
   dossiers: DossierReparation[] = [];
   loading = false;
 
@@ -106,11 +107,12 @@ export class DossierListComponent implements OnInit, OnChanges {
     this.repairService.listDossiers(this.dt, this.immat).subscribe({
       next: (res) => {
         this.dossiers = (res.dossiers || []).sort((a, b) =>
-          new Date(b.date_creation).getTime() - new Date(a.date_creation).getTime()
+          new Date(b.cree_le).getTime() - new Date(a.cree_le).getTime()
         );
         this.loading = false;
+        this.cdr.detectChanges();
       },
-      error: () => { this.loading = false; },
+      error: () => { this.loading = false; this.cdr.detectChanges(); },
     });
   }
 
