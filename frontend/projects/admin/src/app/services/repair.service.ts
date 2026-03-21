@@ -10,6 +10,7 @@ import {
   CreateDevisRequest,
   Facture,
   CreateFactureRequest,
+  FactureCreateResponse,
   AuditEntry,
 } from '../models/repair.model';
 import { environment } from '../../environments/environment';
@@ -64,7 +65,7 @@ export class RepairService {
     });
   }
 
-  // ========== Devis (will be used in Wave 3) ==========
+  // ========== Devis ==========
 
   /**
    * Add a devis to a repair dossier
@@ -75,13 +76,40 @@ export class RepairService {
     });
   }
 
-  // ========== Factures (will be used in Wave 3) ==========
+  /**
+   * Get a specific devis
+   */
+  getDevis(dt: string, immat: string, numero: string, devisId: number): Observable<Devis> {
+    return this.http.get<Devis>(`${this.dossierUrl(dt, immat)}/${numero}/devis/${devisId}`, {
+      withCredentials: true,
+    });
+  }
+
+  /**
+   * Update a devis
+   */
+  updateDevis(dt: string, immat: string, numero: string, devisId: number, data: Partial<CreateDevisRequest>): Observable<Devis> {
+    return this.http.patch<Devis>(`${this.dossierUrl(dt, immat)}/${numero}/devis/${devisId}`, data, {
+      withCredentials: true,
+    });
+  }
+
+  // ========== Factures ==========
 
   /**
    * Add a facture to a repair dossier
    */
-  createFacture(dt: string, immat: string, numero: string, data: CreateFactureRequest): Observable<Facture> {
-    return this.http.post<Facture>(`${this.dossierUrl(dt, immat)}/${numero}/factures`, data, {
+  createFacture(dt: string, immat: string, numero: string, data: CreateFactureRequest): Observable<FactureCreateResponse> {
+    return this.http.post<FactureCreateResponse>(`${this.dossierUrl(dt, immat)}/${numero}/factures`, data, {
+      withCredentials: true,
+    });
+  }
+
+  /**
+   * Get a specific facture
+   */
+  getFacture(dt: string, immat: string, numero: string, factureId: number): Observable<Facture> {
+    return this.http.get<Facture>(`${this.dossierUrl(dt, immat)}/${numero}/factures/${factureId}`, {
       withCredentials: true,
     });
   }

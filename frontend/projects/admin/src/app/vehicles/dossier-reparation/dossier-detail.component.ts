@@ -8,7 +8,9 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatDividerModule } from '@angular/material/divider';
 import { RepairService } from '../../services/repair.service';
-import { DossierReparation } from '../../models/repair.model';
+import { DossierReparation, Devis, FactureCreateResponse } from '../../models/repair.model';
+import { DevisFormComponent } from './devis-form.component';
+import { FactureFormComponent } from './facture-form.component';
 
 @Component({
   selector: 'app-dossier-detail',
@@ -22,6 +24,8 @@ import { DossierReparation } from '../../models/repair.model';
     MatProgressSpinnerModule,
     MatSnackBarModule,
     MatDividerModule,
+    DevisFormComponent,
+    FactureFormComponent,
   ],
   template: `
     <div class="dossier-detail" *ngIf="!loading && dossier">
@@ -45,10 +49,10 @@ import { DossierReparation } from '../../models/repair.model';
           <mat-divider></mat-divider>
 
           <div class="action-buttons">
-            <button mat-raised-button disabled matTooltip="Disponible dans une prochaine version">
+            <button mat-raised-button (click)="showDevisForm = true" [disabled]="dossier.statut !== 'ouvert' || showDevisForm">
               <mat-icon>request_quote</mat-icon> Enregistrer un devis
             </button>
-            <button mat-raised-button disabled matTooltip="Disponible dans une prochaine version">
+            <button mat-raised-button (click)="showFactureForm = true" [disabled]="dossier.statut !== 'ouvert' || showFactureForm">
               <mat-icon>receipt</mat-icon> Enregistrer une facture
             </button>
           </div>
@@ -68,10 +72,32 @@ import { DossierReparation } from '../../models/repair.model';
           <mat-divider></mat-divider>
 
           <h4>Devis</h4>
-          <p class="empty-section" *ngIf="!dossier.devis?.length">Aucun devis enregistré.</p>
+          <app-devis-form *ngIf="showDevisForm" [dt]="dt" [immat]="immat" [numero]="numero"
+            (devisCreated)="onDevisCreated($event)" (cancelled)="showDevisForm = false"></app-devis-form>
+          <p class="empty-section" *ngIf="!dossier.devis?.length && !showDevisForm">Aucun devis enregistré.</p>
+          <div class="item-list" *ngIf="dossier.devis?.length">
+            <div class="item-row" *ngFor="let d of dossier.devis">
+              <span class="item-date">{{ d.date_devis | date:'dd/MM/yyyy' }}</span>
+              <span class="item-fournisseur">{{ d.fournisseur_nom || d.fournisseur_id }}</span>
+              <span class="item-montant">{{ d.montant | number:'1.2-2' }} €</span>
+              <span class="devis-statut-badge" [ngClass]="'devis-statut-' + d.statut">{{ devisStatutLabel(d.statut) }}</span>
+            </div>
+          </div>
 
           <h4>Factures</h4>
-          <p class="empty-section" *ngIf="!dossier.factures?.length">Aucune facture enregistrée.</p>
+          <app-facture-form *ngIf="showFactureForm" [dt]="dt" [immat]="immat" [numero]="numero"
+            [devisList]="dossier.devis || []"
+            (factureCreated)="onFactureCreated($event)" (cancelled)="showFactureForm = false"></app-facture-form>
+          <p class="empty-section" *ngIf="!dossier.factures?.length && !showFactureForm">Aucune facture enregistrée.</p>
+          <div class="item-list" *ngIf="dossier.factures?.length">
+            <div class="item-row" *ngFor="let f of dossier.factures">
+              <span class="item-date">{{ f.date_facture | date:'dd/MM/yyyy' }}</span>
+              <span class="item-fournisseur">{{ f.fournisseur_nom || f.fournisseur_id }}</span>
+              <span class="item-classification">{{ classificationLabel(f.classification) }}</span>
+              <span class="item-montant">{{ f.montant_total | number:'1.2-2' }} €</span>
+              <span class="item-montant-crf">CRF: {{ f.montant_crf | number:'1.2-2' }} €</span>
+            </div>
+          </div>
         </mat-card-content>
       </mat-card>
     </div>
@@ -93,6 +119,19 @@ import { DossierReparation } from '../../models/repair.model';
     .empty-section { color: rgba(0,0,0,0.54); font-style: italic; }
     .loading-container { display: flex; align-items: center; gap: 12px; padding: 24px 0; }
     h4 { margin: 16px 0 8px; font-weight: 500; }
+    .item-list { margin: 8px 0 16px; }
+    .item-row { display: flex; gap: 12px; align-items: center; padding: 8px 0; border-bottom: 1px solid rgba(0,0,0,0.08); flex-wrap: wrap; }
+    .item-date { min-width: 90px; }
+    .item-fournisseur { flex: 1; min-width: 120px; }
+    .item-montant { font-weight: 500; }
+    .item-montant-crf { color: rgba(0,0,0,0.54); }
+    .item-classification { font-size: 12px; color: rgba(0,0,0,0.54); }
+    .devis-statut-badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 500; text-transform: uppercase; }
+    .devis-statut-en_attente { background: #fff9c4; color: #f9a825; }
+    .devis-statut-envoye { background: #e3f2fd; color: #1565c0; }
+    .devis-statut-approuve { background: #e8f5e9; color: #2e7d32; }
+    .devis-statut-refuse { background: #ffebee; color: #c62828; }
+    .devis-statut-annule { background: #eeeeee; color: #616161; }
   `],
 })
 export class DossierDetailComponent implements OnInit, OnChanges {
@@ -107,6 +146,8 @@ export class DossierDetailComponent implements OnInit, OnChanges {
   dossier: DossierReparation | null = null;
   loading = false;
   actionLoading = false;
+  showDevisForm = false;
+  showFactureForm = false;
 
   ngOnInit(): void { this.loadDossier(); }
 
@@ -151,6 +192,40 @@ export class DossierDetailComponent implements OnInit, OnChanges {
       case 'annule': return 'Annulé';
       default: return statut;
     }
+  }
+
+  devisStatutLabel(statut: string): string {
+    switch (statut) {
+      case 'en_attente': return 'En attente';
+      case 'envoye': return 'Envoyé';
+      case 'approuve': return 'Approuvé';
+      case 'refuse': return 'Refusé';
+      case 'annule': return 'Annulé';
+      default: return statut;
+    }
+  }
+
+  classificationLabel(classification: string): string {
+    const labels: Record<string, string> = {
+      entretien_courant: 'Entretien courant',
+      reparation_carrosserie_mecanique: 'Carrosserie / mécanique',
+      reparation_sanitaire: 'Sanitaire',
+      reparation_marquage: 'Marquage',
+      controle_technique: 'Contrôle technique',
+      frais_duplicata_carte_grise: 'Duplicata carte grise',
+      autre: 'Autre',
+    };
+    return labels[classification] || classification;
+  }
+
+  onDevisCreated(_devis: Devis): void {
+    this.showDevisForm = false;
+    this.loadDossier();
+  }
+
+  onFactureCreated(_facture: FactureCreateResponse): void {
+    this.showFactureForm = false;
+    this.loadDossier();
   }
 }
 

@@ -83,18 +83,26 @@ export interface UpdateDossierRequest {
 }
 
 export interface CreateDevisRequest {
+  date_devis: string;
   fournisseur_id: string;
   description_travaux: string;
   montant: number;
 }
 
 export interface CreateFactureRequest {
+  date_facture: string;
   fournisseur_id: string;
   classification: string;
   description_travaux: string;
   montant_total: number;
   montant_crf: number;
   devis_id?: number;
+}
+
+export interface FactureCreateResponse extends Facture {
+  warning_no_devis?: boolean;
+  warning_ecart?: boolean;
+  ecart_pourcentage?: number;
 }
 
 export interface CreateFournisseurRequest {
