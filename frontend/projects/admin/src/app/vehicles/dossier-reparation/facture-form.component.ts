@@ -173,6 +173,7 @@ export class FactureFormComponent {
     this.repairService.createFacture(this.dt, this.immat, this.numero, {
       date_facture: dateStr,
       fournisseur_id: this.selectedFournisseur.id,
+      fournisseur_nom: this.selectedFournisseur.nom,
       classification: v.classification!,
       description_travaux: v.description_travaux!,
       montant_total: v.montant_total!,

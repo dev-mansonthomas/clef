@@ -168,6 +168,7 @@ export class DevisFormComponent implements OnInit {
     this.repairService.createDevis(this.dt, this.immat, this.numero, {
       date_devis: dateStr,
       fournisseur_id: this.selectedFournisseur.id,
+      fournisseur_nom: this.selectedFournisseur.nom,
       description_items: descItems.length ? descItems : undefined,
       description_travaux: v.description_travaux?.trim() || undefined,
       montant: v.montant!,

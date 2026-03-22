@@ -119,6 +119,7 @@ export interface UpdateDossierRequest {
 export interface CreateDevisRequest {
   date_devis: string;
   fournisseur_id: string;
+  fournisseur_nom: string;
   description_travaux?: string;
   description_items?: string[];
   montant: number;
@@ -127,6 +128,7 @@ export interface CreateDevisRequest {
 export interface CreateFactureRequest {
   date_facture: string;
   fournisseur_id: string;
+  fournisseur_nom: string;
   classification: string;
   description_travaux: string;
   montant_total: number;
