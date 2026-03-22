@@ -1806,3 +1806,40 @@ class ValkeyService:
             if v:
                 valideurs.append(v)
         return valideurs
+
+
+    # ========== Contacts CC ==========
+
+    async def set_contact_cc(self, contact: "ContactCC") -> bool:
+        """Store a contact CC. Key: {DT}:contacts_cc:{id}"""
+        try:
+            key = self._key("contacts_cc", contact.id)
+            await self.redis.json().set(key, "$", contact.model_dump(mode="json"))
+            await self.redis.sadd(self._key("contacts_cc", "index"), contact.id)
+            return True
+        except Exception as e:
+            logger.error(f"Error setting contact CC {contact.id}: {e}")
+            return False
+
+    async def get_contact_cc(self, contact_id: str) -> Optional["ContactCC"]:
+        """Get a contact CC by ID."""
+        key = self._key("contacts_cc", contact_id)
+        data = await self.redis.json().get(key)
+        if not data:
+            return None
+        from app.models.repair_models import ContactCC
+        return ContactCC(**data)
+
+    async def list_contacts_cc(self) -> List["ContactCC"]:
+        """List all contacts CC for this DT."""
+        index_key = self._key("contacts_cc", "index")
+        ids = await self.redis.smembers(index_key)
+        if not ids:
+            return []
+
+        contacts = []
+        for cid in ids:
+            c = await self.get_contact_cc(cid)
+            if c:
+                contacts.append(c)
+        return contacts

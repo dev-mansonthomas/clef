@@ -384,6 +384,7 @@ class Valideur(BaseModel):
     email: str = Field(..., description="Email du valideur")
     role: Optional[str] = Field(None, description="Rôle du valideur")
     actif: bool = Field(default=True, description="Valideur actif")
+    principal: bool = Field(default=False, description="Valideur principal")
     cree_par: str = Field(..., description="Email du créateur")
     cree_le: datetime = Field(default_factory=datetime.utcnow, description="Date de création")
 
@@ -395,6 +396,7 @@ class ValideurCreate(BaseModel):
     email: str = Field(..., min_length=1, description="Email du valideur")
     role: Optional[str] = Field(None, description="Rôle du valideur")
     actif: bool = Field(default=True, description="Valideur actif")
+    principal: bool = Field(default=False, description="Valideur principal")
 
 
 class ValideurUpdate(BaseModel):
@@ -404,9 +406,52 @@ class ValideurUpdate(BaseModel):
     email: Optional[str] = Field(None, min_length=1, description="Email du valideur")
     role: Optional[str] = Field(None, description="Rôle du valideur")
     actif: Optional[bool] = Field(None, description="Valideur actif")
+    principal: Optional[bool] = Field(None, description="Valideur principal")
 
 
 class ValideurListResponse(BaseModel):
     """Response for listing valideurs."""
     count: int = Field(..., description="Nombre de valideurs")
     valideurs: List[Valideur] = Field(default_factory=list, description="Liste des valideurs")
+
+
+# ========== ContactCC models ==========
+
+
+class ContactCC(BaseModel):
+    """Contact en copie (CC) for devis approval workflow."""
+    id: str = Field(..., description="UUID du contact CC")
+    prenom: str = Field(..., description="Prénom du contact CC")
+    nom: str = Field(..., description="Nom du contact CC")
+    email: str = Field(..., description="Email du contact CC")
+    role: Optional[str] = Field(None, description="Rôle du contact CC")
+    actif: bool = Field(default=True, description="Contact CC actif")
+    cc_par_defaut: bool = Field(default=False, description="Contact CC par défaut")
+    cree_par: str = Field(..., description="Email du créateur")
+    cree_le: datetime = Field(default_factory=datetime.utcnow, description="Date de création")
+
+
+class ContactCCCreate(BaseModel):
+    """Request body for creating a new contact CC."""
+    prenom: str = Field(..., min_length=1, description="Prénom du contact CC")
+    nom: str = Field(..., min_length=1, description="Nom du contact CC")
+    email: str = Field(..., min_length=1, description="Email du contact CC")
+    role: Optional[str] = Field(None, description="Rôle du contact CC")
+    actif: bool = Field(default=True, description="Contact CC actif")
+    cc_par_defaut: bool = Field(default=False, description="Contact CC par défaut")
+
+
+class ContactCCUpdate(BaseModel):
+    """Request body for updating a contact CC."""
+    prenom: Optional[str] = Field(None, min_length=1, description="Prénom du contact CC")
+    nom: Optional[str] = Field(None, min_length=1, description="Nom du contact CC")
+    email: Optional[str] = Field(None, min_length=1, description="Email du contact CC")
+    role: Optional[str] = Field(None, description="Rôle du contact CC")
+    actif: Optional[bool] = Field(None, description="Contact CC actif")
+    cc_par_defaut: Optional[bool] = Field(None, description="Contact CC par défaut")
+
+
+class ContactCCListResponse(BaseModel):
+    """Response for listing contacts CC."""
+    count: int = Field(..., description="Nombre de contacts CC")
+    contacts_cc: List[ContactCC] = Field(default_factory=list, description="Liste des contacts CC")

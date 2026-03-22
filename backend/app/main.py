@@ -31,6 +31,7 @@ from app.routers import benevoles
 from app.routers import stats
 from app.routers import fournisseurs
 from app.routers import valideurs
+from app.routers import contacts_cc
 from app.routers import dossiers_reparation
 from app.routers import approbation
 from app.routers import depenses
@@ -75,6 +76,7 @@ app.include_router(dossiers_reparation.router)
 app.include_router(depenses.router)
 app.include_router(fournisseurs.router)
 app.include_router(valideurs.router)
+app.include_router(contacts_cc.router)
 app.include_router(approbation.router)
 app.include_router(reminders.router)
 app.include_router(super_admin_router)
