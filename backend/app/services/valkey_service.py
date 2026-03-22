@@ -1727,3 +1727,39 @@ class ValkeyService:
             ul_fournisseurs = await self.list_fournisseurs_ul(ul_id)
             return dt_fournisseurs + ul_fournisseurs
         return dt_fournisseurs
+
+    # ========== Valideurs ==========
+
+    async def set_valideur(self, valideur: "Valideur") -> bool:
+        """Store a valideur. Key: {DT}:valideurs:{id}"""
+        try:
+            key = self._key("valideurs", valideur.id)
+            await self.redis.json().set(key, "$", valideur.model_dump(mode="json"))
+            await self.redis.sadd(self._key("valideurs", "index"), valideur.id)
+            return True
+        except Exception as e:
+            logger.error(f"Error setting valideur {valideur.id}: {e}")
+            return False
+
+    async def get_valideur(self, valideur_id: str) -> Optional["Valideur"]:
+        """Get a valideur by ID."""
+        key = self._key("valideurs", valideur_id)
+        data = await self.redis.json().get(key)
+        if not data:
+            return None
+        from app.models.repair_models import Valideur
+        return Valideur(**data)
+
+    async def list_valideurs(self) -> List["Valideur"]:
+        """List all valideurs for this DT."""
+        index_key = self._key("valideurs", "index")
+        ids = await self.redis.smembers(index_key)
+        if not ids:
+            return []
+
+        valideurs = []
+        for vid in ids:
+            v = await self.get_valideur(vid)
+            if v:
+                valideurs.append(v)
+        return valideurs

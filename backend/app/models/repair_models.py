@@ -342,3 +342,39 @@ class DepensesResponse(BaseModel):
     years: List[DepenseYear] = Field(default_factory=list, description="Dépenses groupées par année")
     total_all_years_cout: float = Field(default=0.0, description="Total coût TTC toutes années")
     total_all_years_crf: float = Field(default=0.0, description="Total coût CRF toutes années")
+
+
+# ========== Valideur models ==========
+
+
+class Valideur(BaseModel):
+    """Valideur (approver) for devis approval workflow."""
+    id: str = Field(..., description="UUID du valideur")
+    nom: str = Field(..., description="Nom du valideur")
+    email: str = Field(..., description="Email du valideur")
+    role: Optional[str] = Field(None, description="Rôle du valideur")
+    actif: bool = Field(default=True, description="Valideur actif")
+    cree_par: str = Field(..., description="Email du créateur")
+    cree_le: datetime = Field(default_factory=datetime.utcnow, description="Date de création")
+
+
+class ValideurCreate(BaseModel):
+    """Request body for creating a new valideur."""
+    nom: str = Field(..., min_length=1, description="Nom du valideur")
+    email: str = Field(..., min_length=1, description="Email du valideur")
+    role: Optional[str] = Field(None, description="Rôle du valideur")
+    actif: bool = Field(default=True, description="Valideur actif")
+
+
+class ValideurUpdate(BaseModel):
+    """Request body for updating a valideur."""
+    nom: Optional[str] = Field(None, min_length=1, description="Nom du valideur")
+    email: Optional[str] = Field(None, min_length=1, description="Email du valideur")
+    role: Optional[str] = Field(None, description="Rôle du valideur")
+    actif: Optional[bool] = Field(None, description="Valideur actif")
+
+
+class ValideurListResponse(BaseModel):
+    """Response for listing valideurs."""
+    count: int = Field(..., description="Nombre de valideurs")
+    valideurs: List[Valideur] = Field(default_factory=list, description="Liste des valideurs")
