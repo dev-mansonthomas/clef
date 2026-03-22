@@ -92,14 +92,129 @@ class DriveService:
         request = service.files().create(
             body=file_metadata,
             media_body=media,
-            fields="id,name,webViewLink,webContentLink,mimeType",
+            keepRevisionForever=True,
+            fields="id,name,webViewLink,webContentLink,mimeType,modifiedTime",
             **self._shared_drive_kwargs(),
         )
         file = await asyncio.to_thread(request.execute)
-        
+
         logger.info(f"Uploaded file {file['id']} to folder {parent_folder_id}")
         return file
-    
+
+    async def update_file_version(
+        self,
+        dt_id: str,
+        file_id: str,
+        file_content: bytes,
+        mime_type: str,
+        keep_forever: bool = True,
+    ) -> Dict[str, Any]:
+        """
+        Upload a new version of an existing file in Google Drive.
+        Uses files().update() to create a new revision instead of a new file.
+
+        Args:
+            dt_id: DT identifier
+            file_id: ID of the existing file to update
+            file_content: New file content as bytes
+            mime_type: MIME type
+            keep_forever: If True, marks the revision as keepForever (won't be auto-purged)
+
+        Returns:
+            Updated file resource with id, webViewLink, etc.
+        """
+        if self.use_mocks:
+            return {
+                "id": file_id,
+                "name": f"mock-updated-{file_id}",
+                "webViewLink": f"https://drive.google.com/file/d/{file_id}/view",
+                "webContentLink": f"https://drive.google.com/uc?id={file_id}",
+                "mimeType": mime_type,
+            }
+
+        service = await self._get_service(dt_id)
+
+        media = MediaIoBaseUpload(
+            io.BytesIO(file_content),
+            mimetype=mime_type,
+            resumable=True,
+        )
+
+        request = service.files().update(
+            fileId=file_id,
+            media_body=media,
+            keepRevisionForever=keep_forever,
+            fields="id,name,webViewLink,webContentLink,mimeType,modifiedTime",
+            **self._shared_drive_kwargs(),
+        )
+        file = await asyncio.to_thread(request.execute)
+
+        logger.info(f"Updated file {file_id} with new version (keepForever={keep_forever})")
+        return file
+
+    async def list_revisions(
+        self,
+        dt_id: str,
+        file_id: str,
+    ) -> list[Dict[str, Any]]:
+        """
+        List all revisions of a file.
+
+        Returns:
+            List of revision resources with id, modifiedTime, keepForever.
+        """
+        if self.use_mocks:
+            return [
+                {"id": "1", "modifiedTime": "2026-01-15T10:00:00Z", "keepForever": False},
+            ]
+
+        service = await self._get_service(dt_id)
+        request = service.revisions().list(
+            fileId=file_id,
+            fields="revisions(id,modifiedTime,keepForever)",
+        )
+        result = await asyncio.to_thread(request.execute)
+        return result.get("revisions", [])
+
+    async def ensure_first_revision_kept(
+        self,
+        dt_id: str,
+        file_id: str,
+    ) -> bool:
+        """
+        Ensure the first revision of a file has keepForever=true.
+        If it's already set, this is a no-op.
+
+        Returns:
+            True if keepForever was set (or was already set), False on error.
+        """
+        if self.use_mocks:
+            return True
+
+        try:
+            revisions = await self.list_revisions(dt_id, file_id)
+            if not revisions:
+                return False
+
+            first_revision = revisions[0]
+            if first_revision.get("keepForever"):
+                logger.info(f"First revision of {file_id} already has keepForever=true")
+                return True
+
+            # Set keepForever on the first revision
+            service = await self._get_service(dt_id)
+            request = service.revisions().update(
+                fileId=file_id,
+                revisionId=first_revision["id"],
+                body={"keepForever": True},
+            )
+            await asyncio.to_thread(request.execute)
+            logger.info(f"Set keepForever=true on first revision {first_revision['id']} of file {file_id}")
+            return True
+        except Exception as e:
+            logger.warning(f"Failed to ensure keepForever on first revision of {file_id}: {e}")
+            return False
+
     async def create_folder(
         self,
         dt_id: str,
@@ -250,8 +365,8 @@ class DriveService:
         """List files in a folder."""
         if self.use_mocks:
             return [
-                {"id": "mock-file-1", "name": "document-exemple-1.pdf", "webViewLink": "https://drive.google.com/file/d/mock-1/view", "mimeType": "application/pdf", "createdTime": "2026-01-15T10:00:00Z"},
-                {"id": "mock-file-2", "name": "document-exemple-2.pdf", "webViewLink": "https://drive.google.com/file/d/mock-2/view", "mimeType": "application/pdf", "createdTime": "2026-02-20T14:30:00Z"},
+                {"id": "mock-file-1", "name": "document-exemple-1.pdf", "webViewLink": "https://drive.google.com/file/d/mock-1/view", "mimeType": "application/pdf", "createdTime": "2026-01-15T10:00:00Z", "modifiedTime": "2026-03-10T10:00:00Z"},
+                {"id": "mock-file-2", "name": "document-exemple-2.pdf", "webViewLink": "https://drive.google.com/file/d/mock-2/view", "mimeType": "application/pdf", "createdTime": "2026-02-20T14:30:00Z", "modifiedTime": "2026-03-15T14:30:00Z"},
             ]
 
         service = await self._get_service(dt_id)
@@ -261,7 +376,7 @@ class DriveService:
         request = service.files().list(
             q=query,
             pageSize=max_results,
-            fields="files(id,name,webViewLink,mimeType,createdTime)",
+            fields="files(id,name,webViewLink,mimeType,createdTime,modifiedTime)",
             **self._shared_drive_kwargs(include_items=True),
         )
         results = await asyncio.to_thread(request.execute)

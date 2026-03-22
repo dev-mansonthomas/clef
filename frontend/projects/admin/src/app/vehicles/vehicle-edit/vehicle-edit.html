@@ -1,7 +1,6 @@
 <div class="vehicle-edit-container">
   <div class="header">
-    <h1>{{ isCreateMode ? 'Nouveau Véhicule' : 'Édition Véhicule' }}</h1>
-    <p *ngIf="vehicle">{{ vehicle.indicatif }} - {{ vehicle.marque }} {{ vehicle.modele }}</p>
+    <h1>{{ isCreateMode ? 'Nouveau Véhicule' : 'Véhicule : ' + vehicle?.nom_synthetique }}</h1>
   </div>
 
   <div *ngIf="loading" class="loading-container">
@@ -85,7 +84,7 @@
                           <div>
                             <a *ngIf="file.web_view_link" [href]="file.web_view_link" target="_blank" rel="noopener">{{ file.name }}</a>
                             <span *ngIf="!file.web_view_link">{{ file.name }}</span>
-                            <div class="document-meta" *ngIf="file.created_time">Créé le {{ file.created_time | date:'short' }}</div>
+                            <div class="document-meta" *ngIf="file.modified_time || file.created_time">Mis à jour le {{ (file.modified_time || file.created_time) | date:'short' }}</div>
                           </div>
                           <button mat-stroked-button type="button" [disabled]="isDocumentActionRunning(card.type) || getManagedDocument(card.type)?.current_file?.file_id === file.file_id" (click)="selectDriveFile(card.type, file.file_id)">
                             {{ getManagedDocument(card.type)?.current_file?.file_id === file.file_id ? 'Actuel' : 'Associer' }}
@@ -231,6 +230,50 @@
               </mat-form-field>
             </mat-card-content>
           </mat-card>
+        </div>
+      </mat-tab>
+
+      <mat-tab>
+        <ng-template mat-tab-label>
+          <mat-icon class="tab-icon">receipt_long</mat-icon>
+          <span>Dossiers Réparation</span>
+        </ng-template>
+        <div class="tab-content">
+          <app-dossier-create
+            *ngIf="showDossierCreate"
+            [dt]="vehicle?.dt_ul || ''"
+            [immat]="vehicle?.immat || ''"
+            (created)="onDossierCreated()"
+            (cancelled)="onDossierCreateCancelled()">
+          </app-dossier-create>
+          <app-dossier-detail
+            *ngIf="!showDossierCreate && selectedDossierNumero"
+            [dt]="vehicle?.dt_ul || ''"
+            [immat]="vehicle?.immat || ''"
+            [numero]="selectedDossierNumero"
+            (back)="onBackToList()">
+          </app-dossier-detail>
+          <app-dossier-list
+            *ngIf="!showDossierCreate && !selectedDossierNumero"
+            [dt]="vehicle?.dt_ul || ''"
+            [immat]="vehicle?.immat || ''"
+            [refreshTrigger]="dossierListRefreshCounter"
+            (dossierSelected)="onDossierSelected($event)"
+            (showCreate)="onShowDossierCreate()">
+          </app-dossier-list>
+        </div>
+      </mat-tab>
+
+      <mat-tab>
+        <ng-template mat-tab-label>
+          <mat-icon class="tab-icon">payments</mat-icon>
+          <span>Dépenses</span>
+        </ng-template>
+        <div class="tab-content">
+          <app-depenses-tab
+            [dt]="vehicle?.dt_ul || ''"
+            [immat]="vehicle?.immat || ''">
+          </app-depenses-tab>
         </div>
       </mat-tab>
 

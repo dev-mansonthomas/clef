@@ -1,0 +1,99 @@
+<div class="valideurs-manager">
+  <div class="section-header">
+    <button mat-raised-button color="primary" (click)="toggleForm()">
+      <mat-icon>{{ showForm() ? 'close' : 'add' }}</mat-icon>
+      {{ showForm() ? 'Annuler' : 'Ajouter un valideur' }}
+    </button>
+  </div>
+
+  @if (showForm()) {
+    <mat-card class="form-card">
+      <mat-card-content>
+        <h3>{{ editingId() ? 'Modifier le valideur' : 'Nouveau valideur' }}</h3>
+        <div class="form-grid">
+          <mat-form-field appearance="outline">
+            <mat-label>Prénom *</mat-label>
+            <input matInput [(ngModel)]="formPrenom" placeholder="Prénom du valideur" required>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Nom *</mat-label>
+            <input matInput [(ngModel)]="formNom" placeholder="Nom du valideur" required>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Email *</mat-label>
+            <input matInput [(ngModel)]="formEmail" placeholder="valideur@croix-rouge.fr" type="email" required>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Rôle</mat-label>
+            <input matInput [(ngModel)]="formRole" placeholder="Responsable logistique">
+          </mat-form-field>
+        </div>
+
+        <div class="form-actions">
+          <button mat-button (click)="toggleForm()">Annuler</button>
+          <button mat-raised-button color="primary" (click)="saveValideur()" [disabled]="!formPrenom.trim() || !formNom.trim() || !formEmail.trim()">
+            {{ editingId() ? 'Mettre à jour' : 'Créer' }}
+          </button>
+        </div>
+      </mat-card-content>
+    </mat-card>
+  }
+
+  @if (loading()) {
+    <div class="loading">Chargement des valideurs...</div>
+  } @else if (valideurs().length === 0) {
+    <p class="no-data">Aucun valideur enregistré</p>
+  } @else {
+    <table mat-table [dataSource]="valideurs()" class="valideurs-table">
+      <ng-container matColumnDef="nom">
+        <th mat-header-cell *matHeaderCellDef>Nom</th>
+        <td mat-cell *matCellDef="let v" [class.inactive]="!v.actif">
+          <div class="valideur-name">{{ v.prenom }} {{ v.nom }}</div>
+          <div class="valideur-email">{{ v.email }}</div>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="role">
+        <th mat-header-cell *matHeaderCellDef>Rôle</th>
+        <td mat-cell *matCellDef="let v" [class.inactive]="!v.actif">{{ v.role || '—' }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="principal">
+        <th mat-header-cell *matHeaderCellDef>Principal</th>
+        <td mat-cell *matCellDef="let v">
+          <button mat-icon-button (click)="togglePrincipal(v)" [title]="v.principal ? 'Retirer comme principal' : 'Définir comme principal'" [disabled]="!v.actif">
+            <mat-icon [class.principal-active]="v.principal">{{ v.principal ? 'star' : 'star_border' }}</mat-icon>
+          </button>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="statut">
+        <th mat-header-cell *matHeaderCellDef>Statut</th>
+        <td mat-cell *matCellDef="let v">
+          <span class="badge" [class.badge-active]="v.actif" [class.badge-inactive]="!v.actif">
+            {{ v.actif ? 'Actif' : 'Inactif' }}
+          </span>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="actions">
+        <th mat-header-cell *matHeaderCellDef>Actions</th>
+        <td mat-cell *matCellDef="let v">
+          <button mat-icon-button (click)="editValideur(v)" title="Modifier">
+            <mat-icon>edit</mat-icon>
+          </button>
+          <button mat-icon-button (click)="toggleActif(v)" [title]="v.actif ? 'Désactiver' : 'Activer'">
+            <mat-icon>{{ v.actif ? 'toggle_on' : 'toggle_off' }}</mat-icon>
+          </button>
+        </td>
+      </ng-container>
+
+      <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+      <tr mat-row *matRowDef="let row; columns: displayedColumns;" [class.inactive-row]="!row.actif"></tr>
+    </table>
+  }
+</div>
+

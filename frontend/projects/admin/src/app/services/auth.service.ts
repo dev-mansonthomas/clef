@@ -31,10 +31,13 @@ export class AuthService {
 
   /**
    * Initiate login flow - redirects to Google OAuth
+   * @param returnUrl Optional path to redirect to after login (e.g. '/approbation/token-123')
    */
-  login(): void {
-    // Get current origin for redirect_to parameter
-    const redirectTo = window.location.origin;
+  login(returnUrl?: string): void {
+    // Build redirect_to: origin + optional path
+    const redirectTo = returnUrl
+      ? window.location.origin + returnUrl
+      : window.location.origin;
 
     this.http.get<LoginResponse>(`${this.apiUrl}/auth/login`, {
       params: { redirect_to: redirectTo }

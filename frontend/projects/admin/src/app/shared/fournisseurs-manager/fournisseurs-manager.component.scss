@@ -1,0 +1,78 @@
+.fournisseurs-manager {
+  margin-top: 1rem;
+
+  .section-header {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 1rem;
+  }
+
+  .form-card {
+    margin-bottom: 1.5rem;
+
+    h3 {
+      margin: 0 0 1rem;
+      color: #333;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0 1rem;
+
+      mat-form-field {
+        width: 100%;
+      }
+    }
+
+    .form-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.5rem;
+      margin-top: 0.5rem;
+    }
+  }
+
+  .loading {
+    text-align: center;
+    padding: 2rem;
+    color: #666;
+  }
+
+  .no-data {
+    text-align: center;
+    color: #999;
+    padding: 2rem;
+  }
+
+  .fournisseurs-table {
+    width: 100%;
+
+    .archived {
+      color: #999;
+    }
+
+    .archived-row {
+      background-color: #f9f9f9;
+    }
+  }
+
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 500;
+
+    &.badge-active {
+      background-color: #d4edda;
+      color: #155724;
+    }
+
+    &.badge-archived {
+      background-color: #f0f0f0;
+      color: #666;
+    }
+  }
+}
+

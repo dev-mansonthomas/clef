@@ -7,6 +7,11 @@ from datetime import datetime, date
 from redis.asyncio import Redis
 from app.models.valkey_models import VehicleData, BenevoleData, ResponsableData, ResponsableVehiculeData, CarnetBordEntry, DTConfiguration
 from app.models.reservation import ValkeyReservation, ValkeyReservationCreate
+from app.models.repair_models import (
+    DossierReparation, Devis, Facture, Fournisseur, HistoriqueEntry,
+    FournisseurSnapshot,
+    StatutDossier, StatutDevis, ActionHistorique
+)
 
 logger = logging.getLogger(__name__)
 
@@ -25,41 +30,41 @@ def _get_calendar_service():
 class ValkeyService:
     """
     Service for Valkey operations with automatic DT prefixing.
-    
+
     All keys are prefixed with the DT identifier to ensure multi-tenant isolation.
     Key pattern: DT{id}:resource:identifier
-    
+
     Examples:
         - DT75:vehicules:AB-123-CD
         - DT75:benevoles:123456
         - DT75:carnet:AB-123-CD:2024-01-15T10:30:00
     """
-    
+
     def __init__(self, redis_client: Redis, dt: str):
         """
         Initialize Valkey service.
-        
+
         Args:
             redis_client: Async Redis client
             dt: DT identifier (e.g., "DT75")
         """
         self.redis = redis_client
         self.dt = dt
-    
+
     def _key(self, *parts: str) -> str:
         """
         Build a DT-prefixed key.
-        
+
         Args:
             *parts: Key parts to join
-            
+
         Returns:
             Prefixed key string
         """
         return f"{self.dt}:{':'.join(parts)}"
-    
+
     # ========== Configuration ==========
-    
+
     async def get_configuration(self) -> Optional[DTConfiguration]:
         """Get DT configuration."""
         data = await self.redis.json().get(self._key("configuration"))
@@ -295,7 +300,7 @@ class ValkeyService:
         return True
 
     # ========== Vehicles ==========
-    
+
     async def get_vehicle(self, immat: str) -> Optional[VehicleData]:
         """Get vehicle by license plate."""
         data = await self.redis.json().get(self._key("vehicules", immat))
@@ -313,7 +318,7 @@ class ValkeyService:
         except Exception as e:
             logger.error(f"Error setting vehicle {vehicle.immat} for {self.dt}: {e}")
             return False
-    
+
     async def list_vehicles(self) -> List[str]:
         """List all vehicle license plates for this DT."""
         members = await self.redis.smembers(self._key("vehicules", "index"))
@@ -346,9 +351,9 @@ class ValkeyService:
         except Exception as e:
             logger.error(f"Error deleting vehicle {immat} for {self.dt}: {e}")
             return False
-    
+
     # ========== Bénévoles ==========
-    
+
     async def get_benevole(self, nivol: str) -> Optional[BenevoleData]:
         """Get bénévole by NIVOL."""
         data = await self.redis.json().get(self._key("benevoles", nivol))
@@ -376,14 +381,14 @@ class ValkeyService:
         except Exception as e:
             logger.error(f"Error setting benevole {benevole.nivol} for {self.dt}: {e}")
             return False
-    
+
     async def list_benevoles(self, ul: Optional[str] = None) -> List[str]:
         """
         List bénévole NIVOLs for this DT.
-        
+
         Args:
             ul: Optional UL filter
-            
+
         Returns:
             List of NIVOL identifiers
         """
@@ -1269,3 +1274,572 @@ class ValkeyService:
             stats["errors"] += 1
             return stats
 
+    # ========== Dossiers Réparations ==========
+
+    async def create_dossier_reparation(
+        self,
+        immat: str,
+        description: "str | list",
+        cree_par: str,
+        commentaire: Optional[str] = None,
+        titre: Optional[str] = None,
+    ) -> DossierReparation:
+        """
+        Create a new repair dossier with auto-incremented number.
+
+        Args:
+            immat: Vehicle license plate
+            description: Description of the repair (list of items or legacy string)
+            cree_par: Email of the creator
+            commentaire: Optional free-text comment
+
+        Returns:
+            Created DossierReparation
+        """
+        # Auto-increment counter
+        counter_key = self._key("vehicules", immat, "travaux", "counter")
+        counter = await self.redis.incr(counter_key)
+
+        # Format: REP-{YYYY}-{NNN}
+        year = datetime.utcnow().year
+        numero = f"REP-{year}-{counter:03d}"
+
+        # Support both list and legacy string description
+        if isinstance(description, str):
+            description = [description]
+
+        dossier = DossierReparation(
+            numero=numero,
+            immat=immat,
+            dt=self.dt,
+            titre=titre,
+            description=description,
+            commentaire=commentaire,
+            cree_par=cree_par,
+            cree_le=datetime.utcnow(),
+        )
+
+        # Store dossier
+        key = self._key("vehicules", immat, "travaux", numero)
+        await self.redis.json().set(key, "$", dossier.model_dump(mode="json"))
+
+        # Add to index
+        index_key = self._key("vehicules", immat, "travaux", "index")
+        await self.redis.sadd(index_key, numero)
+
+        # Add creation history entry
+        await self.add_historique_entry(
+            immat=immat,
+            numero=numero,
+            entry=HistoriqueEntry(
+                auteur=cree_par,
+                action=ActionHistorique.CREATION,
+                details="Dossier créé",
+                ref=key,
+            ),
+        )
+
+        logger.info(f"Created dossier {numero} for vehicle {immat}")
+        return dossier
+
+    async def get_dossier_reparation(
+        self, immat: str, numero: str
+    ) -> Optional[DossierReparation]:
+        """Get a repair dossier by number."""
+        key = self._key("vehicules", immat, "travaux", numero)
+        data = await self.redis.json().get(key)
+        if not data:
+            return None
+        return DossierReparation(**data)
+
+    async def list_dossiers_reparation(self, immat: str) -> List[DossierReparation]:
+        """List all repair dossiers for a vehicle, sorted by creation date (newest first)."""
+        index_key = self._key("vehicules", immat, "travaux", "index")
+        numeros = await self.redis.smembers(index_key)
+        if not numeros:
+            return []
+
+        dossiers = []
+        for numero in numeros:
+            dossier = await self.get_dossier_reparation(immat, numero)
+            if dossier:
+                dossiers.append(dossier)
+
+        # Sort by creation date, newest first
+        dossiers.sort(key=lambda d: d.cree_le, reverse=True)
+        return dossiers
+
+    async def update_dossier_reparation(
+        self, immat: str, numero: str, dossier: DossierReparation
+    ) -> bool:
+        """Update a repair dossier."""
+        try:
+            key = self._key("vehicules", immat, "travaux", numero)
+            await self.redis.json().set(key, "$", dossier.model_dump(mode="json"))
+            return True
+        except Exception as e:
+            logger.error(f"Error updating dossier {numero}: {e}")
+            return False
+
+    # ========== Historique ==========
+
+    async def add_historique_entry(
+        self, immat: str, numero: str, entry: HistoriqueEntry
+    ) -> bool:
+        """Add a history entry for a repair dossier."""
+        try:
+            hist_key = self._key("vehicules", immat, "travaux", numero, "historique")
+            # Get existing history or create empty list
+            existing = await self.redis.json().get(hist_key)
+            if existing is None:
+                existing = []
+            existing.append(entry.model_dump(mode="json"))
+            await self.redis.json().set(hist_key, "$", existing)
+            return True
+        except Exception as e:
+            logger.error(f"Error adding historique entry for {numero}: {e}")
+            return False
+
+    async def get_historique(self, immat: str, numero: str) -> List[HistoriqueEntry]:
+        """Get history entries for a repair dossier."""
+        hist_key = self._key("vehicules", immat, "travaux", numero, "historique")
+        data = await self.redis.json().get(hist_key)
+        if not data:
+            return []
+        return [HistoriqueEntry(**entry) for entry in data]
+
+    # ========== Devis ==========
+
+    async def add_devis(
+        self, immat: str, numero_dossier: str, devis_data: dict
+    ) -> "Devis":
+        """
+        Add a devis to a dossier. Auto-increment devis ID within the dossier.
+
+        Args:
+            immat: Vehicle license plate
+            numero_dossier: Dossier number
+            devis_data: Devis data dict (date_devis, fournisseur_id, fournisseur_nom, etc.)
+
+        Returns:
+            Created Devis object
+        """
+        # Auto-increment devis counter for this dossier
+        counter_key = self._key("vehicules", immat, "travaux", numero_dossier, "devis", "counter")
+        devis_id = str(await self.redis.incr(counter_key))
+
+        # Build fournisseur snapshot
+        fournisseur_snapshot = FournisseurSnapshot(
+            id=devis_data["fournisseur_id"],
+            nom=devis_data["fournisseur_nom"],
+        )
+
+        devis = Devis(
+            id=devis_id,
+            date_devis=devis_data["date_devis"],
+            fournisseur=fournisseur_snapshot,
+            description=devis_data.get("description_travaux"),
+            description_items=devis_data.get("description_items"),
+            montant=devis_data["montant"],
+            statut=StatutDevis.EN_ATTENTE,
+            cree_par=devis_data["cree_par"],
+            cree_le=datetime.utcnow(),
+        )
+
+        # Store devis at its own key
+        devis_key = self._key("vehicules", immat, "travaux", numero_dossier, "devis", devis_id)
+        await self.redis.json().set(devis_key, "$", devis.model_dump(mode="json"))
+
+        # Update the dossier's devis list
+        dossier = await self.get_dossier_reparation(immat, numero_dossier)
+        if dossier:
+            dossier.devis.append(devis)
+            await self.update_dossier_reparation(immat, numero_dossier, dossier)
+
+        # Add history entry
+        await self.add_historique_entry(
+            immat=immat,
+            numero=numero_dossier,
+            entry=HistoriqueEntry(
+                auteur=devis_data["cree_par"],
+                action=ActionHistorique.DEVIS_AJOUTE,
+                details=f"Devis #{devis_id} - {devis_data['fournisseur_nom']} - {devis_data['montant']}€",
+                ref=devis_key,
+            ),
+        )
+
+        logger.info(f"Added devis {devis_id} to dossier {numero_dossier}")
+        return devis
+
+    async def get_devis(
+        self, immat: str, numero_dossier: str, devis_id: str
+    ) -> Optional["Devis"]:
+        """Get a specific devis."""
+        devis_key = self._key("vehicules", immat, "travaux", numero_dossier, "devis", devis_id)
+        data = await self.redis.json().get(devis_key)
+        if not data:
+            return None
+        return Devis(**data)
+
+    async def update_devis(
+        self, immat: str, numero_dossier: str, devis_id: str, data: dict
+    ) -> Optional["Devis"]:
+        """
+        Update a devis (e.g. status change).
+
+        Args:
+            immat: Vehicle license plate
+            numero_dossier: Dossier number
+            devis_id: Devis ID
+            data: Dict of fields to update (e.g. {"statut": "approuve"})
+
+        Returns:
+            Updated Devis or None if not found
+        """
+        devis = await self.get_devis(immat, numero_dossier, devis_id)
+        if not devis:
+            return None
+
+        # Apply updates
+        for field, value in data.items():
+            if hasattr(devis, field):
+                setattr(devis, field, value)
+
+        # Save updated devis
+        devis_key = self._key("vehicules", immat, "travaux", numero_dossier, "devis", devis_id)
+        await self.redis.json().set(devis_key, "$", devis.model_dump(mode="json"))
+
+        # Also update in the dossier's devis list
+        dossier = await self.get_dossier_reparation(immat, numero_dossier)
+        if dossier:
+            for i, d in enumerate(dossier.devis):
+                if d.id == devis_id:
+                    dossier.devis[i] = devis
+                    break
+            await self.update_dossier_reparation(immat, numero_dossier, dossier)
+
+        return devis
+
+    # ========== Factures ==========
+
+    async def add_facture(
+        self, immat: str, numero_dossier: str, facture_data: dict
+    ) -> "Facture":
+        """
+        Add a facture to a dossier. Auto-increment facture ID.
+
+        Args:
+            immat: Vehicle license plate
+            numero_dossier: Dossier number
+            facture_data: Facture data dict
+
+        Returns:
+            Created Facture object
+        """
+        # Auto-increment facture counter for this dossier
+        counter_key = self._key("vehicules", immat, "travaux", numero_dossier, "factures", "counter")
+        facture_id = str(await self.redis.incr(counter_key))
+
+        # Build fournisseur snapshot
+        fournisseur_snapshot = FournisseurSnapshot(
+            id=facture_data["fournisseur_id"],
+            nom=facture_data["fournisseur_nom"],
+        )
+
+        facture = Facture(
+            id=facture_id,
+            date_facture=facture_data["date_facture"],
+            fournisseur=fournisseur_snapshot,
+            classification=facture_data["classification"],
+            description=facture_data.get("description_travaux"),
+            description_items=facture_data.get("description_items"),
+            montant_total=facture_data["montant_total"],
+            montant_crf=facture_data["montant_crf"],
+            devis_id=facture_data.get("devis_id"),
+            cree_par=facture_data["cree_par"],
+            cree_le=datetime.utcnow(),
+        )
+
+        # Store facture at its own key
+        facture_key = self._key("vehicules", immat, "travaux", numero_dossier, "factures", facture_id)
+        await self.redis.json().set(facture_key, "$", facture.model_dump(mode="json"))
+
+        # Update the dossier's factures list
+        dossier = await self.get_dossier_reparation(immat, numero_dossier)
+        if dossier:
+            dossier.factures.append(facture)
+            await self.update_dossier_reparation(immat, numero_dossier, dossier)
+
+        # Add history entry
+        await self.add_historique_entry(
+            immat=immat,
+            numero=numero_dossier,
+            entry=HistoriqueEntry(
+                auteur=facture_data["cree_par"],
+                action=ActionHistorique.FACTURE_AJOUTEE,
+                details=f"Facture #{facture_id} - {facture_data['fournisseur_nom']} - {facture_data['montant_total']}€ TTC",
+                ref=facture_key,
+            ),
+        )
+
+        logger.info(f"Added facture {facture_id} to dossier {numero_dossier}")
+        return facture
+
+    async def get_facture(
+        self, immat: str, numero_dossier: str, facture_id: str
+    ) -> Optional["Facture"]:
+        """Get a specific facture."""
+        facture_key = self._key("vehicules", immat, "travaux", numero_dossier, "factures", facture_id)
+        data = await self.redis.json().get(facture_key)
+        if not data:
+            return None
+        return Facture(**data)
+
+    async def update_facture(
+        self, immat: str, numero_dossier: str, facture_id: str, data: dict
+    ) -> Optional["Facture"]:
+        """
+        Update a facture (e.g. attach file info).
+
+        Args:
+            immat: Vehicle license plate
+            numero_dossier: Dossier number
+            facture_id: Facture ID
+            data: Dict of fields to update (e.g. {"fichier": FichierDrive(...)})
+
+        Returns:
+            Updated Facture or None if not found
+        """
+        facture = await self.get_facture(immat, numero_dossier, facture_id)
+        if not facture:
+            return None
+
+        # Apply updates
+        for field, value in data.items():
+            if hasattr(facture, field):
+                setattr(facture, field, value)
+
+        # Save updated facture
+        facture_key = self._key("vehicules", immat, "travaux", numero_dossier, "factures", facture_id)
+        await self.redis.json().set(facture_key, "$", facture.model_dump(mode="json"))
+
+        # Also update in the dossier's factures list
+        dossier = await self.get_dossier_reparation(immat, numero_dossier)
+        if dossier:
+            for i, f in enumerate(dossier.factures):
+                if f.id == facture_id:
+                    dossier.factures[i] = facture
+                    break
+            await self.update_dossier_reparation(immat, numero_dossier, dossier)
+
+        return facture
+
+    # ========== Dépenses (Expenses) ==========
+
+    async def get_vehicle_depenses(self, immat: str) -> dict:
+        """
+        Aggregate all factures across all dossiers for a vehicle,
+        grouped by year, sorted by date.
+
+        Returns a dict matching DepensesResponse structure.
+        """
+        from collections import defaultdict
+
+        dossiers = await self.list_dossiers_reparation(immat)
+
+        # Collect all factures with their dossier numero
+        year_data: dict[int, dict] = defaultdict(lambda: {
+            "factures": [],
+            "dossier_numeros": set(),
+            "total_cout": 0.0,
+            "total_crf": 0.0,
+        })
+        total_cout = 0.0
+        total_crf = 0.0
+
+        for dossier in dossiers:
+            for facture in dossier.factures:
+                year = facture.date_facture.year
+                entry = year_data[year]
+                entry["factures"].append({
+                    "date": facture.date_facture.isoformat(),
+                    "numero_dossier": dossier.numero,
+                    "description": facture.description,
+                    "fournisseur_nom": facture.fournisseur.nom,
+                    "classification": facture.classification.value if hasattr(facture.classification, 'value') else facture.classification,
+                    "montant_total": facture.montant_total,
+                    "montant_crf": facture.montant_crf,
+                })
+                entry["dossier_numeros"].add(dossier.numero)
+                entry["total_cout"] += facture.montant_total
+                entry["total_crf"] += facture.montant_crf
+                total_cout += facture.montant_total
+                total_crf += facture.montant_crf
+
+        # Build response sorted by year descending, factures by date
+        years = []
+        for year in sorted(year_data.keys(), reverse=True):
+            data = year_data[year]
+            sorted_factures = sorted(data["factures"], key=lambda f: f["date"])
+            years.append({
+                "year": year,
+                "nb_dossiers": len(data["dossier_numeros"]),
+                "total_cout": round(data["total_cout"], 2),
+                "total_crf": round(data["total_crf"], 2),
+                "factures": sorted_factures,
+            })
+
+        return {
+            "years": years,
+            "total_all_years_cout": round(total_cout, 2),
+            "total_all_years_crf": round(total_crf, 2),
+        }
+
+    # ========== Fournisseurs ==========
+
+    async def set_fournisseur(self, fournisseur: Fournisseur) -> bool:
+        """
+        Store a supplier. Key depends on niveau (dt or ul).
+
+        DT-level: {DT}:fournisseurs:{id}
+        UL-level: {DT}:fournisseurs:UL_{ul_id}:{id}
+        """
+        try:
+            if fournisseur.niveau.value == "ul" and fournisseur.ul_id:
+                key = self._key("fournisseurs", f"UL_{fournisseur.ul_id}", fournisseur.id)
+                index_key = self._key("fournisseurs", f"UL_{fournisseur.ul_id}", "index")
+            else:
+                key = self._key("fournisseurs", fournisseur.id)
+                index_key = self._key("fournisseurs", "index")
+
+            await self.redis.json().set(key, "$", fournisseur.model_dump(mode="json"))
+            await self.redis.sadd(index_key, fournisseur.id)
+            return True
+        except Exception as e:
+            logger.error(f"Error setting fournisseur {fournisseur.id}: {e}")
+            return False
+
+    async def get_fournisseur(
+        self, fournisseur_id: str, ul_id: Optional[str] = None
+    ) -> Optional[Fournisseur]:
+        """Get a supplier by ID. Specify ul_id for UL-level suppliers."""
+        if ul_id:
+            key = self._key("fournisseurs", f"UL_{ul_id}", fournisseur_id)
+        else:
+            key = self._key("fournisseurs", fournisseur_id)
+
+        data = await self.redis.json().get(key)
+        if not data:
+            return None
+        return Fournisseur(**data)
+
+    async def list_fournisseurs_dt(self) -> List[Fournisseur]:
+        """List all DT-level suppliers."""
+        index_key = self._key("fournisseurs", "index")
+        ids = await self.redis.smembers(index_key)
+        if not ids:
+            return []
+
+        fournisseurs = []
+        for fid in ids:
+            f = await self.get_fournisseur(fid)
+            if f:
+                fournisseurs.append(f)
+        return fournisseurs
+
+    async def list_fournisseurs_ul(self, ul_id: str) -> List[Fournisseur]:
+        """List all UL-level suppliers for a given UL."""
+        index_key = self._key("fournisseurs", f"UL_{ul_id}", "index")
+        ids = await self.redis.smembers(index_key)
+        if not ids:
+            return []
+
+        fournisseurs = []
+        for fid in ids:
+            f = await self.get_fournisseur(fid, ul_id=ul_id)
+            if f:
+                fournisseurs.append(f)
+        return fournisseurs
+
+    async def list_fournisseurs(self, ul_id: Optional[str] = None) -> List[Fournisseur]:
+        """
+        List suppliers visible to a user: DT-level + UL-level if ul_id provided.
+        """
+        dt_fournisseurs = await self.list_fournisseurs_dt()
+        if ul_id:
+            ul_fournisseurs = await self.list_fournisseurs_ul(ul_id)
+            return dt_fournisseurs + ul_fournisseurs
+        return dt_fournisseurs
+
+    # ========== Valideurs ==========
+
+    async def set_valideur(self, valideur: "Valideur") -> bool:
+        """Store a valideur. Key: {DT}:valideurs:{id}"""
+        try:
+            key = self._key("valideurs", valideur.id)
+            await self.redis.json().set(key, "$", valideur.model_dump(mode="json"))
+            await self.redis.sadd(self._key("valideurs", "index"), valideur.id)
+            return True
+        except Exception as e:
+            logger.error(f"Error setting valideur {valideur.id}: {e}")
+            return False
+
+    async def get_valideur(self, valideur_id: str) -> Optional["Valideur"]:
+        """Get a valideur by ID."""
+        key = self._key("valideurs", valideur_id)
+        data = await self.redis.json().get(key)
+        if not data:
+            return None
+        from app.models.repair_models import Valideur
+        return Valideur(**data)
+
+    async def list_valideurs(self) -> List["Valideur"]:
+        """List all valideurs for this DT."""
+        index_key = self._key("valideurs", "index")
+        ids = await self.redis.smembers(index_key)
+        if not ids:
+            return []
+
+        valideurs = []
+        for vid in ids:
+            v = await self.get_valideur(vid)
+            if v:
+                valideurs.append(v)
+        return valideurs
+
+
+    # ========== Contacts CC ==========
+
+    async def set_contact_cc(self, contact: "ContactCC") -> bool:
+        """Store a contact CC. Key: {DT}:contacts_cc:{id}"""
+        try:
+            key = self._key("contacts_cc", contact.id)
+            await self.redis.json().set(key, "$", contact.model_dump(mode="json"))
+            await self.redis.sadd(self._key("contacts_cc", "index"), contact.id)
+            return True
+        except Exception as e:
+            logger.error(f"Error setting contact CC {contact.id}: {e}")
+            return False
+
+    async def get_contact_cc(self, contact_id: str) -> Optional["ContactCC"]:
+        """Get a contact CC by ID."""
+        key = self._key("contacts_cc", contact_id)
+        data = await self.redis.json().get(key)
+        if not data:
+            return None
+        from app.models.repair_models import ContactCC
+        return ContactCC(**data)
+
+    async def list_contacts_cc(self) -> List["ContactCC"]:
+        """List all contacts CC for this DT."""
+        index_key = self._key("contacts_cc", "index")
+        ids = await self.redis.smembers(index_key)
+        if not ids:
+            return []
+
+        contacts = []
+        for cid in ids:
+            c = await self.get_contact_cc(cid)
+            if c:
+                contacts.append(c)
+        return contacts

@@ -34,7 +34,8 @@ export class LoginComponent implements OnInit {
    * Initiate login flow
    */
   login(): void {
-    this.authService.login();
+    const returnUrl = this.route.snapshot.queryParams['returnUrl'];
+    this.authService.login(returnUrl);
   }
 }
 

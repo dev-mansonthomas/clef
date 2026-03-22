@@ -39,8 +39,8 @@ DOCUMENT_CONFIG: dict[VehicleDocumentType, dict[str, Any]] = {
         "managed": True,
     },
     VehicleDocumentType.FACTURES: {
-        "label": "Factures",
-        "folder_name": "Factures",
+        "label": "Dossiers Réparation",
+        "folder_name": "Dossiers Réparation",
         "managed": False,
     },
     VehicleDocumentType.ASSURANCE: {
@@ -296,15 +296,37 @@ class VehicleDocumentService:
         """Upload a new document version and make it the current association."""
         self._ensure_managed_document(document_type)
         folder = await self._get_document_folder(valkey_service, vehicle, document_type)
-        upload_name = self._build_upload_filename(document_type, filename, vehicle.nom_synthetique)
-        uploaded_file = await drive_service.upload_file(
-            dt_id=valkey_service.dt,
-            file_content=file_content,
-            filename=upload_name,
-            mime_type=mime_type,
-            parent_folder_id=folder["id"],
-            description=f"{DOCUMENT_CONFIG[document_type]['label']} - {vehicle.nom_synthetique}",
-        )
+
+        # Check if there's already a file for this document type
+        existing_documents = getattr(vehicle, "documents", {}) or {}
+        existing_file = existing_documents.get(document_type.value)
+        existing_file_id = existing_file.get("file_id") if existing_file else None
+
+        if existing_file_id:
+            # Ensure the first revision is kept forever (it may have been uploaded outside CLEF)
+            await drive_service.ensure_first_revision_kept(
+                dt_id=valkey_service.dt,
+                file_id=existing_file_id,
+            )
+            # Update existing file with new version (Google Drive versioning)
+            uploaded_file = await drive_service.update_file_version(
+                dt_id=valkey_service.dt,
+                file_id=existing_file_id,
+                file_content=file_content,
+                mime_type=mime_type,
+                keep_forever=True,
+            )
+        else:
+            # First upload — create new file
+            upload_name = self._build_upload_filename(document_type, filename, vehicle.nom_synthetique)
+            uploaded_file = await drive_service.upload_file(
+                dt_id=valkey_service.dt,
+                file_content=file_content,
+                filename=upload_name,
+                mime_type=mime_type,
+                parent_folder_id=folder["id"],
+                description=f"{DOCUMENT_CONFIG[document_type]['label']} - {vehicle.nom_synthetique}",
+            )
 
         stored_file = self._build_stored_file(uploaded_file, folder)
         await self._persist_document_selection(valkey_service, vehicle, document_type, stored_file)
@@ -329,6 +351,54 @@ class VehicleDocumentService:
             "folder_url": config.get("drive_folder_url"),
         }
 
+    async def _rename_legacy_factures_folder(
+        self,
+        valkey_service: ValkeyService,
+        vehicle_folder: dict[str, Any],
+    ) -> None:
+        """Rename legacy 'Factures' or 'Dossier Réparation' folder to 'Dossiers Réparation'."""
+        # Check if the target folder already exists
+        new_folder = await drive_service.find_folder(
+            dt_id=valkey_service.dt,
+            name="Dossiers Réparation",
+            parent_folder_id=vehicle_folder["id"],
+        )
+        if new_folder:
+            return  # already renamed — skip
+
+        # Try renaming "Factures" → "Dossiers Réparation"
+        old_folder = await drive_service.find_folder(
+            dt_id=valkey_service.dt,
+            name="Factures",
+            parent_folder_id=vehicle_folder["id"],
+        )
+        if old_folder:
+            await drive_service.rename_file(
+                dt_id=valkey_service.dt,
+                file_id=old_folder["id"],
+                new_name="Dossiers Réparation",
+            )
+            logger.info(
+                f"Renamed 'Factures' → 'Dossiers Réparation' in {vehicle_folder.get('name', vehicle_folder['id'])}"
+            )
+            return
+
+        # Try renaming "Dossier Réparation" (singular) → "Dossiers Réparation" (plural)
+        singular_folder = await drive_service.find_folder(
+            dt_id=valkey_service.dt,
+            name="Dossier Réparation",
+            parent_folder_id=vehicle_folder["id"],
+        )
+        if singular_folder:
+            await drive_service.rename_file(
+                dt_id=valkey_service.dt,
+                file_id=singular_folder["id"],
+                new_name="Dossiers Réparation",
+            )
+            logger.info(
+                f"Renamed 'Dossier Réparation' → 'Dossiers Réparation' in {vehicle_folder.get('name', vehicle_folder['id'])}"
+            )
+
     async def _ensure_vehicle_tree(
         self,
         valkey_service: ValkeyService,
@@ -351,6 +421,9 @@ class VehicleDocumentService:
             name=vehicle.nom_synthetique,
             parent_folder_id=perimeter_folder["id"],
         )
+
+        # Migrate: rename "Factures" or "Dossier Réparation" → "Dossiers Réparation" if needed
+        await self._rename_legacy_factures_folder(valkey_service, vehicle_folder)
 
         document_folders: dict[VehicleDocumentType, dict[str, Any]] = {}
 
@@ -422,6 +495,9 @@ class VehicleDocumentService:
             name=vehicle.nom_synthetique,
             parent_folder_id=perimeter_folder["id"],
         )
+
+        # Migrate: rename "Factures" or "Dossier Réparation" → "Dossiers Réparation" if needed
+        await self._rename_legacy_factures_folder(valkey_service, vehicle_folder)
 
         # List existing subfolders
         existing_subfolders = await drive_service.list_subfolders(
@@ -499,7 +575,7 @@ class VehicleDocumentService:
         files = await drive_service.list_files(dt_id=valkey_service.dt, folder_id=folder_id)
         return sorted(
             files,
-            key=lambda file: file.get("createdTime") or "",
+            key=lambda file: file.get("modifiedTime") or file.get("createdTime") or "",
             reverse=True,
         )
 
@@ -541,6 +617,7 @@ class VehicleDocumentService:
             "web_view_link": file_data.get("webViewLink") or file_data.get("web_view_link"),
             "mime_type": file_data.get("mimeType") or file_data.get("mime_type"),
             "created_time": file_data.get("createdTime") or file_data.get("created_time"),
+            "modified_time": file_data.get("modifiedTime") or file_data.get("modified_time"),
             "selected_at": datetime.now(timezone.utc).isoformat(),
             "folder_id": folder.get("id"),
             "folder_name": folder.get("name"),
@@ -560,6 +637,7 @@ class VehicleDocumentService:
             web_view_link=file_data.get("webViewLink") or file_data.get("web_view_link") or stored_file.get("web_view_link"),
             mime_type=file_data.get("mimeType") or file_data.get("mime_type") or stored_file.get("mime_type"),
             created_time=file_data.get("createdTime") or file_data.get("created_time") or stored_file.get("created_time"),
+            modified_time=file_data.get("modifiedTime") or file_data.get("modified_time") or stored_file.get("modified_time"),
             selected_at=stored_file.get("selected_at"),
             folder_id=(folder or {}).get("id") or stored_file.get("folder_id"),
             folder_name=(folder or {}).get("name") or stored_file.get("folder_name"),

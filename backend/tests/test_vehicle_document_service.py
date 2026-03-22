@@ -55,7 +55,7 @@ class TestVehicleDocumentService:
             build_folder("Carte Grise"),
             build_folder("Carte Total"),
             build_folder("Plan d'Entretien"),
-            build_folder("Factures"),
+            build_folder("Dossiers Réparation"),
             build_folder("Assurance"),
             build_folder("Controle Technique"),
             build_folder("Carnet de Bord - Documentation CRF"),
@@ -80,6 +80,7 @@ class TestVehicleDocumentService:
 
         with patch("app.services.vehicle_document_service.drive_service") as mock_drive:
             mock_drive.get_or_create_folder = AsyncMock(side_effect=self.folder_sequence())
+            mock_drive.find_folder = AsyncMock(return_value=None)
             # list_files is called once per MANAGED_DOCUMENT_TYPE (4 types)
             mock_drive.list_files = AsyncMock(side_effect=[
                 [{
@@ -101,12 +102,13 @@ class TestVehicleDocumentService:
         assert result.documents[VehicleDocumentType.CARTE_GRISE].current_file is not None
         assert result.documents[VehicleDocumentType.CARTE_GRISE].current_file.file_id == "file-cg-1"
         assert result.documents[VehicleDocumentType.CARTE_GRISE].file_count == 1
-        assert result.documents[VehicleDocumentType.FACTURES].folder_name == "Factures"
+        assert result.documents[VehicleDocumentType.FACTURES].folder_name == "Dossiers Réparation"
 
     @pytest.mark.asyncio
     async def test_associate_existing_file_persists_selection(self):
         with patch("app.services.vehicle_document_service.drive_service") as mock_drive:
             mock_drive.get_or_create_folder = AsyncMock(side_effect=self.folder_sequence())
+            mock_drive.find_folder = AsyncMock(return_value=None)
             mock_drive.rename_file = AsyncMock(return_value=None)
             mock_drive.list_files = AsyncMock(return_value=[{
                 "id": "file-total-1",
@@ -133,6 +135,7 @@ class TestVehicleDocumentService:
     async def test_upload_document_uploads_new_version_and_persists_it(self):
         with patch("app.services.vehicle_document_service.drive_service") as mock_drive:
             mock_drive.get_or_create_folder = AsyncMock(side_effect=self.folder_sequence())
+            mock_drive.find_folder = AsyncMock(return_value=None)
             mock_drive.upload_file = AsyncMock(return_value={
                 "id": "file-plan-1",
                 "name": "plan_entretien.pdf",

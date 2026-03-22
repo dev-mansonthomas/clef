@@ -118,6 +118,34 @@ class TestImportVehiclesPreview:
 class TestImportVehicles:
     """Tests for CSV import endpoint."""
 
+    @pytest.fixture(autouse=True)
+    def cleanup_vehicles(self):
+        """Delete vehicles created during import tests."""
+        test_client = get_authenticated_client("thomas.manson@croix-rouge.fr")
+
+        # Get vehicle list before test
+        response = test_client.get("/api/DT75/vehicles")
+        before_immats = {v["immat"] for v in response.json()["vehicles"]} if response.status_code == 200 else set()
+
+        yield
+
+        # Get vehicle list after test
+        response = test_client.get("/api/DT75/vehicles")
+        if response.status_code == 200:
+            after_immats = {v["immat"] for v in response.json()["vehicles"]}
+            new_immats = after_immats - before_immats
+            if new_immats:
+                # Delete new vehicles via ValkeyService through the cache
+                from app.cache import get_cache
+                from app.services.valkey_service import ValkeyService
+                import asyncio
+                cache = get_cache()
+                if cache._connected and cache.client:
+                    valkey = ValkeyService(redis_client=cache.client, dt="DT75")
+                    loop = asyncio.get_event_loop()
+                    for immat in new_immats:
+                        loop.run_until_complete(valkey.delete_vehicle(immat))
+
     def test_import_csv_success(self):
         """Test successful CSV import."""
         test_client = get_authenticated_client("thomas.manson@croix-rouge.fr")
@@ -168,11 +196,9 @@ class TestImportVehicles:
         assert "ignored_lines" in data
         assert "errors" in data
 
-        # CSV has 12 lines total, skip 4 = 8 lines remaining (1 header + 5 data + 2 empty)
-        # But we process from line 5 onwards, which includes header + 5 data rows + empty lines
-        # The code processes all rows after skip_lines, so it's 7 rows (header + 5 data + 1 empty before double newline)
-        # Actually looking at the CSV: lines 1-4 are skipped, line 5 is header (processed as data), lines 6-10 are data
-        # So total_lines should be 6 (header + 5 data rows)
+        # CSV has 12 lines total, skip 4 metadata lines, skip 1 header row = 7 remaining
+        # Lines 6-10 are data (5 rows), lines 11-12 are empty
+        # total_lines counts all rows processed (including empty ones)
         assert data["total_lines"] >= 5  # At least 5 data rows
 
         # Should have ignored 1 line (N/A immatriculation on line 9)
@@ -182,7 +208,7 @@ class TestImportVehicles:
         if data["errors"]:
             print(f"Import errors: {data['errors']}")
 
-        # Should have created or updated 4 vehicles (5 rows - 1 with N/A immat)
+        # Should have created or updated 4 vehicles (5 data rows - 1 with N/A immat)
         # Vehicles may already exist in Valkey from mock data, so they count as "updated"
         assert data["created"] + data["updated"] >= 4
 
@@ -370,6 +396,6 @@ class TestImportVehicles:
         # Note: This test verifies the fix for issue #16.4
         # Vehicles may already exist from previous test runs
         assert data["created"] + data["updated"] >= 2
-        assert data["total_lines"] >= 3  # header + 2 data rows
+        assert data["total_lines"] >= 2  # 2 data rows (header is now skipped)
 
 
