@@ -27,7 +27,7 @@ MANDATORY_FOLDER_NAMES = {
     "Carte Grise",
     "Carte Total",
     "Controle Technique",
-    "Dossier Réparation",
+    "Dossiers Réparation",
     "Plan d'Entretien",
     "Sinistres",
 }

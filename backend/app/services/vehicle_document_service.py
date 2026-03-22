@@ -39,8 +39,8 @@ DOCUMENT_CONFIG: dict[VehicleDocumentType, dict[str, Any]] = {
         "managed": True,
     },
     VehicleDocumentType.FACTURES: {
-        "label": "Dossier Réparation",
-        "folder_name": "Dossier Réparation",
+        "label": "Dossiers Réparation",
+        "folder_name": "Dossiers Réparation",
         "managed": False,
     },
     VehicleDocumentType.ASSURANCE: {
@@ -356,29 +356,48 @@ class VehicleDocumentService:
         valkey_service: ValkeyService,
         vehicle_folder: dict[str, Any],
     ) -> None:
-        """Rename legacy 'Factures' folder to 'Dossier Réparation' if it exists."""
+        """Rename legacy 'Factures' or 'Dossier Réparation' folder to 'Dossiers Réparation'."""
+        # Check if the target folder already exists
+        new_folder = await drive_service.find_folder(
+            dt_id=valkey_service.dt,
+            name="Dossiers Réparation",
+            parent_folder_id=vehicle_folder["id"],
+        )
+        if new_folder:
+            return  # already renamed — skip
+
+        # Try renaming "Factures" → "Dossiers Réparation"
         old_folder = await drive_service.find_folder(
             dt_id=valkey_service.dt,
             name="Factures",
             parent_folder_id=vehicle_folder["id"],
         )
-        if not old_folder:
+        if old_folder:
+            await drive_service.rename_file(
+                dt_id=valkey_service.dt,
+                file_id=old_folder["id"],
+                new_name="Dossiers Réparation",
+            )
+            logger.info(
+                f"Renamed 'Factures' → 'Dossiers Réparation' in {vehicle_folder.get('name', vehicle_folder['id'])}"
+            )
             return
-        new_folder = await drive_service.find_folder(
+
+        # Try renaming "Dossier Réparation" (singular) → "Dossiers Réparation" (plural)
+        singular_folder = await drive_service.find_folder(
             dt_id=valkey_service.dt,
             name="Dossier Réparation",
             parent_folder_id=vehicle_folder["id"],
         )
-        if new_folder:
-            return  # already renamed / both exist — skip
-        await drive_service.rename_file(
-            dt_id=valkey_service.dt,
-            file_id=old_folder["id"],
-            new_name="Dossier Réparation",
-        )
-        logger.info(
-            f"Renamed 'Factures' → 'Dossier Réparation' in {vehicle_folder.get('name', vehicle_folder['id'])}"
-        )
+        if singular_folder:
+            await drive_service.rename_file(
+                dt_id=valkey_service.dt,
+                file_id=singular_folder["id"],
+                new_name="Dossiers Réparation",
+            )
+            logger.info(
+                f"Renamed 'Dossier Réparation' → 'Dossiers Réparation' in {vehicle_folder.get('name', vehicle_folder['id'])}"
+            )
 
     async def _ensure_vehicle_tree(
         self,
@@ -403,7 +422,7 @@ class VehicleDocumentService:
             parent_folder_id=perimeter_folder["id"],
         )
 
-        # Migrate: rename "Factures" → "Dossier Réparation" if needed
+        # Migrate: rename "Factures" or "Dossier Réparation" → "Dossiers Réparation" if needed
         await self._rename_legacy_factures_folder(valkey_service, vehicle_folder)
 
         document_folders: dict[VehicleDocumentType, dict[str, Any]] = {}
@@ -477,7 +496,7 @@ class VehicleDocumentService:
             parent_folder_id=perimeter_folder["id"],
         )
 
-        # Migrate: rename "Factures" → "Dossier Réparation" if needed
+        # Migrate: rename "Factures" or "Dossier Réparation" → "Dossiers Réparation" if needed
         await self._rename_legacy_factures_folder(valkey_service, vehicle_folder)
 
         # List existing subfolders

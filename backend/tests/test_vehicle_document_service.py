@@ -55,7 +55,7 @@ class TestVehicleDocumentService:
             build_folder("Carte Grise"),
             build_folder("Carte Total"),
             build_folder("Plan d'Entretien"),
-            build_folder("Dossier Réparation"),
+            build_folder("Dossiers Réparation"),
             build_folder("Assurance"),
             build_folder("Controle Technique"),
             build_folder("Carnet de Bord - Documentation CRF"),
@@ -102,7 +102,7 @@ class TestVehicleDocumentService:
         assert result.documents[VehicleDocumentType.CARTE_GRISE].current_file is not None
         assert result.documents[VehicleDocumentType.CARTE_GRISE].current_file.file_id == "file-cg-1"
         assert result.documents[VehicleDocumentType.CARTE_GRISE].file_count == 1
-        assert result.documents[VehicleDocumentType.FACTURES].folder_name == "Dossier Réparation"
+        assert result.documents[VehicleDocumentType.FACTURES].folder_name == "Dossiers Réparation"
 
     @pytest.mark.asyncio
     async def test_associate_existing_file_persists_selection(self):

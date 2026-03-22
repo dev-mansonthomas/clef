@@ -594,7 +594,7 @@ async def upload_devis_fichier(
             detail=f"Vehicle '{immat}' not found",
         )
 
-    # Get or create the "Dossier Réparation" folder for this vehicle
+    # Get or create the "Dossiers Réparation" folder for this vehicle
     drive_folders = getattr(vehicle, "drive_folders", {}) or {}
     factures_folder = drive_folders.get("factures")
     if factures_folder and isinstance(factures_folder, dict) and factures_folder.get("folder_id"):
@@ -619,16 +619,11 @@ async def upload_devis_fichier(
         parent_folder_id=repair_parent_id,
     )
 
-    # Create a sub-folder "Devis XX" inside the repair subfolder
-    devis_folder_name = f"Devis {devis_id.zfill(2)}"
-    devis_folder = await drive_service.get_or_create_folder(
-        dt_id=dt, name=devis_folder_name, parent_folder_id=repair_subfolder["id"],
-    )
-
-    # Build filename: Devis XX - fournisseur_nom.ext
+    # Build filename: {date_devis} - {nom_synthetique} - {dossier.numero} - Devis XX.ext
     ext_map = {"application/pdf": ".pdf", "image/jpeg": ".jpg", "image/png": ".png"}
     ext = ext_map.get(file.content_type, ".pdf")
-    upload_filename = f"Devis {devis_id.zfill(2)} - {devis.fournisseur.nom}{ext}"
+    date_devis = devis.date_devis.strftime("%Y-%m-%d")
+    upload_filename = f"{date_devis} - {vehicle.nom_synthetique} - {dossier.numero} - Devis {devis_id.zfill(2)}{ext}"
 
     if devis.fichier and devis.fichier.file_id:
         # Update existing file (versioning)
@@ -647,7 +642,7 @@ async def upload_devis_fichier(
             file_content=file_content,
             filename=upload_filename,
             mime_type=file.content_type,
-            parent_folder_id=devis_folder["id"],
+            parent_folder_id=repair_subfolder["id"],
             description=f"Devis #{devis_id} - {dossier.numero}",
         )
 
@@ -897,7 +892,7 @@ async def upload_facture_fichier(
             detail=f"Vehicle '{immat}' not found",
         )
 
-    # Get or create the "Dossier Réparation" folder for this vehicle
+    # Get or create the "Dossiers Réparation" folder for this vehicle
     drive_folders = getattr(vehicle, "drive_folders", {}) or {}
     factures_folder = drive_folders.get("factures")
     if factures_folder and isinstance(factures_folder, dict) and factures_folder.get("folder_id"):
@@ -922,19 +917,18 @@ async def upload_facture_fichier(
         parent_folder_id=repair_parent_id,
     )
 
-    # Determine target subfolder based on devis_id
+    # Determine target folder based on devis_id
     if facture.devis_id:
-        # Store in the devis subfolder: Devis XX
-        target_subfolder_name = f"Devis {facture.devis_id.zfill(2)}"
+        # Facture linked to a devis: upload directly into repair_subfolder
+        target_folder_id = repair_subfolder["id"]
     else:
-        # Store in Factures Seules
-        target_subfolder_name = "Factures Seules"
-
-    target_subfolder = await drive_service.get_or_create_folder(
-        dt_id=dt,
-        name=target_subfolder_name,
-        parent_folder_id=repair_subfolder["id"],
-    )
+        # Facture without devis: store in "Factures Seules" subfolder
+        factures_seules = await drive_service.get_or_create_folder(
+            dt_id=dt,
+            name="Factures Seules",
+            parent_folder_id=repair_subfolder["id"],
+        )
+        target_folder_id = factures_seules["id"]
 
     # Build filename: Facture {facture_id.zfill(2)} - {fournisseur_nom}{ext}
     ext_map = {"application/pdf": ".pdf", "image/jpeg": ".jpg", "image/png": ".png"}
@@ -958,7 +952,7 @@ async def upload_facture_fichier(
             file_content=file_content,
             filename=upload_filename,
             mime_type=file.content_type,
-            parent_folder_id=target_subfolder["id"],
+            parent_folder_id=target_folder_id,
             description=f"Facture #{facture_id} - {dossier.numero}",
         )
 

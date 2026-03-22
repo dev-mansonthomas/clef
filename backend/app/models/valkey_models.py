@@ -42,7 +42,7 @@ class DTConfiguration(BaseModel):
             {"name": "Commande", "mandatory": False},
             {"name": "Controle Technique", "mandatory": True},
             {"name": "Documentation Technique", "mandatory": False},
-            {"name": "Dossier Réparation", "mandatory": True, "locked": True},
+            {"name": "Dossiers Réparation", "mandatory": True, "locked": True},
             {"name": "Photos", "mandatory": False},
             {"name": "Plan d'Entretien", "mandatory": True},
             {"name": "Sinistres", "mandatory": True},
