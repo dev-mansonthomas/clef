@@ -44,7 +44,7 @@ import { DossierReparation } from '../../models/repair.model';
           <mat-card-subtitle>{{ d.cree_le | date:'dd/MM/yyyy' }}</mat-card-subtitle>
         </mat-card-header>
         <mat-card-content>
-          <p class="dossier-description">{{ truncate(d.description, 80) }}</p>
+          <p class="dossier-description">{{ truncateDescription(d.description, 80) }}</p>
           <div class="dossier-meta">
             <span class="statut-badge" [ngClass]="'statut-' + d.statut">{{ statutLabel(d.statut) }}</span>
             <span class="counts" *ngIf="d.devis?.length || d.factures?.length">
@@ -116,8 +116,9 @@ export class DossierListComponent implements OnInit, OnChanges {
     });
   }
 
-  truncate(text: string, max: number): string {
-    return text && text.length > max ? text.substring(0, max) + '…' : text;
+  truncateDescription(description: string | string[], max: number): string {
+    const text = Array.isArray(description) ? description.join(' · ') : description;
+    return text && text.length > max ? text.substring(0, max) + '…' : (text || '');
   }
 
   statutLabel(statut: string): string {

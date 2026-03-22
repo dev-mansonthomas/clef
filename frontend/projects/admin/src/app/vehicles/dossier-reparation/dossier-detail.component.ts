@@ -54,7 +54,13 @@ import { FactureFormComponent } from './facture-form.component';
         <mat-card-content>
 
           <h4>Description</h4>
-          <p class="description-text">{{ dossier.description }}</p>
+          <ul class="description-list" *ngIf="dossier.description?.length">
+            <li *ngFor="let item of dossier.description">{{ item }}</li>
+          </ul>
+          <p class="empty-section" *ngIf="!dossier.description?.length">Aucune description.</p>
+          <div *ngIf="dossier.commentaire" class="commentaire-block">
+            <strong>Commentaire :</strong> {{ dossier.commentaire }}
+          </div>
 
           <mat-divider></mat-divider>
 
@@ -80,6 +86,7 @@ import { FactureFormComponent } from './facture-form.component';
 
           <h4>Devis</h4>
           <app-devis-form *ngIf="showDevisForm" [dt]="dt" [immat]="immat" [numero]="numero"
+            [dossierDescription]="dossier.description || []"
             (devisCreated)="onDevisCreated($event)" (cancelled)="showDevisForm = false"></app-devis-form>
           <p class="empty-section" *ngIf="!dossier.devis?.length && !showDevisForm">Aucun devis enregistré.</p>
           <div class="item-list" *ngIf="dossier.devis?.length">
@@ -155,7 +162,9 @@ import { FactureFormComponent } from './facture-form.component';
     .statut-ouvert { background: #e8f5e9; color: #2e7d32; }
     .statut-cloture { background: #eeeeee; color: #616161; }
     .statut-annule { background: #ffebee; color: #c62828; }
-    .description-text { white-space: pre-wrap; margin: 8px 0 16px; }
+    .description-list { margin: 8px 0 16px; padding-left: 20px; }
+    .description-list li { margin-bottom: 4px; }
+    .commentaire-block { margin: 8px 0 16px; padding: 8px 12px; background: #f5f5f5; border-radius: 4px; font-style: italic; }
     .action-buttons { display: flex; gap: 12px; margin: 16px 0; flex-wrap: wrap; }
     .empty-section { color: rgba(0,0,0,0.54); font-style: italic; }
     .loading-container { display: flex; align-items: center; gap: 12px; padding: 24px 0; }

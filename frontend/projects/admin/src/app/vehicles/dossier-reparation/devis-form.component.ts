@@ -1,6 +1,6 @@
-import { Component, Input, Output, EventEmitter, inject, ChangeDetectorRef } from '@angular/core';
+import { Component, Input, Output, EventEmitter, inject, ChangeDetectorRef, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
+import { ReactiveFormsModule, FormBuilder, Validators, FormArray, FormControl } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
@@ -52,10 +52,25 @@ import { FournisseurSelectorComponent } from '../shared/fournisseur-selector.com
             <mat-error *ngIf="form.get('date_devis')?.hasError('required')">La date est requise</mat-error>
           </mat-form-field>
 
+          <label class="section-label">Description des travaux (héritée du dossier)</label>
+          <div class="description-items" formArrayName="descriptionItems">
+            <div *ngFor="let item of descriptionItems.controls; let i = index" class="description-item-row">
+              <mat-form-field appearance="outline" class="description-item-field">
+                <mat-label>Élément {{ i + 1 }}</mat-label>
+                <input matInput [formControlName]="i">
+              </mat-form-field>
+              <button mat-icon-button type="button" (click)="removeItem(i)" *ngIf="descriptionItems.length > 1" class="remove-btn">
+                <mat-icon>close</mat-icon>
+              </button>
+            </div>
+          </div>
+          <button mat-stroked-button type="button" (click)="addItem()" class="add-item-btn">
+            <mat-icon>add</mat-icon> Ajouter un élément
+          </button>
+
           <mat-form-field appearance="outline" class="full-width">
-            <mat-label>Description des travaux</mat-label>
-            <textarea matInput formControlName="description_travaux" rows="3"></textarea>
-            <mat-error *ngIf="form.get('description_travaux')?.hasError('required')">La description est requise</mat-error>
+            <mat-label>Commentaire devis (optionnel)</mat-label>
+            <textarea matInput formControlName="description_travaux" rows="2"></textarea>
           </mat-form-field>
 
           <mat-form-field appearance="outline" class="full-width">
@@ -80,12 +95,19 @@ import { FournisseurSelectorComponent } from '../shared/fournisseur-selector.com
     .form-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
     .selected-fournisseur { margin-bottom: 16px; padding: 8px 12px; background: #e8f5e9; border-radius: 4px; }
     .field-error { font-size: 12px; color: #f44336; margin-bottom: 16px; }
+    .section-label { font-weight: 500; display: block; margin-bottom: 8px; }
+    .description-items { margin-bottom: 8px; }
+    .description-item-row { display: flex; align-items: center; gap: 4px; }
+    .description-item-field { flex: 1; }
+    .remove-btn { flex-shrink: 0; }
+    .add-item-btn { margin-bottom: 16px; }
   `],
 })
-export class DevisFormComponent {
+export class DevisFormComponent implements OnInit {
   @Input() dt!: string;
   @Input() immat!: string;
   @Input() numero!: string;
+  @Input() dossierDescription: string[] = [];
   @Output() devisCreated = new EventEmitter<Devis>();
   @Output() cancelled = new EventEmitter<void>();
 
@@ -100,9 +122,30 @@ export class DevisFormComponent {
 
   form = this.fb.group({
     date_devis: [new Date(), Validators.required],
-    description_travaux: ['', Validators.required],
+    descriptionItems: this.fb.array([] as FormControl<string>[]),
+    description_travaux: [''],
     montant: [null as number | null, [Validators.required, Validators.min(0.01)]],
   });
+
+  get descriptionItems(): FormArray<FormControl<string>> {
+    return this.form.get('descriptionItems') as FormArray<FormControl<string>>;
+  }
+
+  ngOnInit(): void {
+    // Pre-populate description items from dossier
+    const items = this.dossierDescription?.length ? this.dossierDescription : [''];
+    items.forEach(item => {
+      this.descriptionItems.push(this.fb.control(item) as FormControl<string>);
+    });
+  }
+
+  addItem(): void {
+    this.descriptionItems.push(this.fb.control('') as FormControl<string>);
+  }
+
+  removeItem(index: number): void {
+    this.descriptionItems.removeAt(index);
+  }
 
   onFournisseurSelected(f: Fournisseur): void {
     this.selectedFournisseur = f;
@@ -118,10 +161,15 @@ export class DevisFormComponent {
       ? v.date_devis.toISOString().split('T')[0]
       : String(v.date_devis);
 
+    const descItems = this.descriptionItems.controls
+      .map(c => c.value?.trim())
+      .filter((val): val is string => !!val);
+
     this.repairService.createDevis(this.dt, this.immat, this.numero, {
       date_devis: dateStr,
       fournisseur_id: this.selectedFournisseur.id,
-      description_travaux: v.description_travaux!,
+      description_items: descItems.length ? descItems : undefined,
+      description_travaux: v.description_travaux?.trim() || undefined,
       montant: v.montant!,
     }).subscribe({
       next: (devis) => {

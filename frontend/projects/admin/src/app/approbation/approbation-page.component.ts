@@ -47,7 +47,11 @@ import { ApprobationData } from '../models/repair.model';
         </mat-card-header>
         <mat-card-content>
           <div class="info-grid">
-            <div class="info-item"><strong>Dossier</strong><span>{{ data()!.dossier_description }}</span></div>
+            <div class="info-item"><strong>Dossier</strong>
+              <ul class="dossier-desc-list" *ngIf="data()!.dossier_description?.length">
+                <li *ngFor="let item of data()!.dossier_description">{{ item }}</li>
+              </ul>
+            </div>
             <div class="info-item"><strong>Fournisseur</strong><span>{{ data()!.devis.fournisseur?.nom }}</span></div>
             <div class="info-item"><strong>Description</strong><span>{{ data()!.devis.description }}</span></div>
             <div class="info-item highlight"><strong>Montant</strong><span>{{ data()!.devis.montant | number:'1.2-2' }} €</span></div>
@@ -108,6 +112,8 @@ import { ApprobationData } from '../models/repair.model';
     .info-grid { display: grid; gap: 12px; margin: 16px 0; }
     .info-item { display: flex; flex-direction: column; gap: 2px; }
     .info-item strong { font-size: 12px; color: rgba(0,0,0,0.54); text-transform: uppercase; }
+    .dossier-desc-list { margin: 4px 0 0; padding-left: 20px; }
+    .dossier-desc-list li { margin-bottom: 2px; }
     .info-item.highlight span { font-size: 20px; font-weight: 600; color: #1565c0; }
     .drive-link { margin: 16px 0; }
     .drive-link a { display: inline-flex; align-items: center; gap: 4px; color: #1565c0; text-decoration: none; }

@@ -15,13 +15,15 @@ export interface FournisseurSnapshot {
   telephone?: string;
   siret?: string;
   email?: string;
+  numero_contrat?: string;
 }
 
 export interface DossierReparation {
   numero: string;  // REP-2026-001
   immat: string;
   dt: string;
-  description: string;
+  description: string[];
+  commentaire?: string;
   statut: 'ouvert' | 'cloture' | 'annule';
   cree_par: string;
   cree_le: string;
@@ -69,8 +71,17 @@ export interface Fournisseur {
   telephone?: string;
   email?: string;
   siret?: string;
-  scope: 'dt' | 'ul';
-  scope_id?: string;
+  contact_nom?: string;
+  specialites: string[];
+  niveau: 'dt' | 'ul';
+  ul_id?: string;
+  adresse_rue?: string;
+  adresse_code_postal?: string;
+  adresse_ville?: string;
+  numero_contrat?: string;
+  archive: boolean;
+  cree_par: string;
+  cree_le: string;
 }
 
 export interface AuditEntry {
@@ -94,19 +105,22 @@ export interface FournisseurListResponse {
 // Request types
 
 export interface CreateDossierRequest {
-  description: string;
+  description: string[];
+  commentaire?: string;
   sinistre_ref?: string;
 }
 
 export interface UpdateDossierRequest {
   statut?: 'ouvert' | 'cloture' | 'annule';
-  description?: string;
+  description?: string[];
+  commentaire?: string;
 }
 
 export interface CreateDevisRequest {
   date_devis: string;
   fournisseur_id: string;
-  description_travaux: string;
+  description_travaux?: string;
+  description_items?: string[];
   montant: number;
 }
 
@@ -132,8 +146,14 @@ export interface CreateFournisseurRequest {
   telephone?: string;
   email?: string;
   siret?: string;
-  scope: 'dt' | 'ul';
-  scope_id?: string;
+  contact_nom?: string;
+  specialites?: string[];
+  niveau: 'dt' | 'ul';
+  ul_id?: string;
+  adresse_rue?: string;
+  adresse_code_postal?: string;
+  adresse_ville?: string;
+  numero_contrat?: string;
 }
 
 export interface UpdateFournisseurRequest {
@@ -142,6 +162,13 @@ export interface UpdateFournisseurRequest {
   telephone?: string;
   email?: string;
   siret?: string;
+  contact_nom?: string;
+  specialites?: string[];
+  adresse_rue?: string;
+  adresse_code_postal?: string;
+  adresse_ville?: string;
+  numero_contrat?: string;
+  archive?: boolean;
 }
 
 // Approbation types
@@ -163,7 +190,7 @@ export interface ApprobationData {
   numero_dossier: string;
   devis_id: string;
   devis: Devis;
-  dossier_description: string;
+  dossier_description: string[];
   valideur_email: string;
   status: string;
   created_at: string;
