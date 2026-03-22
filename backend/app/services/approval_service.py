@@ -53,6 +53,14 @@ class ApprovalService:
         logger.info(f"Created approval token {token} for devis {devis_id} in dossier {numero_dossier}")
         return token_data
 
+    async def invalidate_token(self, token: str) -> bool:
+        """Invalidate an existing approval token by deleting its Valkey key."""
+        key = self._token_key(token)
+        deleted = await self.redis.delete(key)
+        if deleted:
+            logger.info(f"Invalidated approval token {token}")
+        return bool(deleted)
+
     async def get_approval_data(self, token: str) -> Optional[Dict[str, Any]]:
         """Retrieve approval token data from Valkey."""
         key = self._token_key(token)

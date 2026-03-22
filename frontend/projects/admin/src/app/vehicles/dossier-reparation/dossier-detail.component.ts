@@ -10,7 +10,7 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
-import { MatDialogModule } from '@angular/material/dialog';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatAutocompleteModule, MatAutocompleteTrigger } from '@angular/material/autocomplete';
 import { Observable, startWith, map } from 'rxjs';
 import { RepairService } from '../../services/repair.service';
@@ -18,6 +18,7 @@ import { ValideurService } from '../../services/valideur.service';
 import { DossierReparation, Devis, FactureCreateResponse, AuditEntry, Valideur } from '../../models/repair.model';
 import { DevisFormComponent } from './devis-form.component';
 import { FactureFormComponent } from './facture-form.component';
+import { ConfirmResendDialogComponent } from './confirm-resend-dialog.component';
 
 @Component({
   selector: 'app-dossier-detail',
@@ -103,6 +104,10 @@ import { FactureFormComponent } from './facture-form.component';
               <button mat-stroked-button type="button" *ngIf="d.statut === 'en_attente' && dossier.statut === 'ouvert'"
                 (click)="openApprovalForm(d)" [disabled]="approvalLoading" class="approval-btn">
                 <mat-icon>send</mat-icon> Envoyer pour approbation
+              </button>
+              <button mat-stroked-button type="button" *ngIf="(d.statut === 'envoye' || d.statut === 'refuse') && dossier.statut === 'ouvert'"
+                (click)="confirmResend(d)" [disabled]="approvalLoading" class="approval-btn">
+                <mat-icon>replay</mat-icon> Renvoyer pour approbation
               </button>
             </div>
             <!-- Inline approval form -->
@@ -209,7 +214,7 @@ import { FactureFormComponent } from './facture-form.component';
     .timeline-icon-reouverture { color: #1565c0; }
     .timeline-icon-annulation { color: #c62828; }
     .timeline-icon-devis_ajoute, .timeline-icon-devis_modifie { color: #1565c0; }
-    .timeline-icon-devis_envoye_approbation { color: #ef6c00; }
+    .timeline-icon-devis_envoye_approbation, .timeline-icon-devis_renvoye_approbation { color: #ef6c00; }
     .timeline-icon-devis_approuve { color: #2e7d32; }
     .timeline-icon-devis_refuse, .timeline-icon-devis_annule { color: #c62828; }
     .timeline-icon-facture_ajoutee, .timeline-icon-facture_modifiee { color: #1565c0; }
@@ -230,6 +235,7 @@ export class DossierDetailComponent implements OnInit, OnChanges {
   private readonly valideurService = inject(ValideurService);
   private readonly snackBar = inject(MatSnackBar);
   private readonly cdr = inject(ChangeDetectorRef);
+  private readonly dialog = inject(MatDialog);
 
   @ViewChild(MatAutocompleteTrigger) valideurAutoTrigger!: MatAutocompleteTrigger;
 
@@ -241,6 +247,7 @@ export class DossierDetailComponent implements OnInit, OnChanges {
   approvalDevis: Devis | null = null;
   approvalEmail = '';
   approvalLoading = false;
+  isResend = false;
   historique: AuditEntry[] = [];
   historiqueLoading = false;
 
@@ -287,6 +294,7 @@ export class DossierDetailComponent implements OnInit, OnChanges {
       devis_ajoute: 'description',
       devis_modifie: 'description',
       devis_envoye_approbation: 'send',
+      devis_renvoye_approbation: 'replay',
       devis_approuve: 'check_circle',
       devis_refuse: 'block',
       devis_annule: 'block',
@@ -418,15 +426,48 @@ export class DossierDetailComponent implements OnInit, OnChanges {
     }
   }
 
-  openApprovalForm(devis: Devis): void {
+  openApprovalForm(devis: Devis, prefillValideur?: string): void {
     this.approvalDevis = devis;
-    this.approvalEmail = '';
-    this.valideurSearchControl.setValue('');
+    this.isResend = devis.statut === 'envoye' || devis.statut === 'refuse';
+    if (prefillValideur) {
+      this.approvalEmail = prefillValideur;
+      // Try to find the valideur in the list to display their name
+      const found = this.valideurs.find(v => v.email === prefillValideur);
+      this.valideurSearchControl.setValue(found ? `${found.prenom} ${found.nom}` : prefillValideur);
+    } else {
+      this.approvalEmail = '';
+      this.valideurSearchControl.setValue('');
+    }
+  }
+
+  confirmResend(devis: Devis): void {
+    const dateEnvoi = devis.date_envoi_approbation
+      ? new Date(devis.date_envoi_approbation).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+      : 'date inconnue';
+
+    let message: string;
+    if (devis.statut === 'refuse') {
+      message = `Ce devis a été refusé par ${devis.valideur_email || 'le valideur'}. Voulez-vous renvoyer la demande d'approbation ?`;
+    } else {
+      message = `Un email d'approbation a déjà été envoyé à ${devis.valideur_email || 'le valideur'} le ${dateEnvoi}. Voulez-vous renvoyer la demande ? Un nouveau lien sera généré (l'ancien sera invalidé).`;
+    }
+
+    const dialogRef = this.dialog.open(ConfirmResendDialogComponent, {
+      width: '480px',
+      data: { message },
+    });
+
+    dialogRef.afterClosed().subscribe((confirmed: boolean) => {
+      if (confirmed) {
+        this.openApprovalForm(devis, devis.valideur_email || undefined);
+      }
+    });
   }
 
   sendForApproval(): void {
     if (!this.approvalDevis || !this.approvalEmail || !this.dossier) return;
     this.approvalLoading = true;
+    const isResend = this.isResend;
     this.repairService.sendApproval(
       this.dt, this.immat, this.dossier.numero,
       String(this.approvalDevis.id),
@@ -435,9 +476,12 @@ export class DossierDetailComponent implements OnInit, OnChanges {
       next: () => {
         this.approvalLoading = false;
         this.approvalDevis = null;
-        this.snackBar.open('Devis envoyé pour approbation', 'Fermer', { duration: 5000 });
+        this.isResend = false;
+        const msg = isResend ? 'Devis renvoyé pour approbation' : 'Devis envoyé pour approbation';
+        this.snackBar.open(msg, 'Fermer', { duration: 5000 });
         this.cdr.detectChanges();
         this.loadDossier();
+        this.loadHistorique();
       },
       error: () => {
         this.approvalLoading = false;

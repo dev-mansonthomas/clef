@@ -46,6 +46,7 @@ class ActionHistorique(str, Enum):
     DEVIS_MODIFIE = "devis_modifie"
     DEVIS_ANNULE = "devis_annule"
     DEVIS_ENVOYE_APPROBATION = "devis_envoye_approbation"
+    DEVIS_RENVOYE_APPROBATION = "devis_renvoye_approbation"
     DEVIS_APPROUVE = "devis_approuve"
     DEVIS_REFUSE = "devis_refuse"
     FACTURE_AJOUTEE = "facture_ajoutee"

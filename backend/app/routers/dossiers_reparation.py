@@ -314,14 +314,21 @@ async def send_devis_for_approval(
             detail=f"Devis '{devis_id}' not found in dossier '{numero}'",
         )
 
-    if devis.statut not in (StatutDevis.EN_ATTENTE, StatutDevis.ENVOYE):
+    if devis.statut not in (StatutDevis.EN_ATTENTE, StatutDevis.ENVOYE, StatutDevis.REFUSE):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"Cannot send devis with status '{devis.statut.value}' for approval",
         )
 
-    # Create approval token
+    # Track whether this is a re-send (for history)
+    is_resend = devis.statut in (StatutDevis.ENVOYE, StatutDevis.REFUSE)
+
+    # Invalidate old approval token if re-sending
     approval_svc = ApprovalService(redis_client=valkey.redis, dt=dt)
+    if is_resend and devis.token_approbation:
+        await approval_svc.invalidate_token(devis.token_approbation)
+
+    # Create approval token
     token_data = await approval_svc.create_approval_token(
         immat=immat,
         numero_dossier=numero,
@@ -342,6 +349,8 @@ async def send_devis_for_approval(
         valideur_email=body.valideur_email,
         approval_url=approval_url,
         sender_email=current_user.email,
+        dossier_description=dossier.description,
+        dossier_commentaire=dossier.commentaire,
     )
 
     # Update devis status to "envoye"
@@ -353,14 +362,16 @@ async def send_devis_for_approval(
     })
 
     # Add history entry
+    history_action = ActionHistorique.DEVIS_RENVOYE_APPROBATION if is_resend else ActionHistorique.DEVIS_ENVOYE_APPROBATION
+    history_verb = "renvoyé" if is_resend else "envoyé"
     key = f"{valkey.dt}:vehicules:{immat}:travaux:{numero}:devis:{devis_id}"
     await valkey.add_historique_entry(
         immat=immat,
         numero=numero,
         entry=HistoriqueEntry(
             auteur=current_user.email,
-            action=ActionHistorique.DEVIS_ENVOYE_APPROBATION,
-            details=f"Devis #{devis_id} envoyé pour approbation à {body.valideur_email}",
+            action=history_action,
+            details=f"Devis #{devis_id} {history_verb} pour approbation à {body.valideur_email}",
             ref=key,
         ),
     )
