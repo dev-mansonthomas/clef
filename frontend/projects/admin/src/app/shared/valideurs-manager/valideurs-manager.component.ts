@@ -45,9 +45,10 @@ export class ValideursManagerComponent implements OnInit {
   showForm = signal(false);
   editingId = signal<string | null>(null);
 
-  displayedColumns = ['nom', 'email', 'role', 'statut', 'actions'];
+  displayedColumns = ['nom', 'role', 'statut', 'actions'];
 
   // Form fields
+  formPrenom = '';
   formNom = '';
   formEmail = '';
   formRole = '';
@@ -82,6 +83,7 @@ export class ValideursManagerComponent implements OnInit {
   }
 
   resetForm(): void {
+    this.formPrenom = '';
     this.formNom = '';
     this.formEmail = '';
     this.formRole = '';
@@ -90,6 +92,7 @@ export class ValideursManagerComponent implements OnInit {
 
   editValideur(v: Valideur): void {
     this.editingId.set(v.id);
+    this.formPrenom = v.prenom;
     this.formNom = v.nom;
     this.formEmail = v.email;
     this.formRole = v.role ?? '';
@@ -97,14 +100,15 @@ export class ValideursManagerComponent implements OnInit {
   }
 
   saveValideur(): void {
-    if (!this.formNom.trim() || !this.formEmail.trim()) {
-      this.snackBar.open('Le nom et l\'email sont requis', 'Fermer', { duration: 3000 });
+    if (!this.formPrenom.trim() || !this.formNom.trim() || !this.formEmail.trim()) {
+      this.snackBar.open('Le prénom, le nom et l\'email sont requis', 'Fermer', { duration: 3000 });
       return;
     }
 
     const editId = this.editingId();
     if (editId) {
       const data: UpdateValideurRequest = {
+        prenom: this.formPrenom.trim(),
         nom: this.formNom.trim(),
         email: this.formEmail.trim(),
         role: this.formRole.trim() || undefined,
@@ -123,6 +127,7 @@ export class ValideursManagerComponent implements OnInit {
       });
     } else {
       const data: CreateValideurRequest = {
+        prenom: this.formPrenom.trim(),
         nom: this.formNom.trim(),
         email: this.formEmail.trim(),
         role: this.formRole.trim() || undefined,

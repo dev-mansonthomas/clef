@@ -48,6 +48,7 @@ async def create_valideur(
 
     valideur = Valideur(
         id=str(uuid.uuid4()),
+        prenom=body.prenom,
         nom=body.nom,
         email=body.email,
         role=body.role,

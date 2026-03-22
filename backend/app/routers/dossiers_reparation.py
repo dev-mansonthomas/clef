@@ -331,7 +331,7 @@ async def send_devis_for_approval(
 
     # Build approval URL
     import os
-    frontend_url = os.getenv("FRONTEND_URL", "http://localhost:4202")
+    frontend_url = os.getenv("FRONTEND_URL", "http://localhost:4200")
     approval_url = f"{frontend_url}/approbation/{token_data['token']}"
 
     # Send approval email

@@ -116,7 +116,7 @@ import { FactureFormComponent } from './facture-form.component';
                 </button>
                 <mat-autocomplete #valideurAuto="matAutocomplete" [displayWith]="displayValideurFn" (optionSelected)="onValideurSelected($event.option.value)">
                   <mat-option *ngFor="let v of filteredValideurs$ | async" [value]="v">
-                    {{ v.nom }} <span class="valideur-hint"> — {{ v.email }}</span>
+                    {{ v.prenom }} {{ v.nom }} <span class="valideur-hint"> — {{ v.email }}</span>
                   </mat-option>
                 </mat-autocomplete>
               </mat-form-field>
@@ -387,14 +387,14 @@ export class DossierDetailComponent implements OnInit, OnChanges {
     if (!search) return this.valideurs;
     const lower = search.toLowerCase();
     return this.valideurs.filter(v =>
-      v.nom.toLowerCase().includes(lower) || v.email.toLowerCase().includes(lower)
+      v.prenom.toLowerCase().includes(lower) || v.nom.toLowerCase().includes(lower) || v.email.toLowerCase().includes(lower)
     );
   }
 
   displayValideurFn(valideur: Valideur | string): string {
     if (!valideur) return '';
     if (typeof valideur === 'string') return valideur;
-    return valideur.nom;
+    return `${valideur.prenom} ${valideur.nom}`;
   }
 
   onValideurSelected(valideur: Valideur): void {

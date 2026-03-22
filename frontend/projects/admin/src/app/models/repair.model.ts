@@ -213,6 +213,7 @@ export interface SubmitDecisionResponse {
 
 export interface Valideur {
   id: string;
+  prenom: string;
   nom: string;
   email: string;
   role?: string;
@@ -227,6 +228,7 @@ export interface ValideurListResponse {
 }
 
 export interface CreateValideurRequest {
+  prenom: string;
   nom: string;
   email: string;
   role?: string;
@@ -234,6 +236,7 @@ export interface CreateValideurRequest {
 }
 
 export interface UpdateValideurRequest {
+  prenom?: string;
   nom?: string;
   email?: string;
   role?: string;

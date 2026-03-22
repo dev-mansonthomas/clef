@@ -350,6 +350,7 @@ class DepensesResponse(BaseModel):
 class Valideur(BaseModel):
     """Valideur (approver) for devis approval workflow."""
     id: str = Field(..., description="UUID du valideur")
+    prenom: str = Field(..., description="Prénom du valideur")
     nom: str = Field(..., description="Nom du valideur")
     email: str = Field(..., description="Email du valideur")
     role: Optional[str] = Field(None, description="Rôle du valideur")
@@ -360,6 +361,7 @@ class Valideur(BaseModel):
 
 class ValideurCreate(BaseModel):
     """Request body for creating a new valideur."""
+    prenom: str = Field(..., min_length=1, description="Prénom du valideur")
     nom: str = Field(..., min_length=1, description="Nom du valideur")
     email: str = Field(..., min_length=1, description="Email du valideur")
     role: Optional[str] = Field(None, description="Rôle du valideur")
@@ -368,6 +370,7 @@ class ValideurCreate(BaseModel):
 
 class ValideurUpdate(BaseModel):
     """Request body for updating a valideur."""
+    prenom: Optional[str] = Field(None, min_length=1, description="Prénom du valideur")
     nom: Optional[str] = Field(None, min_length=1, description="Nom du valideur")
     email: Optional[str] = Field(None, min_length=1, description="Email du valideur")
     role: Optional[str] = Field(None, description="Rôle du valideur")
