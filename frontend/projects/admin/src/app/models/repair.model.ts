@@ -198,9 +198,10 @@ export interface ApprobationData {
   dt: string;
   immat: string;
   numero_dossier: string;
-  devis_id: string;
-  devis: Devis;
+  devis_ids: string[];
+  devis: Devis[];
   dossier_description: string[];
+  dossier_titre?: string;
   valideur_email: string;
   status: string;
   created_at: string;
@@ -214,6 +215,22 @@ export interface SubmitDecisionRequest {
 
 export interface SubmitDecisionResponse {
   decision: string;
+  message: string;
+}
+
+export interface DevisDecisionItem {
+  devis_id: string;
+  decision: 'approuve' | 'refuse';
+}
+
+export interface SubmitDossierDecisionRequest {
+  mode: 'approuve_tout' | 'refuse_tout' | 'partiel';
+  decisions?: DevisDecisionItem[];
+  commentaire?: string;
+}
+
+export interface SubmitDossierDecisionResponse {
+  results: { devis_id: string; decision: string; message: string }[];
   message: string;
 }
 

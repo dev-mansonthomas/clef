@@ -18,6 +18,8 @@ import {
   ApprobationData,
   SubmitDecisionRequest,
   SubmitDecisionResponse,
+  SubmitDossierDecisionRequest,
+  SubmitDossierDecisionResponse,
   DepensesResponse,
 } from '../models/repair.model';
 import { environment } from '../../environments/environment';
@@ -161,10 +163,17 @@ export class RepairService {
   }
 
   /**
-   * Submit approval decision (public, no auth)
+   * Submit approval decision (public, no auth) — legacy single-devis
    */
   submitDecision(token: string, data: SubmitDecisionRequest): Observable<SubmitDecisionResponse> {
     return this.http.post<SubmitDecisionResponse>(`${this.apiUrl}/api/approbation/${token}`, data);
+  }
+
+  /**
+   * Submit grouped dossier decision (public, no auth) — multi-devis
+   */
+  submitDossierDecision(token: string, data: SubmitDossierDecisionRequest): Observable<SubmitDossierDecisionResponse> {
+    return this.http.post<SubmitDossierDecisionResponse>(`${this.apiUrl}/api/approbation/${token}`, data);
   }
 
   // ========== Devis File Upload ==========
