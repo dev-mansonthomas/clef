@@ -209,6 +209,37 @@ export interface SubmitDecisionResponse {
   message: string;
 }
 
+// ========== Valideurs (approvers) ==========
+
+export interface Valideur {
+  id: string;
+  nom: string;
+  email: string;
+  role?: string;
+  actif: boolean;
+  cree_par: string;
+  cree_le: string;
+}
+
+export interface ValideurListResponse {
+  count: number;
+  valideurs: Valideur[];
+}
+
+export interface CreateValideurRequest {
+  nom: string;
+  email: string;
+  role?: string;
+  niveau: 'dt' | 'ul';
+}
+
+export interface UpdateValideurRequest {
+  nom?: string;
+  email?: string;
+  role?: string;
+  actif?: boolean;
+}
+
 // ========== Dépenses (expenses) ==========
 
 export interface DepenseFacture {

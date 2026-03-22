@@ -1,6 +1,6 @@
-import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges, inject, ChangeDetectorRef } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges, inject, ChangeDetectorRef, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
+import { FormsModule, ReactiveFormsModule, FormControl } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -11,8 +11,11 @@ import { MatDividerModule } from '@angular/material/divider';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatDialogModule } from '@angular/material/dialog';
+import { MatAutocompleteModule, MatAutocompleteTrigger } from '@angular/material/autocomplete';
+import { Observable, startWith, map } from 'rxjs';
 import { RepairService } from '../../services/repair.service';
-import { DossierReparation, Devis, FactureCreateResponse, AuditEntry } from '../../models/repair.model';
+import { ValideurService } from '../../services/valideur.service';
+import { DossierReparation, Devis, FactureCreateResponse, AuditEntry, Valideur } from '../../models/repair.model';
 import { DevisFormComponent } from './devis-form.component';
 import { FactureFormComponent } from './facture-form.component';
 
@@ -22,6 +25,7 @@ import { FactureFormComponent } from './facture-form.component';
   imports: [
     CommonModule,
     FormsModule,
+    ReactiveFormsModule,
     MatCardModule,
     MatButtonModule,
     MatIconModule,
@@ -32,6 +36,7 @@ import { FactureFormComponent } from './facture-form.component';
     MatFormFieldModule,
     MatInputModule,
     MatDialogModule,
+    MatAutocompleteModule,
     DevisFormComponent,
     FactureFormComponent,
   ],
@@ -103,8 +108,17 @@ import { FactureFormComponent } from './facture-form.component';
             <!-- Inline approval form -->
             <div class="approval-form" *ngIf="approvalDevis">
               <mat-form-field appearance="outline" class="approval-email-field">
-                <mat-label>Email du valideur</mat-label>
-                <input matInput [(ngModel)]="approvalEmail" type="email" placeholder="chef@croix-rouge.fr">
+                <mat-label>Valideur</mat-label>
+                <input matInput [formControl]="valideurSearchControl" [matAutocomplete]="valideurAuto"
+                       placeholder="Rechercher un valideur…" (focus)="onValideurFocus()">
+                <button mat-icon-button matSuffix type="button" (click)="toggleValideurPanel($event)" tabindex="-1">
+                  <mat-icon>arrow_drop_down</mat-icon>
+                </button>
+                <mat-autocomplete #valideurAuto="matAutocomplete" [displayWith]="displayValideurFn" (optionSelected)="onValideurSelected($event.option.value)">
+                  <mat-option *ngFor="let v of filteredValideurs$ | async" [value]="v">
+                    {{ v.nom }} <span class="valideur-hint"> — {{ v.email }}</span>
+                  </mat-option>
+                </mat-autocomplete>
               </mat-form-field>
               <button mat-raised-button color="primary" type="button" (click)="sendForApproval()" [disabled]="approvalLoading || !approvalEmail">
                 <mat-icon>send</mat-icon> Envoyer
@@ -185,6 +199,7 @@ import { FactureFormComponent } from './facture-form.component';
     .approval-btn { margin-left: auto; }
     .approval-form { display: flex; align-items: center; gap: 12px; padding: 12px 0; flex-wrap: wrap; }
     .approval-email-field { min-width: 280px; }
+    .valideur-hint { font-size: 12px; color: rgba(0,0,0,0.54); }
     .timeline { margin: 8px 0 16px; }
     .timeline-entry { display: flex; gap: 12px; align-items: flex-start; padding: 8px 0; border-left: 2px solid rgba(0,0,0,0.12); margin-left: 12px; padding-left: 16px; position: relative; }
     .timeline-entry::before { content: ''; position: absolute; left: -5px; top: 12px; width: 8px; height: 8px; border-radius: 50%; background: #bdbdbd; }
@@ -212,8 +227,11 @@ export class DossierDetailComponent implements OnInit, OnChanges {
   @Output() back = new EventEmitter<void>();
 
   private readonly repairService = inject(RepairService);
+  private readonly valideurService = inject(ValideurService);
   private readonly snackBar = inject(MatSnackBar);
   private readonly cdr = inject(ChangeDetectorRef);
+
+  @ViewChild(MatAutocompleteTrigger) valideurAutoTrigger!: MatAutocompleteTrigger;
 
   dossier: DossierReparation | null = null;
   loading = false;
@@ -226,7 +244,23 @@ export class DossierDetailComponent implements OnInit, OnChanges {
   historique: AuditEntry[] = [];
   historiqueLoading = false;
 
-  ngOnInit(): void { this.loadDossier(); this.loadHistorique(); }
+  // Valideur selector
+  valideurSearchControl = new FormControl('');
+  valideurs: Valideur[] = [];
+  filteredValideurs$!: Observable<Valideur[]>;
+
+  ngOnInit(): void {
+    this.loadDossier();
+    this.loadHistorique();
+    this.loadValideurs();
+    this.filteredValideurs$ = this.valideurSearchControl.valueChanges.pipe(
+      startWith(''),
+      map(value => {
+        const searchStr = typeof value === 'string' ? value : (value as any)?.nom || '';
+        return this.filterValideurs(searchStr);
+      })
+    );
+  }
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['numero'] && !changes['numero'].firstChange) {
@@ -339,9 +373,55 @@ export class DossierDetailComponent implements OnInit, OnChanges {
     this.loadHistorique();
   }
 
+  private loadValideurs(): void {
+    if (!this.dt) return;
+    this.valideurService.listValideurs(this.dt).subscribe({
+      next: (res) => {
+        this.valideurs = (res.valideurs || []).filter(v => v.actif);
+        this.cdr.detectChanges();
+      },
+    });
+  }
+
+  private filterValideurs(search: string): Valideur[] {
+    if (!search) return this.valideurs;
+    const lower = search.toLowerCase();
+    return this.valideurs.filter(v =>
+      v.nom.toLowerCase().includes(lower) || v.email.toLowerCase().includes(lower)
+    );
+  }
+
+  displayValideurFn(valideur: Valideur | string): string {
+    if (!valideur) return '';
+    if (typeof valideur === 'string') return valideur;
+    return valideur.nom;
+  }
+
+  onValideurSelected(valideur: Valideur): void {
+    this.approvalEmail = valideur.email;
+  }
+
+  onValideurFocus(): void {
+    if (!this.valideurSearchControl.value || this.valideurSearchControl.value === '') {
+      this.valideurSearchControl.setValue('');
+      setTimeout(() => this.valideurAutoTrigger?.openPanel());
+    }
+  }
+
+  toggleValideurPanel(event: Event): void {
+    event.stopPropagation();
+    if (this.valideurAutoTrigger.panelOpen) {
+      this.valideurAutoTrigger.closePanel();
+    } else {
+      this.valideurSearchControl.setValue('');
+      this.valideurAutoTrigger.openPanel();
+    }
+  }
+
   openApprovalForm(devis: Devis): void {
     this.approvalDevis = devis;
     this.approvalEmail = '';
+    this.valideurSearchControl.setValue('');
   }
 
   sendForApproval(): void {

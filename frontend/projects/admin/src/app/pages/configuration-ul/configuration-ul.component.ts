@@ -2,11 +2,12 @@ import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { AuthService } from '../../services/auth.service';
 import { FournisseursManagerComponent } from '../../shared/fournisseurs-manager/fournisseurs-manager.component';
+import { ValideursManagerComponent } from '../../shared/valideurs-manager/valideurs-manager.component';
 
 @Component({
   selector: 'app-configuration-ul',
   standalone: true,
-  imports: [CommonModule, FournisseursManagerComponent],
+  imports: [CommonModule, FournisseursManagerComponent, ValideursManagerComponent],
   template: `
     <div class="config-ul">
       <h1>Configuration UL — {{ ulName }}</h1>
@@ -14,6 +15,11 @@ import { FournisseursManagerComponent } from '../../shared/fournisseurs-manager/
       <div class="form-section">
         <h2>Fournisseurs</h2>
         <app-fournisseurs-manager [dt]="dt" [niveau]="'ul'"></app-fournisseurs-manager>
+      </div>
+
+      <div class="form-section">
+        <h2>Valideurs</h2>
+        <app-valideurs-manager [dt]="dt" [niveau]="'ul'"></app-valideurs-manager>
       </div>
     </div>
   `,
