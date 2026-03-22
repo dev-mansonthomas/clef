@@ -12,7 +12,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { RepairService } from '../../services/repair.service';
-import { Devis, Fournisseur, FournisseurSnapshot, FactureCreateResponse } from '../../models/repair.model';
+import { Devis, Facture, Fournisseur, FournisseurSnapshot, FactureCreateResponse } from '../../models/repair.model';
 import { FournisseurSelectorComponent } from '../shared/fournisseur-selector.component';
 
 @Component({
@@ -36,7 +36,7 @@ import { FournisseurSelectorComponent } from '../shared/fournisseur-selector.com
   template: `
     <mat-card>
       <mat-card-header>
-        <mat-card-title>Nouvelle facture</mat-card-title>
+        <mat-card-title>{{ devisLabel ? 'Ajout d\'une facture au ' + devisLabel : (editFacture ? 'Modifier la facture' : 'Nouvelle facture') }}</mat-card-title>
       </mat-card-header>
       <mat-card-content>
         <div *ngIf="warningNoDevis" class="warning-banner warning-yellow">
@@ -119,7 +119,7 @@ import { FournisseurSelectorComponent } from '../shared/fournisseur-selector.com
             <mat-select formControlName="devis_id">
               <mat-option [value]="null">Aucun</mat-option>
               <mat-option *ngFor="let d of devisList" [value]="d.id">
-                #{{ d.id }} — {{ d.fournisseur?.nom || d.id }} — {{ d.montant | number:'1.2-2' }} €
+                #{{ d.id }} — {{ d.fournisseur.nom || d.id }} — {{ d.montant | number:'1.2-2' }} €
               </mat-option>
             </mat-select>
           </mat-form-field>
@@ -159,6 +159,8 @@ export class FactureFormComponent implements OnInit {
   @Input() preselectedDevisId: string | null = null;
   @Input() inheritedDescriptionItems: string[] = [];
   @Input() inheritedDescriptionTravaux: string = '';
+  @Input() devisLabel: string | null = null;
+  @Input() editFacture: Facture | null = null;
   @Output() factureCreated = new EventEmitter<FactureCreateResponse>();
   @Output() cancelled = new EventEmitter<void>();
 
@@ -198,7 +200,23 @@ export class FactureFormComponent implements OnInit {
   descriptionItems = this.fb.array<FormControl<string>>([]);
 
   ngOnInit(): void {
-    if (this.preselectedDevisId) {
+    if (this.editFacture) {
+      // Edit mode — pre-fill form with existing facture data
+      this.form.patchValue({
+        date_facture: new Date(this.editFacture.date_facture),
+        classification: this.editFacture.classification,
+        description_travaux: this.editFacture.description_travaux || this.editFacture.description || '',
+        montant_total: this.editFacture.montant_total,
+        montant_crf: this.editFacture.montant_crf,
+        devis_id: this.editFacture.devis_id || null,
+      });
+      this.initialFournisseurSnapshot = this.editFacture.fournisseur || null;
+      if (this.editFacture.description_items?.length) {
+        this.editFacture.description_items.forEach(item =>
+          this.descriptionItems.push(this.fb.control(item) as FormControl<string>)
+        );
+      }
+    } else if (this.preselectedDevisId) {
       const devis = this.devisList.find(d => String(d.id) === this.preselectedDevisId);
       if (devis) {
         this.form.patchValue({ devis_id: this.preselectedDevisId });
@@ -247,7 +265,7 @@ export class FactureFormComponent implements OnInit {
       .map(c => c.value?.trim())
       .filter((val): val is string => !!val);
 
-    this.repairService.createFacture(this.dt, this.immat, this.numero, {
+    const factureData = {
       date_facture: dateStr,
       fournisseur_id: this.selectedFournisseur.id,
       fournisseur_nom: this.selectedFournisseur.nom,
@@ -257,7 +275,13 @@ export class FactureFormComponent implements OnInit {
       montant_total: v.montant_total!,
       montant_crf: v.montant_crf!,
       devis_id: v.devis_id ?? undefined,
-    }).subscribe({
+    };
+
+    const request$ = this.editFacture
+      ? this.repairService.updateFacture(this.dt, this.immat, this.numero, this.editFacture.id, factureData)
+      : this.repairService.createFacture(this.dt, this.immat, this.numero, factureData);
+
+    request$.subscribe({
       next: (result) => {
         this.warningNoDevis = !!result.warning_no_devis;
         this.warningEcart = !!result.warning_ecart;

@@ -1,14 +1,6 @@
 import { Routes } from '@angular/router';
-import { VehicleListComponent } from './components/vehicle-list/vehicle-list.component';
-import { VehicleEdit } from './vehicles/vehicle-edit/vehicle-edit';
-import { CalendarViewComponent } from './components/calendar-view/calendar-view.component';
-import { QrCodeGeneratorComponent } from './components/qr-code-generator/qr-code-generator.component';
-import { ConfigPageComponent } from './pages/config/config-page.component';
-import { DtAdminComponent } from './components/dt-admin/dt-admin.component';
 import { LoginComponent } from './features/auth/login/login.component';
 import { LayoutComponent } from './shared/layout/layout.component';
-import { DashboardComponent } from './features/dashboard/dashboard.component';
-import { ImportWizardComponent } from './features/import-vehicles/import-wizard.component';
 import { authGuard } from './core/guards/auth.guard';
 import { dtManagerGuard } from './guards/dt-manager.guard';
 import { superAdminGuard } from './guards/super-admin.guard';
@@ -32,35 +24,43 @@ export const routes: Routes = [
     children: [
       {
         path: 'dashboard',
-        component: DashboardComponent
+        loadComponent: () => import('./features/dashboard/dashboard.component')
+          .then(m => m.DashboardComponent),
       },
       {
         path: 'vehicles',
-        component: VehicleListComponent
+        loadComponent: () => import('./components/vehicle-list/vehicle-list.component')
+          .then(m => m.VehicleListComponent),
       },
       {
         path: 'vehicles/new/edit',
-        component: VehicleEdit
+        loadComponent: () => import('./vehicles/vehicle-edit/vehicle-edit')
+          .then(m => m.VehicleEdit),
       },
       {
         path: 'vehicles/:immat/edit',
-        component: VehicleEdit
+        loadComponent: () => import('./vehicles/vehicle-edit/vehicle-edit')
+          .then(m => m.VehicleEdit),
       },
       {
         path: 'vehicles/import',
-        component: ImportWizardComponent
+        loadComponent: () => import('./features/import-vehicles/import-wizard.component')
+          .then(m => m.ImportWizardComponent),
       },
       {
         path: 'calendar',
-        component: CalendarViewComponent
+        loadComponent: () => import('./components/calendar-view/calendar-view.component')
+          .then(m => m.CalendarViewComponent),
       },
       {
         path: 'qr-codes',
-        component: QrCodeGeneratorComponent
+        loadComponent: () => import('./components/qr-code-generator/qr-code-generator.component')
+          .then(m => m.QrCodeGeneratorComponent),
       },
       {
         path: 'config',
-        component: ConfigPageComponent,
+        loadComponent: () => import('./pages/config/config-page.component')
+          .then(m => m.ConfigPageComponent),
         canActivate: [dtManagerGuard]
       },
       {
@@ -71,7 +71,8 @@ export const routes: Routes = [
       },
       {
         path: 'dt-admin',
-        component: DtAdminComponent,
+        loadComponent: () => import('./components/dt-admin/dt-admin.component')
+          .then(m => m.DtAdminComponent),
         canActivate: [dtManagerGuard]
       },
       {

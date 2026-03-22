@@ -50,7 +50,7 @@ import { ApprobationData, SubmitDossierDecisionRequest } from '../models/repair.
       <h1><mat-icon>gavel</mat-icon> Approbation — Dossier {{ data()!.numero_dossier }}</h1>
       <p class="subtitle">Véhicule {{ data()!.immat }}</p>
 
-      @if (data()!.dossier_description?.length) {
+      @if (data()!.dossier_description.length) {
       <div class="travaux-section">
         <h3>Travaux prévus</h3>
         <ul>
@@ -62,7 +62,7 @@ import { ApprobationData, SubmitDossierDecisionRequest } from '../models/repair.
       @for (d of data()!.devis; track d.id) {
       <mat-card class="devis-card" [class.devis-refused]="devisDecisions.get(d.id) === 'refuse'">
         <mat-card-header>
-          <mat-card-title>{{ d.fournisseur?.nom || 'Fournisseur' }}</mat-card-title>
+          <mat-card-title>{{ d.fournisseur.nom || 'Fournisseur' }}</mat-card-title>
           <span class="devis-montant">{{ d.montant | number:'1.2-2' }} €</span>
         </mat-card-header>
         <mat-card-content>
