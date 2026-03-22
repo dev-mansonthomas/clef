@@ -212,6 +212,13 @@ export interface SubmitDecisionResponse {
   message: string;
 }
 
+export interface BulkApprovalResponse {
+  count: number;
+  tokens: string[];
+  valideur_email: string;
+  message: string;
+}
+
 // ========== Valideurs (approvers) ==========
 
 export interface Valideur {

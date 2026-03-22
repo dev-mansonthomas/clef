@@ -121,6 +121,123 @@ CLEF - Gestion de flotte Croix-Rouge"""
         logger.info(f"Approval email sent to {valideur_email} for devis")
         return result
 
+    async def send_bulk_approval_email(
+        self,
+        dt_id: str,
+        numero_dossier: str,
+        devis_list: List[Dict[str, Any]],
+        tokens: List[str],
+        valideur_email: str,
+        sender_email: str,
+        dossier_description: Optional[List[str]] = None,
+        dossier_commentaire: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Send ONE summary HTML email with all devis info and individual approval links.
+
+        In mock mode (USE_MOCKS=true), logs and returns success without sending.
+        """
+        import os
+        frontend_url = os.getenv("FRONTEND_URL", "http://localhost:4200")
+
+        nb = len(devis_list)
+        total = sum(d.get("montant", 0) for d in devis_list)
+
+        subject = f"📋 CLEF - {nb} devis à approuver — Dossier {numero_dossier} — Total : {total:.2f} €"
+
+        # Build travaux section
+        travaux_items = dossier_description or []
+        travaux_html = ""
+        if travaux_items:
+            items_li = "".join(f'<li style="margin-bottom: 4px;">{item}</li>' for item in travaux_items)
+            travaux_html = f"""<h3 style="color: #333; margin: 20px 0 8px;">Travaux prévus</h3>
+<ul style="margin: 0 0 16px; padding-left: 20px;">{items_li}</ul>"""
+
+        commentaire_html = ""
+        if dossier_commentaire:
+            commentaire_html = f"""<div style="margin: 16px 0; padding: 12px; background: #f5f5f5; border-radius: 4px; border-left: 3px solid #1565c0;">
+<strong>Commentaire :</strong> {dossier_commentaire}
+</div>"""
+
+        # Build devis table rows
+        rows_html = ""
+        rows_text = ""
+        for i, devis_data in enumerate(devis_list):
+            fournisseur = devis_data.get("fournisseur", {})
+            fournisseur_nom = fournisseur.get("nom", "N/A") if isinstance(fournisseur, dict) else "N/A"
+            description = devis_data.get("description", "N/A")
+            montant = devis_data.get("montant", 0)
+            token = tokens[i]
+            approval_url = f"{frontend_url}/approbation/{token}"
+
+            rows_html += f"""<tr>
+<td style="padding: 10px; border: 1px solid #ddd;">{fournisseur_nom}</td>
+<td style="padding: 10px; border: 1px solid #ddd;">{description}</td>
+<td style="padding: 10px; border: 1px solid #ddd; font-weight: bold; color: #1565c0;">{montant:.2f} €</td>
+<td style="padding: 10px; border: 1px solid #ddd;"><a href="{approval_url}" style="color: #1565c0;">Voir et décider</a></td>
+</tr>"""
+            rows_text += f"  - {fournisseur_nom} : {description} — {montant:.2f} € → {approval_url}\n"
+
+        # Total row
+        rows_html += f"""<tr style="background: #f5f5f5;">
+<td style="padding: 10px; border: 1px solid #ddd;" colspan="2"><strong>Total</strong></td>
+<td style="padding: 10px; border: 1px solid #ddd; font-weight: bold; color: #d32f2f;">{total:.2f} €</td>
+<td style="padding: 10px; border: 1px solid #ddd;"></td>
+</tr>"""
+
+        # Plain text
+        travaux_text = ""
+        if travaux_items:
+            travaux_lines = "\n".join(f"  - {item}" for item in travaux_items)
+            travaux_text = f"\nTravaux prévus :\n{travaux_lines}\n"
+
+        commentaire_text = ""
+        if dossier_commentaire:
+            commentaire_text = f"\nCommentaire : {dossier_commentaire}\n"
+
+        body_text = f"""Bonjour,
+
+{nb} devis nécessitent votre approbation pour le dossier {numero_dossier} :
+
+{rows_text}
+Total : {total:.2f} €
+{travaux_text}{commentaire_text}
+Cordialement,
+CLEF - Gestion de flotte Croix-Rouge"""
+
+        body_html = f"""<html>
+<body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+<h2 style="color: #d32f2f;">📋 {nb} devis à approuver — Dossier {numero_dossier}</h2>
+<p>Bonjour,</p>
+<p>{nb} devis nécessitent votre approbation :</p>
+<table style="border-collapse: collapse; margin: 20px 0; width: 100%;">
+<tr style="background: #f5f5f5;">
+<th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Fournisseur</th>
+<th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Description</th>
+<th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Montant</th>
+<th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Lien</th>
+</tr>
+{rows_html}
+</table>
+{travaux_html}
+{commentaire_html}
+<p style="color: #666; font-size: 12px;">Chaque lien est valable 7 jours.</p>
+<p>Cordialement,<br><strong>CLEF</strong> - Gestion de flotte Croix-Rouge</p>
+</body>
+</html>"""
+
+        result = await gmail_service.send_email(
+            dt_id=dt_id,
+            to=valideur_email,
+            subject=subject,
+            body_text=body_text,
+            body_html=body_html,
+            reply_to=sender_email,
+        )
+
+        logger.info(f"Bulk approval email sent to {valideur_email} for {nb} devis in dossier {numero_dossier}")
+        return result
+
 
 # Global instance
 email_service = EmailService()
