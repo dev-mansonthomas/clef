@@ -1,7 +1,6 @@
 <div class="vehicle-edit-container">
   <div class="header">
-    <h1>{{ isCreateMode ? 'Nouveau Véhicule' : 'Édition Véhicule' }}</h1>
-    <p *ngIf="vehicle">{{ vehicle.indicatif }} - {{ vehicle.marque }} {{ vehicle.modele }}</p>
+    <h1>{{ isCreateMode ? 'Nouveau Véhicule' : 'Véhicule : ' + vehicle?.nom_synthetique }}</h1>
   </div>
 
   <div *ngIf="loading" class="loading-container">

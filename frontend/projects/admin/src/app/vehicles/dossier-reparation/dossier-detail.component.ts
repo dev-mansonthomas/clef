@@ -42,14 +42,16 @@ import { FactureFormComponent } from './facture-form.component';
       </div>
 
       <mat-card>
-        <mat-card-header>
-          <mat-card-title>{{ dossier.numero }}</mat-card-title>
-          <mat-card-subtitle>Créé le {{ dossier.cree_le | date:'dd/MM/yyyy HH:mm' }}</mat-card-subtitle>
+        <mat-card-header class="dossier-header-row">
+          <mat-card-title class="dossier-header-inline">
+            <span>{{ dossier.numero }}</span>
+            <span class="header-separator">·</span>
+            <span class="header-date">Créé le {{ dossier.cree_le | date:'dd/MM/yyyy HH:mm' }}</span>
+            <span class="header-separator">·</span>
+            <span class="statut-badge" [ngClass]="'statut-' + dossier.statut">{{ statutLabel(dossier.statut) }}</span>
+          </mat-card-title>
         </mat-card-header>
         <mat-card-content>
-          <div class="status-row">
-            <span class="statut-badge" [ngClass]="'statut-' + dossier.statut">{{ statutLabel(dossier.statut) }}</span>
-          </div>
 
           <h4>Description</h4>
           <p class="description-text">{{ dossier.description }}</p>
@@ -63,9 +65,6 @@ import { FactureFormComponent } from './facture-form.component';
             <button mat-raised-button type="button" (click)="showFactureForm = true" [disabled]="dossier.statut !== 'ouvert' || showFactureForm">
               <mat-icon>receipt</mat-icon> Enregistrer une facture
             </button>
-          </div>
-
-          <div class="action-buttons">
             <button mat-stroked-button type="button" *ngIf="dossier.statut === 'ouvert'" (click)="updateStatut('cloture')" [disabled]="actionLoading">
               <mat-icon>lock</mat-icon> Clôturer le dossier
             </button>
@@ -148,7 +147,10 @@ import { FactureFormComponent } from './facture-form.component';
   `,
   styles: [`
     .detail-header { margin-bottom: 12px; }
-    .status-row { margin-bottom: 16px; }
+    .dossier-header-row { margin-bottom: 8px; }
+    .dossier-header-inline { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .header-separator { color: rgba(0,0,0,0.38); }
+    .header-date { font-size: 14px; font-weight: 400; color: rgba(0,0,0,0.54); }
     .statut-badge { display: inline-block; padding: 4px 12px; border-radius: 16px; font-size: 12px; font-weight: 500; text-transform: uppercase; }
     .statut-ouvert { background: #e8f5e9; color: #2e7d32; }
     .statut-cloture { background: #eeeeee; color: #616161; }
