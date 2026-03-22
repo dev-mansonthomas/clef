@@ -178,11 +178,11 @@ export class FactureFormComponent implements OnInit {
 
   classifications = [
     { value: 'entretien_courant', label: 'Entretien courant' },
-    { value: 'reparation_carrosserie_mecanique', label: 'Réparation carrosserie / mécanique' },
+    { value: 'reparation_carrosserie', label: 'Réparation carrosserie / mécanique' },
     { value: 'reparation_sanitaire', label: 'Réparation sanitaire' },
     { value: 'reparation_marquage', label: 'Réparation marquage' },
     { value: 'controle_technique', label: 'Contrôle technique' },
-    { value: 'frais_duplicata_carte_grise', label: 'Frais duplicata carte grise' },
+    { value: 'frais_duplicata_cg', label: 'Frais duplicata carte grise' },
     { value: 'autre', label: 'Autre' },
   ];
 
