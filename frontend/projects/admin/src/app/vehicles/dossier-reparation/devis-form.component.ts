@@ -11,7 +11,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { RepairService } from '../../services/repair.service';
-import { Devis, Fournisseur } from '../../models/repair.model';
+import { Devis, Fournisseur, FournisseurSnapshot } from '../../models/repair.model';
 import { FournisseurSelectorComponent } from '../shared/fournisseur-selector.component';
 
 @Component({
@@ -34,11 +34,11 @@ import { FournisseurSelectorComponent } from '../shared/fournisseur-selector.com
   template: `
     <mat-card>
       <mat-card-header>
-        <mat-card-title>Nouveau devis</mat-card-title>
+        <mat-card-title>{{ editDevis ? 'Modifier le devis' : 'Nouveau devis' }}</mat-card-title>
       </mat-card-header>
       <mat-card-content>
         <form [formGroup]="form" (ngSubmit)="onSubmit()" (submit)="$event.stopPropagation()">
-          <app-fournisseur-selector [dt]="dt" (fournisseurSelected)="onFournisseurSelected($event)"></app-fournisseur-selector>
+          <app-fournisseur-selector [dt]="dt" [initialFournisseur]="editDevis?.fournisseur || null" (fournisseurSelected)="onFournisseurSelected($event)"></app-fournisseur-selector>
           <div *ngIf="selectedFournisseur" class="selected-fournisseur">
             Fournisseur : <strong>{{ selectedFournisseur.nom }}</strong>
           </div>
@@ -83,7 +83,7 @@ import { FournisseurSelectorComponent } from '../shared/fournisseur-selector.com
           <div class="form-actions">
             <button mat-button type="button" (click)="cancelled.emit()">Annuler</button>
             <button mat-raised-button color="primary" type="submit" [disabled]="saving">
-              {{ saving ? 'Enregistrement…' : 'Enregistrer le devis' }}
+              {{ saving ? 'Enregistrement…' : (editDevis ? 'Enregistrer les modifications' : 'Enregistrer le devis') }}
             </button>
           </div>
         </form>
@@ -108,7 +108,9 @@ export class DevisFormComponent implements OnInit {
   @Input() immat!: string;
   @Input() numero!: string;
   @Input() dossierDescription: string[] = [];
+  @Input() editDevis: Devis | null = null;
   @Output() devisCreated = new EventEmitter<Devis>();
+  @Output() devisUpdated = new EventEmitter<Devis>();
   @Output() cancelled = new EventEmitter<void>();
 
   private readonly fb = inject(FormBuilder);
@@ -132,11 +134,25 @@ export class DevisFormComponent implements OnInit {
   }
 
   ngOnInit(): void {
-    // Pre-populate description items from dossier
-    const items = this.dossierDescription?.length ? this.dossierDescription : [''];
-    items.forEach(item => {
-      this.descriptionItems.push(this.fb.control(item) as FormControl<string>);
-    });
+    if (this.editDevis) {
+      // Edit mode — pre-fill form with existing devis data
+      this.form.patchValue({
+        date_devis: new Date(this.editDevis.date_devis),
+        description_travaux: this.editDevis.description || '',
+        montant: this.editDevis.montant,
+      });
+      // Use description_items from dossier (they may have been customized)
+      const items = this.dossierDescription?.length ? this.dossierDescription : [''];
+      items.forEach(item => {
+        this.descriptionItems.push(this.fb.control(item) as FormControl<string>);
+      });
+    } else {
+      // Create mode — pre-populate description items from dossier
+      const items = this.dossierDescription?.length ? this.dossierDescription : [''];
+      items.forEach(item => {
+        this.descriptionItems.push(this.fb.control(item) as FormControl<string>);
+      });
+    }
   }
 
   addItem(): void {
@@ -165,19 +181,30 @@ export class DevisFormComponent implements OnInit {
       .map(c => c.value?.trim())
       .filter((val): val is string => !!val);
 
-    this.repairService.createDevis(this.dt, this.immat, this.numero, {
+    const payload = {
       date_devis: dateStr,
       fournisseur_id: this.selectedFournisseur.id,
       fournisseur_nom: this.selectedFournisseur.nom,
       description_items: descItems.length ? descItems : undefined,
       description_travaux: v.description_travaux?.trim() || undefined,
       montant: v.montant!,
-    }).subscribe({
+    };
+
+    const request$ = this.editDevis
+      ? this.repairService.updateDevis(this.dt, this.immat, this.numero, this.editDevis.id, payload)
+      : this.repairService.createDevis(this.dt, this.immat, this.numero, payload);
+
+    request$.subscribe({
       next: (devis) => {
         this.saving = false;
-        this.snackBar.open('Devis enregistré', 'Fermer', { duration: 3000 });
+        const msg = this.editDevis ? 'Devis modifié' : 'Devis enregistré';
+        this.snackBar.open(msg, 'Fermer', { duration: 3000 });
         this.cdr.detectChanges();
-        this.devisCreated.emit(devis);
+        if (this.editDevis) {
+          this.devisUpdated.emit(devis);
+        } else {
+          this.devisCreated.emit(devis);
+        }
       },
       error: () => {
         this.saving = false;

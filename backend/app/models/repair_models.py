@@ -154,6 +154,7 @@ class DossierReparation(BaseModel):
     numero: str = Field(..., description="Numéro du dossier (ex: REP-2026-001)")
     immat: str = Field(..., description="Immatriculation du véhicule")
     dt: str = Field(..., description="Identifiant DT")
+    titre: Optional[str] = Field(None, max_length=50, description="Titre du dossier (50 chars max)")
     description: List[str] = Field(default_factory=list, description="Description des travaux (liste d'items)")
     commentaire: Optional[str] = Field(None, description="Commentaire libre")
     photos: List[FichierDrive] = Field(default_factory=list, description="Photos associées")
@@ -173,12 +174,14 @@ class DossierReparation(BaseModel):
 
 class DossierReparationCreate(BaseModel):
     """Request body for creating a new dossier de réparation."""
+    titre: Optional[str] = Field(None, max_length=50, description="Titre du dossier")
     description: List[str] = Field(..., min_length=1, description="Description des travaux (liste d'items)")
     commentaire: Optional[str] = Field(None, description="Commentaire libre")
 
 
 class DossierReparationUpdate(BaseModel):
     """Request body for updating a dossier de réparation (description, close, reopen, cancel)."""
+    titre: Optional[str] = Field(None, max_length=50, description="Titre du dossier")
     description: Optional[List[str]] = Field(None, description="Nouvelle description (liste d'items)")
     commentaire: Optional[str] = Field(None, description="Commentaire libre")
     statut: Optional[StatutDossier] = Field(None, description="Nouveau statut (cloture, ouvert, annule)")
@@ -244,8 +247,14 @@ class DevisCreate(BaseModel):
 
 
 class DevisUpdate(BaseModel):
-    """Request body for updating a devis (status change)."""
-    statut: StatutDevis = Field(..., description="Nouveau statut du devis")
+    """Request body for updating a devis (fields + status)."""
+    date_devis: Optional[date] = Field(None, description="Date du devis")
+    fournisseur_id: Optional[str] = Field(None, description="UUID du fournisseur")
+    fournisseur_nom: Optional[str] = Field(None, description="Nom du fournisseur")
+    description_travaux: Optional[str] = Field(None, description="Description des travaux (commentaire)")
+    description_items: Optional[List[str]] = Field(None, description="Liste des items de description")
+    montant: Optional[float] = Field(None, gt=0, description="Montant du devis en euros TTC")
+    statut: Optional[StatutDevis] = Field(None, description="Nouveau statut du devis")
 
 
 # ========== Facture request/response models ==========

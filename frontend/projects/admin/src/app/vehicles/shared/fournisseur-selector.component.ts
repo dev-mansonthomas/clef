@@ -8,7 +8,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { Observable, startWith, map } from 'rxjs';
 import { FournisseurService } from '../../services/fournisseur.service';
-import { Fournisseur } from '../../models/repair.model';
+import { Fournisseur, FournisseurSnapshot } from '../../models/repair.model';
 
 @Component({
   selector: 'app-fournisseur-selector',
@@ -47,6 +47,7 @@ import { Fournisseur } from '../../models/repair.model';
 })
 export class FournisseurSelectorComponent implements OnInit {
   @Input() dt!: string;
+  @Input() initialFournisseur: FournisseurSnapshot | null = null;
   @Output() fournisseurSelected = new EventEmitter<Fournisseur>();
 
   @ViewChild(MatAutocompleteTrigger) autoTrigger!: MatAutocompleteTrigger;
@@ -59,6 +60,10 @@ export class FournisseurSelectorComponent implements OnInit {
   filteredFournisseurs$!: Observable<Fournisseur[]>;
 
   ngOnInit(): void {
+    // Pre-fill with initial fournisseur if provided (edit mode)
+    if (this.initialFournisseur) {
+      this.searchControl.setValue(this.initialFournisseur.nom);
+    }
     this.loadFournisseurs();
     this.filteredFournisseurs$ = this.searchControl.valueChanges.pipe(
       startWith(''),
@@ -75,6 +80,13 @@ export class FournisseurSelectorComponent implements OnInit {
       next: (res) => {
         // Filter out archived fournisseurs — they should not be selectable
         this.fournisseurs = (res.fournisseurs || []).filter(f => !f.archive);
+        // If we have an initial fournisseur, emit it once the list is loaded
+        if (this.initialFournisseur) {
+          const found = this.fournisseurs.find(f => f.id === this.initialFournisseur!.id);
+          if (found) {
+            this.fournisseurSelected.emit(found);
+          }
+        }
         this.cdr.detectChanges();
       },
     });
