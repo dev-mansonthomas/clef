@@ -278,11 +278,11 @@ async def update_devis(
     edit_fields = body.model_dump(exclude_unset=True)
     has_field_edits = any(k != "statut" for k in edit_fields)
 
-    # If editing fields (not just statut), devis must be en_attente
-    if has_field_edits and existing_devis.statut != StatutDevis.EN_ATTENTE:
+    # If editing fields (not just statut), devis must be en_attente or refuse
+    if has_field_edits and existing_devis.statut not in (StatutDevis.EN_ATTENTE, StatutDevis.REFUSE):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"Cannot edit devis with status '{existing_devis.statut.value}'. Only 'en_attente' devis can be edited.",
+            detail=f"Cannot edit devis with status '{existing_devis.statut.value}'. Only 'en_attente' or 'refuse' devis can be edited.",
         )
 
     # Build update dict

@@ -156,7 +156,7 @@ import { ConfirmCancelDevisDialogComponent } from './confirm-cancel-devis-dialog
                 </td>
                 <td class="col-actions">
                   <div class="action-cell">
-                    <button type="button" mat-icon-button *ngIf="d.statut === 'en_attente' && dossier.statut === 'ouvert'"
+                    <button type="button" mat-icon-button *ngIf="(d.statut === 'en_attente' || d.statut === 'refuse') && dossier.statut === 'ouvert'"
                       (click)="startEditDevis(d)" [disabled]="!!editingDevis" title="Modifier">
                       <mat-icon>edit</mat-icon>
                     </button>
