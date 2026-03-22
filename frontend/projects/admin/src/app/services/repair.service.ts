@@ -101,6 +101,16 @@ export class RepairService {
     });
   }
 
+  /**
+   * Cancel a devis (any status except already annule)
+   */
+  annulerDevis(dt: string, immat: string, numero: string, devisId: string): Observable<Devis> {
+    return this.http.post<Devis>(
+      `${this.dossierUrl(dt, immat)}/${numero}/devis/${devisId}/annuler`, {},
+      { withCredentials: true }
+    );
+  }
+
   // ========== Factures ==========
 
   /**
@@ -167,6 +177,21 @@ export class RepairService {
     formData.append('file', file);
     return this.http.post<Devis>(
       `${this.dossierUrl(dt, immat)}/${numero}/devis/${devisId}/upload`,
+      formData,
+      { withCredentials: true },
+    );
+  }
+
+  // ========== Facture File Upload ==========
+
+  /**
+   * Upload or update a file for a facture
+   */
+  uploadFactureFile(dt: string, immat: string, numero: string, factureId: string, file: File): Observable<Facture> {
+    const formData = new FormData();
+    formData.append('file', file);
+    return this.http.post<Facture>(
+      `${this.dossierUrl(dt, immat)}/${numero}/factures/${factureId}/upload`,
       formData,
       { withCredentials: true },
     );
