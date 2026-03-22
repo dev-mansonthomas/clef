@@ -147,24 +147,24 @@ import { ConfirmCancelDevisDialogComponent } from './confirm-cancel-devis-dialog
                 </td>
                 <td class="col-actions">
                   <div class="action-cell">
-                    <button mat-icon-button *ngIf="d.statut === 'en_attente' && dossier.statut === 'ouvert'"
+                    <button type="button" mat-icon-button *ngIf="d.statut === 'en_attente' && dossier.statut === 'ouvert'"
                       (click)="startEditDevis(d)" [disabled]="!!editingDevis" title="Modifier">
                       <mat-icon>edit</mat-icon>
                     </button>
-                    <button mat-stroked-button *ngIf="d.statut === 'en_attente' && dossier.statut === 'ouvert'"
+                    <button type="button" mat-stroked-button *ngIf="d.statut === 'en_attente' && dossier.statut === 'ouvert'"
                       (click)="openApprovalForm(d)" [disabled]="approvalLoading" class="approval-btn">
                       <mat-icon>send</mat-icon> Envoyer pour approbation
                     </button>
-                    <button mat-stroked-button *ngIf="(d.statut === 'envoye' || d.statut === 'refuse') && dossier.statut === 'ouvert'"
+                    <button type="button" mat-stroked-button *ngIf="(d.statut === 'envoye' || d.statut === 'refuse') && dossier.statut === 'ouvert'"
                       (click)="confirmResend(d)" [disabled]="approvalLoading" class="approval-btn">
                       <mat-icon>replay</mat-icon> Renvoyer pour approbation
                     </button>
-                    <button mat-stroked-button *ngIf="d.statut === 'approuve' && dossier.statut === 'ouvert'"
+                    <button type="button" mat-stroked-button *ngIf="d.statut === 'approuve' && dossier.statut === 'ouvert'"
                       (click)="createFactureForDevis(d)" class="add-facture-btn">
                       <mat-icon>receipt</mat-icon> Ajouter facture
                     </button>
                     <!-- Cancel button — ALWAYS far right, RED -->
-                    <button mat-icon-button *ngIf="d.statut !== 'annule' && dossier.statut === 'ouvert'"
+                    <button type="button" mat-icon-button *ngIf="d.statut !== 'annule' && dossier.statut === 'ouvert'"
                       (click)="annulerDevis(d)" [disabled]="actionLoading"
                       title="Annuler le devis" class="cancel-devis-btn">
                       <mat-icon>cancel</mat-icon>
