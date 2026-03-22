@@ -23,6 +23,7 @@ export const routes: Routes = [
     path: 'approbation/:token',
     loadComponent: () => import('./approbation/approbation-page.component')
       .then(m => m.ApprobationPageComponent),
+    canActivate: [authGuard],
   },
   {
     path: '',

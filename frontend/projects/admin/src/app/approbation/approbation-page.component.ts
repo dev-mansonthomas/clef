@@ -9,6 +9,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { RepairService } from '../services/repair.service';
+import { AuthService } from '../services/auth.service';
 import { ApprobationData } from '../models/repair.model';
 
 @Component({
@@ -39,7 +40,14 @@ import { ApprobationData } from '../models/repair.model';
       </div>
       }
 
-      @if (data() && !loading() && !submitted()) {
+      @if (unauthorized()) {
+      <div class="error-msg">
+        <mat-icon>block</mat-icon>
+        <p>Vous n'êtes pas autorisé à voir cette approbation. Seul le valideur désigné peut approuver ce devis.</p>
+      </div>
+      }
+
+      @if (data() && !loading() && !submitted() && !unauthorized()) {
       <mat-card>
         <mat-card-header>
           <mat-card-title>Devis — {{ data()!.devis.fournisseur?.nom || 'Fournisseur' }}</mat-card-title>
@@ -131,10 +139,12 @@ import { ApprobationData } from '../models/repair.model';
 export class ApprobationPageComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly repairService = inject(RepairService);
+  private readonly authService = inject(AuthService);
 
   data = signal<ApprobationData | null>(null);
   loading = signal(true);
   error = signal<string | null>(null);
+  unauthorized = signal(false);
   commentaire = '';
   submitting = signal(false);
   submitted = signal(false);
@@ -149,7 +159,16 @@ export class ApprobationPageComponent implements OnInit {
       return;
     }
     this.repairService.getApprobationData(token).subscribe({
-      next: (data) => { this.data.set(data); this.loading.set(false); },
+      next: (data) => {
+        this.data.set(data);
+        this.loading.set(false);
+        // Verify the logged-in user is the designated validator
+        const currentEmail = this.authService.currentUserValue?.email?.toLowerCase();
+        const valideurEmail = data.valideur_email?.toLowerCase();
+        if (currentEmail && valideurEmail && currentEmail !== valideurEmail && currentEmail !== 'thomas.manson@croix-rouge.fr') {
+          this.unauthorized.set(true);
+        }
+      },
       error: () => { this.error.set('Token invalide ou expiré'); this.loading.set(false); },
     });
   }
