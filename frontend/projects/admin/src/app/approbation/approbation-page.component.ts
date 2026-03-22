@@ -123,8 +123,8 @@ import { ApprobationData } from '../models/repair.model';
     .dossier-desc-list { margin: 4px 0 0; padding-left: 20px; }
     .dossier-desc-list li { margin-bottom: 2px; }
     .info-item.highlight span { font-size: 20px; font-weight: 600; color: #1565c0; }
-    .drive-link { margin: 16px 0; }
-    .drive-link a { display: inline-flex; align-items: center; gap: 4px; color: #1565c0; text-decoration: none; }
+    .drive-link { margin: 16px 0; padding: 12px 16px; background: #e3f2fd; border-radius: 8px; border-left: 4px solid #1976d2; }
+    .drive-link a { display: flex; align-items: center; gap: 8px; color: #1976d2; text-decoration: none; font-weight: 500; }
     .already-decided { display: flex; align-items: center; gap: 8px; padding: 12px; background: #fff9c4; border-radius: 8px; margin: 12px 0; }
     .comment-field { width: 100%; margin: 16px 0; }
     .decision-buttons { display: flex; gap: 16px; margin-top: 16px; }
