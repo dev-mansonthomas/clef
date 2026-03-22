@@ -619,6 +619,12 @@ async def upload_devis_fichier(
         parent_folder_id=repair_parent_id,
     )
 
+    # Create a sub-folder "Devis XX" inside the repair subfolder
+    devis_folder_name = f"Devis {devis_id.zfill(2)}"
+    devis_folder = await drive_service.get_or_create_folder(
+        dt_id=dt, name=devis_folder_name, parent_folder_id=repair_subfolder["id"],
+    )
+
     # Build filename: {date_devis} - {nom_synthetique} - {dossier.numero} - Devis XX.ext
     ext_map = {"application/pdf": ".pdf", "image/jpeg": ".jpg", "image/png": ".png"}
     ext = ext_map.get(file.content_type, ".pdf")
@@ -636,13 +642,13 @@ async def upload_devis_fichier(
             keep_forever=True,
         )
     else:
-        # New upload
+        # New upload — into the Devis XX subfolder
         uploaded = await drive_service.upload_file(
             dt_id=dt,
             file_content=file_content,
             filename=upload_filename,
             mime_type=file.content_type,
-            parent_folder_id=repair_subfolder["id"],
+            parent_folder_id=devis_folder["id"],
             description=f"Devis #{devis_id} - {dossier.numero}",
         )
 
@@ -919,8 +925,12 @@ async def upload_facture_fichier(
 
     # Determine target folder based on devis_id
     if facture.devis_id:
-        # Facture linked to a devis: upload directly into repair_subfolder
-        target_folder_id = repair_subfolder["id"]
+        # Facture linked to a devis: upload into the same "Devis XX" subfolder
+        devis_folder_name = f"Devis {facture.devis_id.zfill(2)}"
+        devis_folder = await drive_service.get_or_create_folder(
+            dt_id=dt, name=devis_folder_name, parent_folder_id=repair_subfolder["id"],
+        )
+        target_folder_id = devis_folder["id"]
     else:
         # Facture without devis: store in "Factures Seules" subfolder
         factures_seules = await drive_service.get_or_create_folder(
