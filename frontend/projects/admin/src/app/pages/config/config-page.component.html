@@ -44,7 +44,7 @@
                 </div>
               </td>
               <td class="actions-col">
-                @if (!folder.mandatory) {
+                @if (!folder.mandatory && !folder.locked) {
                   <button type="button" class="delete-btn" (click)="removeFolder(i)" title="Supprimer">
                     <mat-icon>delete</mat-icon>
                   </button>

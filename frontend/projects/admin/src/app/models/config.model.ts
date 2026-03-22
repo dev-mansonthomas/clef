@@ -23,5 +23,6 @@ export interface ConfigUpdate {
 export interface DocumentFolder {
   name: string;
   mandatory: boolean;
+  locked?: boolean;
 }
 

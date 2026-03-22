@@ -27,7 +27,7 @@ MANDATORY_FOLDER_NAMES = {
     "Carte Grise",
     "Carte Total",
     "Controle Technique",
-    "Factures",
+    "Dossier Réparation",
     "Plan d'Entretien",
     "Sinistres",
 }
@@ -43,6 +43,7 @@ class DocumentFolderItem(BaseModel):
     """A single document folder definition."""
     name: str
     mandatory: bool
+    locked: bool = False
 
 
 class DocumentFoldersUpdate(BaseModel):

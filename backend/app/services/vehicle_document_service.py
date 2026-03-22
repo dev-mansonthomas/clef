@@ -39,8 +39,8 @@ DOCUMENT_CONFIG: dict[VehicleDocumentType, dict[str, Any]] = {
         "managed": True,
     },
     VehicleDocumentType.FACTURES: {
-        "label": "Factures",
-        "folder_name": "Factures",
+        "label": "Dossier Réparation",
+        "folder_name": "Dossier Réparation",
         "managed": False,
     },
     VehicleDocumentType.ASSURANCE: {
@@ -351,6 +351,35 @@ class VehicleDocumentService:
             "folder_url": config.get("drive_folder_url"),
         }
 
+    async def _rename_legacy_factures_folder(
+        self,
+        valkey_service: ValkeyService,
+        vehicle_folder: dict[str, Any],
+    ) -> None:
+        """Rename legacy 'Factures' folder to 'Dossier Réparation' if it exists."""
+        old_folder = await drive_service.find_folder(
+            dt_id=valkey_service.dt,
+            name="Factures",
+            parent_folder_id=vehicle_folder["id"],
+        )
+        if not old_folder:
+            return
+        new_folder = await drive_service.find_folder(
+            dt_id=valkey_service.dt,
+            name="Dossier Réparation",
+            parent_folder_id=vehicle_folder["id"],
+        )
+        if new_folder:
+            return  # already renamed / both exist — skip
+        await drive_service.rename_file(
+            dt_id=valkey_service.dt,
+            file_id=old_folder["id"],
+            new_name="Dossier Réparation",
+        )
+        logger.info(
+            f"Renamed 'Factures' → 'Dossier Réparation' in {vehicle_folder.get('name', vehicle_folder['id'])}"
+        )
+
     async def _ensure_vehicle_tree(
         self,
         valkey_service: ValkeyService,
@@ -373,6 +402,9 @@ class VehicleDocumentService:
             name=vehicle.nom_synthetique,
             parent_folder_id=perimeter_folder["id"],
         )
+
+        # Migrate: rename "Factures" → "Dossier Réparation" if needed
+        await self._rename_legacy_factures_folder(valkey_service, vehicle_folder)
 
         document_folders: dict[VehicleDocumentType, dict[str, Any]] = {}
 
@@ -444,6 +476,9 @@ class VehicleDocumentService:
             name=vehicle.nom_synthetique,
             parent_folder_id=perimeter_folder["id"],
         )
+
+        # Migrate: rename "Factures" → "Dossier Réparation" if needed
+        await self._rename_legacy_factures_folder(valkey_service, vehicle_folder)
 
         # List existing subfolders
         existing_subfolders = await drive_service.list_subfolders(
