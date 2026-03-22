@@ -9,6 +9,7 @@ import { ApiKeysService } from '../../services/api-keys.service';
 import { ConfirmDialogComponent, ConfirmDialogData } from '../../shared/confirm-dialog/confirm-dialog.component';
 import { FournisseursManagerComponent } from '../../shared/fournisseurs-manager/fournisseurs-manager.component';
 import { ValideursManagerComponent } from '../../shared/valideurs-manager/valideurs-manager.component';
+import { ContactsCCManagerComponent } from '../../shared/contacts-cc-manager/contacts-cc-manager.component';
 import { AuthService } from '../../services/auth.service';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
@@ -17,7 +18,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 @Component({
   selector: 'app-config-page',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, MatDialogModule, ApiKeysManagerComponent, FournisseursManagerComponent, ValideursManagerComponent, MatIconModule, MatButtonModule, MatTooltipModule],
+  imports: [CommonModule, ReactiveFormsModule, MatDialogModule, ApiKeysManagerComponent, FournisseursManagerComponent, ValideursManagerComponent, ContactsCCManagerComponent, MatIconModule, MatButtonModule, MatTooltipModule],
   templateUrl: './config-page.component.html',
   styleUrl: './config-page.component.scss'
 })

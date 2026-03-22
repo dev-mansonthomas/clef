@@ -146,7 +146,7 @@ export class RepairService {
   /**
    * Send all pending devis for approval in one action
    */
-  sendBulkApproval(dt: string, immat: string, numero: string, data: { valideur_email: string }): Observable<BulkApprovalResponse> {
+  sendBulkApproval(dt: string, immat: string, numero: string, data: { valideur_email: string; cc_emails?: string[] }): Observable<BulkApprovalResponse> {
     return this.http.post<BulkApprovalResponse>(
       `${this.dossierUrl(dt, immat)}/${numero}/send-bulk-approval`, data, {
         withCredentials: true,

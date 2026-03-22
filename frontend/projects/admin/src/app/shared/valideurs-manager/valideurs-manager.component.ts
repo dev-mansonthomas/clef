@@ -8,7 +8,9 @@ import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { ValideurService } from '../../services/valideur.service';
+import { ConfirmDialogComponent, ConfirmDialogData } from '../confirm-dialog/confirm-dialog.component';
 import {
   Valideur,
   CreateValideurRequest,
@@ -28,6 +30,7 @@ import {
     MatButtonModule,
     MatIconModule,
     MatSnackBarModule,
+    MatDialogModule,
   ],
   templateUrl: './valideurs-manager.component.html',
   styleUrl: './valideurs-manager.component.scss',
@@ -39,13 +42,14 @@ export class ValideursManagerComponent implements OnInit {
   private readonly valideurService = inject(ValideurService);
   private readonly snackBar = inject(MatSnackBar);
   private readonly cdr = inject(ChangeDetectorRef);
+  private readonly dialog = inject(MatDialog);
 
   valideurs = signal<Valideur[]>([]);
   loading = signal(false);
   showForm = signal(false);
   editingId = signal<string | null>(null);
 
-  displayedColumns = ['nom', 'role', 'statut', 'actions'];
+  displayedColumns = ['nom', 'role', 'principal', 'statut', 'actions'];
 
   // Form fields
   formPrenom = '';
@@ -161,6 +165,61 @@ export class ValideursManagerComponent implements OnInit {
         this.snackBar.open('Erreur lors de la mise à jour', 'Fermer', { duration: 3000 });
       },
     });
+  }
+
+  togglePrincipal(v: Valideur): void {
+    if (v.principal) {
+      // Unset principal — just PATCH to false
+      this.valideurService.updateValideur(this.dt, v.id, { principal: false }).subscribe({
+        next: () => {
+          this.snackBar.open('Valideur principal retiré', 'Fermer', { duration: 3000 });
+          this.loadValideurs();
+        },
+        error: () => this.snackBar.open('Erreur lors de la mise à jour', 'Fermer', { duration: 3000 }),
+      });
+      return;
+    }
+
+    const currentPrincipal = this.valideurs().find(val => val.principal);
+    if (currentPrincipal) {
+      // Another valideur is already principal — confirm
+      const dialogRef = this.dialog.open(ConfirmDialogComponent, {
+        width: '480px',
+        data: {
+          title: 'Changer le valideur principal',
+          message: `<strong>${currentPrincipal.prenom} ${currentPrincipal.nom}</strong> est actuellement le valideur principal.<br>Voulez-vous le remplacer par <strong>${v.prenom} ${v.nom}</strong> ?`,
+          confirmLabel: 'Confirmer',
+          cancelLabel: 'Annuler',
+          confirmColor: 'primary',
+          icon: 'swap_horiz',
+        } as ConfirmDialogData,
+      });
+      dialogRef.afterClosed().subscribe((confirmed: boolean) => {
+        if (!confirmed) return;
+        // First unset old principal, then set new one
+        this.valideurService.updateValideur(this.dt, currentPrincipal.id, { principal: false }).subscribe({
+          next: () => {
+            this.valideurService.updateValideur(this.dt, v.id, { principal: true }).subscribe({
+              next: () => {
+                this.snackBar.open(`${v.prenom} ${v.nom} est maintenant le valideur principal`, 'Fermer', { duration: 3000 });
+                this.loadValideurs();
+              },
+              error: () => this.snackBar.open('Erreur lors de la mise à jour', 'Fermer', { duration: 3000 }),
+            });
+          },
+          error: () => this.snackBar.open('Erreur lors de la mise à jour', 'Fermer', { duration: 3000 }),
+        });
+      });
+    } else {
+      // No current principal — just set
+      this.valideurService.updateValideur(this.dt, v.id, { principal: true }).subscribe({
+        next: () => {
+          this.snackBar.open(`${v.prenom} ${v.nom} est maintenant le valideur principal`, 'Fermer', { duration: 3000 });
+          this.loadValideurs();
+        },
+        error: () => this.snackBar.open('Erreur lors de la mise à jour', 'Fermer', { duration: 3000 }),
+      });
+    }
   }
 }
 

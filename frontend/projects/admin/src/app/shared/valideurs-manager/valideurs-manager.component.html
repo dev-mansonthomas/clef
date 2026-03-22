@@ -61,6 +61,15 @@
         <td mat-cell *matCellDef="let v" [class.inactive]="!v.actif">{{ v.role || '—' }}</td>
       </ng-container>
 
+      <ng-container matColumnDef="principal">
+        <th mat-header-cell *matHeaderCellDef>Principal</th>
+        <td mat-cell *matCellDef="let v">
+          <button mat-icon-button (click)="togglePrincipal(v)" [title]="v.principal ? 'Retirer comme principal' : 'Définir comme principal'" [disabled]="!v.actif">
+            <mat-icon [class.principal-active]="v.principal">{{ v.principal ? 'star' : 'star_border' }}</mat-icon>
+          </button>
+        </td>
+      </ng-container>
+
       <ng-container matColumnDef="statut">
         <th mat-header-cell *matHeaderCellDef>Statut</th>
         <td mat-cell *matCellDef="let v">

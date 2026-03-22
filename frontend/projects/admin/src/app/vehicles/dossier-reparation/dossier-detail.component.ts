@@ -15,7 +15,9 @@ import { MatAutocompleteModule, MatAutocompleteTrigger } from '@angular/material
 import { Observable, startWith, map } from 'rxjs';
 import { RepairService } from '../../services/repair.service';
 import { ValideurService } from '../../services/valideur.service';
-import { DossierReparation, Devis, FactureCreateResponse, AuditEntry, Valideur } from '../../models/repair.model';
+import { ContactCCService } from '../../services/contact-cc.service';
+import { DossierReparation, Devis, FactureCreateResponse, AuditEntry, Valideur, ContactCC } from '../../models/repair.model';
+import { MatCheckboxModule } from '@angular/material/checkbox';
 import { DevisFormComponent } from './devis-form.component';
 import { FactureFormComponent } from './facture-form.component';
 import { ConfirmResendDialogComponent } from './confirm-resend-dialog.component';
@@ -39,6 +41,7 @@ import { ConfirmCancelDevisDialogComponent } from './confirm-cancel-devis-dialog
     MatInputModule,
     MatDialogModule,
     MatAutocompleteModule,
+    MatCheckboxModule,
     DevisFormComponent,
     FactureFormComponent,
   ],
@@ -112,6 +115,12 @@ import { ConfirmCancelDevisDialogComponent } from './confirm-cancel-devis-dialog
                 </mat-option>
               </mat-autocomplete>
             </mat-form-field>
+            <div class="cc-checkboxes" *ngIf="contactsCC.length > 0">
+              <span class="cc-label">CC :</span>
+              <mat-checkbox *ngFor="let cc of contactsCC" [checked]="isCCSelected(cc.email)" (change)="toggleCC(cc.email)">
+                {{ cc.prenom }} {{ cc.nom }}
+              </mat-checkbox>
+            </div>
             <button mat-raised-button color="primary" type="button" (click)="sendBulkApproval()" [disabled]="approvalLoading || !approvalEmail">
               <mat-icon>send</mat-icon> Envoyer tout
             </button>
@@ -189,6 +198,12 @@ import { ConfirmCancelDevisDialogComponent } from './confirm-cancel-devis-dialog
                 </mat-option>
               </mat-autocomplete>
             </mat-form-field>
+            <div class="cc-checkboxes" *ngIf="contactsCC.length > 0">
+              <span class="cc-label">CC :</span>
+              <mat-checkbox *ngFor="let cc of contactsCC" [checked]="isCCSelected(cc.email)" (change)="toggleCC(cc.email)">
+                {{ cc.prenom }} {{ cc.nom }}
+              </mat-checkbox>
+            </div>
             <button mat-raised-button color="primary" type="button" (click)="sendForApproval()" [disabled]="approvalLoading || !approvalEmail">
               <mat-icon>send</mat-icon> Envoyer
             </button>
@@ -297,6 +312,8 @@ import { ConfirmCancelDevisDialogComponent } from './confirm-cancel-devis-dialog
     .approval-form { display: flex; align-items: center; gap: 12px; padding: 12px 0; flex-wrap: wrap; }
     .approval-email-field { min-width: 280px; }
     .valideur-hint { font-size: 12px; color: rgba(0,0,0,0.54); }
+    .cc-checkboxes { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; width: 100%; padding: 4px 0; }
+    .cc-label { font-size: 13px; font-weight: 500; color: rgba(0,0,0,0.6); }
     .timeline { margin: 8px 0 16px; }
     .timeline-entry { display: flex; gap: 12px; align-items: flex-start; padding: 8px 0; border-left: 2px solid rgba(0,0,0,0.12); margin-left: 12px; padding-left: 16px; position: relative; }
     .timeline-entry::before { content: ''; position: absolute; left: -5px; top: 12px; width: 8px; height: 8px; border-radius: 50%; background: #bdbdbd; }
@@ -327,6 +344,7 @@ export class DossierDetailComponent implements OnInit, OnChanges {
 
   private readonly repairService = inject(RepairService);
   private readonly valideurService = inject(ValideurService);
+  private readonly contactCCService = inject(ContactCCService);
   private readonly snackBar = inject(MatSnackBar);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly dialog = inject(MatDialog);
@@ -353,10 +371,15 @@ export class DossierDetailComponent implements OnInit, OnChanges {
   valideurs: Valideur[] = [];
   filteredValideurs$!: Observable<Valideur[]>;
 
+  // Contacts CC
+  contactsCC: ContactCC[] = [];
+  selectedCCEmails: Set<string> = new Set();
+
   ngOnInit(): void {
     this.loadDossier();
     this.loadHistorique();
     this.loadValideurs();
+    this.loadContactsCC();
     this.filteredValideurs$ = this.valideurSearchControl.valueChanges.pipe(
       startWith(''),
       map(value => {
@@ -524,6 +547,42 @@ export class DossierDetailComponent implements OnInit, OnChanges {
     });
   }
 
+  private loadContactsCC(): void {
+    if (!this.dt) return;
+    this.contactCCService.listContactsCC(this.dt).subscribe({
+      next: (res) => {
+        this.contactsCC = (res.contacts_cc || []).filter(c => c.actif);
+        this.cdr.detectChanges();
+      },
+    });
+  }
+
+  private prefillPrincipalValideur(): void {
+    const principal = this.valideurs.find(v => v.principal);
+    if (principal) {
+      this.approvalEmail = principal.email;
+      this.valideurSearchControl.setValue(`${principal.prenom} ${principal.nom}`);
+    }
+  }
+
+  private prefillDefaultCC(): void {
+    this.selectedCCEmails = new Set(
+      this.contactsCC.filter(c => c.cc_par_defaut).map(c => c.email)
+    );
+  }
+
+  toggleCC(email: string): void {
+    if (this.selectedCCEmails.has(email)) {
+      this.selectedCCEmails.delete(email);
+    } else {
+      this.selectedCCEmails.add(email);
+    }
+  }
+
+  isCCSelected(email: string): boolean {
+    return this.selectedCCEmails.has(email);
+  }
+
   private filterValideurs(search: string): Valideur[] {
     if (!search) return this.valideurs;
     const lower = search.toLowerCase();
@@ -562,14 +621,17 @@ export class DossierDetailComponent implements OnInit, OnChanges {
   openApprovalForm(devis: Devis, prefillValideur?: string): void {
     this.approvalDevis = devis;
     this.isResend = devis.statut === 'envoye' || devis.statut === 'refuse';
+    this.prefillDefaultCC();
     if (prefillValideur) {
       this.approvalEmail = prefillValideur;
-      // Try to find the valideur in the list to display their name
       const found = this.valideurs.find(v => v.email === prefillValideur);
       this.valideurSearchControl.setValue(found ? `${found.prenom} ${found.nom}` : prefillValideur);
     } else {
-      this.approvalEmail = '';
-      this.valideurSearchControl.setValue('');
+      this.prefillPrincipalValideur();
+      if (!this.approvalEmail) {
+        this.approvalEmail = '';
+        this.valideurSearchControl.setValue('');
+      }
     }
   }
 
@@ -601,10 +663,11 @@ export class DossierDetailComponent implements OnInit, OnChanges {
     if (!this.approvalDevis || !this.approvalEmail || !this.dossier) return;
     this.approvalLoading = true;
     const isResend = this.isResend;
+    const ccEmails = Array.from(this.selectedCCEmails);
     this.repairService.sendApproval(
       this.dt, this.immat, this.dossier.numero,
       String(this.approvalDevis.id),
-      { valideur_email: this.approvalEmail }
+      { valideur_email: this.approvalEmail, cc_emails: ccEmails.length > 0 ? ccEmails : undefined }
     ).subscribe({
       next: () => {
         this.approvalLoading = false;
@@ -630,16 +693,21 @@ export class DossierDetailComponent implements OnInit, OnChanges {
 
   openBulkApprovalForm(): void {
     this.bulkApprovalMode = true;
-    this.approvalEmail = '';
-    this.valideurSearchControl.setValue('');
+    this.prefillDefaultCC();
+    this.prefillPrincipalValideur();
+    if (!this.approvalEmail) {
+      this.approvalEmail = '';
+      this.valideurSearchControl.setValue('');
+    }
   }
 
   sendBulkApproval(): void {
     if (!this.approvalEmail || !this.dossier) return;
     this.approvalLoading = true;
+    const ccEmails = Array.from(this.selectedCCEmails);
     this.repairService.sendBulkApproval(
       this.dt, this.immat, this.dossier.numero,
-      { valideur_email: this.approvalEmail }
+      { valideur_email: this.approvalEmail, cc_emails: ccEmails.length > 0 ? ccEmails : undefined }
     ).subscribe({
       next: (res) => {
         this.approvalLoading = false;

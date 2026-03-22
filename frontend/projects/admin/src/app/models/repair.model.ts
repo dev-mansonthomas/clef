@@ -184,6 +184,7 @@ export interface UpdateFournisseurRequest {
 
 export interface SendApprovalRequest {
   valideur_email: string;
+  cc_emails?: string[];
 }
 
 export interface SendApprovalResponse {
@@ -232,6 +233,7 @@ export interface Valideur {
   email: string;
   role?: string;
   actif: boolean;
+  principal: boolean;
   cree_par: string;
   cree_le: string;
 }
@@ -255,6 +257,43 @@ export interface UpdateValideurRequest {
   email?: string;
   role?: string;
   actif?: boolean;
+  principal?: boolean;
+}
+
+// ========== Contacts CC ==========
+
+export interface ContactCC {
+  id: string;
+  prenom: string;
+  nom: string;
+  email: string;
+  role?: string;
+  actif: boolean;
+  cc_par_defaut: boolean;
+  cree_par: string;
+  cree_le: string;
+}
+
+export interface ContactCCListResponse {
+  count: number;
+  contacts_cc: ContactCC[];
+}
+
+export interface CreateContactCCRequest {
+  prenom: string;
+  nom: string;
+  email: string;
+  role?: string;
+  niveau: 'dt' | 'ul';
+}
+
+export interface UpdateContactCCRequest {
+  prenom?: string;
+  nom?: string;
+  email?: string;
+  role?: string;
+  actif?: boolean;
+  cc_par_defaut?: boolean;
 }
 
 // ========== Dépenses (expenses) ==========
