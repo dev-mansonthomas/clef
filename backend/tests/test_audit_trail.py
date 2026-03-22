@@ -44,15 +44,18 @@ class _MockValkeyService:
     def _key(self, *parts):
         return f"{self.dt}:{':'.join(parts)}"
 
-    async def create_dossier_reparation(self, immat, description, cree_par):
+    async def create_dossier_reparation(self, immat, description, cree_par, commentaire=None):
         from datetime import datetime
         from app.models.repair_models import DossierReparation, HistoriqueEntry, ActionHistorique
         _dossier_counters[immat] = _dossier_counters.get(immat, 0) + 1
         counter = _dossier_counters[immat]
         numero = f"REP-{datetime.utcnow().year}-{counter:03d}"
+        if isinstance(description, str):
+            description = [description]
         dossier = DossierReparation(
             numero=numero, immat=immat, dt=self.dt,
-            description=description, cree_par=cree_par, cree_le=datetime.utcnow(),
+            description=description, commentaire=commentaire,
+            cree_par=cree_par, cree_le=datetime.utcnow(),
         )
         key = self._key("vehicules", immat, "travaux", numero)
         _dossier_store[key] = dossier.model_dump(mode="json")
@@ -145,7 +148,7 @@ class TestAuditTrail:
 
     def test_create_dossier_has_creation_entry(self):
         c = _client()
-        resp = c.post(BASE, json={"description": "Brake repair"})
+        resp = c.post(BASE, json={"description": ["Brake repair"]})
         assert resp.status_code == 201
         numero = resp.json()["numero"]
 
@@ -165,7 +168,7 @@ class TestAuditTrail:
 
     def test_add_devis_has_devis_ajoute_entry(self):
         c = _client()
-        resp = c.post(BASE, json={"description": "Engine work"})
+        resp = c.post(BASE, json={"description": ["Engine work"]})
         numero = resp.json()["numero"]
 
         c.post(f"{BASE}/{numero}/devis", json={
@@ -182,7 +185,7 @@ class TestAuditTrail:
 
     def test_close_dossier_has_cloture_entry(self):
         c = _client()
-        resp = c.post(BASE, json={"description": "Tire change"})
+        resp = c.post(BASE, json={"description": ["Tire change"]})
         numero = resp.json()["numero"]
 
         c.patch(f"{BASE}/{numero}", json={"statut": "cloture"})
@@ -194,7 +197,7 @@ class TestAuditTrail:
 
     def test_all_entries_have_required_fields(self):
         c = _client()
-        resp = c.post(BASE, json={"description": "Full test"})
+        resp = c.post(BASE, json={"description": ["Full test"]})
         numero = resp.json()["numero"]
 
         c.post(f"{BASE}/{numero}/devis", json={
@@ -217,7 +220,7 @@ class TestAuditTrail:
 
     def test_historique_sorted_descending(self):
         c = _client()
-        resp = c.post(BASE, json={"description": "Sort test"})
+        resp = c.post(BASE, json={"description": ["Sort test"]})
         numero = resp.json()["numero"]
 
         c.post(f"{BASE}/{numero}/devis", json={

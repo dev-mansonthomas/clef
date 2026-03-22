@@ -45,16 +45,19 @@ class _MockValkeyService:
     def _key(self, *parts: str) -> str:
         return f"{self.dt}:{':'.join(parts)}"
 
-    async def create_dossier_reparation(self, immat: str, description: str, cree_par: str):
+    async def create_dossier_reparation(self, immat: str, description, cree_par: str, commentaire=None):
         from datetime import datetime
         from app.models.repair_models import DossierReparation, HistoriqueEntry, ActionHistorique
         _dossier_counters[immat] = _dossier_counters.get(immat, 0) + 1
         counter = _dossier_counters[immat]
         year = datetime.utcnow().year
         numero = f"REP-{year}-{counter:03d}"
+        if isinstance(description, str):
+            description = [description]
         dossier = DossierReparation(
             numero=numero, immat=immat, dt=self.dt,
-            description=description, cree_par=cree_par, cree_le=datetime.utcnow(),
+            description=description, commentaire=commentaire,
+            cree_par=cree_par, cree_le=datetime.utcnow(),
         )
         key = self._key("vehicules", immat, "travaux", numero)
         _dossier_store[key] = dossier.model_dump(mode="json")
@@ -191,7 +194,7 @@ DOSSIERS_URL = f"/api/{DT}/vehicles/{IMMAT}/dossiers-reparation"
 
 def _create_dossier_with_facture(client, date_facture="2026-03-15", montant_total=850.0, montant_crf=850.0, classification="entretien_courant"):
     """Helper: create a dossier then add a facture to it."""
-    resp = client.post(DOSSIERS_URL, json={"description": "Test repair"})
+    resp = client.post(DOSSIERS_URL, json={"description": ["Test repair"]})
     assert resp.status_code == 201
     numero = resp.json()["numero"]
     facture_resp = client.post(f"{DOSSIERS_URL}/{numero}/factures", json={

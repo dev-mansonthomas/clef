@@ -38,7 +38,7 @@ class TestRepairModels:
     def test_dossier_reparation_defaults(self):
         d = DossierReparation(
             numero="REP-2026-001", immat="AB-123-CD", dt="DT75",
-            description="Test repair", cree_par="user@croix-rouge.fr",
+            description=["Test repair"], cree_par="user@croix-rouge.fr",
         )
         assert d.statut == StatutDossier.OUVERT
         assert d.devis == []
@@ -46,6 +46,7 @@ class TestRepairModels:
         assert d.photos == []
         assert d.sinistre_id is None
         assert d.cloture_le is None
+        assert d.commentaire is None
 
     def test_devis_defaults(self):
         snap = FournisseurSnapshot(id="f1", nom="Garage Test")
@@ -105,7 +106,7 @@ class TestDossierReparationCRUD:
     @pytest.mark.asyncio
     async def test_create_dossier(self, valkey):
         dossier = await valkey.create_dossier_reparation(
-            immat="AB-123-CD", description="Brake repair",
+            immat="AB-123-CD", description=["Brake repair"],
             cree_par="user@croix-rouge.fr",
         )
         assert dossier.numero == "REP-2026-001"
@@ -115,10 +116,10 @@ class TestDossierReparationCRUD:
     @pytest.mark.asyncio
     async def test_create_dossier_auto_increment(self, valkey):
         d1 = await valkey.create_dossier_reparation(
-            immat="AB-123-CD", description="First", cree_par="u@crf.fr",
+            immat="AB-123-CD", description=["First"], cree_par="u@crf.fr",
         )
         d2 = await valkey.create_dossier_reparation(
-            immat="AB-123-CD", description="Second", cree_par="u@crf.fr",
+            immat="AB-123-CD", description=["Second"], cree_par="u@crf.fr",
         )
         assert d1.numero == "REP-2026-001"
         assert d2.numero == "REP-2026-002"
@@ -126,12 +127,12 @@ class TestDossierReparationCRUD:
     @pytest.mark.asyncio
     async def test_get_dossier(self, valkey):
         created = await valkey.create_dossier_reparation(
-            immat="AB-123-CD", description="Test", cree_par="u@crf.fr",
+            immat="AB-123-CD", description=["Test"], cree_par="u@crf.fr",
         )
         retrieved = await valkey.get_dossier_reparation("AB-123-CD", created.numero)
         assert retrieved is not None
         assert retrieved.numero == created.numero
-        assert retrieved.description == "Test"
+        assert retrieved.description == ["Test"]
 
     @pytest.mark.asyncio
     async def test_get_dossier_not_found(self, valkey):
@@ -141,10 +142,10 @@ class TestDossierReparationCRUD:
     @pytest.mark.asyncio
     async def test_list_dossiers(self, valkey):
         await valkey.create_dossier_reparation(
-            immat="AB-123-CD", description="First", cree_par="u@crf.fr",
+            immat="AB-123-CD", description=["First"], cree_par="u@crf.fr",
         )
         await valkey.create_dossier_reparation(
-            immat="AB-123-CD", description="Second", cree_par="u@crf.fr",
+            immat="AB-123-CD", description=["Second"], cree_par="u@crf.fr",
         )
         dossiers = await valkey.list_dossiers_reparation("AB-123-CD")
         assert len(dossiers) == 2
@@ -156,7 +157,7 @@ class TestHistoriqueCRUD:
     @pytest.mark.asyncio
     async def test_historique_created_on_dossier_creation(self, valkey):
         dossier = await valkey.create_dossier_reparation(
-            immat="AB-123-CD", description="Test", cree_par="u@crf.fr",
+            immat="AB-123-CD", description=["Test"], cree_par="u@crf.fr",
         )
         entries = await valkey.get_historique("AB-123-CD", dossier.numero)
         assert len(entries) == 1
@@ -166,7 +167,7 @@ class TestHistoriqueCRUD:
     @pytest.mark.asyncio
     async def test_add_historique_entry(self, valkey):
         dossier = await valkey.create_dossier_reparation(
-            immat="AB-123-CD", description="Test", cree_par="u@crf.fr",
+            immat="AB-123-CD", description=["Test"], cree_par="u@crf.fr",
         )
         entry = HistoriqueEntry(
             auteur="u@crf.fr",

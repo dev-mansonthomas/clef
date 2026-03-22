@@ -49,15 +49,18 @@ class _MockValkeyService:
     def _key(self, *parts):
         return f"{self.dt}:{':'.join(parts)}"
 
-    async def create_dossier_reparation(self, immat, description, cree_par):
+    async def create_dossier_reparation(self, immat, description, cree_par, commentaire=None):
         from datetime import datetime
         from app.models.repair_models import DossierReparation, HistoriqueEntry, ActionHistorique
         _dossier_counters[immat] = _dossier_counters.get(immat, 0) + 1
         counter = _dossier_counters[immat]
         numero = f"REP-{datetime.utcnow().year}-{counter:03d}"
+        if isinstance(description, str):
+            description = [description]
         dossier = DossierReparation(
             numero=numero, immat=immat, dt=self.dt,
-            description=description, cree_par=cree_par, cree_le=datetime.utcnow(),
+            description=description, commentaire=commentaire,
+            cree_par=cree_par, cree_le=datetime.utcnow(),
         )
         key = self._key("vehicules", immat, "travaux", numero)
         _dossier_store[key] = dossier.model_dump(mode="json")
@@ -195,7 +198,7 @@ BASE = f"/api/{DT}/vehicles/{IMMAT}/dossiers-reparation"
 
 
 def _create_dossier_and_devis(client):
-    resp = client.post(BASE, json={"description": "Test repair"})
+    resp = client.post(BASE, json={"description": ["Test repair"]})
     assert resp.status_code == 201
     numero = resp.json()["numero"]
     resp = client.post(f"{BASE}/{numero}/devis", json={
@@ -225,7 +228,7 @@ class TestSendApproval:
 
     def test_send_approval_devis_not_found(self):
         client = get_authenticated_client()
-        resp = client.post(BASE, json={"description": "Test"})
+        resp = client.post(BASE, json={"description": ["Test"]})
         numero = resp.json()["numero"]
         resp = client.post(
             f"{BASE}/{numero}/devis/nonexistent/send-approval",

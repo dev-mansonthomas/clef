@@ -53,7 +53,7 @@ class _MockValkeyService:
     def _key(self, *parts: str) -> str:
         return f"{self.dt}:{':'.join(parts)}"
 
-    async def create_dossier_reparation(self, immat: str, description: str, cree_par: str):
+    async def create_dossier_reparation(self, immat: str, description, cree_par: str, commentaire=None):
         from datetime import datetime
         from app.models.repair_models import DossierReparation, HistoriqueEntry, ActionHistorique
 
@@ -62,9 +62,14 @@ class _MockValkeyService:
         year = datetime.utcnow().year
         numero = f"REP-{year}-{counter:03d}"
 
+        # Support both list and legacy string description
+        if isinstance(description, str):
+            description = [description]
+
         dossier = DossierReparation(
             numero=numero, immat=immat, dt=self.dt,
-            description=description, cree_par=cree_par, cree_le=datetime.utcnow(),
+            description=description, commentaire=commentaire,
+            cree_par=cree_par, cree_le=datetime.utcnow(),
         )
         key = self._key("vehicules", immat, "travaux", numero)
         _dossier_store[key] = dossier.model_dump(mode="json")
@@ -146,12 +151,12 @@ class TestCreateDossier:
 
     def test_create_dossier_success(self):
         client = get_authenticated_client()
-        response = client.post(BASE, json={"description": "Brake repair"})
+        response = client.post(BASE, json={"description": ["Brake repair"]})
         assert response.status_code == 201
         data = response.json()
         assert data["numero"].startswith("REP-")
         assert data["immat"] == IMMAT
-        assert data["description"] == "Brake repair"
+        assert data["description"] == ["Brake repair"]
         assert data["statut"] == "ouvert"
         assert data["dt"] == DT
 
@@ -159,18 +164,18 @@ class TestCreateDossier:
         client = get_authenticated_client()
         response = client.post(
             f"/api/{DT}/vehicles/NONEXISTENT/dossiers-reparation",
-            json={"description": "Test"},
+            json={"description": ["Test"]},
         )
         assert response.status_code == 404
 
     def test_create_dossier_empty_description(self):
         client = get_authenticated_client()
-        response = client.post(BASE, json={"description": ""})
+        response = client.post(BASE, json={"description": []})
         assert response.status_code == 422
 
     def test_create_dossier_unauthorized(self):
         client = TestClient(app)
-        response = client.post(BASE, json={"description": "Test"})
+        response = client.post(BASE, json={"description": ["Test"]})
         assert response.status_code == 401
 
 
@@ -187,8 +192,8 @@ class TestListDossiers:
 
     def test_list_dossiers_with_data(self):
         client = get_authenticated_client()
-        client.post(BASE, json={"description": "First"})
-        client.post(BASE, json={"description": "Second"})
+        client.post(BASE, json={"description": ["First"]})
+        client.post(BASE, json={"description": ["Second"]})
         response = client.get(BASE)
         assert response.status_code == 200
         data = response.json()
@@ -205,7 +210,7 @@ class TestGetDossier:
 
     def test_get_dossier_success(self):
         client = get_authenticated_client()
-        create_resp = client.post(BASE, json={"description": "Test"})
+        create_resp = client.post(BASE, json={"description": ["Test"]})
         numero = create_resp.json()["numero"]
         response = client.get(f"{BASE}/{numero}")
         assert response.status_code == 200
@@ -222,15 +227,15 @@ class TestUpdateDossier:
 
     def test_update_description(self):
         client = get_authenticated_client()
-        create_resp = client.post(BASE, json={"description": "Original"})
+        create_resp = client.post(BASE, json={"description": ["Original"]})
         numero = create_resp.json()["numero"]
-        response = client.patch(f"{BASE}/{numero}", json={"description": "Updated"})
+        response = client.patch(f"{BASE}/{numero}", json={"description": ["Updated"]})
         assert response.status_code == 200
-        assert response.json()["description"] == "Updated"
+        assert response.json()["description"] == ["Updated"]
 
     def test_close_dossier(self):
         client = get_authenticated_client()
-        create_resp = client.post(BASE, json={"description": "Test"})
+        create_resp = client.post(BASE, json={"description": ["Test"]})
         numero = create_resp.json()["numero"]
         response = client.patch(f"{BASE}/{numero}", json={"statut": "cloture"})
         assert response.status_code == 200
@@ -240,7 +245,7 @@ class TestUpdateDossier:
 
     def test_reopen_dossier(self):
         client = get_authenticated_client()
-        create_resp = client.post(BASE, json={"description": "Test"})
+        create_resp = client.post(BASE, json={"description": ["Test"]})
         numero = create_resp.json()["numero"]
         client.patch(f"{BASE}/{numero}", json={"statut": "cloture"})
         response = client.patch(f"{BASE}/{numero}", json={"statut": "ouvert"})
@@ -251,7 +256,7 @@ class TestUpdateDossier:
 
     def test_cancel_dossier(self):
         client = get_authenticated_client()
-        create_resp = client.post(BASE, json={"description": "Test"})
+        create_resp = client.post(BASE, json={"description": ["Test"]})
         numero = create_resp.json()["numero"]
         response = client.patch(f"{BASE}/{numero}", json={"statut": "annule"})
         assert response.status_code == 200
@@ -259,14 +264,14 @@ class TestUpdateDossier:
 
     def test_update_not_found(self):
         client = get_authenticated_client()
-        response = client.patch(f"{BASE}/REP-2026-999", json={"description": "X"})
+        response = client.patch(f"{BASE}/REP-2026-999", json={"description": ["X"]})
         assert response.status_code == 404
 
     def test_no_change_returns_current(self):
         client = get_authenticated_client()
-        create_resp = client.post(BASE, json={"description": "Test"})
+        create_resp = client.post(BASE, json={"description": ["Test"]})
         numero = create_resp.json()["numero"]
         response = client.patch(f"{BASE}/{numero}", json={})
         assert response.status_code == 200
-        assert response.json()["description"] == "Test"
+        assert response.json()["description"] == ["Test"]
 

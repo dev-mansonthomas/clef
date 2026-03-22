@@ -1279,16 +1279,18 @@ class ValkeyService:
     async def create_dossier_reparation(
         self,
         immat: str,
-        description: str,
+        description: "str | list",
         cree_par: str,
+        commentaire: Optional[str] = None,
     ) -> DossierReparation:
         """
         Create a new repair dossier with auto-incremented number.
 
         Args:
             immat: Vehicle license plate
-            description: Description of the repair
+            description: Description of the repair (list of items or legacy string)
             cree_par: Email of the creator
+            commentaire: Optional free-text comment
 
         Returns:
             Created DossierReparation
@@ -1301,11 +1303,16 @@ class ValkeyService:
         year = datetime.utcnow().year
         numero = f"REP-{year}-{counter:03d}"
 
+        # Support both list and legacy string description
+        if isinstance(description, str):
+            description = [description]
+
         dossier = DossierReparation(
             numero=numero,
             immat=immat,
             dt=self.dt,
             description=description,
+            commentaire=commentaire,
             cree_par=cree_par,
             cree_le=datetime.utcnow(),
         )

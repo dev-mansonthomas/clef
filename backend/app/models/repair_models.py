@@ -70,6 +70,7 @@ class FournisseurSnapshot(BaseModel):
     telephone: Optional[str] = Field(None, description="Téléphone")
     siret: Optional[str] = Field(None, description="Numéro SIRET")
     email: Optional[str] = Field(None, description="Email de contact")
+    numero_contrat: Optional[str] = Field(None, description="N° de contrat de mise en compte")
 
 
 class Fournisseur(BaseModel):
@@ -84,6 +85,11 @@ class Fournisseur(BaseModel):
     specialites: List[str] = Field(default_factory=list, description="Spécialités")
     niveau: NiveauFournisseur = Field(..., description="Niveau: dt ou ul")
     ul_id: Optional[str] = Field(None, description="ID de l'UL (null si niveau=dt)")
+    adresse_rue: Optional[str] = Field(None, description="Rue")
+    adresse_code_postal: Optional[str] = Field(None, description="Code postal")
+    adresse_ville: Optional[str] = Field(None, description="Ville")
+    numero_contrat: Optional[str] = Field(None, description="N° de contrat de mise en compte")
+    archive: bool = Field(default=False, description="Archivé (visible mais non sélectionnable)")
     cree_par: str = Field(..., description="Email du créateur")
     cree_le: datetime = Field(default_factory=datetime.utcnow, description="Date de création")
 
@@ -96,6 +102,7 @@ class Fournisseur(BaseModel):
             telephone=self.telephone,
             siret=self.siret,
             email=self.email,
+            numero_contrat=self.numero_contrat,
         )
 
 
@@ -146,7 +153,8 @@ class DossierReparation(BaseModel):
     numero: str = Field(..., description="Numéro du dossier (ex: REP-2026-001)")
     immat: str = Field(..., description="Immatriculation du véhicule")
     dt: str = Field(..., description="Identifiant DT")
-    description: str = Field(..., description="Description des travaux")
+    description: List[str] = Field(default_factory=list, description="Description des travaux (liste d'items)")
+    commentaire: Optional[str] = Field(None, description="Commentaire libre")
     photos: List[FichierDrive] = Field(default_factory=list, description="Photos associées")
     sinistre_id: Optional[str] = Field(None, description="ID du sinistre lié (futur)")
     statut: StatutDossier = Field(default=StatutDossier.OUVERT, description="Statut du dossier")
@@ -164,12 +172,14 @@ class DossierReparation(BaseModel):
 
 class DossierReparationCreate(BaseModel):
     """Request body for creating a new dossier de réparation."""
-    description: str = Field(..., min_length=1, description="Description des travaux")
+    description: List[str] = Field(..., min_length=1, description="Description des travaux (liste d'items)")
+    commentaire: Optional[str] = Field(None, description="Commentaire libre")
 
 
 class DossierReparationUpdate(BaseModel):
     """Request body for updating a dossier de réparation (description, close, reopen, cancel)."""
-    description: Optional[str] = Field(None, description="Nouvelle description")
+    description: Optional[List[str]] = Field(None, description="Nouvelle description (liste d'items)")
+    commentaire: Optional[str] = Field(None, description="Commentaire libre")
     statut: Optional[StatutDossier] = Field(None, description="Nouveau statut (cloture, ouvert, annule)")
 
 
@@ -191,6 +201,10 @@ class FournisseurCreate(BaseModel):
     specialites: List[str] = Field(default_factory=list, description="Spécialités")
     niveau: NiveauFournisseur = Field(..., description="Niveau: dt ou ul")
     ul_id: Optional[str] = Field(None, description="ID de l'UL (requis si niveau=ul)")
+    adresse_rue: Optional[str] = Field(None, description="Rue")
+    adresse_code_postal: Optional[str] = Field(None, description="Code postal")
+    adresse_ville: Optional[str] = Field(None, description="Ville")
+    numero_contrat: Optional[str] = Field(None, description="N° de contrat de mise en compte")
 
 
 class FournisseurUpdate(BaseModel):
@@ -202,6 +216,11 @@ class FournisseurUpdate(BaseModel):
     email: Optional[str] = Field(None, description="Email de contact")
     contact_nom: Optional[str] = Field(None, description="Nom du contact")
     specialites: Optional[List[str]] = Field(None, description="Spécialités")
+    adresse_rue: Optional[str] = Field(None, description="Rue")
+    adresse_code_postal: Optional[str] = Field(None, description="Code postal")
+    adresse_ville: Optional[str] = Field(None, description="Ville")
+    numero_contrat: Optional[str] = Field(None, description="N° de contrat de mise en compte")
+    archive: Optional[bool] = Field(None, description="Archivé")
 
 
 class FournisseurListResponse(BaseModel):
@@ -218,7 +237,8 @@ class DevisCreate(BaseModel):
     date_devis: date = Field(..., description="Date du devis")
     fournisseur_id: str = Field(..., description="UUID du fournisseur")
     fournisseur_nom: str = Field(..., description="Nom du fournisseur")
-    description_travaux: Optional[str] = Field(None, description="Description des travaux")
+    description_travaux: Optional[str] = Field(None, description="Description des travaux (commentaire)")
+    description_items: Optional[List[str]] = Field(None, description="Liste des items de description (héritée du dossier, modifiable)")
     montant: float = Field(..., gt=0, description="Montant du devis en euros TTC")
 
 
@@ -274,7 +294,7 @@ class ApprobationDataResponse(BaseModel):
     numero_dossier: str = Field(..., description="Numéro du dossier")
     devis_id: str = Field(..., description="UUID du devis")
     devis: Devis = Field(..., description="Données du devis")
-    dossier_description: str = Field(..., description="Description du dossier")
+    dossier_description: List[str] = Field(default_factory=list, description="Description du dossier (liste d'items)")
     valideur_email: str = Field(..., description="Email du valideur")
     status: str = Field(..., description="Statut du token: pending, approuve, refuse")
     created_at: str = Field(..., description="Date de création du token")

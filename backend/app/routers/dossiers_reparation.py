@@ -57,6 +57,7 @@ async def create_dossier(
     dossier = await valkey.create_dossier_reparation(
         immat=immat,
         description=body.description,
+        commentaire=body.commentaire,
         cree_par=current_user.email,
     )
     return dossier
@@ -125,6 +126,13 @@ async def update_dossier(
         updated = True
         action = ActionHistorique.MODIFICATION
         details = "Description modifiée"
+
+    if body.commentaire is not None:
+        dossier.commentaire = body.commentaire
+        updated = True
+        if action is None:
+            action = ActionHistorique.MODIFICATION
+            details = "Commentaire modifié"
 
     if body.statut is not None and body.statut != dossier.statut:
         old_statut = dossier.statut

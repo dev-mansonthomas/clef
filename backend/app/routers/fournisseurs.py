@@ -86,6 +86,10 @@ async def create_fournisseur(
         specialites=body.specialites,
         niveau=body.niveau,
         ul_id=body.ul_id if body.niveau == NiveauFournisseur.UL else None,
+        adresse_rue=body.adresse_rue,
+        adresse_code_postal=body.adresse_code_postal,
+        adresse_ville=body.adresse_ville,
+        numero_contrat=body.numero_contrat,
         cree_par=current_user.email,
         cree_le=datetime.utcnow(),
     )

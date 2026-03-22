@@ -48,16 +48,19 @@ class _MockValkeyService:
     def _key(self, *parts: str) -> str:
         return f"{self.dt}:{':'.join(parts)}"
 
-    async def create_dossier_reparation(self, immat, description, cree_par):
+    async def create_dossier_reparation(self, immat, description, cree_par, commentaire=None):
         from datetime import datetime
         from app.models.repair_models import DossierReparation, HistoriqueEntry, ActionHistorique
         _dossier_counters[immat] = _dossier_counters.get(immat, 0) + 1
         counter = _dossier_counters[immat]
         year = datetime.utcnow().year
         numero = f"REP-{year}-{counter:03d}"
+        if isinstance(description, str):
+            description = [description]
         dossier = DossierReparation(
             numero=numero, immat=immat, dt=self.dt,
-            description=description, cree_par=cree_par, cree_le=datetime.utcnow(),
+            description=description, commentaire=commentaire,
+            cree_par=cree_par, cree_le=datetime.utcnow(),
         )
         key = self._key("vehicules", immat, "travaux", numero)
         _dossier_store[key] = dossier.model_dump(mode="json")
@@ -229,7 +232,7 @@ FACTURE_PAYLOAD = {
 
 def _create_dossier(client) -> str:
     """Helper: create a dossier and return its numero."""
-    resp = client.post(BASE, json={"description": "Test repair"})
+    resp = client.post(BASE, json={"description": ["Test repair"]})
     assert resp.status_code == 201
     return resp.json()["numero"]
 

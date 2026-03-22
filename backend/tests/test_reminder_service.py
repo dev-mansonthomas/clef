@@ -30,7 +30,7 @@ def _make_devis(devis_id, statut=StatutDevis.ENVOYE, date_envoi=None, valideur_e
 def _make_dossier(numero, immat="AB-123-CD", statut=StatutDossier.OUVERT, devis=None):
     return DossierReparation(
         numero=numero, immat=immat, dt="DT75",
-        description="Test", cree_par="user@crf.fr",
+        description=["Test"], cree_par="user@crf.fr",
         statut=statut, devis=devis or [],
     )
 
