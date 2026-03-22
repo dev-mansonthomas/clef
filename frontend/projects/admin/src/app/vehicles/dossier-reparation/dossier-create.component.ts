@@ -32,6 +32,12 @@ import { DossierReparation } from '../../models/repair.model';
       </mat-card-header>
       <mat-card-content>
         <form [formGroup]="form" (ngSubmit)="onSubmit()" (submit)="$event.stopPropagation()">
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Titre (optionnel)</mat-label>
+            <input matInput formControlName="titre" maxlength="50" placeholder="Ex: Réparation freins avant">
+            <mat-hint align="end">{{ form.get('titre')?.value?.length || 0 }}/50</mat-hint>
+          </mat-form-field>
+
           <label class="section-label">Description des travaux</label>
           <div class="description-items" formArrayName="descriptionItems">
             <div *ngFor="let item of descriptionItems.controls; let i = index" class="description-item-row">
@@ -95,6 +101,7 @@ export class DossierCreateComponent {
   private readonly cdr = inject(ChangeDetectorRef);
 
   form = this.fb.group({
+    titre: [''],
     descriptionItems: this.fb.array([this.fb.control('', Validators.required)]),
     commentaire: [''],
   });
@@ -127,7 +134,8 @@ export class DossierCreateComponent {
     this.saving = true;
 
     const commentaire = this.form.value.commentaire?.trim() || undefined;
-    this.repairService.createDossier(this.dt, this.immat, { description: items, commentaire }).subscribe({
+    const titre = this.form.value.titre?.trim() || undefined;
+    this.repairService.createDossier(this.dt, this.immat, { description: items, commentaire, titre }).subscribe({
       next: (dossier) => {
         this.snackBar.open('Dossier créé avec succès', 'Fermer', { duration: 3000 });
         this.saving = false;

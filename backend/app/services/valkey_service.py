@@ -1282,6 +1282,7 @@ class ValkeyService:
         description: "str | list",
         cree_par: str,
         commentaire: Optional[str] = None,
+        titre: Optional[str] = None,
     ) -> DossierReparation:
         """
         Create a new repair dossier with auto-incremented number.
@@ -1311,6 +1312,7 @@ class ValkeyService:
             numero=numero,
             immat=immat,
             dt=self.dt,
+            titre=titre,
             description=description,
             commentaire=commentaire,
             cree_par=cree_par,

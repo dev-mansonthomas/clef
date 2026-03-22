@@ -51,6 +51,10 @@ import { ConfirmResendDialogComponent } from './confirm-resend-dialog.component'
         <mat-card-header class="dossier-header-row">
           <mat-card-title class="dossier-header-inline">
             <span>{{ dossier.numero }}</span>
+            <ng-container *ngIf="dossier.titre">
+              <span class="header-separator">·</span>
+              <span class="header-titre">{{ dossier.titre }}</span>
+            </ng-container>
             <span class="header-separator">·</span>
             <span class="header-date">Créé le {{ dossier.cree_le | date:'dd/MM/yyyy HH:mm' }}</span>
             <span class="header-separator">·</span>
@@ -101,6 +105,10 @@ import { ConfirmResendDialogComponent } from './confirm-resend-dialog.component'
               <span class="item-fournisseur">{{ d.fournisseur?.nom || d.id }}</span>
               <span class="item-montant">{{ d.montant | number:'1.2-2' }} €</span>
               <span class="devis-statut-badge" [ngClass]="'devis-statut-' + d.statut">{{ devisStatutLabel(d.statut) }}</span>
+              <button mat-icon-button type="button" *ngIf="d.statut === 'en_attente' && dossier.statut === 'ouvert'"
+                (click)="startEditDevis(d)" [disabled]="!!editingDevis" title="Modifier le devis" class="edit-devis-btn">
+                <mat-icon>edit</mat-icon>
+              </button>
               <button mat-stroked-button type="button" *ngIf="d.statut === 'en_attente' && dossier.statut === 'ouvert'"
                 (click)="openApprovalForm(d)" [disabled]="approvalLoading" class="approval-btn">
                 <mat-icon>send</mat-icon> Envoyer pour approbation
@@ -130,6 +138,11 @@ import { ConfirmResendDialogComponent } from './confirm-resend-dialog.component'
               </button>
               <button mat-button type="button" (click)="approvalDevis = null">Annuler</button>
             </div>
+            <!-- Inline edit form -->
+            <app-devis-form *ngIf="editingDevis" [dt]="dt" [immat]="immat" [numero]="numero"
+              [dossierDescription]="dossier.description || []"
+              [editDevis]="editingDevis"
+              (devisUpdated)="onDevisUpdated($event)" (cancelled)="editingDevis = null"></app-devis-form>
           </div>
 
           <h4>Factures</h4>
@@ -177,6 +190,7 @@ import { ConfirmResendDialogComponent } from './confirm-resend-dialog.component'
     .dossier-header-inline { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
     .header-separator { color: rgba(0,0,0,0.38); }
     .header-date { font-size: 14px; font-weight: 400; color: rgba(0,0,0,0.54); }
+    .header-titre { font-size: 16px; font-weight: 400; }
     .statut-badge { display: inline-block; padding: 4px 12px; border-radius: 16px; font-size: 12px; font-weight: 500; text-transform: uppercase; }
     .statut-ouvert { background: #e8f5e9; color: #2e7d32; }
     .statut-cloture { background: #eeeeee; color: #616161; }
@@ -202,6 +216,7 @@ import { ConfirmResendDialogComponent } from './confirm-resend-dialog.component'
     .devis-statut-refuse { background: #ffebee; color: #c62828; }
     .devis-statut-annule { background: #eeeeee; color: #616161; }
     .approval-btn { margin-left: auto; }
+    .edit-devis-btn { color: rgba(0,0,0,0.54); }
     .approval-form { display: flex; align-items: center; gap: 12px; padding: 12px 0; flex-wrap: wrap; }
     .approval-email-field { min-width: 280px; }
     .valideur-hint { font-size: 12px; color: rgba(0,0,0,0.54); }
@@ -244,6 +259,7 @@ export class DossierDetailComponent implements OnInit, OnChanges {
   actionLoading = false;
   showDevisForm = false;
   showFactureForm = false;
+  editingDevis: Devis | null = null;
   approvalDevis: Devis | null = null;
   approvalEmail = '';
   approvalLoading = false;
@@ -371,6 +387,16 @@ export class DossierDetailComponent implements OnInit, OnChanges {
 
   onDevisCreated(_devis: Devis): void {
     this.showDevisForm = false;
+    this.loadDossier();
+    this.loadHistorique();
+  }
+
+  startEditDevis(devis: Devis): void {
+    this.editingDevis = devis;
+  }
+
+  onDevisUpdated(_devis: Devis): void {
+    this.editingDevis = null;
     this.loadDossier();
     this.loadHistorique();
   }

@@ -22,6 +22,7 @@ export interface DossierReparation {
   numero: string;  // REP-2026-001
   immat: string;
   dt: string;
+  titre?: string;
   description: string[];
   commentaire?: string;
   statut: 'ouvert' | 'cloture' | 'annule';
@@ -105,12 +106,14 @@ export interface FournisseurListResponse {
 // Request types
 
 export interface CreateDossierRequest {
+  titre?: string;
   description: string[];
   commentaire?: string;
   sinistre_ref?: string;
 }
 
 export interface UpdateDossierRequest {
+  titre?: string;
   statut?: 'ouvert' | 'cloture' | 'annule';
   description?: string[];
   commentaire?: string;

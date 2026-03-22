@@ -15,6 +15,7 @@ from app.models.repair_models import (
     FactureResponse,
     Devis,
     Facture,
+    FournisseurSnapshot,
     StatutDossier,
     StatutDevis,
     ActionHistorique,
@@ -58,6 +59,7 @@ async def create_dossier(
         immat=immat,
         description=body.description,
         commentaire=body.commentaire,
+        titre=body.titre,
         cree_par=current_user.email,
     )
     return dossier
@@ -120,6 +122,12 @@ async def update_dossier(
     updated = False
     action: ActionHistorique | None = None
     details = ""
+
+    if body.titre is not None:
+        dossier.titre = body.titre
+        updated = True
+        action = ActionHistorique.MODIFICATION
+        details = "Titre modifié"
 
     if body.description is not None:
         dossier.description = body.description
@@ -246,7 +254,7 @@ async def update_devis(
     current_user: User = Depends(require_authenticated_user),
     valkey: ValkeyService = Depends(get_valkey_service),
 ) -> Devis:
-    """Update a devis (e.g. status change for approval workflow)."""
+    """Update a devis (field edits when en_attente, or status change for approval workflow)."""
     dossier = await valkey.get_dossier_reparation(immat, numero)
     if not dossier:
         raise HTTPException(
@@ -254,28 +262,75 @@ async def update_devis(
             detail=f"Dossier '{numero}' not found for vehicle '{immat}'",
         )
 
-    devis = await valkey.update_devis(immat, numero, devis_id, {"statut": body.statut})
-    if not devis:
+    existing_devis = await valkey.get_devis(immat, numero, devis_id)
+    if not existing_devis:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Devis '{devis_id}' not found in dossier '{numero}'",
         )
 
+    # Determine which fields are being edited (non-statut fields)
+    edit_fields = body.model_dump(exclude_unset=True)
+    has_field_edits = any(k != "statut" for k in edit_fields)
+
+    # If editing fields (not just statut), devis must be en_attente
+    if has_field_edits and existing_devis.statut != StatutDevis.EN_ATTENTE:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot edit devis with status '{existing_devis.statut.value}'. Only 'en_attente' devis can be edited.",
+        )
+
+    # Build update dict
+    update_data: dict = {}
+
+    if body.date_devis is not None:
+        update_data["date_devis"] = body.date_devis
+    if body.description_travaux is not None:
+        update_data["description"] = body.description_travaux
+    if body.montant is not None:
+        update_data["montant"] = body.montant
+    if body.fournisseur_id is not None:
+        update_data["fournisseur"] = FournisseurSnapshot(
+            id=body.fournisseur_id,
+            nom=body.fournisseur_nom or existing_devis.fournisseur.nom,
+        )
+    if body.statut is not None:
+        update_data["statut"] = body.statut
+
+    if not update_data:
+        return existing_devis
+
+    devis = await valkey.update_devis(immat, numero, devis_id, update_data)
+    if not devis:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update devis",
+        )
+
     # Add history entry
-    action_map = {
-        StatutDevis.APPROUVE: ActionHistorique.DEVIS_APPROUVE,
-        StatutDevis.REFUSE: ActionHistorique.DEVIS_REFUSE,
-        StatutDevis.ANNULE: ActionHistorique.DEVIS_ANNULE,
-    }
-    action = action_map.get(body.statut, ActionHistorique.DEVIS_MODIFIE)
     key = f"{valkey.dt}:vehicules:{immat}:travaux:{numero}:devis:{devis_id}"
+    if body.statut is not None and not has_field_edits:
+        # Pure status change — use specific action
+        action_map = {
+            StatutDevis.APPROUVE: ActionHistorique.DEVIS_APPROUVE,
+            StatutDevis.REFUSE: ActionHistorique.DEVIS_REFUSE,
+            StatutDevis.ANNULE: ActionHistorique.DEVIS_ANNULE,
+        }
+        action = action_map.get(body.statut, ActionHistorique.DEVIS_MODIFIE)
+        details = f"Devis #{devis_id} — statut → {body.statut.value}"
+    else:
+        # Field edit
+        action = ActionHistorique.DEVIS_MODIFIE
+        changed = [k for k in edit_fields if k != "statut"]
+        details = f"Devis #{devis_id} modifié ({', '.join(changed)})"
+
     await valkey.add_historique_entry(
         immat=immat,
         numero=numero,
         entry=HistoriqueEntry(
             auteur=current_user.email,
             action=action,
-            details=f"Devis #{devis_id} — statut → {body.statut.value}",
+            details=details,
             ref=key,
         ),
     )
