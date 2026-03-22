@@ -40,6 +40,8 @@ export interface Devis {
   date_devis: string;
   fournisseur: FournisseurSnapshot;
   description?: string;
+  description_items?: string[];
+  description_travaux?: string;
   montant: number;
   statut: 'en_attente' | 'envoye' | 'approuve' | 'refuse' | 'annule';
   fichier?: FichierDrive;
@@ -57,6 +59,7 @@ export interface Facture {
   fournisseur: FournisseurSnapshot;
   classification: string;
   description?: string;
+  description_items?: string[];
   montant_total: number;
   montant_crf: number;
   fichier?: FichierDrive;
@@ -134,6 +137,7 @@ export interface CreateFactureRequest {
   fournisseur_nom: string;
   classification: string;
   description_travaux: string;
+  description_items?: string[];
   montant_total: number;
   montant_crf: number;
   devis_id?: string;

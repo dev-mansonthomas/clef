@@ -204,6 +204,8 @@ import { ConfirmCancelDevisDialogComponent } from './confirm-cancel-devis-dialog
           <app-facture-form *ngIf="showFactureForm" [dt]="dt" [immat]="immat" [numero]="numero"
             [devisList]="dossier.devis || []"
             [preselectedDevisId]="preselectedDevisId"
+            [inheritedDescriptionItems]="getDevisDescriptionItems()"
+            [inheritedDescriptionTravaux]="getDevisDescriptionTravaux()"
             (factureCreated)="onFactureCreated($event)" (cancelled)="onFactureCancelled()"></app-facture-form>
           <p class="empty-section" *ngIf="!dossier.factures?.length && !showFactureForm">Aucune facture enregistrée.</p>
           <table class="factures-table" *ngIf="dossier.factures?.length">
@@ -500,7 +502,17 @@ export class DossierDetailComponent implements OnInit, OnChanges {
     this.showFactureForm = true;
   }
 
+  getDevisDescriptionItems(): string[] {
+    if (!this.preselectedDevisId || !this.dossier) return [];
+    const devis = this.dossier.devis?.find(d => String(d.id) === this.preselectedDevisId);
+    return devis?.description_items || this.dossier.description || [];
+  }
 
+  getDevisDescriptionTravaux(): string {
+    if (!this.preselectedDevisId || !this.dossier) return '';
+    const devis = this.dossier.devis?.find(d => String(d.id) === this.preselectedDevisId);
+    return devis?.description_travaux || devis?.description || '';
+  }
 
   private loadValideurs(): void {
     if (!this.dt) return;

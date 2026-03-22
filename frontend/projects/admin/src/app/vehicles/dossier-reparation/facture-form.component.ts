@@ -1,6 +1,6 @@
 import { Component, Input, Output, EventEmitter, inject, ChangeDetectorRef, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
+import { ReactiveFormsModule, FormBuilder, FormArray, FormControl, Validators } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
@@ -69,6 +69,19 @@ import { FournisseurSelectorComponent } from '../shared/fournisseur-selector.com
             <mat-error *ngIf="form.get('classification')?.hasError('required')">La classification est requise</mat-error>
           </mat-form-field>
 
+          <div *ngIf="descriptionItems.length > 0" class="description-items-section">
+            <label class="section-label">Travaux (hérités du devis)</label>
+            <div *ngFor="let item of descriptionItems.controls; let i = index" class="description-item-row">
+              <mat-form-field appearance="outline" class="description-item-field">
+                <mat-label>Élément {{ i + 1 }}</mat-label>
+                <input matInput [formControl]="item">
+              </mat-form-field>
+              <button mat-icon-button type="button" (click)="removeItem(i)">
+                <mat-icon>close</mat-icon>
+              </button>
+            </div>
+          </div>
+
           <mat-form-field appearance="outline" class="full-width">
             <mat-label>Description des travaux</mat-label>
             <textarea matInput formControlName="description_travaux" rows="3"></textarea>
@@ -133,6 +146,9 @@ import { FournisseurSelectorComponent } from '../shared/fournisseur-selector.com
     .section-label { font-weight: 500; display: block; margin-bottom: 8px; }
     .file-input-row { display: flex; align-items: center; gap: 8px; }
     .file-name { font-size: 13px; color: rgba(0,0,0,0.7); }
+    .description-items-section { margin-bottom: 16px; }
+    .description-item-row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+    .description-item-field { flex: 1; }
   `],
 })
 export class FactureFormComponent implements OnInit {
@@ -141,6 +157,8 @@ export class FactureFormComponent implements OnInit {
   @Input() numero!: string;
   @Input() devisList: Devis[] = [];
   @Input() preselectedDevisId: string | null = null;
+  @Input() inheritedDescriptionItems: string[] = [];
+  @Input() inheritedDescriptionTravaux: string = '';
   @Output() factureCreated = new EventEmitter<FactureCreateResponse>();
   @Output() cancelled = new EventEmitter<void>();
 
@@ -177,14 +195,32 @@ export class FactureFormComponent implements OnInit {
     devis_id: [null as string | null],
   });
 
+  descriptionItems = this.fb.array<FormControl<string>>([]);
+
   ngOnInit(): void {
     if (this.preselectedDevisId) {
       const devis = this.devisList.find(d => String(d.id) === this.preselectedDevisId);
       if (devis) {
         this.form.patchValue({ devis_id: this.preselectedDevisId });
         this.initialFournisseurSnapshot = devis.fournisseur || null;
+
+        // Inherit description items from devis
+        const items = devis.description_items || this.inheritedDescriptionItems;
+        if (items?.length) {
+          items.forEach(item => this.descriptionItems.push(this.fb.control(item) as FormControl<string>));
+        }
+
+        // Inherit description_travaux from devis
+        const travaux = devis.description_travaux || devis.description || this.inheritedDescriptionTravaux;
+        if (travaux) {
+          this.form.patchValue({ description_travaux: travaux });
+        }
       }
     }
+  }
+
+  removeItem(index: number): void {
+    this.descriptionItems.removeAt(index);
   }
 
   onFournisseurSelected(f: Fournisseur): void {
@@ -207,12 +243,17 @@ export class FactureFormComponent implements OnInit {
       ? v.date_facture.toISOString().split('T')[0]
       : String(v.date_facture);
 
+    const descItems = this.descriptionItems.controls
+      .map(c => c.value?.trim())
+      .filter((val): val is string => !!val);
+
     this.repairService.createFacture(this.dt, this.immat, this.numero, {
       date_facture: dateStr,
       fournisseur_id: this.selectedFournisseur.id,
       fournisseur_nom: this.selectedFournisseur.nom,
       classification: v.classification!,
       description_travaux: v.description_travaux!,
+      description_items: descItems.length ? descItems : undefined,
       montant_total: v.montant_total!,
       montant_crf: v.montant_crf!,
       devis_id: v.devis_id ?? undefined,
