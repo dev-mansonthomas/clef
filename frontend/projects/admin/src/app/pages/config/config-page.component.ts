@@ -7,6 +7,8 @@ import { ConfigResponse, DocumentFolder } from '../../models/config.model';
 import { ApiKeysManagerComponent } from '../../components/api-keys-manager/api-keys-manager.component';
 import { ApiKeysService } from '../../services/api-keys.service';
 import { ConfirmDialogComponent, ConfirmDialogData } from '../../shared/confirm-dialog/confirm-dialog.component';
+import { FournisseursManagerComponent } from '../../shared/fournisseurs-manager/fournisseurs-manager.component';
+import { AuthService } from '../../services/auth.service';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTooltipModule } from '@angular/material/tooltip';
@@ -14,15 +16,18 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 @Component({
   selector: 'app-config-page',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, MatDialogModule, ApiKeysManagerComponent, MatIconModule, MatButtonModule, MatTooltipModule],
+  imports: [CommonModule, ReactiveFormsModule, MatDialogModule, ApiKeysManagerComponent, FournisseursManagerComponent, MatIconModule, MatButtonModule, MatTooltipModule],
   templateUrl: './config-page.component.html',
   styleUrl: './config-page.component.scss'
 })
 export class ConfigPageComponent implements OnInit, OnDestroy {
   private readonly configService = inject(ConfigService);
   private readonly apiKeysService = inject(ApiKeysService);
+  private readonly authService = inject(AuthService);
   private readonly fb = inject(FormBuilder);
   private readonly dialog = inject(MatDialog);
+
+  dt = this.authService.currentUserValue?.dt ?? 'DT75';
 
   configForm!: FormGroup;
   loading = signal(false);

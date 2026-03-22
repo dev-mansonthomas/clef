@@ -1,0 +1,117 @@
+<div class="fournisseurs-manager">
+  <div class="section-header">
+    <button mat-raised-button color="primary" (click)="toggleForm()">
+      <mat-icon>{{ showForm() ? 'close' : 'add' }}</mat-icon>
+      {{ showForm() ? 'Annuler' : 'Ajouter un fournisseur' }}
+    </button>
+  </div>
+
+  @if (showForm()) {
+    <mat-card class="form-card">
+      <mat-card-content>
+        <h3>{{ editingId() ? 'Modifier le fournisseur' : 'Nouveau fournisseur' }}</h3>
+        <div class="form-grid">
+          <mat-form-field appearance="outline">
+            <mat-label>Nom *</mat-label>
+            <input matInput [(ngModel)]="formNom" placeholder="Nom du fournisseur" required>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>N° de contrat</mat-label>
+            <input matInput [(ngModel)]="formNumeroContrat" placeholder="N° contrat mise en compte">
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Téléphone</mat-label>
+            <input matInput [(ngModel)]="formTelephone" placeholder="01 23 45 67 89">
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Email</mat-label>
+            <input matInput [(ngModel)]="formEmail" placeholder="contact@fournisseur.fr" type="email">
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Adresse rue</mat-label>
+            <input matInput [(ngModel)]="formAdresseRue" placeholder="12 rue de la Paix">
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Code postal</mat-label>
+            <input matInput [(ngModel)]="formCodePostal" placeholder="75001">
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Ville</mat-label>
+            <input matInput [(ngModel)]="formVille" placeholder="Paris">
+          </mat-form-field>
+        </div>
+
+        <div class="form-actions">
+          <button mat-button (click)="toggleForm()">Annuler</button>
+          <button mat-raised-button color="primary" (click)="saveFournisseur()" [disabled]="!formNom.trim()">
+            {{ editingId() ? 'Mettre à jour' : 'Créer' }}
+          </button>
+        </div>
+      </mat-card-content>
+    </mat-card>
+  }
+
+  @if (loading()) {
+    <div class="loading">Chargement des fournisseurs...</div>
+  } @else if (fournisseurs().length === 0) {
+    <p class="no-data">Aucun fournisseur enregistré</p>
+  } @else {
+    <table mat-table [dataSource]="fournisseurs()" class="fournisseurs-table">
+      <ng-container matColumnDef="nom">
+        <th mat-header-cell *matHeaderCellDef>Nom</th>
+        <td mat-cell *matCellDef="let f" [class.archived]="f.archive">{{ f.nom }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="telephone">
+        <th mat-header-cell *matHeaderCellDef>Téléphone</th>
+        <td mat-cell *matCellDef="let f" [class.archived]="f.archive">{{ f.telephone || '—' }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="email">
+        <th mat-header-cell *matHeaderCellDef>Email</th>
+        <td mat-cell *matCellDef="let f" [class.archived]="f.archive">{{ f.email || '—' }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="ville">
+        <th mat-header-cell *matHeaderCellDef>Ville</th>
+        <td mat-cell *matCellDef="let f" [class.archived]="f.archive">{{ f.adresse_ville || '—' }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="numero_contrat">
+        <th mat-header-cell *matHeaderCellDef>N° contrat</th>
+        <td mat-cell *matCellDef="let f" [class.archived]="f.archive">{{ f.numero_contrat || '—' }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="statut">
+        <th mat-header-cell *matHeaderCellDef>Statut</th>
+        <td mat-cell *matCellDef="let f">
+          <span class="badge" [class.badge-active]="!f.archive" [class.badge-archived]="f.archive">
+            {{ f.archive ? 'Archivé' : 'Actif' }}
+          </span>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="actions">
+        <th mat-header-cell *matHeaderCellDef>Actions</th>
+        <td mat-cell *matCellDef="let f">
+          <button mat-icon-button (click)="editFournisseur(f)" title="Modifier">
+            <mat-icon>edit</mat-icon>
+          </button>
+          <button mat-icon-button (click)="toggleArchive(f)" [title]="f.archive ? 'Réactiver' : 'Archiver'">
+            <mat-icon>{{ f.archive ? 'unarchive' : 'archive' }}</mat-icon>
+          </button>
+        </td>
+      </ng-container>
+
+      <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+      <tr mat-row *matRowDef="let row; columns: displayedColumns;" [class.archived-row]="row.archive"></tr>
+    </table>
+  }
+</div>
+
