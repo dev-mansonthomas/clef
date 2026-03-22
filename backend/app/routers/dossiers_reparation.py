@@ -617,10 +617,16 @@ async def upload_devis_fichier(
         parent_folder_id=repair_parent_id,
     )
 
-    # Build filename: Devis-{devis_id}-{fournisseur_nom}.{ext}
+    # Create a sub-folder "Devis XX" inside the repair subfolder
+    devis_folder_name = f"Devis {devis_id.zfill(2)}"
+    devis_folder = await drive_service.get_or_create_folder(
+        dt_id=dt, name=devis_folder_name, parent_folder_id=repair_subfolder["id"],
+    )
+
+    # Build filename: Devis XX - fournisseur_nom.ext
     ext_map = {"application/pdf": ".pdf", "image/jpeg": ".jpg", "image/png": ".png"}
     ext = ext_map.get(file.content_type, ".pdf")
-    upload_filename = f"Devis-{devis_id}-{devis.fournisseur.nom}{ext}"
+    upload_filename = f"Devis {devis_id.zfill(2)} - {devis.fournisseur.nom}{ext}"
 
     if devis.fichier and devis.fichier.file_id:
         # Update existing file (versioning)
@@ -639,7 +645,7 @@ async def upload_devis_fichier(
             file_content=file_content,
             filename=upload_filename,
             mime_type=file.content_type,
-            parent_folder_id=repair_subfolder["id"],
+            parent_folder_id=devis_folder["id"],
             description=f"Devis #{devis_id} - {dossier.numero}",
         )
 
@@ -666,6 +672,64 @@ async def upload_devis_fichier(
             auteur=current_user.email,
             action=ActionHistorique.DEVIS_FICHIER_UPLOAD,
             details=f"Fichier devis #{devis_id} {action_detail} ({upload_filename})",
+            ref=key,
+        ),
+    )
+
+    return updated_devis
+
+
+@router.post("/{numero}/devis/{devis_id}/annuler", response_model=Devis)
+async def annuler_devis(
+    dt: str,
+    immat: str,
+    numero: str,
+    devis_id: str,
+    current_user: User = Depends(require_authenticated_user),
+    valkey: ValkeyService = Depends(get_valkey_service),
+) -> Devis:
+    """Cancel a devis at any stage (as long as dossier is open)."""
+    dossier = await valkey.get_dossier_reparation(immat, numero)
+    if not dossier:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Dossier '{numero}' not found for vehicle '{immat}'",
+        )
+
+    _check_dossier_open(dossier)
+
+    devis = await valkey.get_devis(immat, numero, devis_id)
+    if not devis:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Devis '{devis_id}' not found in dossier '{numero}'",
+        )
+
+    if devis.statut == StatutDevis.ANNULE:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Ce devis est déjà annulé",
+        )
+
+    # Invalidate approval token if one exists
+    if devis.token_approbation:
+        approval_svc = ApprovalService(redis_client=valkey.redis, dt=dt)
+        await approval_svc.invalidate_token(devis.token_approbation)
+
+    # Update devis status to annule
+    updated_devis = await valkey.update_devis(immat, numero, devis_id, {
+        "statut": StatutDevis.ANNULE,
+    })
+
+    # Add historique entry
+    key = f"{valkey.dt}:vehicules:{immat}:travaux:{numero}:devis:{devis_id}"
+    await valkey.add_historique_entry(
+        immat=immat,
+        numero=numero,
+        entry=HistoriqueEntry(
+            auteur=current_user.email,
+            action=ActionHistorique.DEVIS_ANNULE,
+            details=f"Devis #{devis_id} annulé",
             ref=key,
         ),
     )
@@ -776,3 +840,151 @@ async def get_facture(
             detail=f"Facture '{facture_id}' not found in dossier '{numero}'",
         )
     return facture
+
+
+# ========== Facture File Upload ==========
+
+
+@router.post("/{numero}/factures/{facture_id}/upload", response_model=Facture)
+async def upload_facture_fichier(
+    dt: str,
+    immat: str,
+    numero: str,
+    facture_id: str,
+    file: UploadFile = File(...),
+    current_user: User = Depends(require_authenticated_user),
+    valkey: ValkeyService = Depends(get_valkey_service),
+) -> Facture:
+    """Upload or update the file attached to a facture (PDF/image, max 10 MB)."""
+    # Validate dossier exists
+    dossier = await valkey.get_dossier_reparation(immat, numero)
+    if not dossier:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Dossier '{numero}' not found for vehicle '{immat}'",
+        )
+
+    # Validate facture exists
+    facture = await valkey.get_facture(immat, numero, facture_id)
+    if not facture:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Facture '{facture_id}' not found in dossier '{numero}'",
+        )
+
+    # Validate file type
+    if file.content_type not in ALLOWED_MIME_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"File type '{file.content_type}' not allowed. Accepted: PDF, JPEG, PNG.",
+        )
+
+    # Read and validate file size
+    file_content = await file.read()
+    if len(file_content) > MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"File too large ({len(file_content)} bytes). Maximum: 10 MB.",
+        )
+
+    # Get vehicle for nom_synthetique
+    vehicle = await valkey.get_vehicle(immat)
+    if not vehicle:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Vehicle '{immat}' not found",
+        )
+
+    # Get or create the "Dossier Réparation" folder for this vehicle
+    drive_folders = getattr(vehicle, "drive_folders", {}) or {}
+    factures_folder = drive_folders.get("factures")
+    if factures_folder and isinstance(factures_folder, dict) and factures_folder.get("folder_id"):
+        repair_parent_id = factures_folder["folder_id"]
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Vehicle Drive folder tree not configured. Please sync Drive folders first.",
+        )
+
+    # Build repair subfolder name: YYYY-MM-DD - nom_synth - Réparation - TITRE
+    date_str = dossier.cree_le.strftime("%Y-%m-%d")
+    parts = [date_str, vehicle.nom_synthetique, "Réparation"]
+    if dossier.titre:
+        parts.append(dossier.titre)
+    subfolder_name = " - ".join(parts)
+
+    # Get or create the repair subfolder
+    repair_subfolder = await drive_service.get_or_create_folder(
+        dt_id=dt,
+        name=subfolder_name,
+        parent_folder_id=repair_parent_id,
+    )
+
+    # Determine target subfolder based on devis_id
+    if facture.devis_id:
+        # Store in the devis subfolder: Devis XX
+        target_subfolder_name = f"Devis {facture.devis_id.zfill(2)}"
+    else:
+        # Store in Factures Seules
+        target_subfolder_name = "Factures Seules"
+
+    target_subfolder = await drive_service.get_or_create_folder(
+        dt_id=dt,
+        name=target_subfolder_name,
+        parent_folder_id=repair_subfolder["id"],
+    )
+
+    # Build filename: Facture {facture_id.zfill(2)} - {fournisseur_nom}{ext}
+    ext_map = {"application/pdf": ".pdf", "image/jpeg": ".jpg", "image/png": ".png"}
+    ext = ext_map.get(file.content_type, ".pdf")
+    upload_filename = f"Facture {facture_id.zfill(2)} - {facture.fournisseur.nom}{ext}"
+
+    if facture.fichier and facture.fichier.file_id:
+        # Update existing file (versioning)
+        await drive_service.ensure_first_revision_kept(dt_id=dt, file_id=facture.fichier.file_id)
+        uploaded = await drive_service.update_file_version(
+            dt_id=dt,
+            file_id=facture.fichier.file_id,
+            file_content=file_content,
+            mime_type=file.content_type,
+            keep_forever=True,
+        )
+    else:
+        # New upload
+        uploaded = await drive_service.upload_file(
+            dt_id=dt,
+            file_content=file_content,
+            filename=upload_filename,
+            mime_type=file.content_type,
+            parent_folder_id=target_subfolder["id"],
+            description=f"Facture #{facture_id} - {dossier.numero}",
+        )
+
+    # Update facture with fichier info
+    fichier = FichierDrive(
+        file_id=uploaded["id"],
+        name=uploaded.get("name", upload_filename),
+        web_view_link=uploaded.get("webViewLink", ""),
+    )
+    updated_facture = await valkey.update_facture(immat, numero, facture_id, {"fichier": fichier})
+    if not updated_facture:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update facture with file info",
+        )
+
+    # Add historique entry
+    key = f"{valkey.dt}:vehicules:{immat}:travaux:{numero}:factures:{facture_id}"
+    action_detail = "mis à jour" if facture.fichier else "ajouté"
+    await valkey.add_historique_entry(
+        immat=immat,
+        numero=numero,
+        entry=HistoriqueEntry(
+            auteur=current_user.email,
+            action=ActionHistorique.FACTURE_FICHIER_UPLOAD,
+            details=f"Fichier facture #{facture_id} {action_detail} ({upload_filename})",
+            ref=key,
+        ),
+    )
+
+    return updated_facture

@@ -80,6 +80,23 @@ import { FournisseurSelectorComponent } from '../shared/fournisseur-selector.com
             <mat-error *ngIf="form.get('montant')?.hasError('min')">Le montant doit être positif</mat-error>
           </mat-form-field>
 
+          <div class="file-upload-section">
+            <span class="section-label">Fichier devis (PDF/image)</span>
+            <div *ngIf="editDevis?.fichier" class="existing-file">
+              <a [href]="editDevis?.fichier?.web_view_link" target="_blank" rel="noopener">📎 {{ editDevis?.fichier?.name }}</a>
+            </div>
+            <div class="file-input-row">
+              <button mat-stroked-button type="button" (click)="fileInput.click()">
+                <mat-icon>upload_file</mat-icon> {{ selectedFile ? 'Changer le fichier' : (editDevis?.fichier ? 'Remplacer le fichier' : 'Joindre un fichier') }}
+              </button>
+              <span *ngIf="selectedFile" class="file-name">{{ selectedFile.name }}</span>
+              <button mat-icon-button type="button" *ngIf="selectedFile" (click)="selectedFile = null">
+                <mat-icon>close</mat-icon>
+              </button>
+            </div>
+            <input #fileInput type="file" accept=".pdf,.jpg,.jpeg,.png" style="display:none" (change)="onFileInputChange($event)">
+          </div>
+
           <div class="form-actions">
             <button mat-button type="button" (click)="cancelled.emit()">Annuler</button>
             <button mat-raised-button color="primary" type="submit" [disabled]="saving">
@@ -101,6 +118,12 @@ import { FournisseurSelectorComponent } from '../shared/fournisseur-selector.com
     .description-item-field { flex: 1; }
     .remove-btn { flex-shrink: 0; }
     .add-item-btn { margin-bottom: 16px; }
+    .file-upload-section { margin-bottom: 16px; }
+    .file-input-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+    .file-name { font-size: 13px; color: rgba(0,0,0,0.7); }
+    .existing-file { margin-bottom: 4px; }
+    .existing-file a { color: #1565c0; text-decoration: none; font-size: 13px; }
+    .existing-file a:hover { text-decoration: underline; }
   `],
 })
 export class DevisFormComponent implements OnInit {
@@ -108,6 +131,7 @@ export class DevisFormComponent implements OnInit {
   @Input() immat!: string;
   @Input() numero!: string;
   @Input() dossierDescription: string[] = [];
+  @Input() dossierTitre = '';
   @Input() editDevis: Devis | null = null;
   @Output() devisCreated = new EventEmitter<Devis>();
   @Output() devisUpdated = new EventEmitter<Devis>();
@@ -119,6 +143,7 @@ export class DevisFormComponent implements OnInit {
   private readonly cdr = inject(ChangeDetectorRef);
 
   selectedFournisseur: Fournisseur | null = null;
+  selectedFile: File | null = null;
   saving = false;
   submitted = false;
 
@@ -167,6 +192,12 @@ export class DevisFormComponent implements OnInit {
     this.selectedFournisseur = f;
   }
 
+  onFileInputChange(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    this.selectedFile = input.files?.[0] || null;
+    input.value = '';
+  }
+
   onSubmit(): void {
     this.submitted = true;
     if (this.form.invalid || !this.selectedFournisseur) return;
@@ -196,14 +227,21 @@ export class DevisFormComponent implements OnInit {
 
     request$.subscribe({
       next: (devis) => {
-        this.saving = false;
-        const msg = this.editDevis ? 'Devis modifié' : 'Devis enregistré';
-        this.snackBar.open(msg, 'Fermer', { duration: 3000 });
-        this.cdr.detectChanges();
-        if (this.editDevis) {
-          this.devisUpdated.emit(devis);
+        if (this.selectedFile) {
+          this.repairService.uploadDevisFile(this.dt, this.immat, this.numero, String(devis.id), this.selectedFile).subscribe({
+            next: (updatedDevis) => {
+              this.saving = false;
+              this.emitResult(updatedDevis);
+            },
+            error: () => {
+              this.saving = false;
+              this.snackBar.open('Devis enregistré mais erreur upload fichier', 'Fermer', { duration: 5000 });
+              this.emitResult(devis);
+            },
+          });
         } else {
-          this.devisCreated.emit(devis);
+          this.saving = false;
+          this.emitResult(devis);
         }
       },
       error: () => {
@@ -212,6 +250,17 @@ export class DevisFormComponent implements OnInit {
         this.cdr.detectChanges();
       },
     });
+  }
+
+  private emitResult(devis: Devis): void {
+    const msg = this.editDevis ? 'Devis modifié' : 'Devis enregistré';
+    this.snackBar.open(msg, 'Fermer', { duration: 3000 });
+    this.cdr.detectChanges();
+    if (this.editDevis) {
+      this.devisUpdated.emit(devis);
+    } else {
+      this.devisCreated.emit(devis);
+    }
   }
 }
 

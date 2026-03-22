@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges, inject, ChangeDetectorRef, ViewChild, ViewChildren, QueryList, ElementRef } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges, inject, ChangeDetectorRef, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormControl } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
@@ -121,7 +121,7 @@ import { ConfirmResendDialogComponent } from './confirm-resend-dialog.component'
 
           <h4>Devis</h4>
           <app-devis-form *ngIf="showDevisForm" [dt]="dt" [immat]="immat" [numero]="numero"
-            [dossierDescription]="dossier.description || []"
+            [dossierDescription]="dossier.description || []" [dossierTitre]="dossier.titre || ''"
             (devisCreated)="onDevisCreated($event)" (cancelled)="showDevisForm = false"></app-devis-form>
           <p class="empty-section" *ngIf="!dossier.devis?.length && !showDevisForm">Aucun devis enregistré.</p>
           <div class="item-list" *ngIf="dossier.devis?.length">
@@ -133,14 +133,7 @@ import { ConfirmResendDialogComponent } from './confirm-resend-dialog.component'
               <a *ngIf="d.fichier" [href]="d.fichier.web_view_link" target="_blank" rel="noopener" class="fichier-link" title="Voir le fichier">
                 📎 {{ d.fichier.name }}
               </a>
-              <button mat-icon-button type="button" *ngIf="dossier.statut === 'ouvert'"
-                (click)="triggerFileUpload(d)" [disabled]="uploadingDevisId === d.id" class="upload-devis-btn"
-                [title]="d.fichier ? 'Mettre à jour le fichier' : 'Joindre le devis'">
-                <mat-icon>{{ d.fichier ? 'update' : 'upload_file' }}</mat-icon>
-              </button>
-              <mat-spinner *ngIf="uploadingDevisId === d.id" diameter="20" class="upload-spinner"></mat-spinner>
-              <input type="file" #fileInput accept=".pdf,.jpg,.jpeg,.png" style="display:none"
-                (change)="onFileSelected($event, d)">
+
               <button mat-icon-button type="button" *ngIf="d.statut === 'en_attente' && dossier.statut === 'ouvert'"
                 (click)="startEditDevis(d)" [disabled]="!!editingDevis" title="Modifier le devis" class="edit-devis-btn">
                 <mat-icon>edit</mat-icon>
@@ -152,6 +145,17 @@ import { ConfirmResendDialogComponent } from './confirm-resend-dialog.component'
               <button mat-stroked-button type="button" *ngIf="(d.statut === 'envoye' || d.statut === 'refuse') && dossier.statut === 'ouvert'"
                 (click)="confirmResend(d)" [disabled]="approvalLoading" class="approval-btn">
                 <mat-icon>replay</mat-icon> Renvoyer pour approbation
+              </button>
+              <button mat-icon-button type="button"
+                *ngIf="d.statut !== 'annule' && dossier.statut === 'ouvert'"
+                (click)="annulerDevis(d)" [disabled]="actionLoading"
+                title="Annuler le devis" color="warn" class="cancel-devis-btn">
+                <mat-icon>cancel</mat-icon>
+              </button>
+              <button mat-stroked-button type="button"
+                *ngIf="d.statut === 'approuve' && dossier.statut === 'ouvert'"
+                (click)="createFactureForDevis(d)" class="add-facture-btn">
+                <mat-icon>receipt</mat-icon> Ajouter facture
               </button>
             </div>
             <!-- Inline approval form -->
@@ -176,7 +180,7 @@ import { ConfirmResendDialogComponent } from './confirm-resend-dialog.component'
             </div>
             <!-- Inline edit form -->
             <app-devis-form *ngIf="editingDevis" [dt]="dt" [immat]="immat" [numero]="numero"
-              [dossierDescription]="dossier.description || []"
+              [dossierDescription]="dossier.description || []" [dossierTitre]="dossier.titre || ''"
               [editDevis]="editingDevis"
               (devisUpdated)="onDevisUpdated($event)" (cancelled)="editingDevis = null"></app-devis-form>
           </div>
@@ -184,7 +188,8 @@ import { ConfirmResendDialogComponent } from './confirm-resend-dialog.component'
           <h4>Factures</h4>
           <app-facture-form *ngIf="showFactureForm" [dt]="dt" [immat]="immat" [numero]="numero"
             [devisList]="dossier.devis || []"
-            (factureCreated)="onFactureCreated($event)" (cancelled)="showFactureForm = false"></app-facture-form>
+            [preselectedDevisId]="preselectedDevisId"
+            (factureCreated)="onFactureCreated($event)" (cancelled)="onFactureCancelled()"></app-facture-form>
           <p class="empty-section" *ngIf="!dossier.factures?.length && !showFactureForm">Aucune facture enregistrée.</p>
           <div class="item-list" *ngIf="dossier.factures?.length">
             <div class="item-row" *ngFor="let f of dossier.factures">
@@ -193,6 +198,9 @@ import { ConfirmResendDialogComponent } from './confirm-resend-dialog.component'
               <span class="item-classification">{{ classificationLabel(f.classification) }}</span>
               <span class="item-montant">{{ f.montant_total | number:'1.2-2' }} €</span>
               <span class="item-montant-crf">CRF: {{ f.montant_crf | number:'1.2-2' }} €</span>
+              <a *ngIf="f.fichier" [href]="f.fichier.web_view_link" target="_blank" rel="noopener" class="fichier-link">
+                📎 {{ f.fichier.name }}
+              </a>
             </div>
           </div>
           <mat-divider></mat-divider>
@@ -253,10 +261,10 @@ import { ConfirmResendDialogComponent } from './confirm-resend-dialog.component'
     .devis-statut-annule { background: #eeeeee; color: #616161; }
     .fichier-link { color: #1565c0; text-decoration: none; font-size: 13px; white-space: nowrap; }
     .fichier-link:hover { text-decoration: underline; }
-    .upload-devis-btn { color: rgba(0,0,0,0.54); }
-    .upload-spinner { display: inline-block; }
+
     .approval-btn { margin-left: auto; }
     .edit-devis-btn { color: rgba(0,0,0,0.54); }
+    .add-facture-btn { font-size: 12px; }
     .approval-form { display: flex; align-items: center; gap: 12px; padding: 12px 0; flex-wrap: wrap; }
     .approval-email-field { min-width: 280px; }
     .valideur-hint { font-size: 12px; color: rgba(0,0,0,0.54); }
@@ -295,7 +303,6 @@ export class DossierDetailComponent implements OnInit, OnChanges {
   private readonly dialog = inject(MatDialog);
 
   @ViewChild(MatAutocompleteTrigger) valideurAutoTrigger!: MatAutocompleteTrigger;
-  @ViewChildren('fileInput') fileInputs!: QueryList<ElementRef<HTMLInputElement>>;
 
   dossier: DossierReparation | null = null;
   loading = false;
@@ -310,7 +317,7 @@ export class DossierDetailComponent implements OnInit, OnChanges {
   bulkApprovalMode = false;
   historique: AuditEntry[] = [];
   historiqueLoading = false;
-  uploadingDevisId: string | null = null;
+  preselectedDevisId: string | null = null;
 
   // Valideur selector
   valideurSearchControl = new FormControl('');
@@ -361,6 +368,7 @@ export class DossierDetailComponent implements OnInit, OnChanges {
       devis_refuse: 'block',
       devis_annule: 'block',
       devis_fichier_upload: 'upload_file',
+      facture_fichier_upload: 'upload_file',
       facture_ajoutee: 'receipt',
       facture_modifiee: 'receipt',
     };
@@ -450,42 +458,22 @@ export class DossierDetailComponent implements OnInit, OnChanges {
 
   onFactureCreated(_facture: FactureCreateResponse): void {
     this.showFactureForm = false;
+    this.preselectedDevisId = null;
     this.loadDossier();
     this.loadHistorique();
   }
 
-  triggerFileUpload(devis: Devis): void {
-    if (!this.dossier) return;
-    const index = this.dossier.devis.indexOf(devis);
-    const inputs = this.fileInputs?.toArray();
-    if (inputs && inputs[index]) {
-      inputs[index].nativeElement.click();
-    }
+  onFactureCancelled(): void {
+    this.showFactureForm = false;
+    this.preselectedDevisId = null;
   }
 
-  onFileSelected(event: Event, devis: Devis): void {
-    const input = event.target as HTMLInputElement;
-    const file = input.files?.[0];
-    if (!file || !this.dossier) return;
-
-    this.uploadingDevisId = devis.id;
-    this.repairService.uploadDevisFile(this.dt, this.immat, this.numero, String(devis.id), file).subscribe({
-      next: () => {
-        this.uploadingDevisId = null;
-        this.snackBar.open('Fichier uploadé avec succès', 'Fermer', { duration: 3000 });
-        this.loadDossier();
-        this.loadHistorique();
-        this.cdr.detectChanges();
-      },
-      error: () => {
-        this.uploadingDevisId = null;
-        this.snackBar.open('Erreur lors de l\'upload du fichier', 'Fermer', { duration: 5000 });
-        this.cdr.detectChanges();
-      },
-    });
-    // Reset input so same file can be re-selected
-    input.value = '';
+  createFactureForDevis(devis: Devis): void {
+    this.preselectedDevisId = String(devis.id);
+    this.showFactureForm = true;
   }
+
+
 
   private loadValideurs(): void {
     if (!this.dt) return;
@@ -629,5 +617,24 @@ export class DossierDetailComponent implements OnInit, OnChanges {
       },
     });
   }
-}
 
+  annulerDevis(devis: Devis): void {
+    if (!confirm('Voulez-vous annuler ce devis ? Cette action est irréversible.')) return;
+    if (!this.dossier) return;
+    this.actionLoading = true;
+    this.repairService.annulerDevis(this.dt, this.immat, this.dossier.numero, String(devis.id)).subscribe({
+      next: () => {
+        this.actionLoading = false;
+        this.snackBar.open('Devis annulé', 'Fermer', { duration: 3000 });
+        this.loadDossier();
+        this.loadHistorique();
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        this.actionLoading = false;
+        this.snackBar.open(err?.error?.detail || 'Erreur lors de l\'annulation', 'Fermer', { duration: 5000 });
+        this.cdr.detectChanges();
+      },
+    });
+  }
+}
