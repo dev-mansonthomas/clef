@@ -19,6 +19,7 @@ import { DossierReparation, Devis, FactureCreateResponse, AuditEntry, Valideur }
 import { DevisFormComponent } from './devis-form.component';
 import { FactureFormComponent } from './facture-form.component';
 import { ConfirmResendDialogComponent } from './confirm-resend-dialog.component';
+import { ConfirmCancelDevisDialogComponent } from './confirm-cancel-devis-dialog.component';
 
 @Component({
   selector: 'app-dossier-detail',
@@ -124,66 +125,80 @@ import { ConfirmResendDialogComponent } from './confirm-resend-dialog.component'
             [dossierDescription]="dossier.description || []" [dossierTitre]="dossier.titre || ''"
             (devisCreated)="onDevisCreated($event)" (cancelled)="showDevisForm = false"></app-devis-form>
           <p class="empty-section" *ngIf="!dossier.devis?.length && !showDevisForm">Aucun devis enregistré.</p>
-          <div class="item-list" *ngIf="dossier.devis?.length">
-            <div class="item-row" *ngFor="let d of dossier.devis">
-              <span class="item-date">{{ d.date_devis | date:'dd/MM/yyyy' }}</span>
-              <span class="item-fournisseur">{{ d.fournisseur?.nom || d.id }}</span>
-              <span class="item-montant">{{ d.montant | number:'1.2-2' }} €</span>
-              <span class="devis-statut-badge" [ngClass]="'devis-statut-' + d.statut">{{ devisStatutLabel(d.statut) }}</span>
-              <a *ngIf="d.fichier" [href]="d.fichier.web_view_link" target="_blank" rel="noopener" class="fichier-link" title="Voir le fichier">
-                📎 {{ d.fichier.name }}
-              </a>
-
-              <button mat-icon-button type="button" *ngIf="d.statut === 'en_attente' && dossier.statut === 'ouvert'"
-                (click)="startEditDevis(d)" [disabled]="!!editingDevis" title="Modifier le devis" class="edit-devis-btn">
-                <mat-icon>edit</mat-icon>
+          <table class="devis-table" *ngIf="dossier.devis?.length">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Fournisseur</th>
+                <th class="col-right">Montant</th>
+                <th>Statut</th>
+                <th>Fichier</th>
+                <th class="col-actions">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let d of dossier.devis" [class.devis-annule-row]="d.statut === 'annule'">
+                <td>{{ d.date_devis | date:'dd/MM/yyyy' }}</td>
+                <td>{{ d.fournisseur?.nom || d.id }}</td>
+                <td class="col-right">{{ d.montant | number:'1.2-2' }} €</td>
+                <td><span class="devis-statut-badge" [ngClass]="'devis-statut-' + d.statut">{{ devisStatutLabel(d.statut) }}</span></td>
+                <td>
+                  <a *ngIf="d.fichier" [href]="d.fichier.web_view_link" target="_blank" rel="noopener" class="fichier-link">📎 {{ d.fichier.name }}</a>
+                </td>
+                <td class="col-actions">
+                  <div class="action-cell">
+                    <button mat-icon-button *ngIf="d.statut === 'en_attente' && dossier.statut === 'ouvert'"
+                      (click)="startEditDevis(d)" [disabled]="!!editingDevis" title="Modifier">
+                      <mat-icon>edit</mat-icon>
+                    </button>
+                    <button mat-stroked-button *ngIf="d.statut === 'en_attente' && dossier.statut === 'ouvert'"
+                      (click)="openApprovalForm(d)" [disabled]="approvalLoading" class="approval-btn">
+                      <mat-icon>send</mat-icon> Envoyer pour approbation
+                    </button>
+                    <button mat-stroked-button *ngIf="(d.statut === 'envoye' || d.statut === 'refuse') && dossier.statut === 'ouvert'"
+                      (click)="confirmResend(d)" [disabled]="approvalLoading" class="approval-btn">
+                      <mat-icon>replay</mat-icon> Renvoyer pour approbation
+                    </button>
+                    <button mat-stroked-button *ngIf="d.statut === 'approuve' && dossier.statut === 'ouvert'"
+                      (click)="createFactureForDevis(d)" class="add-facture-btn">
+                      <mat-icon>receipt</mat-icon> Ajouter facture
+                    </button>
+                    <!-- Cancel button — ALWAYS far right, RED -->
+                    <button mat-icon-button *ngIf="d.statut !== 'annule' && dossier.statut === 'ouvert'"
+                      (click)="annulerDevis(d)" [disabled]="actionLoading"
+                      title="Annuler le devis" class="cancel-devis-btn">
+                      <mat-icon>cancel</mat-icon>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <!-- Inline approval form -->
+          <div class="approval-form" *ngIf="approvalDevis">
+            <mat-form-field appearance="outline" class="approval-email-field">
+              <mat-label>Valideur</mat-label>
+              <input matInput [formControl]="valideurSearchControl" [matAutocomplete]="valideurAuto"
+                     placeholder="Rechercher un valideur…" (focus)="onValideurFocus()">
+              <button mat-icon-button matSuffix type="button" (click)="toggleValideurPanel($event)" tabindex="-1">
+                <mat-icon>arrow_drop_down</mat-icon>
               </button>
-              <button mat-stroked-button type="button" *ngIf="d.statut === 'en_attente' && dossier.statut === 'ouvert'"
-                (click)="openApprovalForm(d)" [disabled]="approvalLoading" class="approval-btn">
-                <mat-icon>send</mat-icon> Envoyer pour approbation
-              </button>
-              <button mat-stroked-button type="button" *ngIf="(d.statut === 'envoye' || d.statut === 'refuse') && dossier.statut === 'ouvert'"
-                (click)="confirmResend(d)" [disabled]="approvalLoading" class="approval-btn">
-                <mat-icon>replay</mat-icon> Renvoyer pour approbation
-              </button>
-              <button mat-icon-button type="button"
-                *ngIf="d.statut !== 'annule' && dossier.statut === 'ouvert'"
-                (click)="annulerDevis(d)" [disabled]="actionLoading"
-                title="Annuler le devis" color="warn" class="cancel-devis-btn">
-                <mat-icon>cancel</mat-icon>
-              </button>
-              <button mat-stroked-button type="button"
-                *ngIf="d.statut === 'approuve' && dossier.statut === 'ouvert'"
-                (click)="createFactureForDevis(d)" class="add-facture-btn">
-                <mat-icon>receipt</mat-icon> Ajouter facture
-              </button>
-            </div>
-            <!-- Inline approval form -->
-            <div class="approval-form" *ngIf="approvalDevis">
-              <mat-form-field appearance="outline" class="approval-email-field">
-                <mat-label>Valideur</mat-label>
-                <input matInput [formControl]="valideurSearchControl" [matAutocomplete]="valideurAuto"
-                       placeholder="Rechercher un valideur…" (focus)="onValideurFocus()">
-                <button mat-icon-button matSuffix type="button" (click)="toggleValideurPanel($event)" tabindex="-1">
-                  <mat-icon>arrow_drop_down</mat-icon>
-                </button>
-                <mat-autocomplete #valideurAuto="matAutocomplete" [displayWith]="displayValideurFn" (optionSelected)="onValideurSelected($event.option.value)">
-                  <mat-option *ngFor="let v of filteredValideurs$ | async" [value]="v">
-                    {{ v.prenom }} {{ v.nom }} <span class="valideur-hint"> — {{ v.email }}</span>
-                  </mat-option>
-                </mat-autocomplete>
-              </mat-form-field>
-              <button mat-raised-button color="primary" type="button" (click)="sendForApproval()" [disabled]="approvalLoading || !approvalEmail">
-                <mat-icon>send</mat-icon> Envoyer
-              </button>
-              <button mat-button type="button" (click)="approvalDevis = null">Annuler</button>
-            </div>
-            <!-- Inline edit form -->
-            <app-devis-form *ngIf="editingDevis" [dt]="dt" [immat]="immat" [numero]="numero"
-              [dossierDescription]="dossier.description || []" [dossierTitre]="dossier.titre || ''"
-              [editDevis]="editingDevis"
-              (devisUpdated)="onDevisUpdated($event)" (cancelled)="editingDevis = null"></app-devis-form>
+              <mat-autocomplete #valideurAuto="matAutocomplete" [displayWith]="displayValideurFn" (optionSelected)="onValideurSelected($event.option.value)">
+                <mat-option *ngFor="let v of filteredValideurs$ | async" [value]="v">
+                  {{ v.prenom }} {{ v.nom }} <span class="valideur-hint"> — {{ v.email }}</span>
+                </mat-option>
+              </mat-autocomplete>
+            </mat-form-field>
+            <button mat-raised-button color="primary" type="button" (click)="sendForApproval()" [disabled]="approvalLoading || !approvalEmail">
+              <mat-icon>send</mat-icon> Envoyer
+            </button>
+            <button mat-button type="button" (click)="approvalDevis = null">Annuler</button>
           </div>
+          <!-- Inline edit form -->
+          <app-devis-form *ngIf="editingDevis" [dt]="dt" [immat]="immat" [numero]="numero"
+            [dossierDescription]="dossier.description || []" [dossierTitre]="dossier.titre || ''"
+            [editDevis]="editingDevis"
+            (devisUpdated)="onDevisUpdated($event)" (cancelled)="editingDevis = null"></app-devis-form>
 
           <h4>Factures</h4>
           <app-facture-form *ngIf="showFactureForm" [dt]="dt" [immat]="immat" [numero]="numero"
@@ -191,18 +206,28 @@ import { ConfirmResendDialogComponent } from './confirm-resend-dialog.component'
             [preselectedDevisId]="preselectedDevisId"
             (factureCreated)="onFactureCreated($event)" (cancelled)="onFactureCancelled()"></app-facture-form>
           <p class="empty-section" *ngIf="!dossier.factures?.length && !showFactureForm">Aucune facture enregistrée.</p>
-          <div class="item-list" *ngIf="dossier.factures?.length">
-            <div class="item-row" *ngFor="let f of dossier.factures">
-              <span class="item-date">{{ f.date_facture | date:'dd/MM/yyyy' }}</span>
-              <span class="item-fournisseur">{{ f.fournisseur?.nom || f.id }}</span>
-              <span class="item-classification">{{ classificationLabel(f.classification) }}</span>
-              <span class="item-montant">{{ f.montant_total | number:'1.2-2' }} €</span>
-              <span class="item-montant-crf">CRF: {{ f.montant_crf | number:'1.2-2' }} €</span>
-              <a *ngIf="f.fichier" [href]="f.fichier.web_view_link" target="_blank" rel="noopener" class="fichier-link">
-                📎 {{ f.fichier.name }}
-              </a>
-            </div>
-          </div>
+          <table class="factures-table" *ngIf="dossier.factures?.length">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Fournisseur</th>
+                <th>Classification</th>
+                <th class="col-right">Total</th>
+                <th class="col-right">CRF</th>
+                <th>Fichier</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let f of dossier.factures">
+                <td>{{ f.date_facture | date:'dd/MM/yyyy' }}</td>
+                <td>{{ f.fournisseur?.nom || f.id }}</td>
+                <td class="item-classification">{{ classificationLabel(f.classification) }}</td>
+                <td class="col-right">{{ f.montant_total | number:'1.2-2' }} €</td>
+                <td class="col-right item-montant-crf">CRF: {{ f.montant_crf | number:'1.2-2' }} €</td>
+                <td><a *ngIf="f.fichier" [href]="f.fichier.web_view_link" target="_blank" rel="noopener" class="fichier-link">📎 {{ f.fichier.name }}</a></td>
+              </tr>
+            </tbody>
+          </table>
           <mat-divider></mat-divider>
 
           <h4>Historique</h4>
@@ -246,11 +271,14 @@ import { ConfirmResendDialogComponent } from './confirm-resend-dialog.component'
     .empty-section { color: rgba(0,0,0,0.54); font-style: italic; }
     .loading-container { display: flex; align-items: center; gap: 12px; padding: 24px 0; }
     h4 { margin: 16px 0 8px; font-weight: 500; }
-    .item-list { margin: 8px 0 16px; }
-    .item-row { display: flex; gap: 12px; align-items: center; padding: 8px 0; border-bottom: 1px solid rgba(0,0,0,0.08); flex-wrap: wrap; }
-    .item-date { min-width: 90px; }
-    .item-fournisseur { flex: 1; min-width: 120px; }
-    .item-montant { font-weight: 500; }
+    .devis-table, .factures-table { width: 100%; border-collapse: collapse; margin: 8px 0 16px; }
+    .devis-table th, .devis-table td, .factures-table th, .factures-table td { padding: 8px 12px; text-align: left; border-bottom: 1px solid rgba(0,0,0,0.08); vertical-align: middle; }
+    .devis-table th, .factures-table th { font-weight: 500; font-size: 12px; color: rgba(0,0,0,0.54); text-transform: uppercase; }
+    .col-right { text-align: right; }
+    .col-actions { text-align: right; width: 1%; white-space: nowrap; }
+    .action-cell { display: flex; align-items: center; justify-content: flex-end; gap: 4px; }
+    .cancel-devis-btn { color: #c62828 !important; margin-left: auto; }
+    .devis-annule-row { opacity: 0.5; }
     .item-montant-crf { color: rgba(0,0,0,0.54); }
     .item-classification { font-size: 12px; color: rgba(0,0,0,0.54); }
     .devis-statut-badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 500; text-transform: uppercase; }
@@ -262,8 +290,7 @@ import { ConfirmResendDialogComponent } from './confirm-resend-dialog.component'
     .fichier-link { color: #1565c0; text-decoration: none; font-size: 13px; white-space: nowrap; }
     .fichier-link:hover { text-decoration: underline; }
 
-    .approval-btn { margin-left: auto; }
-    .edit-devis-btn { color: rgba(0,0,0,0.54); }
+    .approval-btn { }
     .add-facture-btn { font-size: 12px; }
     .approval-form { display: flex; align-items: center; gap: 12px; padding: 12px 0; flex-wrap: wrap; }
     .approval-email-field { min-width: 280px; }
@@ -619,22 +646,30 @@ export class DossierDetailComponent implements OnInit, OnChanges {
   }
 
   annulerDevis(devis: Devis): void {
-    if (!confirm('Voulez-vous annuler ce devis ? Cette action est irréversible.')) return;
     if (!this.dossier) return;
-    this.actionLoading = true;
-    this.repairService.annulerDevis(this.dt, this.immat, this.dossier.numero, String(devis.id)).subscribe({
-      next: () => {
-        this.actionLoading = false;
-        this.snackBar.open('Devis annulé', 'Fermer', { duration: 3000 });
-        this.loadDossier();
-        this.loadHistorique();
-        this.cdr.detectChanges();
-      },
-      error: (err) => {
-        this.actionLoading = false;
-        this.snackBar.open(err?.error?.detail || 'Erreur lors de l\'annulation', 'Fermer', { duration: 5000 });
-        this.cdr.detectChanges();
-      },
+    const message = `Voulez-vous annuler le devis #${devis.id} de ${devis.fournisseur?.nom || 'ce fournisseur'} (${devis.montant.toFixed(2)} €) ? Cette action est irréversible.`;
+    const dialogRef = this.dialog.open(ConfirmCancelDevisDialogComponent, {
+      width: '420px',
+      data: { message },
+    });
+    dialogRef.afterClosed().subscribe((confirmed: boolean) => {
+      if (confirmed) {
+        this.actionLoading = true;
+        this.repairService.annulerDevis(this.dt, this.immat, this.dossier!.numero, String(devis.id)).subscribe({
+          next: () => {
+            this.actionLoading = false;
+            this.snackBar.open('Devis annulé', 'Fermer', { duration: 3000 });
+            this.loadDossier();
+            this.loadHistorique();
+            this.cdr.detectChanges();
+          },
+          error: (err) => {
+            this.actionLoading = false;
+            this.snackBar.open(err?.error?.detail || 'Erreur lors de l\'annulation', 'Fermer', { duration: 5000 });
+            this.cdr.detectChanges();
+          },
+        });
+      }
     });
   }
 }
