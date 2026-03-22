@@ -2,7 +2,7 @@
 import logging
 import uuid
 from datetime import datetime, timedelta
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 from redis.asyncio import Redis
 
@@ -51,6 +51,32 @@ class ApprovalService:
         await self.redis.set(key, json.dumps(token_data), ex=APPROVAL_TTL_DAYS * 86400)
 
         logger.info(f"Created approval token {token} for devis {devis_id} in dossier {numero_dossier}")
+        return token_data
+
+    async def create_dossier_approval_token(
+        self, immat: str, numero_dossier: str, devis_ids: List[str], valideur_email: str
+    ) -> Dict[str, Any]:
+        """Create a dossier-level approval token covering multiple devis."""
+        token = str(uuid.uuid4())
+        now = datetime.utcnow()
+        expires_at = now + timedelta(days=APPROVAL_TTL_DAYS)
+        token_data = {
+            "token": token,
+            "dt": self.dt,
+            "immat": immat,
+            "numero_dossier": numero_dossier,
+            "devis_ids": devis_ids,
+            "valideur_email": valideur_email,
+            "created_at": now.isoformat(),
+            "expires_at": expires_at.isoformat(),
+            "status": "pending",
+            "commentaire": None,
+        }
+        key = self._token_key(token)
+        import json
+        await self.redis.set(key, json.dumps(token_data), ex=APPROVAL_TTL_DAYS * 86400)
+
+        logger.info(f"Created dossier approval token {token} for {len(devis_ids)} devis in dossier {numero_dossier}")
         return token_data
 
     async def invalidate_token(self, token: str) -> bool:

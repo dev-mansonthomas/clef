@@ -268,7 +268,9 @@ class TestGetApprobationData:
         resp = client.get(f"/api/approbation/{token}")
         assert resp.status_code == 200
         data = resp.json()
-        assert data["devis_id"] == str(devis_id)
+        assert data["devis_ids"] == [str(devis_id)]
+        assert isinstance(data["devis"], list)
+        assert len(data["devis"]) == 1
         assert data["valideur_email"] == "chef@croix-rouge.fr"
         assert data["status"] == "pending"
 

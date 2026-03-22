@@ -1,5 +1,5 @@
 """Pydantic models for repair dossiers, quotes, invoices, and suppliers."""
-from typing import Optional, List
+from typing import Optional, List, Dict
 from datetime import datetime, date
 from enum import Enum
 from pydantic import BaseModel, Field, ConfigDict
@@ -337,9 +337,46 @@ class BulkApprovalRequest(BaseModel):
 class BulkApprovalResponse(BaseModel):
     """Response after sending all pending devis for bulk approval."""
     count: int = Field(..., description="Nombre de devis envoyés")
-    tokens: List[str] = Field(default_factory=list, description="Tokens d'approbation générés")
+    token: str = Field(..., description="Token d'approbation dossier")
     valideur_email: str = Field(..., description="Email du valideur")
     message: str = Field(..., description="Message de confirmation")
+
+
+# ========== Dossier-level approbation models ==========
+
+
+class DossierApprobationDataResponse(BaseModel):
+    """Response for GET /api/approbation/{token} — dossier-level approval data."""
+    dt: str
+    immat: str
+    numero_dossier: str
+    devis_ids: List[str]
+    devis: List[Devis]
+    dossier_description: List[str] = Field(default_factory=list)
+    dossier_titre: Optional[str] = None
+    valideur_email: str
+    status: str
+    created_at: str
+    expires_at: str
+
+
+class DevisDecisionItem(BaseModel):
+    """Individual devis decision within a dossier approval."""
+    devis_id: str
+    decision: str = Field(..., pattern="^(approuve|refuse)$")
+
+
+class SubmitDossierDecisionRequest(BaseModel):
+    """Request body for submitting a dossier-level approval decision."""
+    mode: str = Field(..., pattern="^(approuve_tout|refuse_tout|partiel)$")
+    decisions: Optional[List[DevisDecisionItem]] = None
+    commentaire: Optional[str] = None
+
+
+class SubmitDossierDecisionResponse(BaseModel):
+    """Response after submitting a dossier-level approval decision."""
+    results: List[Dict[str, str]] = Field(default_factory=list)
+    message: str
 
 
 # ========== Dépenses (expenses) response models ==========

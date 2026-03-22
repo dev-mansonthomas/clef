@@ -388,11 +388,11 @@ async def send_devis_for_approval(
     if is_resend and devis.token_approbation:
         await approval_svc.invalidate_token(devis.token_approbation)
 
-    # Create approval token
-    token_data = await approval_svc.create_approval_token(
+    # Create dossier-level approval token (with single devis)
+    token_data = await approval_svc.create_dossier_approval_token(
         immat=immat,
         numero_dossier=numero,
-        devis_id=devis_id,
+        devis_ids=[devis_id],
         valideur_email=body.valideur_email,
     )
 
@@ -478,33 +478,35 @@ async def send_bulk_approval(
     frontend_url = os.getenv("FRONTEND_URL", "http://localhost:4200")
     approval_svc = ApprovalService(redis_client=valkey.redis, dt=dt)
 
-    tokens = []
+    # Create ONE dossier-level approval token covering all pending devis
+    devis_ids = [d.id for d in pending_devis]
+    token_data = await approval_svc.create_dossier_approval_token(
+        immat=immat,
+        numero_dossier=numero,
+        devis_ids=devis_ids,
+        valideur_email=body.valideur_email,
+    )
+    dossier_token = token_data["token"]
+    approval_url = f"{frontend_url}/approbation/{dossier_token}"
+
     devis_dicts = []
     for devis in pending_devis:
-        # Create approval token
-        token_data = await approval_svc.create_approval_token(
-            immat=immat,
-            numero_dossier=numero,
-            devis_id=devis.id,
-            valideur_email=body.valideur_email,
-        )
-        tokens.append(token_data["token"])
         devis_dicts.append(devis.model_dump(mode="json"))
 
-        # Update devis status to "envoye"
+        # Update devis status to "envoye" with the SAME token
         await valkey.update_devis(immat, numero, devis.id, {
             "statut": StatutDevis.ENVOYE,
             "valideur_email": body.valideur_email,
-            "token_approbation": token_data["token"],
+            "token_approbation": dossier_token,
             "date_envoi_approbation": token_data["created_at"],
         })
 
-    # Send ONE summary email
+    # Send ONE summary email with ONE approval URL
     await email_service.send_bulk_approval_email(
         dt_id=dt,
         numero_dossier=numero,
         devis_list=devis_dicts,
-        tokens=tokens,
+        approval_url=approval_url,
         valideur_email=body.valideur_email,
         sender_email=current_user.email,
         dossier_description=dossier.description,
@@ -526,7 +528,7 @@ async def send_bulk_approval(
 
     return BulkApprovalResponse(
         count=len(pending_devis),
-        tokens=tokens,
+        token=dossier_token,
         valideur_email=body.valideur_email,
         message=f"{len(pending_devis)} devis envoyés pour approbation",
     )
