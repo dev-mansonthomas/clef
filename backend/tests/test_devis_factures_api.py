@@ -97,7 +97,9 @@ class _MockValkeyService:
         fournisseur = FournisseurSnapshot(id=devis_data["fournisseur_id"], nom=devis_data["fournisseur_nom"])
         devis = Devis(
             id=devis_id, date_devis=devis_data["date_devis"], fournisseur=fournisseur,
-            description=devis_data.get("description_travaux"), montant=devis_data["montant"],
+            description=devis_data.get("description_travaux"),
+            description_items=devis_data.get("description_items"),
+            montant=devis_data["montant"],
             statut=StatutDevis.EN_ATTENTE, cree_par=devis_data["cree_par"], cree_le=datetime.utcnow(),
         )
         dk = self._key("vehicules", immat, "travaux", numero_dossier, "devis", devis_id)
@@ -151,6 +153,7 @@ class _MockValkeyService:
             id=facture_id, date_facture=facture_data["date_facture"], fournisseur=fournisseur,
             classification=facture_data["classification"],
             description=facture_data.get("description_travaux"),
+            description_items=facture_data.get("description_items"),
             montant_total=facture_data["montant_total"], montant_crf=facture_data["montant_crf"],
             devis_id=facture_data.get("devis_id"), cree_par=facture_data["cree_par"],
             cree_le=datetime.utcnow(),
