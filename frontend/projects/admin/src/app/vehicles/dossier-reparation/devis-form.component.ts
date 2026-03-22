@@ -38,6 +38,12 @@ import { FournisseurSelectorComponent } from '../shared/fournisseur-selector.com
       </mat-card-header>
       <mat-card-content>
         <form [formGroup]="form" (ngSubmit)="onSubmit()" (submit)="$event.stopPropagation()">
+          <app-fournisseur-selector [dt]="dt" (fournisseurSelected)="onFournisseurSelected($event)"></app-fournisseur-selector>
+          <div *ngIf="selectedFournisseur" class="selected-fournisseur">
+            Fournisseur : <strong>{{ selectedFournisseur.nom }}</strong>
+          </div>
+          <div *ngIf="!selectedFournisseur && submitted" class="mat-error field-error">Un fournisseur est requis</div>
+
           <mat-form-field appearance="outline" class="full-width">
             <mat-label>Date du devis</mat-label>
             <input matInput [matDatepicker]="picker" formControlName="date_devis">
@@ -45,12 +51,6 @@ import { FournisseurSelectorComponent } from '../shared/fournisseur-selector.com
             <mat-datepicker #picker></mat-datepicker>
             <mat-error *ngIf="form.get('date_devis')?.hasError('required')">La date est requise</mat-error>
           </mat-form-field>
-
-          <app-fournisseur-selector [dt]="dt" (fournisseurSelected)="onFournisseurSelected($event)"></app-fournisseur-selector>
-          <div *ngIf="selectedFournisseur" class="selected-fournisseur">
-            Fournisseur : <strong>{{ selectedFournisseur.nom }}</strong>
-          </div>
-          <div *ngIf="!selectedFournisseur && submitted" class="mat-error field-error">Un fournisseur est requis</div>
 
           <mat-form-field appearance="outline" class="full-width">
             <mat-label>Description des travaux</mat-label>
