@@ -13,6 +13,7 @@ from app.models.repair_models import (
     DevisCreate,
     DevisUpdate,
     FactureCreate,
+    FactureUpdate,
     FactureResponse,
     Devis,
     Facture,
@@ -66,6 +67,8 @@ async def create_dossier(
         commentaire=body.commentaire,
         titre=body.titre,
         cree_par=current_user.email,
+        est_sinistre=body.est_sinistre,
+        franchise_applicable=body.franchise_applicable,
     )
     return dossier
 
@@ -401,6 +404,10 @@ async def send_devis_for_approval(
     frontend_url = os.getenv("FRONTEND_URL", "http://localhost:4200")
     approval_url = f"{frontend_url}/approbation/{token_data['token']}"
 
+    # Get franchise config
+    config = await valkey.get_configuration()
+    montant_franchise = config.montant_franchise if config else 350.0
+
     # Send approval email
     devis_dict = devis.model_dump(mode="json")
     await email_service.send_approval_email(
@@ -411,6 +418,10 @@ async def send_devis_for_approval(
         sender_email=current_user.email,
         dossier_description=dossier.description,
         dossier_commentaire=dossier.commentaire,
+        est_sinistre=dossier.est_sinistre,
+        franchise_applicable=dossier.franchise_applicable,
+        montant_franchise=montant_franchise,
+        total_devis=devis.montant,
     )
 
     # Update devis status to "envoye"
@@ -501,6 +512,11 @@ async def send_bulk_approval(
             "date_envoi_approbation": token_data["created_at"],
         })
 
+    # Get franchise config
+    config = await valkey.get_configuration()
+    montant_franchise = config.montant_franchise if config else 350.0
+    total_devis = sum(d.get("montant", 0) for d in devis_dicts)
+
     # Send ONE summary email with ONE approval URL
     await email_service.send_bulk_approval_email(
         dt_id=dt,
@@ -511,6 +527,10 @@ async def send_bulk_approval(
         sender_email=current_user.email,
         dossier_description=dossier.description,
         dossier_commentaire=dossier.commentaire,
+        est_sinistre=dossier.est_sinistre,
+        franchise_applicable=dossier.franchise_applicable,
+        montant_franchise=montant_franchise,
+        total_devis=total_devis,
     )
 
     # Add historique entry
@@ -994,3 +1014,70 @@ async def upload_facture_fichier(
     )
 
     return updated_facture
+
+
+# ========== Facture Update ==========
+
+
+@router.patch("/{numero}/factures/{facture_id}", response_model=Facture)
+async def update_facture(
+    dt: str,
+    immat: str,
+    numero: str,
+    facture_id: str,
+    body: FactureUpdate,
+    current_user: User = Depends(require_authenticated_user),
+    valkey: ValkeyService = Depends(get_valkey_service),
+) -> Facture:
+    """Update a facture."""
+    dossier = await valkey.get_dossier_reparation(immat, numero)
+    if not dossier:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Dossier '{numero}' not found",
+        )
+    _check_dossier_open(dossier)
+
+    facture = await valkey.get_facture(immat, numero, facture_id)
+    if not facture:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Facture '{facture_id}' not found",
+        )
+
+    update_data = body.model_dump(exclude_none=True)
+    # Handle fournisseur update
+    if 'fournisseur_id' in update_data and 'fournisseur_nom' in update_data:
+        update_data['fournisseur'] = FournisseurSnapshot(
+            id=update_data.pop('fournisseur_id'),
+            nom=update_data.pop('fournisseur_nom'),
+        )
+    elif 'fournisseur_id' in update_data or 'fournisseur_nom' in update_data:
+        update_data.pop('fournisseur_id', None)
+        update_data.pop('fournisseur_nom', None)
+
+    # Map description_travaux to description field
+    if 'description_travaux' in update_data:
+        update_data['description'] = update_data.pop('description_travaux')
+
+    updated = await valkey.update_facture(immat, numero, facture_id, update_data)
+    if not updated:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update facture",
+        )
+
+    # Add historique entry
+    key = f"{valkey.dt}:vehicules:{immat}:travaux:{numero}:factures:{facture_id}"
+    await valkey.add_historique_entry(
+        immat=immat,
+        numero=numero,
+        entry=HistoriqueEntry(
+            auteur=current_user.email,
+            action=ActionHistorique.FACTURE_MODIFIEE,
+            details=f"Facture #{facture_id} modifiée",
+            ref=key,
+        ),
+    )
+
+    return updated

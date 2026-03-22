@@ -1283,6 +1283,8 @@ class ValkeyService:
         cree_par: str,
         commentaire: Optional[str] = None,
         titre: Optional[str] = None,
+        est_sinistre: bool = False,
+        franchise_applicable: bool = False,
     ) -> DossierReparation:
         """
         Create a new repair dossier with auto-incremented number.
@@ -1315,6 +1317,8 @@ class ValkeyService:
             titre=titre,
             description=description,
             commentaire=commentaire,
+            est_sinistre=est_sinistre,
+            franchise_applicable=franchise_applicable,
             cree_par=cree_par,
             cree_le=datetime.utcnow(),
         )

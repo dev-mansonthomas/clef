@@ -49,7 +49,7 @@ class _MockValkeyService:
     def _key(self, *parts):
         return f"{self.dt}:{':'.join(parts)}"
 
-    async def create_dossier_reparation(self, immat, description, cree_par, commentaire=None, titre=None):
+    async def create_dossier_reparation(self, immat, description, cree_par, commentaire=None, titre=None, est_sinistre=False, franchise_applicable=False):
         from datetime import datetime
         from app.models.repair_models import DossierReparation, HistoriqueEntry, ActionHistorique
         _dossier_counters[immat] = _dossier_counters.get(immat, 0) + 1
@@ -60,6 +60,7 @@ class _MockValkeyService:
         dossier = DossierReparation(
             numero=numero, immat=immat, dt=self.dt,
             titre=titre, description=description, commentaire=commentaire,
+            est_sinistre=est_sinistre, franchise_applicable=franchise_applicable,
             cree_par=cree_par, cree_le=datetime.utcnow(),
         )
         key = self._key("vehicules", immat, "travaux", numero)

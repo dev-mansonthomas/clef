@@ -162,6 +162,8 @@ class DossierReparation(BaseModel):
     titre: Optional[str] = Field(None, max_length=50, description="Titre du dossier (50 chars max)")
     description: List[str] = Field(default_factory=list, description="Description des travaux (liste d'items)")
     commentaire: Optional[str] = Field(None, description="Commentaire libre")
+    est_sinistre: bool = Field(default=False, description="Est-ce dans le cadre d'un sinistre ?")
+    franchise_applicable: bool = Field(default=False, description="Devez-vous payer la franchise ?")
     photos: List[FichierDrive] = Field(default_factory=list, description="Photos associées")
     sinistre_id: Optional[str] = Field(None, description="ID du sinistre lié (futur)")
     statut: StatutDossier = Field(default=StatutDossier.OUVERT, description="Statut du dossier")
@@ -182,6 +184,8 @@ class DossierReparationCreate(BaseModel):
     titre: Optional[str] = Field(None, max_length=50, description="Titre du dossier")
     description: List[str] = Field(..., min_length=1, description="Description des travaux (liste d'items)")
     commentaire: Optional[str] = Field(None, description="Commentaire libre")
+    est_sinistre: bool = Field(default=False, description="Sinistre ?")
+    franchise_applicable: bool = Field(default=False, description="Franchise applicable ?")
 
 
 class DossierReparationUpdate(BaseModel):
@@ -276,6 +280,18 @@ class FactureCreate(BaseModel):
     montant_total: float = Field(..., gt=0, description="Montant total TTC en euros")
     montant_crf: float = Field(..., gt=0, description="Montant à charge CRF TTC en euros")
     devis_id: Optional[str] = Field(None, description="UUID du devis associé (optionnel)")
+
+
+class FactureUpdate(BaseModel):
+    """Update fields for a facture."""
+    date_facture: Optional[date] = None
+    fournisseur_id: Optional[str] = None
+    fournisseur_nom: Optional[str] = None
+    classification: Optional[ClassificationComptable] = None
+    description_travaux: Optional[str] = None
+    description_items: Optional[List[str]] = None
+    montant_total: Optional[float] = Field(None, gt=0)
+    montant_crf: Optional[float] = Field(None, gt=0)
 
 
 class FactureResponse(BaseModel):
