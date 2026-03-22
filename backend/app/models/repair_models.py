@@ -52,6 +52,7 @@ class ActionHistorique(str, Enum):
     DOSSIER_ENVOYE_APPROBATION = "dossier_envoye_approbation"
     FACTURE_AJOUTEE = "facture_ajoutee"
     DEVIS_FICHIER_UPLOAD = "devis_fichier_upload"
+    FACTURE_FICHIER_UPLOAD = "facture_fichier_upload"
     FACTURE_MODIFIEE = "facture_modifiee"
     CLOTURE = "cloture"
     REOUVERTURE = "reouverture"

@@ -1593,6 +1593,45 @@ class ValkeyService:
             return None
         return Facture(**data)
 
+    async def update_facture(
+        self, immat: str, numero_dossier: str, facture_id: str, data: dict
+    ) -> Optional["Facture"]:
+        """
+        Update a facture (e.g. attach file info).
+
+        Args:
+            immat: Vehicle license plate
+            numero_dossier: Dossier number
+            facture_id: Facture ID
+            data: Dict of fields to update (e.g. {"fichier": FichierDrive(...)})
+
+        Returns:
+            Updated Facture or None if not found
+        """
+        facture = await self.get_facture(immat, numero_dossier, facture_id)
+        if not facture:
+            return None
+
+        # Apply updates
+        for field, value in data.items():
+            if hasattr(facture, field):
+                setattr(facture, field, value)
+
+        # Save updated facture
+        facture_key = self._key("vehicules", immat, "travaux", numero_dossier, "factures", facture_id)
+        await self.redis.json().set(facture_key, "$", facture.model_dump(mode="json"))
+
+        # Also update in the dossier's factures list
+        dossier = await self.get_dossier_reparation(immat, numero_dossier)
+        if dossier:
+            for i, f in enumerate(dossier.factures):
+                if f.id == facture_id:
+                    dossier.factures[i] = facture
+                    break
+            await self.update_dossier_reparation(immat, numero_dossier, dossier)
+
+        return facture
+
     # ========== Dépenses (Expenses) ==========
 
     async def get_vehicle_depenses(self, immat: str) -> dict:

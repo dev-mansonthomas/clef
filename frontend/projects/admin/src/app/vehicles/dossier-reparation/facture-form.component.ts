@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, inject, ChangeDetectorRef } from '@angular/core';
+import { Component, Input, Output, EventEmitter, inject, ChangeDetectorRef, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
@@ -12,7 +12,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { RepairService } from '../../services/repair.service';
-import { Devis, Fournisseur, FactureCreateResponse } from '../../models/repair.model';
+import { Devis, Fournisseur, FournisseurSnapshot, FactureCreateResponse } from '../../models/repair.model';
 import { FournisseurSelectorComponent } from '../shared/fournisseur-selector.component';
 
 @Component({
@@ -47,7 +47,7 @@ import { FournisseurSelectorComponent } from '../shared/fournisseur-selector.com
         </div>
 
         <form [formGroup]="form" (ngSubmit)="onSubmit()" (submit)="$event.stopPropagation()">
-          <app-fournisseur-selector [dt]="dt" (fournisseurSelected)="onFournisseurSelected($event)"></app-fournisseur-selector>
+          <app-fournisseur-selector [dt]="dt" [initialFournisseur]="initialFournisseurSnapshot" (fournisseurSelected)="onFournisseurSelected($event)"></app-fournisseur-selector>
           <div *ngIf="selectedFournisseur" class="selected-fournisseur">
             Fournisseur : <strong>{{ selectedFournisseur.nom }}</strong>
           </div>
@@ -87,6 +87,20 @@ import { FournisseurSelectorComponent } from '../shared/fournisseur-selector.com
             <mat-error *ngIf="form.get('montant_crf')?.hasError('required')">Le montant CRF est requis</mat-error>
           </mat-form-field>
 
+          <div class="file-upload-section">
+            <span class="section-label">Fichier facture (PDF/image)</span>
+            <div class="file-input-row">
+              <button mat-stroked-button type="button" (click)="factureFileInput.click()">
+                <mat-icon>upload_file</mat-icon> {{ selectedFile ? 'Changer le fichier' : 'Joindre un fichier' }}
+              </button>
+              <span *ngIf="selectedFile" class="file-name">{{ selectedFile.name }}</span>
+              <button mat-icon-button type="button" *ngIf="selectedFile" (click)="selectedFile = null">
+                <mat-icon>close</mat-icon>
+              </button>
+            </div>
+            <input #factureFileInput type="file" accept=".pdf,.jpg,.jpeg,.png" style="display:none" (change)="onFileInputChange($event)">
+          </div>
+
           <mat-form-field appearance="outline" class="full-width" *ngIf="devisList.length">
             <mat-label>Devis associé (optionnel)</mat-label>
             <mat-select formControlName="devis_id">
@@ -115,13 +129,18 @@ import { FournisseurSelectorComponent } from '../shared/fournisseur-selector.com
     .warning-banner { display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-radius: 4px; margin-bottom: 16px; font-weight: 500; }
     .warning-yellow { background: #fff9c4; color: #f9a825; }
     .warning-orange { background: #ffe0b2; color: #e65100; }
+    .file-upload-section { margin-bottom: 16px; }
+    .section-label { font-weight: 500; display: block; margin-bottom: 8px; }
+    .file-input-row { display: flex; align-items: center; gap: 8px; }
+    .file-name { font-size: 13px; color: rgba(0,0,0,0.7); }
   `],
 })
-export class FactureFormComponent {
+export class FactureFormComponent implements OnInit {
   @Input() dt!: string;
   @Input() immat!: string;
   @Input() numero!: string;
   @Input() devisList: Devis[] = [];
+  @Input() preselectedDevisId: string | null = null;
   @Output() factureCreated = new EventEmitter<FactureCreateResponse>();
   @Output() cancelled = new EventEmitter<void>();
 
@@ -131,6 +150,8 @@ export class FactureFormComponent {
   private readonly cdr = inject(ChangeDetectorRef);
 
   selectedFournisseur: Fournisseur | null = null;
+  initialFournisseurSnapshot: FournisseurSnapshot | null = null;
+  selectedFile: File | null = null;
   saving = false;
   submitted = false;
   warningNoDevis = false;
@@ -156,8 +177,24 @@ export class FactureFormComponent {
     devis_id: [null as string | null],
   });
 
+  ngOnInit(): void {
+    if (this.preselectedDevisId) {
+      const devis = this.devisList.find(d => String(d.id) === this.preselectedDevisId);
+      if (devis) {
+        this.form.patchValue({ devis_id: this.preselectedDevisId });
+        this.initialFournisseurSnapshot = devis.fournisseur || null;
+      }
+    }
+  }
+
   onFournisseurSelected(f: Fournisseur): void {
     this.selectedFournisseur = f;
+  }
+
+  onFileInputChange(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    this.selectedFile = input.files?.[0] || null;
+    input.value = '';
   }
 
   onSubmit(): void {
@@ -181,13 +218,32 @@ export class FactureFormComponent {
       devis_id: v.devis_id ?? undefined,
     }).subscribe({
       next: (result) => {
-        this.saving = false;
         this.warningNoDevis = !!result.warning_no_devis;
         this.warningEcart = !!result.warning_ecart;
         this.ecartPourcentage = result.ecart_pourcentage ?? null;
-        this.snackBar.open('Facture enregistrée', 'Fermer', { duration: 3000 });
-        this.cdr.detectChanges();
-        this.factureCreated.emit(result);
+
+        if (this.selectedFile && result.id) {
+          // Chain file upload after facture creation
+          this.repairService.uploadFactureFile(this.dt, this.immat, this.numero, String(result.id), this.selectedFile).subscribe({
+            next: () => {
+              this.saving = false;
+              this.snackBar.open('Facture et fichier enregistrés', 'Fermer', { duration: 3000 });
+              this.cdr.detectChanges();
+              this.factureCreated.emit(result);
+            },
+            error: () => {
+              this.saving = false;
+              this.snackBar.open('Facture enregistrée mais erreur lors de l\'upload du fichier', 'Fermer', { duration: 5000 });
+              this.cdr.detectChanges();
+              this.factureCreated.emit(result);
+            },
+          });
+        } else {
+          this.saving = false;
+          this.snackBar.open('Facture enregistrée', 'Fermer', { duration: 3000 });
+          this.cdr.detectChanges();
+          this.factureCreated.emit(result);
+        }
       },
       error: () => {
         this.saving = false;
