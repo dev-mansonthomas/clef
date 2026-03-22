@@ -14,6 +14,7 @@ import {
   AuditEntry,
   SendApprovalRequest,
   SendApprovalResponse,
+  BulkApprovalResponse,
   ApprobationData,
   SubmitDecisionRequest,
   SubmitDecisionResponse,
@@ -133,6 +134,16 @@ export class RepairService {
   }
 
   /**
+   * Send all pending devis for approval in one action
+   */
+  sendBulkApproval(dt: string, immat: string, numero: string, data: { valideur_email: string }): Observable<BulkApprovalResponse> {
+    return this.http.post<BulkApprovalResponse>(
+      `${this.dossierUrl(dt, immat)}/${numero}/send-bulk-approval`, data, {
+        withCredentials: true,
+      });
+  }
+
+  /**
    * Get approval data (public, no auth)
    */
   getApprobationData(token: string): Observable<ApprobationData> {
@@ -144,6 +155,21 @@ export class RepairService {
    */
   submitDecision(token: string, data: SubmitDecisionRequest): Observable<SubmitDecisionResponse> {
     return this.http.post<SubmitDecisionResponse>(`${this.apiUrl}/api/approbation/${token}`, data);
+  }
+
+  // ========== Devis File Upload ==========
+
+  /**
+   * Upload or update a file for a devis
+   */
+  uploadDevisFile(dt: string, immat: string, numero: string, devisId: string, file: File): Observable<Devis> {
+    const formData = new FormData();
+    formData.append('file', file);
+    return this.http.post<Devis>(
+      `${this.dossierUrl(dt, immat)}/${numero}/devis/${devisId}/upload`,
+      formData,
+      { withCredentials: true },
+    );
   }
 
   // ========== Historique ==========

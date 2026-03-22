@@ -49,7 +49,9 @@ class ActionHistorique(str, Enum):
     DEVIS_RENVOYE_APPROBATION = "devis_renvoye_approbation"
     DEVIS_APPROUVE = "devis_approuve"
     DEVIS_REFUSE = "devis_refuse"
+    DOSSIER_ENVOYE_APPROBATION = "dossier_envoye_approbation"
     FACTURE_AJOUTEE = "facture_ajoutee"
+    DEVIS_FICHIER_UPLOAD = "devis_fichier_upload"
     FACTURE_MODIFIEE = "facture_modifiee"
     CLOTURE = "cloture"
     REOUVERTURE = "reouverture"
@@ -320,6 +322,19 @@ class SubmitDecisionRequest(BaseModel):
 class SubmitDecisionResponse(BaseModel):
     """Response after submitting an approval decision."""
     decision: str = Field(..., description="Décision prise")
+    message: str = Field(..., description="Message de confirmation")
+
+
+class BulkApprovalRequest(BaseModel):
+    """Request body for sending all pending devis for approval at once."""
+    valideur_email: str = Field(..., description="Email du valideur")
+
+
+class BulkApprovalResponse(BaseModel):
+    """Response after sending all pending devis for bulk approval."""
+    count: int = Field(..., description="Nombre de devis envoyés")
+    tokens: List[str] = Field(default_factory=list, description="Tokens d'approbation générés")
+    valideur_email: str = Field(..., description="Email du valideur")
     message: str = Field(..., description="Message de confirmation")
 
 

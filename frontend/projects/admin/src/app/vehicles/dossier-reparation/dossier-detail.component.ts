@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges, inject, ChangeDetectorRef, ViewChild } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges, inject, ChangeDetectorRef, ViewChild, ViewChildren, QueryList, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormControl } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
@@ -90,6 +90,31 @@ import { ConfirmResendDialogComponent } from './confirm-resend-dialog.component'
             <button mat-stroked-button type="button" color="warn" *ngIf="dossier.statut === 'ouvert'" (click)="updateStatut('annule')" [disabled]="actionLoading">
               <mat-icon>cancel</mat-icon> Annuler le dossier
             </button>
+            <button mat-raised-button color="primary" type="button"
+              *ngIf="dossier.statut === 'ouvert' && hasPendingDevis()"
+              (click)="openBulkApprovalForm()" [disabled]="approvalLoading || bulkApprovalMode">
+              <mat-icon>playlist_add_check</mat-icon> Envoyer tout pour approbation
+            </button>
+          </div>
+          <!-- Bulk approval form -->
+          <div class="approval-form" *ngIf="bulkApprovalMode">
+            <mat-form-field appearance="outline" class="approval-email-field">
+              <mat-label>Valideur</mat-label>
+              <input matInput [formControl]="valideurSearchControl" [matAutocomplete]="valideurAuto"
+                     placeholder="Rechercher un valideur…" (focus)="onValideurFocus()">
+              <button mat-icon-button matSuffix type="button" (click)="toggleValideurPanel($event)" tabindex="-1">
+                <mat-icon>arrow_drop_down</mat-icon>
+              </button>
+              <mat-autocomplete #valideurAuto="matAutocomplete" [displayWith]="displayValideurFn" (optionSelected)="onValideurSelected($event.option.value)">
+                <mat-option *ngFor="let v of filteredValideurs$ | async" [value]="v">
+                  {{ v.prenom }} {{ v.nom }} <span class="valideur-hint"> — {{ v.email }}</span>
+                </mat-option>
+              </mat-autocomplete>
+            </mat-form-field>
+            <button mat-raised-button color="primary" type="button" (click)="sendBulkApproval()" [disabled]="approvalLoading || !approvalEmail">
+              <mat-icon>send</mat-icon> Envoyer tout
+            </button>
+            <button mat-button type="button" (click)="bulkApprovalMode = false">Annuler</button>
           </div>
 
           <mat-divider></mat-divider>
@@ -105,6 +130,17 @@ import { ConfirmResendDialogComponent } from './confirm-resend-dialog.component'
               <span class="item-fournisseur">{{ d.fournisseur?.nom || d.id }}</span>
               <span class="item-montant">{{ d.montant | number:'1.2-2' }} €</span>
               <span class="devis-statut-badge" [ngClass]="'devis-statut-' + d.statut">{{ devisStatutLabel(d.statut) }}</span>
+              <a *ngIf="d.fichier" [href]="d.fichier.web_view_link" target="_blank" rel="noopener" class="fichier-link" title="Voir le fichier">
+                📎 {{ d.fichier.name }}
+              </a>
+              <button mat-icon-button type="button" *ngIf="dossier.statut === 'ouvert'"
+                (click)="triggerFileUpload(d)" [disabled]="uploadingDevisId === d.id" class="upload-devis-btn"
+                [title]="d.fichier ? 'Mettre à jour le fichier' : 'Joindre le devis'">
+                <mat-icon>{{ d.fichier ? 'update' : 'upload_file' }}</mat-icon>
+              </button>
+              <mat-spinner *ngIf="uploadingDevisId === d.id" diameter="20" class="upload-spinner"></mat-spinner>
+              <input type="file" #fileInput accept=".pdf,.jpg,.jpeg,.png" style="display:none"
+                (change)="onFileSelected($event, d)">
               <button mat-icon-button type="button" *ngIf="d.statut === 'en_attente' && dossier.statut === 'ouvert'"
                 (click)="startEditDevis(d)" [disabled]="!!editingDevis" title="Modifier le devis" class="edit-devis-btn">
                 <mat-icon>edit</mat-icon>
@@ -215,6 +251,10 @@ import { ConfirmResendDialogComponent } from './confirm-resend-dialog.component'
     .devis-statut-approuve { background: #e8f5e9; color: #2e7d32; }
     .devis-statut-refuse { background: #ffebee; color: #c62828; }
     .devis-statut-annule { background: #eeeeee; color: #616161; }
+    .fichier-link { color: #1565c0; text-decoration: none; font-size: 13px; white-space: nowrap; }
+    .fichier-link:hover { text-decoration: underline; }
+    .upload-devis-btn { color: rgba(0,0,0,0.54); }
+    .upload-spinner { display: inline-block; }
     .approval-btn { margin-left: auto; }
     .edit-devis-btn { color: rgba(0,0,0,0.54); }
     .approval-form { display: flex; align-items: center; gap: 12px; padding: 12px 0; flex-wrap: wrap; }
@@ -229,6 +269,8 @@ import { ConfirmResendDialogComponent } from './confirm-resend-dialog.component'
     .timeline-icon-reouverture { color: #1565c0; }
     .timeline-icon-annulation { color: #c62828; }
     .timeline-icon-devis_ajoute, .timeline-icon-devis_modifie { color: #1565c0; }
+    .timeline-icon-devis_fichier_upload { color: #1565c0; }
+    .timeline-icon-dossier_envoye_approbation { color: #ef6c00; }
     .timeline-icon-devis_envoye_approbation, .timeline-icon-devis_renvoye_approbation { color: #ef6c00; }
     .timeline-icon-devis_approuve { color: #2e7d32; }
     .timeline-icon-devis_refuse, .timeline-icon-devis_annule { color: #c62828; }
@@ -253,6 +295,7 @@ export class DossierDetailComponent implements OnInit, OnChanges {
   private readonly dialog = inject(MatDialog);
 
   @ViewChild(MatAutocompleteTrigger) valideurAutoTrigger!: MatAutocompleteTrigger;
+  @ViewChildren('fileInput') fileInputs!: QueryList<ElementRef<HTMLInputElement>>;
 
   dossier: DossierReparation | null = null;
   loading = false;
@@ -264,8 +307,10 @@ export class DossierDetailComponent implements OnInit, OnChanges {
   approvalEmail = '';
   approvalLoading = false;
   isResend = false;
+  bulkApprovalMode = false;
   historique: AuditEntry[] = [];
   historiqueLoading = false;
+  uploadingDevisId: string | null = null;
 
   // Valideur selector
   valideurSearchControl = new FormControl('');
@@ -309,11 +354,13 @@ export class DossierDetailComponent implements OnInit, OnChanges {
       modification: 'edit',
       devis_ajoute: 'description',
       devis_modifie: 'description',
+      dossier_envoye_approbation: 'playlist_add_check',
       devis_envoye_approbation: 'send',
       devis_renvoye_approbation: 'replay',
       devis_approuve: 'check_circle',
       devis_refuse: 'block',
       devis_annule: 'block',
+      devis_fichier_upload: 'upload_file',
       facture_ajoutee: 'receipt',
       facture_modifiee: 'receipt',
     };
@@ -405,6 +452,39 @@ export class DossierDetailComponent implements OnInit, OnChanges {
     this.showFactureForm = false;
     this.loadDossier();
     this.loadHistorique();
+  }
+
+  triggerFileUpload(devis: Devis): void {
+    if (!this.dossier) return;
+    const index = this.dossier.devis.indexOf(devis);
+    const inputs = this.fileInputs?.toArray();
+    if (inputs && inputs[index]) {
+      inputs[index].nativeElement.click();
+    }
+  }
+
+  onFileSelected(event: Event, devis: Devis): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file || !this.dossier) return;
+
+    this.uploadingDevisId = devis.id;
+    this.repairService.uploadDevisFile(this.dt, this.immat, this.numero, String(devis.id), file).subscribe({
+      next: () => {
+        this.uploadingDevisId = null;
+        this.snackBar.open('Fichier uploadé avec succès', 'Fermer', { duration: 3000 });
+        this.loadDossier();
+        this.loadHistorique();
+        this.cdr.detectChanges();
+      },
+      error: () => {
+        this.uploadingDevisId = null;
+        this.snackBar.open('Erreur lors de l\'upload du fichier', 'Fermer', { duration: 5000 });
+        this.cdr.detectChanges();
+      },
+    });
+    // Reset input so same file can be re-selected
+    input.value = '';
   }
 
   private loadValideurs(): void {
@@ -512,6 +592,39 @@ export class DossierDetailComponent implements OnInit, OnChanges {
       error: () => {
         this.approvalLoading = false;
         this.snackBar.open('Erreur lors de l\'envoi pour approbation', 'Fermer', { duration: 5000 });
+        this.cdr.detectChanges();
+      },
+    });
+  }
+
+  hasPendingDevis(): boolean {
+    return !!this.dossier?.devis?.some(d => d.statut === 'en_attente');
+  }
+
+  openBulkApprovalForm(): void {
+    this.bulkApprovalMode = true;
+    this.approvalEmail = '';
+    this.valideurSearchControl.setValue('');
+  }
+
+  sendBulkApproval(): void {
+    if (!this.approvalEmail || !this.dossier) return;
+    this.approvalLoading = true;
+    this.repairService.sendBulkApproval(
+      this.dt, this.immat, this.dossier.numero,
+      { valideur_email: this.approvalEmail }
+    ).subscribe({
+      next: (res) => {
+        this.approvalLoading = false;
+        this.bulkApprovalMode = false;
+        this.snackBar.open(res.message || 'Devis envoyés pour approbation', 'Fermer', { duration: 5000 });
+        this.cdr.detectChanges();
+        this.loadDossier();
+        this.loadHistorique();
+      },
+      error: () => {
+        this.approvalLoading = false;
+        this.snackBar.open('Erreur lors de l\'envoi groupé pour approbation', 'Fermer', { duration: 5000 });
         this.cdr.detectChanges();
       },
     });

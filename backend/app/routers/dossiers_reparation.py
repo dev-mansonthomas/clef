@@ -1,8 +1,9 @@
 """Dossiers Réparation API endpoints."""
 import logging
+import os
 from datetime import datetime
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
 
 from app.models.repair_models import (
     DossierReparation,
@@ -15,6 +16,7 @@ from app.models.repair_models import (
     FactureResponse,
     Devis,
     Facture,
+    FichierDrive,
     FournisseurSnapshot,
     StatutDossier,
     StatutDevis,
@@ -22,6 +24,8 @@ from app.models.repair_models import (
     HistoriqueEntry,
     SendApprovalRequest,
     SendApprovalResponse,
+    BulkApprovalRequest,
+    BulkApprovalResponse,
 )
 from app.auth.models import User
 from app.auth.dependencies import require_authenticated_user
@@ -29,6 +33,7 @@ from app.services.valkey_dependencies import get_valkey_service
 from app.services.valkey_service import ValkeyService
 from app.services.approval_service import ApprovalService
 from app.services.email_service import email_service
+from app.services.drive_service import drive_service
 
 logger = logging.getLogger(__name__)
 
@@ -436,6 +441,236 @@ async def send_devis_for_approval(
         valideur_email=body.valideur_email,
         expires_at=token_data["expires_at"],
     )
+
+
+@router.post(
+    "/{numero}/send-bulk-approval",
+    response_model=BulkApprovalResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def send_bulk_approval(
+    dt: str,
+    immat: str,
+    numero: str,
+    body: BulkApprovalRequest,
+    current_user: User = Depends(require_authenticated_user),
+    valkey: ValkeyService = Depends(get_valkey_service),
+) -> BulkApprovalResponse:
+    """Send all pending devis for approval in one action."""
+    dossier = await valkey.get_dossier_reparation(immat, numero)
+    if not dossier:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Dossier '{numero}' not found for vehicle '{immat}'",
+        )
+
+    _check_dossier_open(dossier)
+
+    # Find all devis with statut en_attente
+    pending_devis = [d for d in dossier.devis if d.statut == StatutDevis.EN_ATTENTE]
+    if not pending_devis:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Aucun devis en attente d'approbation",
+        )
+
+    import os
+    frontend_url = os.getenv("FRONTEND_URL", "http://localhost:4200")
+    approval_svc = ApprovalService(redis_client=valkey.redis, dt=dt)
+
+    tokens = []
+    devis_dicts = []
+    for devis in pending_devis:
+        # Create approval token
+        token_data = await approval_svc.create_approval_token(
+            immat=immat,
+            numero_dossier=numero,
+            devis_id=devis.id,
+            valideur_email=body.valideur_email,
+        )
+        tokens.append(token_data["token"])
+        devis_dicts.append(devis.model_dump(mode="json"))
+
+        # Update devis status to "envoye"
+        await valkey.update_devis(immat, numero, devis.id, {
+            "statut": StatutDevis.ENVOYE,
+            "valideur_email": body.valideur_email,
+            "token_approbation": token_data["token"],
+            "date_envoi_approbation": token_data["created_at"],
+        })
+
+    # Send ONE summary email
+    await email_service.send_bulk_approval_email(
+        dt_id=dt,
+        numero_dossier=numero,
+        devis_list=devis_dicts,
+        tokens=tokens,
+        valideur_email=body.valideur_email,
+        sender_email=current_user.email,
+        dossier_description=dossier.description,
+        dossier_commentaire=dossier.commentaire,
+    )
+
+    # Add historique entry
+    key = f"{valkey.dt}:vehicules:{immat}:travaux:{numero}"
+    await valkey.add_historique_entry(
+        immat=immat,
+        numero=numero,
+        entry=HistoriqueEntry(
+            auteur=current_user.email,
+            action=ActionHistorique.DOSSIER_ENVOYE_APPROBATION,
+            details=f"{len(pending_devis)} devis envoyés pour approbation groupée à {body.valideur_email}",
+            ref=key,
+        ),
+    )
+
+    return BulkApprovalResponse(
+        count=len(pending_devis),
+        tokens=tokens,
+        valideur_email=body.valideur_email,
+        message=f"{len(pending_devis)} devis envoyés pour approbation",
+    )
+
+
+# ========== Devis File Upload ==========
+
+ALLOWED_MIME_TYPES = {
+    "application/pdf",
+    "image/jpeg",
+    "image/png",
+}
+MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
+
+
+@router.post("/{numero}/devis/{devis_id}/upload", response_model=Devis)
+async def upload_devis_fichier(
+    dt: str,
+    immat: str,
+    numero: str,
+    devis_id: str,
+    file: UploadFile = File(...),
+    current_user: User = Depends(require_authenticated_user),
+    valkey: ValkeyService = Depends(get_valkey_service),
+) -> Devis:
+    """Upload or update the file attached to a devis (PDF/image, max 10 MB)."""
+    # Validate dossier exists
+    dossier = await valkey.get_dossier_reparation(immat, numero)
+    if not dossier:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Dossier '{numero}' not found for vehicle '{immat}'",
+        )
+
+    # Validate devis exists
+    devis = await valkey.get_devis(immat, numero, devis_id)
+    if not devis:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Devis '{devis_id}' not found in dossier '{numero}'",
+        )
+
+    # Validate file type
+    if file.content_type not in ALLOWED_MIME_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"File type '{file.content_type}' not allowed. Accepted: PDF, JPEG, PNG.",
+        )
+
+    # Read and validate file size
+    file_content = await file.read()
+    if len(file_content) > MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"File too large ({len(file_content)} bytes). Maximum: 10 MB.",
+        )
+
+    # Get vehicle for nom_synthetique
+    vehicle = await valkey.get_vehicle(immat)
+    if not vehicle:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Vehicle '{immat}' not found",
+        )
+
+    # Get or create the "Dossier Réparation" folder for this vehicle
+    drive_folders = getattr(vehicle, "drive_folders", {}) or {}
+    factures_folder = drive_folders.get("factures")
+    if factures_folder and isinstance(factures_folder, dict) and factures_folder.get("folder_id"):
+        repair_parent_id = factures_folder["folder_id"]
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Vehicle Drive folder tree not configured. Please sync Drive folders first.",
+        )
+
+    # Build repair subfolder name: YYYY-MM-DD - nom_synth - Réparation - TITRE
+    date_str = dossier.cree_le.strftime("%Y-%m-%d")
+    parts = [date_str, vehicle.nom_synthetique, "Réparation"]
+    if dossier.titre:
+        parts.append(dossier.titre)
+    subfolder_name = " - ".join(parts)
+
+    # Get or create the repair subfolder
+    repair_subfolder = await drive_service.get_or_create_folder(
+        dt_id=dt,
+        name=subfolder_name,
+        parent_folder_id=repair_parent_id,
+    )
+
+    # Build filename: Devis-{devis_id}-{fournisseur_nom}.{ext}
+    ext_map = {"application/pdf": ".pdf", "image/jpeg": ".jpg", "image/png": ".png"}
+    ext = ext_map.get(file.content_type, ".pdf")
+    upload_filename = f"Devis-{devis_id}-{devis.fournisseur.nom}{ext}"
+
+    if devis.fichier and devis.fichier.file_id:
+        # Update existing file (versioning)
+        await drive_service.ensure_first_revision_kept(dt_id=dt, file_id=devis.fichier.file_id)
+        uploaded = await drive_service.update_file_version(
+            dt_id=dt,
+            file_id=devis.fichier.file_id,
+            file_content=file_content,
+            mime_type=file.content_type,
+            keep_forever=True,
+        )
+    else:
+        # New upload
+        uploaded = await drive_service.upload_file(
+            dt_id=dt,
+            file_content=file_content,
+            filename=upload_filename,
+            mime_type=file.content_type,
+            parent_folder_id=repair_subfolder["id"],
+            description=f"Devis #{devis_id} - {dossier.numero}",
+        )
+
+    # Update devis with fichier info
+    fichier = FichierDrive(
+        file_id=uploaded["id"],
+        name=uploaded.get("name", upload_filename),
+        web_view_link=uploaded.get("webViewLink", ""),
+    )
+    updated_devis = await valkey.update_devis(immat, numero, devis_id, {"fichier": fichier})
+    if not updated_devis:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update devis with file info",
+        )
+
+    # Add historique entry
+    key = f"{valkey.dt}:vehicules:{immat}:travaux:{numero}:devis:{devis_id}"
+    action_detail = "mis à jour" if devis.fichier else "ajouté"
+    await valkey.add_historique_entry(
+        immat=immat,
+        numero=numero,
+        entry=HistoriqueEntry(
+            auteur=current_user.email,
+            action=ActionHistorique.DEVIS_FICHIER_UPLOAD,
+            details=f"Fichier devis #{devis_id} {action_detail} ({upload_filename})",
+            ref=key,
+        ),
+    )
+
+    return updated_devis
 
 
 # ========== Facture Endpoints ==========
