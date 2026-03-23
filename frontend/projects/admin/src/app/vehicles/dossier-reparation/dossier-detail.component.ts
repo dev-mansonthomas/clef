@@ -18,6 +18,7 @@ import { ValideurService } from '../../services/valideur.service';
 import { ContactCCService } from '../../services/contact-cc.service';
 import { DossierReparation, Devis, Facture, FactureCreateResponse, AuditEntry, Valideur, ContactCC } from '../../models/repair.model';
 import { MatCheckboxModule } from '@angular/material/checkbox';
+import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { DevisFormComponent } from './devis-form.component';
 import { FactureFormComponent } from './facture-form.component';
 import { ConfirmResendDialogComponent } from './confirm-resend-dialog.component';
@@ -42,6 +43,7 @@ import { ConfirmCancelDevisDialogComponent } from './confirm-cancel-devis-dialog
     MatDialogModule,
     MatAutocompleteModule,
     MatCheckboxModule,
+    MatSlideToggleModule,
     DevisFormComponent,
     FactureFormComponent,
   ],
@@ -79,7 +81,7 @@ import { ConfirmCancelDevisDialogComponent } from './confirm-cancel-devis-dialog
             <div *ngIf="dossier.est_sinistre" class="sinistre-info">
               <mat-icon class="sinistre-icon">warning</mat-icon>
               <span>Sinistre</span>
-              <span *ngIf="dossier.franchise_applicable"> · Franchise applicable</span>
+              <span *ngIf="dossier.franchise_applicable"> · Franchise applicable ({{ montantFranchise }} €)</span>
             </div>
           </ng-container>
 
@@ -106,8 +108,21 @@ import { ConfirmCancelDevisDialogComponent } from './confirm-cancel-devis-dialog
               <textarea matInput [(ngModel)]="editForm.commentaire" rows="3" placeholder="Commentaire libre"></textarea>
             </mat-form-field>
             <div class="sinistre-section">
-              <mat-checkbox [(ngModel)]="editForm.est_sinistre">Est-ce dans le cadre d'un sinistre ?</mat-checkbox>
-              <mat-checkbox *ngIf="editForm.est_sinistre" [(ngModel)]="editForm.franchise_applicable">Devez-vous payer la franchise ?</mat-checkbox>
+              <div class="toggle-row">
+                <span class="toggle-label">Est-ce dans le cadre d'un sinistre ?</span>
+                <mat-slide-toggle [(ngModel)]="editForm.est_sinistre"></mat-slide-toggle>
+              </div>
+              <div class="toggle-row" *ngIf="editForm.est_sinistre">
+                <div class="toggle-label-group">
+                  <span class="toggle-label">Devez-vous payer la franchise ?</span>
+                  <span class="toggle-hint">(Vous êtes responsable/en tort)</span>
+                </div>
+                <mat-slide-toggle [(ngModel)]="editForm.franchise_applicable"></mat-slide-toggle>
+              </div>
+              <div class="franchise-info" *ngIf="editForm.est_sinistre && editForm.franchise_applicable">
+                <mat-icon>info</mat-icon>
+                <span>La franchise est de {{ montantFranchise }} €</span>
+              </div>
             </div>
             <div class="edit-actions">
               <button mat-raised-button color="primary" type="button" (click)="saveEditDossier()" [disabled]="actionLoading">Enregistrer</button>
@@ -416,7 +431,13 @@ import { ConfirmCancelDevisDialogComponent } from './confirm-cancel-devis-dialog
     .edit-form mat-form-field { width: 100%; margin-bottom: 8px; }
     .description-item-row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
     .description-item-row mat-form-field { flex: 1; }
-    .sinistre-section { display: flex; align-items: center; gap: 16px; padding: 8px 0; }
+    .sinistre-section { display: flex; flex-direction: column; gap: 12px; padding: 8px 0; }
+    .toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+    .toggle-label { font-size: 14px; font-weight: 500; }
+    .toggle-label-group { display: flex; flex-direction: column; }
+    .toggle-hint { font-size: 12px; color: #666; font-style: italic; }
+    .franchise-info { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #fff3e0; border-radius: 4px; color: #e65100; font-weight: 500; font-size: 14px; }
+    .franchise-info mat-icon { font-size: 20px; width: 20px; height: 20px; }
     .sinistre-info { display: flex; align-items: center; gap: 8px; padding: 8px 0; color: #e65100; font-weight: 500; }
     .sinistre-icon { font-size: 20px; width: 20px; height: 20px; }
     .edit-actions { display: flex; gap: 8px; padding: 8px 0; }
@@ -454,6 +475,7 @@ export class DossierDetailComponent implements OnInit, OnChanges {
   factureDevisLabel: string | null = null;
   editingFacture: Facture | null = null;
   viewingFacture: Facture | null = null;
+  montantFranchise = 350;
   editingDossier = false;
   editForm: { titre: string; descriptionItems: string[]; commentaire: string; est_sinistre: boolean; franchise_applicable: boolean } | null = null;
 

@@ -8,7 +8,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatCheckboxModule } from '@angular/material/checkbox';
+import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { RepairService } from '../../services/repair.service';
 import { DossierReparation } from '../../models/repair.model';
 
@@ -25,7 +25,7 @@ import { DossierReparation } from '../../models/repair.model';
     MatIconModule,
     MatSnackBarModule,
     MatProgressSpinnerModule,
-    MatCheckboxModule,
+    MatSlideToggleModule,
   ],
   template: `
     <mat-card class="create-card">
@@ -60,10 +60,21 @@ import { DossierReparation } from '../../models/repair.model';
           </div>
 
           <div class="sinistre-section">
-            <mat-checkbox formControlName="est_sinistre">Est-ce dans le cadre d'un sinistre ?</mat-checkbox>
-            <mat-checkbox *ngIf="form.get('est_sinistre')?.value" formControlName="franchise_applicable" class="franchise-checkbox">
-              Devez-vous payer la franchise ?
-            </mat-checkbox>
+            <div class="toggle-row">
+              <span class="toggle-label">Est-ce dans le cadre d'un sinistre ?</span>
+              <mat-slide-toggle formControlName="est_sinistre"></mat-slide-toggle>
+            </div>
+            <div class="toggle-row" *ngIf="form.get('est_sinistre')?.value">
+              <div class="toggle-label-group">
+                <span class="toggle-label">Devez-vous payer la franchise ?</span>
+                <span class="toggle-hint">(Vous êtes responsable/en tort)</span>
+              </div>
+              <mat-slide-toggle formControlName="franchise_applicable"></mat-slide-toggle>
+            </div>
+            <div class="franchise-info" *ngIf="form.get('est_sinistre')?.value && form.get('franchise_applicable')?.value">
+              <mat-icon>info</mat-icon>
+              <span>La franchise est de {{ montantFranchise }} €</span>
+            </div>
           </div>
 
           <mat-form-field appearance="outline" class="full-width commentaire-field">
@@ -96,8 +107,13 @@ import { DossierReparation } from '../../models/repair.model';
     .add-item-btn { margin-bottom: 16px; }
     .item-error { font-size: 12px; color: #f44336; margin-bottom: 16px; }
     .commentaire-field { margin-top: 8px; }
-    .sinistre-section { margin: 16px 0; display: flex; flex-direction: column; gap: 8px; }
-    .franchise-checkbox { margin-left: 24px; }
+    .sinistre-section { margin: 16px 0; display: flex; flex-direction: column; gap: 12px; }
+    .toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+    .toggle-label { font-size: 14px; font-weight: 500; }
+    .toggle-label-group { display: flex; flex-direction: column; }
+    .toggle-hint { font-size: 12px; color: #666; font-style: italic; }
+    .franchise-info { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #fff3e0; border-radius: 4px; color: #e65100; font-weight: 500; font-size: 14px; }
+    .franchise-info mat-icon { font-size: 20px; width: 20px; height: 20px; }
   `],
 })
 export class DossierCreateComponent {
@@ -119,6 +135,7 @@ export class DossierCreateComponent {
     franchise_applicable: [false],
   });
 
+  montantFranchise = 350;
   saving = false;
   submitted = false;
 
