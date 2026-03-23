@@ -1,6 +1,7 @@
 import { Component, Input, Output, EventEmitter, inject, ChangeDetectorRef, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, FormArray, FormControl, Validators } from '@angular/forms';
+import { Observable } from 'rxjs';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
@@ -278,7 +279,7 @@ export class FactureFormComponent implements OnInit {
     };
 
     const request$ = this.editFacture
-      ? this.repairService.updateFacture(this.dt, this.immat, this.numero, this.editFacture.id, factureData)
+      ? this.repairService.updateFacture(this.dt, this.immat, this.numero, this.editFacture.id, factureData) as Observable<FactureCreateResponse>
       : this.repairService.createFacture(this.dt, this.immat, this.numero, factureData);
 
     request$.subscribe({

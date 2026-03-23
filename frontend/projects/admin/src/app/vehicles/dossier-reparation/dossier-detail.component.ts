@@ -16,7 +16,7 @@ import { Observable, startWith, map } from 'rxjs';
 import { RepairService } from '../../services/repair.service';
 import { ValideurService } from '../../services/valideur.service';
 import { ContactCCService } from '../../services/contact-cc.service';
-import { DossierReparation, Devis, FactureCreateResponse, AuditEntry, Valideur, ContactCC } from '../../models/repair.model';
+import { DossierReparation, Devis, Facture, FactureCreateResponse, AuditEntry, Valideur, ContactCC } from '../../models/repair.model';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { DevisFormComponent } from './devis-form.component';
 import { FactureFormComponent } from './facture-form.component';
@@ -68,10 +68,10 @@ import { ConfirmCancelDevisDialogComponent } from './confirm-cancel-devis-dialog
         <mat-card-content>
 
           <h4>Description</h4>
-          <ul class="description-list" *ngIf="dossier.description?.length">
+          <ul class="description-list" *ngIf="dossier.description.length">
             <li *ngFor="let item of dossier.description">{{ item }}</li>
           </ul>
-          <p class="empty-section" *ngIf="!dossier.description?.length">Aucune description.</p>
+          <p class="empty-section" *ngIf="!dossier.description.length">Aucune description.</p>
           <div *ngIf="dossier.commentaire" class="commentaire-block">
             <strong>Commentaire :</strong> {{ dossier.commentaire }}
           </div>
@@ -133,10 +133,11 @@ import { ConfirmCancelDevisDialogComponent } from './confirm-cancel-devis-dialog
           <app-devis-form *ngIf="showDevisForm" [dt]="dt" [immat]="immat" [numero]="numero"
             [dossierDescription]="dossier.description || []" [dossierTitre]="dossier.titre || ''"
             (devisCreated)="onDevisCreated($event)" (cancelled)="showDevisForm = false"></app-devis-form>
-          <p class="empty-section" *ngIf="!dossier.devis?.length && !showDevisForm">Aucun devis enregistré.</p>
-          <table class="devis-table" *ngIf="dossier.devis?.length">
+          <p class="empty-section" *ngIf="!dossier.devis.length && !showDevisForm">Aucun devis enregistré.</p>
+          <table class="devis-table" *ngIf="dossier.devis.length">
             <thead>
               <tr>
+                <th class="col-numero">N°</th>
                 <th>Date</th>
                 <th>Fournisseur</th>
                 <th class="col-right">Montant</th>
@@ -147,8 +148,9 @@ import { ConfirmCancelDevisDialogComponent } from './confirm-cancel-devis-dialog
             </thead>
             <tbody>
               <tr *ngFor="let d of dossier.devis" [class.devis-annule-row]="d.statut === 'annule'">
+                <td class="col-numero">Devis {{ padId(d.id) }}</td>
                 <td>{{ d.date_devis | date:'dd/MM/yyyy' }}</td>
-                <td>{{ d.fournisseur?.nom || d.id }}</td>
+                <td>{{ d.fournisseur.nom || d.id }}</td>
                 <td class="col-right">{{ d.montant | number:'1.2-2' }} €</td>
                 <td><span class="devis-statut-badge" [ngClass]="'devis-statut-' + d.statut">{{ devisStatutLabel(d.statut) }}</span></td>
                 <td>
@@ -168,9 +170,13 @@ import { ConfirmCancelDevisDialogComponent } from './confirm-cancel-devis-dialog
                       (click)="confirmResend(d)" [disabled]="approvalLoading" class="approval-btn">
                       <mat-icon>replay</mat-icon> Renvoyer pour approbation
                     </button>
-                    <button type="button" mat-stroked-button *ngIf="d.statut === 'approuve' && dossier.statut === 'ouvert'"
+                    <button type="button" mat-stroked-button *ngIf="d.statut === 'approuve' && dossier.statut === 'ouvert' && !getFactureForDevis(d.id)"
                       (click)="createFactureForDevis(d)" class="add-facture-btn">
                       <mat-icon>receipt</mat-icon> Ajouter facture
+                    </button>
+                    <button type="button" mat-stroked-button *ngIf="getFactureForDevis(d.id)"
+                      (click)="viewFactureForDevis(d)" class="add-facture-btn">
+                      <mat-icon>visibility</mat-icon> Voir Facture
                     </button>
                     <!-- Cancel button — ALWAYS far right, RED -->
                     <button type="button" mat-icon-button *ngIf="d.statut !== 'annule' && dossier.statut === 'ouvert'"
@@ -219,11 +225,36 @@ import { ConfirmCancelDevisDialogComponent } from './confirm-cancel-devis-dialog
           <app-facture-form *ngIf="showFactureForm" [dt]="dt" [immat]="immat" [numero]="numero"
             [devisList]="dossier.devis || []"
             [preselectedDevisId]="preselectedDevisId"
+            [devisLabel]="factureDevisLabel"
+            [editFacture]="editingFacture"
             [inheritedDescriptionItems]="getDevisDescriptionItems()"
             [inheritedDescriptionTravaux]="getDevisDescriptionTravaux()"
             (factureCreated)="onFactureCreated($event)" (cancelled)="onFactureCancelled()"></app-facture-form>
-          <p class="empty-section" *ngIf="!dossier.factures?.length && !showFactureForm">Aucune facture enregistrée.</p>
-          <table class="factures-table" *ngIf="dossier.factures?.length">
+
+          <!-- Read-only facture detail view -->
+          <div class="facture-detail-view" *ngIf="viewingFacture">
+            <mat-card>
+              <mat-card-header>
+                <mat-card-title>Facture — {{ viewingFacture.fournisseur.nom }}</mat-card-title>
+              </mat-card-header>
+              <mat-card-content>
+                <p><strong>Date :</strong> {{ viewingFacture.date_facture | date:'dd/MM/yyyy' }}</p>
+                <p><strong>Classification :</strong> {{ classificationLabel(viewingFacture.classification) }}</p>
+                <p *ngIf="viewingFacture.description"><strong>Description :</strong> {{ viewingFacture.description }}</p>
+                <p><strong>Montant total :</strong> {{ viewingFacture.montant_total | number:'1.2-2' }} €</p>
+                <p><strong>Montant CRF :</strong> {{ viewingFacture.montant_crf | number:'1.2-2' }} €</p>
+                <p *ngIf="viewingFacture.fichier"><strong>Fichier :</strong> <a [href]="viewingFacture.fichier.web_view_link" target="_blank" rel="noopener" class="fichier-link">📎 {{ viewingFacture.fichier.name }}</a></p>
+                <div class="form-actions" style="margin-top:12px;">
+                  <button mat-button type="button" (click)="viewingFacture = null">Fermer</button>
+                  <button mat-raised-button color="primary" type="button" (click)="startEditFacture(viewingFacture)" *ngIf="dossier.statut === 'ouvert'">
+                    <mat-icon>edit</mat-icon> Modifier
+                  </button>
+                </div>
+              </mat-card-content>
+            </mat-card>
+          </div>
+          <p class="empty-section" *ngIf="!dossier.factures.length && !showFactureForm">Aucune facture enregistrée.</p>
+          <table class="factures-table" *ngIf="dossier.factures.length">
             <thead>
               <tr>
                 <th>Date</th>
@@ -237,7 +268,7 @@ import { ConfirmCancelDevisDialogComponent } from './confirm-cancel-devis-dialog
             <tbody>
               <tr *ngFor="let f of dossier.factures">
                 <td>{{ f.date_facture | date:'dd/MM/yyyy' }}</td>
-                <td>{{ f.fournisseur?.nom || f.id }}</td>
+                <td>{{ f.fournisseur.nom || f.id }}</td>
                 <td class="item-classification">{{ classificationLabel(f.classification) }}</td>
                 <td class="col-right">{{ f.montant_total | number:'1.2-2' }} €</td>
                 <td class="col-right item-montant-crf">CRF: {{ f.montant_crf | number:'1.2-2' }} €</td>
@@ -334,6 +365,10 @@ import { ConfirmCancelDevisDialogComponent } from './confirm-cancel-devis-dialog
     .timeline-date { font-size: 12px; color: rgba(0,0,0,0.54); }
     .timeline-details { font-size: 14px; }
     .timeline-auteur { font-size: 12px; color: rgba(0,0,0,0.54); }
+    .col-numero { white-space: nowrap; font-weight: 500; }
+    .facture-detail-view { margin: 12px 0; }
+    .facture-detail-view p { margin: 4px 0; }
+    .form-actions { display: flex; gap: 8px; justify-content: flex-end; }
   `],
 })
 export class DossierDetailComponent implements OnInit, OnChanges {
@@ -365,6 +400,9 @@ export class DossierDetailComponent implements OnInit, OnChanges {
   historique: AuditEntry[] = [];
   historiqueLoading = false;
   preselectedDevisId: string | null = null;
+  factureDevisLabel: string | null = null;
+  editingFacture: Facture | null = null;
+  viewingFacture: Facture | null = null;
 
   // Valideur selector
   valideurSearchControl = new FormControl('');
@@ -511,6 +549,8 @@ export class DossierDetailComponent implements OnInit, OnChanges {
   onFactureCreated(_facture: FactureCreateResponse): void {
     this.showFactureForm = false;
     this.preselectedDevisId = null;
+    this.factureDevisLabel = null;
+    this.editingFacture = null;
     this.loadDossier();
     this.loadHistorique();
   }
@@ -518,12 +558,43 @@ export class DossierDetailComponent implements OnInit, OnChanges {
   onFactureCancelled(): void {
     this.showFactureForm = false;
     this.preselectedDevisId = null;
+    this.factureDevisLabel = null;
+    this.editingFacture = null;
   }
 
   createFactureForDevis(devis: Devis): void {
     this.preselectedDevisId = String(devis.id);
+    this.factureDevisLabel = `Devis ${this.padId(devis.id)}`;
+    this.editingFacture = null;
+    this.viewingFacture = null;
     this.showFactureForm = true;
   }
+
+  getFactureForDevis(devisId: string): Facture | undefined {
+    return this.dossier?.factures?.find(f => f.devis_id === devisId);
+  }
+
+  viewFactureForDevis(devis: Devis): void {
+    const facture = this.getFactureForDevis(devis.id);
+    if (facture) {
+      this.viewingFacture = facture;
+      this.showFactureForm = false;
+    }
+  }
+
+  startEditFacture(facture: Facture): void {
+    this.editingFacture = facture;
+    this.viewingFacture = null;
+    this.preselectedDevisId = facture.devis_id || null;
+    this.factureDevisLabel = facture.devis_id ? `Devis ${this.padId(facture.devis_id)}` : null;
+    this.showFactureForm = true;
+  }
+
+  padId(id: string): string {
+    return id.padStart(2, '0');
+  }
+
+
 
   getDevisDescriptionItems(): string[] {
     if (!this.preselectedDevisId || !this.dossier) return [];

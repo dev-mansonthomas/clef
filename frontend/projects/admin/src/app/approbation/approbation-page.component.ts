@@ -93,7 +93,12 @@ import { ApprobationData, SubmitDossierDecisionRequest } from '../models/repair.
       }
 
       <div class="total-row">
-        <strong>Total : {{ totalMontant() | number:'1.2-2' }} €</strong>
+        <strong>Coût des travaux : {{ totalMontant() | number:'1.2-2' }} €</strong>
+        @if (data()!.est_sinistre) {
+        <div class="cost-sinistre">
+          Coût pour la Croix-Rouge : {{ data()!.franchise_applicable ? (data()!.montant_franchise || 350) : 0 | number:'1.2-2' }} €
+        </div>
+        }
       </div>
 
       <div class="decision-section">
@@ -155,6 +160,7 @@ import { ApprobationData, SubmitDossierDecisionRequest } from '../models/repair.
     .decision-section { margin: 24px 0; }
     .decision-section mat-radio-button { display: block; margin: 8px 0; }
     .total-row { text-align: right; font-size: 18px; margin: 16px 0; padding: 12px; background: #f5f5f5; border-radius: 8px; }
+    .cost-sinistre { font-size: 16px; color: #1565c0; margin-top: 4px; }
     .comment-field { width: 100%; margin: 16px 0; }
     .submit-btn { width: 100%; padding: 12px; font-size: 16px; }
     .devis-refused { opacity: 0.6; border-left: 4px solid #c62828; }

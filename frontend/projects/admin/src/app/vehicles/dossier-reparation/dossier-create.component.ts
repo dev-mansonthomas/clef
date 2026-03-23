@@ -8,6 +8,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatCheckboxModule } from '@angular/material/checkbox';
 import { RepairService } from '../../services/repair.service';
 import { DossierReparation } from '../../models/repair.model';
 
@@ -24,6 +25,7 @@ import { DossierReparation } from '../../models/repair.model';
     MatIconModule,
     MatSnackBarModule,
     MatProgressSpinnerModule,
+    MatCheckboxModule,
   ],
   template: `
     <mat-card class="create-card">
@@ -57,6 +59,13 @@ import { DossierReparation } from '../../models/repair.model';
             Au moins un élément de description est requis
           </div>
 
+          <div class="sinistre-section">
+            <mat-checkbox formControlName="est_sinistre">Est-ce dans le cadre d'un sinistre ?</mat-checkbox>
+            <mat-checkbox *ngIf="form.get('est_sinistre')?.value" formControlName="franchise_applicable" class="franchise-checkbox">
+              Devez-vous payer la franchise ?
+            </mat-checkbox>
+          </div>
+
           <mat-form-field appearance="outline" class="full-width commentaire-field">
             <mat-label>Commentaire (optionnel)</mat-label>
             <textarea matInput formControlName="commentaire" rows="2" placeholder="Commentaire libre…"></textarea>
@@ -87,6 +96,8 @@ import { DossierReparation } from '../../models/repair.model';
     .add-item-btn { margin-bottom: 16px; }
     .item-error { font-size: 12px; color: #f44336; margin-bottom: 16px; }
     .commentaire-field { margin-top: 8px; }
+    .sinistre-section { margin: 16px 0; display: flex; flex-direction: column; gap: 8px; }
+    .franchise-checkbox { margin-left: 24px; }
   `],
 })
 export class DossierCreateComponent {
@@ -104,6 +115,8 @@ export class DossierCreateComponent {
     titre: [''],
     descriptionItems: this.fb.array([this.fb.control('', Validators.required)]),
     commentaire: [''],
+    est_sinistre: [false],
+    franchise_applicable: [false],
   });
 
   saving = false;
@@ -135,7 +148,9 @@ export class DossierCreateComponent {
 
     const commentaire = this.form.value.commentaire?.trim() || undefined;
     const titre = this.form.value.titre?.trim() || undefined;
-    this.repairService.createDossier(this.dt, this.immat, { description: items, commentaire, titre }).subscribe({
+    const est_sinistre = !!this.form.value.est_sinistre;
+    const franchise_applicable = est_sinistre && !!this.form.value.franchise_applicable;
+    this.repairService.createDossier(this.dt, this.immat, { description: items, commentaire, titre, est_sinistre, franchise_applicable }).subscribe({
       next: (dossier) => {
         this.snackBar.open('Dossier créé avec succès', 'Fermer', { duration: 3000 });
         this.saving = false;

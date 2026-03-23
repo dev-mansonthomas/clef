@@ -31,6 +31,8 @@ export interface DossierReparation {
   cloture_le?: string;
   photos?: FichierDrive[];
   sinistre_id?: string;
+  est_sinistre?: boolean;
+  franchise_applicable?: boolean;
   devis: Devis[];
   factures: Facture[];
 }
@@ -60,6 +62,7 @@ export interface Facture {
   classification: string;
   description?: string;
   description_items?: string[];
+  description_travaux?: string;
   montant_total: number;
   montant_crf: number;
   fichier?: FichierDrive;
@@ -113,6 +116,8 @@ export interface CreateDossierRequest {
   description: string[];
   commentaire?: string;
   sinistre_ref?: string;
+  est_sinistre?: boolean;
+  franchise_applicable?: boolean;
 }
 
 export interface UpdateDossierRequest {
@@ -206,6 +211,9 @@ export interface ApprobationData {
   status: string;
   created_at: string;
   expires_at: string;
+  est_sinistre?: boolean;
+  franchise_applicable?: boolean;
+  montant_franchise?: number;
 }
 
 export interface SubmitDecisionRequest {

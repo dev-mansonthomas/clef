@@ -125,6 +125,15 @@ export class RepairService {
   }
 
   /**
+   * Update a facture
+   */
+  updateFacture(dt: string, immat: string, numero: string, factureId: string, data: Partial<CreateFactureRequest>): Observable<Facture> {
+    return this.http.patch<Facture>(`${this.dossierUrl(dt, immat)}/${numero}/factures/${factureId}`, data, {
+      withCredentials: true,
+    });
+  }
+
+  /**
    * Get a specific facture
    */
   getFacture(dt: string, immat: string, numero: string, factureId: string): Observable<Facture> {

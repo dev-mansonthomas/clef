@@ -89,6 +89,8 @@ export const mockDossiers = [
     titre: 'Freins avant usés',
     description: ['Réparation freins avant', 'Plaquettes et disques usés'],
     statut: 'ouvert',
+    est_sinistre: false,
+    franchise_applicable: false,
     cree_par: 'test@croix-rouge.fr',
     cree_le: '2026-03-15T10:30:00Z',
     devis: [
@@ -211,5 +213,8 @@ export const mockApprobationData = {
   valideur_email: 'test@croix-rouge.fr',
   status: 'pending',
   created_at: '2026-03-16T12:00:00Z',
-  expires_at: '2026-03-23T12:00:00Z'
+  expires_at: '2026-03-23T12:00:00Z',
+  est_sinistre: false,
+  franchise_applicable: false,
+  montant_franchise: 350
 };

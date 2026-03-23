@@ -13,11 +13,13 @@ export interface ConfigResponse {
   drive_sync_message: string | null;
   drive_sync_error: string | null;
   drive_sync_current_vehicle?: string;
+  montant_franchise?: number;
 }
 
 export interface ConfigUpdate {
   drive_folder_url?: string;
   email_destinataire_alertes?: string;
+  montant_franchise?: number;
 }
 
 export interface DocumentFolder {

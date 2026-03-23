@@ -343,6 +343,36 @@ export async function setupApiMocks(page: Page) {
     }
   });
 
+  // Single facture endpoint (PATCH for edit)
+  await page.route('**/api/*/vehicles/*/dossiers-reparation/*/factures/*', async (route) => {
+    const url = route.request().url();
+    // Skip sub-resources like upload
+    if (url.includes('/upload')) {
+      return route.fallback();
+    }
+    if (route.request().method() === 'PATCH') {
+      const body = JSON.parse(route.request().postData() || '{}');
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          id: 'fac-001',
+          date_facture: body.date_facture || '2026-03-20',
+          fournisseur: { id: body.fournisseur_id || 'f-001', nom: body.fournisseur_nom || 'Garage Martin' },
+          classification: body.classification || 'entretien_courant',
+          description: body.description_travaux || 'Remplacement plaquettes et disques avant',
+          montant_total: body.montant_total || 920.00,
+          montant_crf: body.montant_crf || 920.00,
+          devis_id: body.devis_id || 'd-001',
+          cree_par: 'test@croix-rouge.fr',
+          cree_le: '2026-03-20T15:00:00Z'
+        }),
+      });
+    } else {
+      await route.fallback();
+    }
+  });
+
   // Factures endpoints
   await page.route('**/api/*/vehicles/*/dossiers-reparation/*/factures', async (route) => {
     if (route.request().method() === 'POST') {
