@@ -37,7 +37,7 @@ import { FournisseurSelectorComponent } from '../shared/fournisseur-selector.com
   template: `
     <mat-card>
       <mat-card-header>
-        <mat-card-title>{{ devisLabel ? 'Ajout d\'une facture au ' + devisLabel : (editFacture ? 'Modifier la facture' : 'Nouvelle facture') }}</mat-card-title>
+        <mat-card-title>{{ getFactureFormTitle() }}</mat-card-title>
       </mat-card-header>
       <mat-card-content>
         <div *ngIf="warningNoDevis" class="warning-banner warning-yellow">
@@ -236,6 +236,13 @@ export class FactureFormComponent implements OnInit {
         }
       }
     }
+  }
+
+  getFactureFormTitle(): string {
+    if (this.devisLabel) {
+      return `Ajout d'une facture au ${this.devisLabel}`;
+    }
+    return this.editFacture ? 'Modifier la facture' : 'Nouvelle facture';
   }
 
   removeItem(index: number): void {
