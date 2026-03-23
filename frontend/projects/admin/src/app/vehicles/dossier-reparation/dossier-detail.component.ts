@@ -142,10 +142,10 @@ import { ConfirmCancelDevisDialogComponent } from './confirm-cancel-devis-dialog
                 <mat-icon>edit</mat-icon> Éditer le dossier
               </button>
               <button mat-raised-button color="primary" type="button"
-                *ngIf="dossier.statut === 'ouvert' && hasPendingDevis()"
+                *ngIf="dossier.statut === 'ouvert' && (hasPendingDevis() || hasResendableDevis())"
                 (click)="openBulkApprovalForm()" [disabled]="approvalLoading || bulkApprovalMode"
                 class="action-btn-fixed">
-                <mat-icon>playlist_add_check</mat-icon> Envoyer tout pour approbation
+                <mat-icon>{{ hasPendingDevis() ? 'playlist_add_check' : 'replay' }}</mat-icon> {{ bulkButtonLabel() }}
               </button>
             </div>
             <div class="action-buttons-right">
@@ -922,6 +922,17 @@ export class DossierDetailComponent implements OnInit, OnChanges {
 
   hasPendingDevis(): boolean {
     return !!this.dossier?.devis?.some(d => d.statut === 'en_attente');
+  }
+
+  hasResendableDevis(): boolean {
+    return !!this.dossier?.devis?.some(d => d.statut === 'envoye' || d.statut === 'refuse');
+  }
+
+  bulkButtonLabel(): string {
+    if (this.hasPendingDevis()) {
+      return 'Envoyer le dossier pour approbation';
+    }
+    return 'Renvoyer le dossier pour approbation';
   }
 
   openBulkApprovalForm(): void {
