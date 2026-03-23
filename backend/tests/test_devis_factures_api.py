@@ -291,7 +291,7 @@ class TestCreateFacture:
         assert resp.status_code == 201
         data = resp.json()
         assert data["warning_no_devis"] is True
-        assert data["facture"]["montant_total"] == 520.0
+        assert data["montant_total"] == 520.0
 
     def test_create_facture_with_approved_devis(self):
         """Facture with approved devis and small écart → no warnings."""

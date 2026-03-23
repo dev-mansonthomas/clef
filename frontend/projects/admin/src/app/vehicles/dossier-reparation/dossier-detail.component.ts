@@ -343,18 +343,23 @@ import { ConfirmCancelDevisDialogComponent } from './confirm-cancel-devis-dialog
                 <th>Classification</th>
                 <th class="col-right">Total</th>
                 <th class="col-right">CRF</th>
-                <th>Fichier</th>
               </tr>
             </thead>
             <tbody>
-              <tr *ngFor="let f of dossier.factures">
-                <td>{{ f.date_facture | date:'dd/MM/yyyy' }}</td>
-                <td>{{ f.fournisseur.nom || f.id }}</td>
-                <td class="item-classification">{{ classificationLabel(f.classification) }}</td>
-                <td class="col-right">{{ f.montant_total | number:'1.2-2' }} €</td>
-                <td class="col-right item-montant-crf">CRF: {{ f.montant_crf | number:'1.2-2' }} €</td>
-                <td><a *ngIf="f.fichier" [href]="f.fichier.web_view_link" target="_blank" rel="noopener" class="fichier-link">📎 {{ f.fichier.name }}</a></td>
-              </tr>
+              <ng-container *ngFor="let f of dossier.factures">
+                <tr>
+                  <td>{{ f.date_facture | date:'dd/MM/yyyy' }}</td>
+                  <td>{{ f.fournisseur?.nom || f.id }}</td>
+                  <td class="item-classification">{{ classificationLabel(f.classification) }}</td>
+                  <td class="col-right">{{ f.montant_total | number:'1.2-2' }} €</td>
+                  <td class="col-right item-montant-crf">CRF: {{ f.montant_crf | number:'1.2-2' }} €</td>
+                </tr>
+                <tr *ngIf="f.fichier" class="fichier-row">
+                  <td [attr.colspan]="5" class="fichier-cell">
+                    <a [href]="f.fichier.web_view_link" target="_blank" rel="noopener" class="fichier-link">📎 {{ f.fichier.name }}</a>
+                  </td>
+                </tr>
+              </ng-container>
             </tbody>
           </table>
           <mat-divider></mat-divider>

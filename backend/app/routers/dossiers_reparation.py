@@ -846,7 +846,7 @@ async def create_facture(
     facture = await valkey.add_facture(immat, numero, facture_data)
 
     return FactureResponse(
-        facture=facture,
+        **facture.model_dump(),
         warning_no_devis=warning_no_devis,
         warning_devis_not_approved=warning_devis_not_approved,
         warning_ecart=warning_ecart,

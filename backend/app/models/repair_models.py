@@ -296,9 +296,12 @@ class FactureUpdate(BaseModel):
     montant_crf: Optional[float] = Field(None, gt=0)
 
 
-class FactureResponse(BaseModel):
-    """Response for facture creation with optional warnings."""
-    facture: Facture = Field(..., description="La facture créée")
+class FactureResponse(Facture):
+    """Response for facture creation with optional warnings.
+
+    Extends Facture so all facture fields (including id) are at the top level,
+    matching the frontend FactureCreateResponse interface.
+    """
     warning_no_devis: bool = Field(default=False, description="Aucun devis approuvé trouvé")
     warning_devis_not_approved: bool = Field(default=False, description="Le devis référencé n'est pas approuvé")
     warning_ecart: bool = Field(default=False, description="Écart > 20% entre devis et facture")
