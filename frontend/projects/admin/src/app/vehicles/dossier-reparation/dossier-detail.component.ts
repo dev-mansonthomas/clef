@@ -139,18 +139,9 @@ import { ConfirmCancelDevisDialogComponent } from './confirm-cancel-devis-dialog
               *ngIf="dossier.statut === 'ouvert' && !editingDossier" [disabled]="actionLoading">
               <mat-icon>edit</mat-icon> Éditer le dossier
             </button>
-            <button mat-raised-button type="button" (click)="showDevisForm = true" [disabled]="dossier.statut !== 'ouvert' || showDevisForm">
-              <mat-icon>request_quote</mat-icon> Enregistrer un devis
-            </button>
-            <button mat-raised-button type="button" (click)="showFactureForm = true" [disabled]="dossier.statut !== 'ouvert' || showFactureForm">
-              <mat-icon>receipt</mat-icon> Enregistrer une facture
-            </button>
             <button mat-stroked-button type="button" *ngIf="dossier.statut === 'ouvert'" (click)="updateStatut('cloture')" [disabled]="actionLoading"
               matTooltip="Tous les travaux sont terminés et payés">
               <mat-icon>lock</mat-icon> Clôturer le dossier
-            </button>
-            <button mat-stroked-button type="button" *ngIf="dossier.statut === 'cloture'" (click)="updateStatut('ouvert')" [disabled]="actionLoading">
-              <mat-icon>lock_open</mat-icon> Réouvrir le dossier
             </button>
             <button mat-stroked-button type="button" color="warn" *ngIf="dossier.statut === 'ouvert'" (click)="updateStatut('annule')" [disabled]="actionLoading"
               matTooltip="Les travaux sont annulés ou le dossier doit être refait de zéro">
@@ -160,6 +151,17 @@ import { ConfirmCancelDevisDialogComponent } from './confirm-cancel-devis-dialog
               *ngIf="dossier.statut === 'ouvert' && hasPendingDevis()"
               (click)="openBulkApprovalForm()" [disabled]="approvalLoading || bulkApprovalMode">
               <mat-icon>playlist_add_check</mat-icon> Envoyer tout pour approbation
+            </button>
+            <button mat-stroked-button type="button" *ngIf="dossier.statut === 'cloture'" (click)="updateStatut('ouvert')" [disabled]="actionLoading">
+              <mat-icon>lock_open</mat-icon> Réouvrir le dossier
+            </button>
+          </div>
+          <div class="action-buttons">
+            <button mat-raised-button type="button" (click)="showDevisForm = true" [disabled]="dossier.statut !== 'ouvert' || showDevisForm">
+              <mat-icon>request_quote</mat-icon> Enregistrer un devis
+            </button>
+            <button mat-raised-button type="button" (click)="showFactureForm = true" [disabled]="dossier.statut !== 'ouvert' || showFactureForm">
+              <mat-icon>receipt</mat-icon> Enregistrer une facture
             </button>
           </div>
           <!-- Bulk approval form -->
