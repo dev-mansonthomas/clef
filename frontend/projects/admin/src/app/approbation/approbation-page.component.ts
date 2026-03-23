@@ -104,7 +104,7 @@ import { ApprobationData, SubmitDossierDecisionRequest } from '../models/repair.
         </div>
         <div class="cost-crf-highlight">
           <div class="cost-crf-label">Coût pour la Croix-Rouge</div>
-          <div class="cost-crf-amount">{{ data()!.franchise_applicable ? (data()!.montant_franchise || 350) : 0 | number:'1.2-2' }} €</div>
+          <div class="cost-crf-amount">{{ data()!.franchise_applicable ? data()!.montant_franchise : 0 | number:'1.2-2' }} €</div>
         </div>
         <div class="cost-travaux-secondary">
           Coût total des travaux : {{ totalMontant() | number:'1.2-2' }} €

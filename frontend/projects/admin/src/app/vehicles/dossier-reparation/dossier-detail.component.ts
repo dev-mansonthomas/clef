@@ -17,6 +17,7 @@ import { Observable, startWith, map } from 'rxjs';
 import { RepairService } from '../../services/repair.service';
 import { ValideurService } from '../../services/valideur.service';
 import { ContactCCService } from '../../services/contact-cc.service';
+import { ConfigService } from '../../services/config.service';
 import { DossierReparation, Devis, Facture, FactureCreateResponse, AuditEntry, Valideur, ContactCC } from '../../models/repair.model';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
@@ -306,6 +307,9 @@ import { ConfirmCancelDevisDialogComponent } from './confirm-cancel-devis-dialog
             [editFacture]="editingFacture"
             [inheritedDescriptionItems]="getDevisDescriptionItems()"
             [inheritedDescriptionTravaux]="getDevisDescriptionTravaux()"
+            [estSinistre]="dossier.est_sinistre || false"
+            [franchiseApplicable]="dossier.franchise_applicable || false"
+            [montantFranchise]="montantFranchise"
             (factureCreated)="onFactureCreated($event)" (cancelled)="onFactureCancelled()"></app-facture-form>
 
           <!-- Read-only facture detail view -->
@@ -483,6 +487,7 @@ export class DossierDetailComponent implements OnInit, OnChanges {
   private readonly snackBar = inject(MatSnackBar);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly dialog = inject(MatDialog);
+  private readonly configService = inject(ConfigService);
 
   @ViewChild(MatAutocompleteTrigger) valideurAutoTrigger!: MatAutocompleteTrigger;
 
@@ -521,6 +526,11 @@ export class DossierDetailComponent implements OnInit, OnChanges {
     this.loadHistorique();
     this.loadValideurs();
     this.loadContactsCC();
+    this.configService.getConfig().subscribe({
+      next: (config) => {
+        this.montantFranchise = config.montant_franchise ?? 350;
+      },
+    });
     this.filteredValideurs$ = this.valideurSearchControl.valueChanges.pipe(
       startWith(''),
       map(value => {

@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, inject, ChangeDetectorRef } from '@angular/core';
+import { Component, Input, Output, EventEmitter, inject, ChangeDetectorRef, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, Validators, FormArray, FormControl } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
@@ -10,6 +10,7 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { RepairService } from '../../services/repair.service';
+import { ConfigService } from '../../services/config.service';
 import { DossierReparation } from '../../models/repair.model';
 
 @Component({
@@ -116,7 +117,7 @@ import { DossierReparation } from '../../models/repair.model';
     .franchise-info mat-icon { font-size: 20px; width: 20px; height: 20px; }
   `],
 })
-export class DossierCreateComponent {
+export class DossierCreateComponent implements OnInit {
   @Input() dt!: string;
   @Input() immat!: string;
   @Output() created = new EventEmitter<DossierReparation>();
@@ -124,6 +125,7 @@ export class DossierCreateComponent {
 
   private readonly fb = inject(FormBuilder);
   private readonly repairService = inject(RepairService);
+  private readonly configService = inject(ConfigService);
   private readonly snackBar = inject(MatSnackBar);
   private readonly cdr = inject(ChangeDetectorRef);
 
@@ -138,6 +140,14 @@ export class DossierCreateComponent {
   montantFranchise = 350;
   saving = false;
   submitted = false;
+
+  ngOnInit(): void {
+    this.configService.getConfig().subscribe({
+      next: (config) => {
+        this.montantFranchise = config.montant_franchise ?? 350;
+      },
+    });
+  }
 
   get descriptionItems(): FormArray<FormControl<string>> {
     return this.form.get('descriptionItems') as FormArray<FormControl<string>>;

@@ -162,6 +162,9 @@ export class FactureFormComponent implements OnInit {
   @Input() inheritedDescriptionTravaux: string = '';
   @Input() devisLabel: string | null = null;
   @Input() editFacture: Facture | null = null;
+  @Input() estSinistre: boolean = false;
+  @Input() franchiseApplicable: boolean = false;
+  @Input() montantFranchise: number = 350;
   @Output() factureCreated = new EventEmitter<FactureCreateResponse>();
   @Output() cancelled = new EventEmitter<void>();
 
@@ -233,6 +236,17 @@ export class FactureFormComponent implements OnInit {
         const travaux = devis.description_travaux || devis.description || this.inheritedDescriptionTravaux;
         if (travaux) {
           this.form.patchValue({ description_travaux: travaux });
+        }
+
+        // Pre-fill montant from devis
+        if (devis.montant) {
+          this.form.patchValue({ montant_total: devis.montant });
+          // Calculate montant CRF based on sinistre status
+          if (this.estSinistre) {
+            this.form.patchValue({ montant_crf: this.franchiseApplicable ? this.montantFranchise : 0 });
+          } else {
+            this.form.patchValue({ montant_crf: devis.montant });
+          }
         }
       }
     }
