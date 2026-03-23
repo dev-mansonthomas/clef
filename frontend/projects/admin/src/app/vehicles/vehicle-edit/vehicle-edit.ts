@@ -148,6 +148,22 @@ export class VehicleEdit implements OnInit {
     { type: 'carnet_suivi', label: 'Carnet de suivi', description: 'Visualisation du dossier Drive du carnet de bord.' }
   ];
 
+  private readonly tabNameToIndex: Record<string, number> = {
+    info: 0,
+    reparation: 1,
+    depenses: 2,
+    controle_technique: 3,
+    carnet_suivi: 4,
+  };
+
+  private readonly tabIndexToName: Record<number, string> = {
+    0: 'info',
+    1: 'reparation',
+    2: 'depenses',
+    3: 'controle_technique',
+    4: 'carnet_suivi',
+  };
+
   ngOnInit(): void {
     this.initForm();
     this.loadUnitesLocales();
@@ -160,6 +176,18 @@ export class VehicleEdit implements OnInit {
 
     if (this.vehicleImmat && !this.isCreateMode) {
       this.loadVehicle();
+    }
+
+    // Restore state from query params
+    const queryParams = this.route.snapshot.queryParams;
+    if (queryParams['tab']) {
+      const tabIndex = this.tabNameToIndex[queryParams['tab']];
+      if (tabIndex !== undefined) {
+        this.activeTabIndex = tabIndex;
+      }
+    }
+    if (queryParams['dossier'] && queryParams['tab'] === 'reparation') {
+      this.selectedDossierNumero = queryParams['dossier'];
     }
 
     // Setup auto-calculation of synthetic name
@@ -566,10 +594,30 @@ export class VehicleEdit implements OnInit {
   onDossierSelected(numero: string): void {
     this.selectedDossierNumero = numero;
     this.showDossierCreate = false;
+    this.router.navigate([], {
+      queryParams: { tab: 'reparation', dossier: numero },
+      queryParamsHandling: 'merge',
+      replaceUrl: true,
+    });
   }
 
   onBackToList(): void {
     this.selectedDossierNumero = null;
+    this.router.navigate([], {
+      queryParams: { tab: 'reparation', dossier: null },
+      queryParamsHandling: 'merge',
+      replaceUrl: true,
+    });
+  }
+
+  onTabChange(index: number): void {
+    this.activeTabIndex = index;
+    const tabName = this.tabIndexToName[index] || 'info';
+    this.router.navigate([], {
+      queryParams: { tab: tabName, dossier: tabName === 'reparation' ? this.selectedDossierNumero : null },
+      queryParamsHandling: 'merge',
+      replaceUrl: true,
+    });
   }
 
   onShowDossierCreate(): void {

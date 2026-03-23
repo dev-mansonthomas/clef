@@ -53,6 +53,7 @@ import { ConfirmCancelDevisDialogComponent } from './confirm-cancel-devis-dialog
     <div class="dossier-detail" *ngIf="!loading && dossier">
       <div class="detail-header">
         <button mat-button type="button" (click)="back.emit()"><mat-icon>arrow_back</mat-icon> Retour à la liste</button>
+        <button mat-icon-button type="button" (click)="refreshDossier()" matTooltip="Rafraîchir le dossier"><mat-icon>refresh</mat-icon></button>
       </div>
 
       <mat-card>
@@ -378,7 +379,7 @@ import { ConfirmCancelDevisDialogComponent } from './confirm-cancel-devis-dialog
     </div>
   `,
   styles: [`
-    .detail-header { margin-bottom: 12px; }
+    .detail-header { margin-bottom: 12px; display: flex; align-items: center; gap: 4px; }
     .dossier-header-row { margin-bottom: 8px; }
     .dossier-header-inline { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
     .header-separator { color: rgba(0,0,0,0.38); }
@@ -563,6 +564,11 @@ export class DossierDetailComponent implements OnInit, OnChanges {
       facture_modifiee: 'receipt',
     };
     return icons[action] || 'info';
+  }
+
+  refreshDossier(): void {
+    this.loadDossier();
+    this.loadHistorique();
   }
 
   loadDossier(): void {
