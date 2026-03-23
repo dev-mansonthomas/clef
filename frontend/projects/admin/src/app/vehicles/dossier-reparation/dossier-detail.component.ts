@@ -53,7 +53,6 @@ import { ConfirmCancelDevisDialogComponent } from './confirm-cancel-devis-dialog
     <div class="dossier-detail" *ngIf="!loading && dossier">
       <div class="detail-header">
         <button mat-button type="button" (click)="back.emit()"><mat-icon>arrow_back</mat-icon> Retour à la liste</button>
-        <button mat-icon-button type="button" (click)="refreshDossier()" matTooltip="Rafraîchir le dossier"><mat-icon>refresh</mat-icon></button>
       </div>
 
       <mat-card>
@@ -160,6 +159,9 @@ import { ConfirmCancelDevisDialogComponent } from './confirm-cancel-devis-dialog
               </button>
               <button mat-stroked-button type="button" *ngIf="dossier.statut === 'cloture'" (click)="updateStatut('ouvert')" [disabled]="actionLoading">
                 <mat-icon>lock_open</mat-icon> Réouvrir le dossier
+              </button>
+              <button mat-icon-button type="button" (click)="refreshDossier()" title="Rafraîchir" [disabled]="loading">
+                <mat-icon>refresh</mat-icon>
               </button>
             </div>
           </div>
