@@ -86,7 +86,7 @@ import { FournisseurSelectorComponent } from '../shared/fournisseur-selector.com
           <mat-form-field appearance="outline" class="full-width">
             <mat-label>Description des travaux</mat-label>
             <textarea matInput formControlName="description_travaux" rows="3"></textarea>
-            <mat-error *ngIf="form.get('description_travaux')?.hasError('required')">La description est requise</mat-error>
+
           </mat-form-field>
 
           <mat-form-field appearance="outline" class="full-width">
@@ -192,7 +192,7 @@ export class FactureFormComponent implements OnInit {
   form = this.fb.group({
     date_facture: [new Date(), Validators.required],
     classification: ['', Validators.required],
-    description_travaux: ['', Validators.required],
+    description_travaux: [''],
     montant_total: [null as number | null, [Validators.required, Validators.min(0)]],
     montant_crf: [null as number | null, [Validators.required, Validators.min(0)]],
     devis_id: [null as string | null],
