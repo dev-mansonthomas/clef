@@ -224,12 +224,6 @@
       </div>
     </form>
 
-    <!-- API Keys Manager -->
-    <app-api-keys-manager
-      level="dt"
-      [syncUrl]="syncUrl()"
-    ></app-api-keys-manager>
-
     <!-- Fournisseurs Manager -->
     <div class="form-section">
       <h2>Fournisseurs</h2>
@@ -247,6 +241,12 @@
       <h2>Contacts en copie (CC)</h2>
       <app-contacts-cc-manager [dt]="dt" [niveau]="'dt'"></app-contacts-cc-manager>
     </div>
+
+    <!-- API Keys Manager -->
+    <app-api-keys-manager
+      level="dt"
+      [syncUrl]="syncUrl()"
+    ></app-api-keys-manager>
   </div>
 </div>
 
