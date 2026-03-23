@@ -265,15 +265,28 @@ CLEF - Gestion de flotte Croix-Rouge"""
         """Build HTML section showing cost info for approval emails."""
         if total_devis <= 0:
             return ""
-        html = f"""<table style="border-collapse: collapse; margin: 10px 0; width: 100%;">
-<tr><td style="padding: 10px; border: 1px solid #ddd; background: #f5f5f5;"><strong>Coût des travaux</strong></td>
-    <td style="padding: 10px; border: 1px solid #ddd; font-weight: bold;">{total_devis:.2f} €</td></tr>"""
+
         if est_sinistre:
             cout_crf = montant_franchise if franchise_applicable else 0
-            html += f"""
-<tr><td style="padding: 10px; border: 1px solid #ddd; background: #f5f5f5;"><strong>Coût pour la Croix-Rouge</strong></td>
-    <td style="padding: 10px; border: 1px solid #ddd; font-weight: bold; color: #d32f2f;">{cout_crf:.2f} €</td></tr>"""
-        html += "\n</table>"
+            html = f"""
+<table style="border-collapse: collapse; margin: 16px 0; width: 100%;">
+<tr>
+  <td colspan="2" style="padding: 16px; background: #e8f5e9; border: 2px solid #2e7d32; border-radius: 8px; text-align: center;">
+    <div style="font-size: 13px; color: #2e7d32; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px;">Coût pour la Croix-Rouge</div>
+    <div style="font-size: 28px; font-weight: 700; color: #2e7d32; margin: 4px 0;">{cout_crf:.2f} €</div>
+  </td>
+</tr>
+<tr>
+  <td style="padding: 8px 10px; color: #666; font-size: 13px;">Coût total des travaux</td>
+  <td style="padding: 8px 10px; color: #666; font-size: 13px; text-align: right;">{total_devis:.2f} €</td>
+</tr>
+</table>"""
+        else:
+            html = f"""
+<table style="border-collapse: collapse; margin: 10px 0; width: 100%;">
+<tr><td style="padding: 10px; border: 1px solid #ddd; background: #f5f5f5;"><strong>Coût des travaux</strong></td>
+    <td style="padding: 10px; border: 1px solid #ddd; font-weight: bold;">{total_devis:.2f} €</td></tr>
+</table>"""
         return html
 
 

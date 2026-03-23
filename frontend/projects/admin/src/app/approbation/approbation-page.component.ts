@@ -93,11 +93,16 @@ import { ApprobationData, SubmitDossierDecisionRequest } from '../models/repair.
       }
 
       <div class="total-row">
-        <strong>Coût des travaux : {{ totalMontant() | number:'1.2-2' }} €</strong>
         @if (data()!.est_sinistre) {
-        <div class="cost-sinistre">
-          Coût pour la Croix-Rouge : {{ data()!.franchise_applicable ? (data()!.montant_franchise || 350) : 0 | number:'1.2-2' }} €
+        <div class="cost-crf-highlight">
+          <div class="cost-crf-label">Coût pour la Croix-Rouge</div>
+          <div class="cost-crf-amount">{{ data()!.franchise_applicable ? (data()!.montant_franchise || 350) : 0 | number:'1.2-2' }} €</div>
         </div>
+        <div class="cost-travaux-secondary">
+          Coût total des travaux : {{ totalMontant() | number:'1.2-2' }} €
+        </div>
+        } @else {
+        <strong>Coût des travaux : {{ totalMontant() | number:'1.2-2' }} €</strong>
         }
       </div>
 
@@ -160,7 +165,10 @@ import { ApprobationData, SubmitDossierDecisionRequest } from '../models/repair.
     .decision-section { margin: 24px 0; }
     .decision-section mat-radio-button { display: block; margin: 8px 0; }
     .total-row { text-align: right; font-size: 18px; margin: 16px 0; padding: 12px; background: #f5f5f5; border-radius: 8px; }
-    .cost-sinistre { font-size: 16px; color: #1565c0; margin-top: 4px; }
+    .cost-crf-highlight { background: #e8f5e9; border: 2px solid #2e7d32; border-radius: 8px; padding: 16px; margin-bottom: 8px; text-align: center; }
+    .cost-crf-label { font-size: 14px; color: #2e7d32; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; }
+    .cost-crf-amount { font-size: 32px; font-weight: 700; color: #2e7d32; }
+    .cost-travaux-secondary { font-size: 14px; color: rgba(0,0,0,0.54); }
     .comment-field { width: 100%; margin: 16px 0; }
     .submit-btn { width: 100%; padding: 12px; font-size: 16px; }
     .devis-refused { opacity: 0.6; border-left: 4px solid #c62828; }
