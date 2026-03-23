@@ -12,6 +12,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatAutocompleteModule, MatAutocompleteTrigger } from '@angular/material/autocomplete';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { Observable, startWith, map } from 'rxjs';
 import { RepairService } from '../../services/repair.service';
 import { ValideurService } from '../../services/valideur.service';
@@ -44,6 +45,7 @@ import { ConfirmCancelDevisDialogComponent } from './confirm-cancel-devis-dialog
     MatAutocompleteModule,
     MatCheckboxModule,
     MatSlideToggleModule,
+    MatTooltipModule,
     DevisFormComponent,
     FactureFormComponent,
   ],
@@ -143,13 +145,15 @@ import { ConfirmCancelDevisDialogComponent } from './confirm-cancel-devis-dialog
             <button mat-raised-button type="button" (click)="showFactureForm = true" [disabled]="dossier.statut !== 'ouvert' || showFactureForm">
               <mat-icon>receipt</mat-icon> Enregistrer une facture
             </button>
-            <button mat-stroked-button type="button" *ngIf="dossier.statut === 'ouvert'" (click)="updateStatut('cloture')" [disabled]="actionLoading">
+            <button mat-stroked-button type="button" *ngIf="dossier.statut === 'ouvert'" (click)="updateStatut('cloture')" [disabled]="actionLoading"
+              matTooltip="Tous les travaux sont terminés et payés">
               <mat-icon>lock</mat-icon> Clôturer le dossier
             </button>
             <button mat-stroked-button type="button" *ngIf="dossier.statut === 'cloture'" (click)="updateStatut('ouvert')" [disabled]="actionLoading">
               <mat-icon>lock_open</mat-icon> Réouvrir le dossier
             </button>
-            <button mat-stroked-button type="button" color="warn" *ngIf="dossier.statut === 'ouvert'" (click)="updateStatut('annule')" [disabled]="actionLoading">
+            <button mat-stroked-button type="button" color="warn" *ngIf="dossier.statut === 'ouvert'" (click)="updateStatut('annule')" [disabled]="actionLoading"
+              matTooltip="Les travaux sont annulés ou le dossier doit être refait de zéro">
               <mat-icon>cancel</mat-icon> Annuler le dossier
             </button>
             <button mat-raised-button color="primary" type="button"
@@ -200,51 +204,53 @@ import { ConfirmCancelDevisDialogComponent } from './confirm-cancel-devis-dialog
                 <th>Fournisseur</th>
                 <th class="col-right">Montant</th>
                 <th>Statut</th>
-                <th>Fichier</th>
                 <th class="col-actions">Actions</th>
               </tr>
             </thead>
             <tbody>
-              <tr *ngFor="let d of dossier.devis" [class.devis-annule-row]="d.statut === 'annule'">
-                <td class="col-numero">Devis {{ padId(d.id) }}</td>
-                <td>{{ d.date_devis | date:'dd/MM/yyyy' }}</td>
-                <td>{{ d.fournisseur.nom || d.id }}</td>
-                <td class="col-right">{{ d.montant | number:'1.2-2' }} €</td>
-                <td><span class="devis-statut-badge" [ngClass]="'devis-statut-' + d.statut">{{ devisStatutLabel(d.statut) }}</span></td>
-                <td>
-                  <a *ngIf="d.fichier" [href]="d.fichier.web_view_link" target="_blank" rel="noopener" class="fichier-link">📎 {{ d.fichier.name }}</a>
-                </td>
-                <td class="col-actions">
-                  <div class="action-cell">
-                    <button type="button" mat-icon-button *ngIf="(d.statut === 'en_attente' || d.statut === 'refuse') && dossier.statut === 'ouvert'"
-                      (click)="startEditDevis(d)" [disabled]="!!editingDevis" title="Modifier">
-                      <mat-icon>edit</mat-icon>
-                    </button>
-                    <button type="button" mat-stroked-button *ngIf="d.statut === 'en_attente' && dossier.statut === 'ouvert'"
-                      (click)="openApprovalForm(d)" [disabled]="approvalLoading" class="approval-btn">
-                      <mat-icon>send</mat-icon> Envoyer pour approbation
-                    </button>
-                    <button type="button" mat-stroked-button *ngIf="(d.statut === 'envoye' || d.statut === 'refuse') && dossier.statut === 'ouvert'"
-                      (click)="confirmResend(d)" [disabled]="approvalLoading" class="approval-btn">
-                      <mat-icon>replay</mat-icon> Renvoyer pour approbation
-                    </button>
-                    <button type="button" mat-stroked-button *ngIf="d.statut === 'approuve' && dossier.statut === 'ouvert' && !getFactureForDevis(d.id)"
-                      (click)="createFactureForDevis(d)" class="add-facture-btn">
-                      <mat-icon>receipt</mat-icon> Ajouter facture
-                    </button>
-                    <button type="button" mat-stroked-button *ngIf="getFactureForDevis(d.id)"
-                      (click)="viewFactureForDevis(d)" class="add-facture-btn">
-                      <mat-icon>visibility</mat-icon> Voir Facture
-                    </button>
-                    <!-- Cancel button — ALWAYS far right, RED -->
-                    <button type="button" mat-icon-button *ngIf="d.statut !== 'annule' && dossier.statut === 'ouvert'"
-                      (click)="annulerDevis(d)" [disabled]="actionLoading"
-                      title="Annuler le devis" class="cancel-devis-btn">
-                      <mat-icon>cancel</mat-icon>
-                    </button>
-                  </div>
-                </td>
-              </tr>
+              <ng-container *ngFor="let d of dossier.devis">
+                <tr [class.devis-annule-row]="d.statut === 'annule'">
+                  <td class="col-numero">Devis {{ padId(d.id) }}</td>
+                  <td>{{ d.date_devis | date:'dd/MM/yyyy' }}</td>
+                  <td>{{ d.fournisseur.nom || d.id }}</td>
+                  <td class="col-right">{{ d.montant | number:'1.2-2' }} €</td>
+                  <td><span class="devis-statut-badge" [ngClass]="'devis-statut-' + d.statut">{{ devisStatutLabel(d.statut) }}</span></td>
+                  <td class="col-actions">
+                    <div class="action-cell">
+                      <button type="button" mat-icon-button *ngIf="(d.statut === 'en_attente' || d.statut === 'refuse') && dossier.statut === 'ouvert'"
+                        (click)="startEditDevis(d)" [disabled]="!!editingDevis" title="Modifier">
+                        <mat-icon>edit</mat-icon>
+                      </button>
+                      <button type="button" mat-stroked-button *ngIf="d.statut === 'en_attente' && dossier.statut === 'ouvert'"
+                        (click)="openApprovalForm(d)" [disabled]="approvalLoading" class="approval-btn">
+                        <mat-icon>send</mat-icon> Envoyer pour approbation
+                      </button>
+                      <button type="button" mat-stroked-button *ngIf="(d.statut === 'envoye' || d.statut === 'refuse') && dossier.statut === 'ouvert'"
+                        (click)="confirmResend(d)" [disabled]="approvalLoading" class="approval-btn">
+                        <mat-icon>replay</mat-icon> Renvoyer pour approbation
+                      </button>
+                      <button type="button" mat-stroked-button *ngIf="d.statut === 'approuve' && dossier.statut === 'ouvert' && !getFactureForDevis(d.id)"
+                        (click)="createFactureForDevis(d)" class="add-facture-btn">
+                        <mat-icon>receipt</mat-icon> Ajouter facture
+                      </button>
+                      <button type="button" mat-stroked-button *ngIf="getFactureForDevis(d.id)"
+                        (click)="viewFactureForDevis(d)" class="add-facture-btn">
+                        <mat-icon>visibility</mat-icon> Voir Facture
+                      </button>
+                      <button type="button" mat-icon-button *ngIf="d.statut !== 'annule' && dossier.statut === 'ouvert'"
+                        (click)="annulerDevis(d)" [disabled]="actionLoading"
+                        title="Annuler le devis" class="cancel-devis-btn">
+                        <mat-icon>cancel</mat-icon>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+                <tr *ngIf="d.fichier" class="fichier-row" [class.devis-annule-row]="d.statut === 'annule'">
+                  <td [attr.colspan]="6" class="fichier-cell">
+                    <a [href]="d.fichier.web_view_link" target="_blank" rel="noopener" class="fichier-link">📎 {{ d.fichier.name }}</a>
+                  </td>
+                </tr>
+              </ng-container>
             </tbody>
           </table>
           <!-- Inline approval form -->
@@ -341,9 +347,11 @@ import { ConfirmCancelDevisDialogComponent } from './confirm-cancel-devis-dialog
             <div class="timeline-entry" *ngFor="let entry of historique">
               <mat-icon [ngClass]="'timeline-icon timeline-icon-' + entry.action"
                 >{{ actionIcon(entry.action) }}</mat-icon>
-              <div class="timeline-content">
+              <div class="timeline-content-compact">
                 <span class="timeline-date">{{ entry.date | date:'dd/MM/yyyy HH:mm' }}</span>
+                <span class="timeline-separator">·</span>
                 <span class="timeline-details">{{ entry.details }}</span>
+                <span class="timeline-separator">·</span>
                 <span class="timeline-auteur">par {{ entry.auteur }}</span>
               </div>
             </div>
@@ -395,6 +403,8 @@ import { ConfirmCancelDevisDialogComponent } from './confirm-cancel-devis-dialog
     .devis-statut-annule { background: #eeeeee; color: #616161; }
     .fichier-link { color: #1565c0; text-decoration: none; font-size: 13px; white-space: nowrap; }
     .fichier-link:hover { text-decoration: underline; }
+    .fichier-row td { border-bottom: 1px solid rgba(0,0,0,0.08); padding: 0 12px 8px; }
+    .fichier-cell { font-size: 13px; }
 
     .approval-btn { }
     .add-facture-btn { font-size: 12px; }
@@ -404,9 +414,9 @@ import { ConfirmCancelDevisDialogComponent } from './confirm-cancel-devis-dialog
     .cc-checkboxes { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; width: 100%; padding: 4px 0; }
     .cc-label { font-size: 13px; font-weight: 500; color: rgba(0,0,0,0.6); }
     .timeline { margin: 8px 0 16px; }
-    .timeline-entry { display: flex; gap: 12px; align-items: flex-start; padding: 8px 0; border-left: 2px solid rgba(0,0,0,0.12); margin-left: 12px; padding-left: 16px; position: relative; }
-    .timeline-entry::before { content: ''; position: absolute; left: -5px; top: 12px; width: 8px; height: 8px; border-radius: 50%; background: #bdbdbd; }
-    .timeline-icon { font-size: 20px; width: 20px; height: 20px; flex-shrink: 0; }
+    .timeline-entry { display: flex; gap: 8px; align-items: center; padding: 4px 0; border-left: 2px solid rgba(0,0,0,0.12); margin-left: 12px; padding-left: 16px; position: relative; }
+    .timeline-entry::before { content: ''; position: absolute; left: -5px; top: 50%; transform: translateY(-50%); width: 8px; height: 8px; border-radius: 50%; background: #bdbdbd; }
+    .timeline-icon { font-size: 18px; width: 18px; height: 18px; flex-shrink: 0; }
     .timeline-icon-creation { color: #2e7d32; }
     .timeline-icon-cloture { color: #757575; }
     .timeline-icon-reouverture { color: #1565c0; }
@@ -419,10 +429,11 @@ import { ConfirmCancelDevisDialogComponent } from './confirm-cancel-devis-dialog
     .timeline-icon-devis_refuse, .timeline-icon-devis_annule { color: #c62828; }
     .timeline-icon-facture_ajoutee, .timeline-icon-facture_modifiee { color: #1565c0; }
     .timeline-icon-modification { color: #1565c0; }
-    .timeline-content { display: flex; flex-direction: column; gap: 2px; }
-    .timeline-date { font-size: 12px; color: rgba(0,0,0,0.54); }
-    .timeline-details { font-size: 14px; }
-    .timeline-auteur { font-size: 12px; color: rgba(0,0,0,0.54); }
+    .timeline-content-compact { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 13px; }
+    .timeline-date { color: rgba(0,0,0,0.54); white-space: nowrap; }
+    .timeline-separator { color: rgba(0,0,0,0.3); }
+    .timeline-details { font-weight: 500; }
+    .timeline-auteur { color: rgba(0,0,0,0.54); }
     .col-numero { white-space: nowrap; font-weight: 500; }
     .facture-detail-view { margin: 12px 0; }
     .facture-detail-view p { margin: 4px 0; }
