@@ -64,7 +64,7 @@ import { ConfirmCancelDevisDialogComponent } from './confirm-cancel-devis-dialog
               <span class="header-titre">{{ dossier.titre }}</span>
             </ng-container>
             <span class="header-separator">·</span>
-            <span class="header-date">Créé le {{ dossier.cree_le | date:'dd/MM/yyyy HH:mm' }}</span>
+            <span class="header-date">Créé le {{ dossier.cree_le | date:'dd/MM/yyyy HH:mm':'Europe/Paris' }}</span>
             <span class="header-separator">·</span>
             <span class="statut-badge" [ngClass]="'statut-' + dossier.statut">{{ statutLabel(dossier.statut) }}</span>
           </mat-card-title>
@@ -358,7 +358,7 @@ import { ConfirmCancelDevisDialogComponent } from './confirm-cancel-devis-dialog
               <mat-icon [ngClass]="'timeline-icon timeline-icon-' + entry.action"
                 >{{ actionIcon(entry.action) }}</mat-icon>
               <div class="timeline-content-compact">
-                <span class="timeline-date">{{ entry.date | date:'dd/MM/yyyy HH:mm' }}</span>
+                <span class="timeline-date">{{ entry.date | date:'dd/MM/yyyy HH:mm':'Europe/Paris' }}</span>
                 <span class="timeline-separator">·</span>
                 <span class="timeline-details">{{ entry.details }}</span>
                 <span class="timeline-separator">·</span>
@@ -569,7 +569,13 @@ export class DossierDetailComponent implements OnInit, OnChanges {
     if (!this.dt || !this.immat || !this.numero) return;
     this.loading = true;
     this.repairService.getDossier(this.dt, this.immat, this.numero).subscribe({
-      next: (d) => { this.dossier = d; this.loading = false; this.cdr.detectChanges(); },
+      next: (d) => {
+        this.dossier = d;
+        this.loading = false;
+        // Use setTimeout to avoid ExpressionChangedAfterItHasBeenCheckedError
+        // when loadDossier is called from within a change detection cycle
+        setTimeout(() => this.cdr.detectChanges());
+      },
       error: () => {
         this.snackBar.open('Erreur lors du chargement du dossier', 'Fermer', { duration: 5000 });
         this.loading = false;
