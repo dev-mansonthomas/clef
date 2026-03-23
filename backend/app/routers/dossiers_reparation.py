@@ -150,6 +150,20 @@ async def update_dossier(
             action = ActionHistorique.MODIFICATION
             details = "Commentaire modifié"
 
+    if body.est_sinistre is not None:
+        dossier.est_sinistre = body.est_sinistre
+        updated = True
+        if action is None:
+            action = ActionHistorique.MODIFICATION
+            details = "Sinistre modifié"
+
+    if body.franchise_applicable is not None:
+        dossier.franchise_applicable = body.franchise_applicable
+        updated = True
+        if action is None:
+            action = ActionHistorique.MODIFICATION
+            details = "Franchise modifiée"
+
     if body.statut is not None and body.statut != dossier.statut:
         old_statut = dossier.statut
         dossier.statut = body.statut

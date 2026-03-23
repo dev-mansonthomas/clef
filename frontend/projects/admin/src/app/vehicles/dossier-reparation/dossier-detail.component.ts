@@ -67,18 +67,61 @@ import { ConfirmCancelDevisDialogComponent } from './confirm-cancel-devis-dialog
         </mat-card-header>
         <mat-card-content>
 
-          <h4>Description</h4>
-          <ul class="description-list" *ngIf="dossier.description.length">
-            <li *ngFor="let item of dossier.description">{{ item }}</li>
-          </ul>
-          <p class="empty-section" *ngIf="!dossier.description.length">Aucune description.</p>
-          <div *ngIf="dossier.commentaire" class="commentaire-block">
-            <strong>Commentaire :</strong> {{ dossier.commentaire }}
+          <ng-container *ngIf="!editingDossier">
+            <h4>Description</h4>
+            <ul class="description-list" *ngIf="dossier.description.length">
+              <li *ngFor="let item of dossier.description">{{ item }}</li>
+            </ul>
+            <p class="empty-section" *ngIf="!dossier.description.length">Aucune description.</p>
+            <div *ngIf="dossier.commentaire" class="commentaire-block">
+              <strong>Commentaire :</strong> {{ dossier.commentaire }}
+            </div>
+            <div *ngIf="dossier.est_sinistre" class="sinistre-info">
+              <mat-icon class="sinistre-icon">warning</mat-icon>
+              <span>Sinistre</span>
+              <span *ngIf="dossier.franchise_applicable"> · Franchise applicable</span>
+            </div>
+          </ng-container>
+
+          <div *ngIf="editingDossier && editForm" class="edit-form">
+            <h4>Modifier le dossier</h4>
+            <mat-form-field appearance="outline">
+              <mat-label>Titre</mat-label>
+              <input matInput [(ngModel)]="editForm.titre" maxlength="50" placeholder="Titre du dossier">
+            </mat-form-field>
+            <h4>Description</h4>
+            <div *ngFor="let item of editForm.descriptionItems; let i = index; trackBy: trackByIndex" class="description-item-row">
+              <mat-form-field appearance="outline">
+                <input matInput [(ngModel)]="editForm.descriptionItems[i]" placeholder="Élément de description">
+              </mat-form-field>
+              <button mat-icon-button type="button" (click)="removeEditDescriptionItem(i)" [disabled]="editForm.descriptionItems.length <= 1" title="Supprimer">
+                <mat-icon>remove_circle_outline</mat-icon>
+              </button>
+            </div>
+            <button mat-button type="button" (click)="addEditDescriptionItem()">
+              <mat-icon>add</mat-icon> Ajouter un élément
+            </button>
+            <mat-form-field appearance="outline">
+              <mat-label>Commentaire</mat-label>
+              <textarea matInput [(ngModel)]="editForm.commentaire" rows="3" placeholder="Commentaire libre"></textarea>
+            </mat-form-field>
+            <div class="sinistre-section">
+              <mat-checkbox [(ngModel)]="editForm.est_sinistre">Est-ce dans le cadre d'un sinistre ?</mat-checkbox>
+              <mat-checkbox *ngIf="editForm.est_sinistre" [(ngModel)]="editForm.franchise_applicable">Devez-vous payer la franchise ?</mat-checkbox>
+            </div>
+            <div class="edit-actions">
+              <button mat-raised-button color="primary" type="button" (click)="saveEditDossier()" [disabled]="actionLoading">Enregistrer</button>
+              <button mat-button type="button" (click)="cancelEditDossier()">Annuler</button>
+            </div>
           </div>
 
           <mat-divider></mat-divider>
 
           <div class="action-buttons">
+            <button mat-raised-button type="button" (click)="startEditDossier()"
+              *ngIf="dossier.statut === 'ouvert' && !editingDossier" [disabled]="actionLoading">
+              <mat-icon>edit</mat-icon> Éditer le dossier
+            </button>
             <button mat-raised-button type="button" (click)="showDevisForm = true" [disabled]="dossier.statut !== 'ouvert' || showDevisForm">
               <mat-icon>request_quote</mat-icon> Enregistrer un devis
             </button>
@@ -369,6 +412,14 @@ import { ConfirmCancelDevisDialogComponent } from './confirm-cancel-devis-dialog
     .facture-detail-view { margin: 12px 0; }
     .facture-detail-view p { margin: 4px 0; }
     .form-actions { display: flex; gap: 8px; justify-content: flex-end; }
+    .edit-form { padding: 12px 0; }
+    .edit-form mat-form-field { width: 100%; margin-bottom: 8px; }
+    .description-item-row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+    .description-item-row mat-form-field { flex: 1; }
+    .sinistre-section { display: flex; align-items: center; gap: 16px; padding: 8px 0; }
+    .sinistre-info { display: flex; align-items: center; gap: 8px; padding: 8px 0; color: #e65100; font-weight: 500; }
+    .sinistre-icon { font-size: 20px; width: 20px; height: 20px; }
+    .edit-actions { display: flex; gap: 8px; padding: 8px 0; }
   `],
 })
 export class DossierDetailComponent implements OnInit, OnChanges {
@@ -403,6 +454,8 @@ export class DossierDetailComponent implements OnInit, OnChanges {
   factureDevisLabel: string | null = null;
   editingFacture: Facture | null = null;
   viewingFacture: Facture | null = null;
+  editingDossier = false;
+  editForm: { titre: string; descriptionItems: string[]; commentaire: string; est_sinistre: boolean; franchise_applicable: boolean } | null = null;
 
   // Valideur selector
   valideurSearchControl = new FormControl('');
@@ -593,6 +646,68 @@ export class DossierDetailComponent implements OnInit, OnChanges {
   padId(id: string): string {
     return id.padStart(2, '0');
   }
+
+  startEditDossier(): void {
+    if (!this.dossier) return;
+    this.editForm = {
+      titre: this.dossier.titre || '',
+      descriptionItems: this.dossier.description.length ? [...this.dossier.description] : [''],
+      commentaire: this.dossier.commentaire || '',
+      est_sinistre: !!this.dossier.est_sinistre,
+      franchise_applicable: !!this.dossier.franchise_applicable,
+    };
+    this.editingDossier = true;
+  }
+
+  cancelEditDossier(): void {
+    this.editingDossier = false;
+    this.editForm = null;
+  }
+
+  addEditDescriptionItem(): void {
+    if (this.editForm) this.editForm.descriptionItems.push('');
+  }
+
+  removeEditDescriptionItem(index: number): void {
+    if (this.editForm && this.editForm.descriptionItems.length > 1) {
+      this.editForm.descriptionItems.splice(index, 1);
+    }
+  }
+
+  saveEditDossier(): void {
+    if (!this.dossier || !this.editForm) return;
+    const items = this.editForm.descriptionItems.map(i => i.trim()).filter(i => i.length > 0);
+    if (items.length === 0) {
+      this.snackBar.open('Au moins un élément de description est requis', 'Fermer', { duration: 3000 });
+      return;
+    }
+    this.actionLoading = true;
+    const body: any = {
+      titre: this.editForm.titre.trim() || null,
+      description: items,
+      commentaire: this.editForm.commentaire.trim() || null,
+      est_sinistre: this.editForm.est_sinistre,
+      franchise_applicable: this.editForm.est_sinistre && this.editForm.franchise_applicable,
+    };
+    this.repairService.updateDossier(this.dt, this.immat, this.dossier.numero, body).subscribe({
+      next: (d) => {
+        this.dossier = d;
+        this.actionLoading = false;
+        this.editingDossier = false;
+        this.editForm = null;
+        this.snackBar.open('Dossier mis à jour', 'Fermer', { duration: 3000 });
+        this.cdr.detectChanges();
+        this.loadHistorique();
+      },
+      error: () => {
+        this.actionLoading = false;
+        this.snackBar.open('Erreur lors de la mise à jour', 'Fermer', { duration: 5000 });
+        this.cdr.detectChanges();
+      },
+    });
+  }
+
+  trackByIndex(index: number): number { return index; }
 
 
 

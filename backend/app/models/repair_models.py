@@ -189,11 +189,13 @@ class DossierReparationCreate(BaseModel):
 
 
 class DossierReparationUpdate(BaseModel):
-    """Request body for updating a dossier de réparation (description, close, reopen, cancel)."""
+    """Request body for updating a dossier de réparation."""
     titre: Optional[str] = Field(None, max_length=50, description="Titre du dossier")
     description: Optional[List[str]] = Field(None, description="Nouvelle description (liste d'items)")
     commentaire: Optional[str] = Field(None, description="Commentaire libre")
     statut: Optional[StatutDossier] = Field(None, description="Nouveau statut (cloture, ouvert, annule)")
+    est_sinistre: Optional[bool] = Field(None, description="Est-ce dans le cadre d'un sinistre ?")
+    franchise_applicable: Optional[bool] = Field(None, description="Franchise applicable ?")
 
 
 class DossierReparationListResponse(BaseModel):

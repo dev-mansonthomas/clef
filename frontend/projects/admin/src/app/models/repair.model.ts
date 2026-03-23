@@ -125,6 +125,8 @@ export interface UpdateDossierRequest {
   statut?: 'ouvert' | 'cloture' | 'annule';
   description?: string[];
   commentaire?: string;
+  est_sinistre?: boolean;
+  franchise_applicable?: boolean;
 }
 
 export interface CreateDevisRequest {
