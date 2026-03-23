@@ -94,6 +94,14 @@ import { ApprobationData, SubmitDossierDecisionRequest } from '../models/repair.
 
       <div class="total-row">
         @if (data()!.est_sinistre) {
+        <div class="sinistre-label">
+          <mat-icon>warning</mat-icon>
+          @if (data()!.franchise_applicable) {
+            Sinistre — Responsable (franchise à payer)
+          } @else {
+            Sinistre — Non Responsable
+          }
+        </div>
         <div class="cost-crf-highlight">
           <div class="cost-crf-label">Coût pour la Croix-Rouge</div>
           <div class="cost-crf-amount">{{ data()!.franchise_applicable ? (data()!.montant_franchise || 350) : 0 | number:'1.2-2' }} €</div>
@@ -165,6 +173,8 @@ import { ApprobationData, SubmitDossierDecisionRequest } from '../models/repair.
     .decision-section { margin: 24px 0; }
     .decision-section mat-radio-button { display: block; margin: 8px 0; }
     .total-row { text-align: right; font-size: 18px; margin: 16px 0; padding: 12px; background: #f5f5f5; border-radius: 8px; }
+    .sinistre-label { display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 600; color: #e65100; margin-bottom: 8px; }
+    .sinistre-label mat-icon { color: #e65100; }
     .cost-crf-highlight { background: #e8f5e9; border: 2px solid #2e7d32; border-radius: 8px; padding: 16px; margin-bottom: 8px; text-align: center; }
     .cost-crf-label { font-size: 14px; color: #2e7d32; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; }
     .cost-crf-amount { font-size: 32px; font-weight: 700; color: #2e7d32; }

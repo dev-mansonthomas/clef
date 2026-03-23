@@ -268,8 +268,12 @@ CLEF - Gestion de flotte Croix-Rouge"""
 
         if est_sinistre:
             cout_crf = montant_franchise if franchise_applicable else 0
+            sinistre_label = "Sinistre — Responsable (franchise à payer)" if franchise_applicable else "Sinistre — Non Responsable"
             html = f"""
-<table style="border-collapse: collapse; margin: 16px 0; width: 100%;">
+<div style="display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 600; color: #e65100; margin: 16px 0 8px;">
+  ⚠️ {sinistre_label}
+</div>
+<table style="border-collapse: collapse; margin: 0 0 16px; width: 100%;">
 <tr>
   <td colspan="2" style="padding: 16px; background: #e8f5e9; border: 2px solid #2e7d32; border-radius: 8px; text-align: center;">
     <div style="font-size: 13px; color: #2e7d32; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px;">Coût pour la Croix-Rouge</div>
