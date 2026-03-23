@@ -134,33 +134,41 @@ import { ConfirmCancelDevisDialogComponent } from './confirm-cancel-devis-dialog
 
           <mat-divider></mat-divider>
 
-          <div class="action-buttons">
-            <button mat-raised-button type="button" (click)="startEditDossier()"
-              *ngIf="dossier.statut === 'ouvert' && !editingDossier" [disabled]="actionLoading">
-              <mat-icon>edit</mat-icon> Éditer le dossier
-            </button>
-            <button mat-stroked-button type="button" *ngIf="dossier.statut === 'ouvert'" (click)="updateStatut('cloture')" [disabled]="actionLoading"
-              matTooltip="Tous les travaux sont terminés et payés">
-              <mat-icon>lock</mat-icon> Clôturer le dossier
-            </button>
-            <button mat-stroked-button type="button" color="warn" *ngIf="dossier.statut === 'ouvert'" (click)="updateStatut('annule')" [disabled]="actionLoading"
-              matTooltip="Les travaux sont annulés ou le dossier doit être refait de zéro">
-              <mat-icon>cancel</mat-icon> Annuler le dossier
-            </button>
-            <button mat-raised-button color="primary" type="button"
-              *ngIf="dossier.statut === 'ouvert' && hasPendingDevis()"
-              (click)="openBulkApprovalForm()" [disabled]="approvalLoading || bulkApprovalMode">
-              <mat-icon>playlist_add_check</mat-icon> Envoyer tout pour approbation
-            </button>
-            <button mat-stroked-button type="button" *ngIf="dossier.statut === 'cloture'" (click)="updateStatut('ouvert')" [disabled]="actionLoading">
-              <mat-icon>lock_open</mat-icon> Réouvrir le dossier
-            </button>
+          <div class="action-buttons-row">
+            <div class="action-buttons-left">
+              <button mat-raised-button type="button" (click)="startEditDossier()"
+                *ngIf="dossier.statut === 'ouvert' && !editingDossier" [disabled]="actionLoading"
+                class="action-btn-fixed">
+                <mat-icon>edit</mat-icon> Éditer le dossier
+              </button>
+              <button mat-raised-button color="primary" type="button"
+                *ngIf="dossier.statut === 'ouvert' && hasPendingDevis()"
+                (click)="openBulkApprovalForm()" [disabled]="approvalLoading || bulkApprovalMode"
+                class="action-btn-fixed">
+                <mat-icon>playlist_add_check</mat-icon> Envoyer tout pour approbation
+              </button>
+            </div>
+            <div class="action-buttons-right">
+              <button mat-stroked-button type="button" *ngIf="dossier.statut === 'ouvert'" (click)="updateStatut('cloture')" [disabled]="actionLoading"
+                matTooltip="Tous les travaux sont terminés et payés">
+                <mat-icon>lock</mat-icon> Clôturer le dossier
+              </button>
+              <button mat-stroked-button type="button" color="warn" *ngIf="dossier.statut === 'ouvert'" (click)="updateStatut('annule')" [disabled]="actionLoading"
+                matTooltip="Les travaux sont annulés ou le dossier doit être refait de zéro">
+                <mat-icon>cancel</mat-icon> Annuler le dossier
+              </button>
+              <button mat-stroked-button type="button" *ngIf="dossier.statut === 'cloture'" (click)="updateStatut('ouvert')" [disabled]="actionLoading">
+                <mat-icon>lock_open</mat-icon> Réouvrir le dossier
+              </button>
+            </div>
           </div>
           <div class="action-buttons">
-            <button mat-raised-button type="button" (click)="showDevisForm = true" [disabled]="dossier.statut !== 'ouvert' || showDevisForm">
+            <button mat-raised-button type="button" (click)="showDevisForm = true" [disabled]="dossier.statut !== 'ouvert' || showDevisForm"
+              class="action-btn-fixed">
               <mat-icon>request_quote</mat-icon> Enregistrer un devis
             </button>
-            <button mat-raised-button type="button" (click)="showFactureForm = true" [disabled]="dossier.statut !== 'ouvert' || showFactureForm">
+            <button mat-raised-button type="button" (click)="showFactureForm = true" [disabled]="dossier.statut !== 'ouvert' || showFactureForm"
+              class="action-btn-fixed">
               <mat-icon>receipt</mat-icon> Enregistrer une facture
             </button>
           </div>
@@ -384,6 +392,10 @@ import { ConfirmCancelDevisDialogComponent } from './confirm-cancel-devis-dialog
     .description-list li { margin-bottom: 4px; }
     .commentaire-block { margin: 8px 0 16px; padding: 8px 12px; background: #f5f5f5; border-radius: 4px; font-style: italic; }
     .action-buttons { display: flex; gap: 12px; margin: 16px 0; flex-wrap: wrap; }
+    .action-buttons-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 16px 0 8px; flex-wrap: wrap; }
+    .action-buttons-left { display: flex; gap: 12px; flex-wrap: wrap; }
+    .action-buttons-right { display: flex; gap: 12px; flex-wrap: wrap; }
+    .action-btn-fixed { min-width: 260px; }
     .empty-section { color: rgba(0,0,0,0.54); font-style: italic; }
     .loading-container { display: flex; align-items: center; gap: 12px; padding: 24px 0; }
     h4 { margin: 16px 0 8px; font-weight: 500; }
