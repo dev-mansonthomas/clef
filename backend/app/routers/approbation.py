@@ -96,6 +96,10 @@ async def get_approbation_data(token: str) -> DossierApprobationDataResponse:
     if not dossier:
         raise HTTPException(status_code=404, detail="Dossier not found")
 
+    # Get franchise config
+    config = await valkey.get_configuration()
+    montant_franchise = config.montant_franchise if config else 350.0
+
     # Fetch all devis referenced in the token
     devis_list = []
     for did in devis_ids:
@@ -118,6 +122,9 @@ async def get_approbation_data(token: str) -> DossierApprobationDataResponse:
         status=token_data["status"],
         created_at=token_data["created_at"],
         expires_at=token_data["expires_at"],
+        est_sinistre=dossier.est_sinistre,
+        franchise_applicable=dossier.franchise_applicable,
+        montant_franchise=montant_franchise,
     )
 
 

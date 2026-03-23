@@ -333,6 +333,9 @@ class ApprobationDataResponse(BaseModel):
     status: str = Field(..., description="Statut du token: pending, approuve, refuse")
     created_at: str = Field(..., description="Date de création du token")
     expires_at: str = Field(..., description="Date d'expiration du token")
+    est_sinistre: bool = Field(default=False, description="Est-ce dans le cadre d'un sinistre ?")
+    franchise_applicable: bool = Field(default=False, description="Franchise applicable ?")
+    montant_franchise: float = Field(default=350.0, description="Montant de la franchise en euros")
 
 
 class SubmitDecisionRequest(BaseModel):
@@ -376,6 +379,9 @@ class DossierApprobationDataResponse(BaseModel):
     status: str
     created_at: str
     expires_at: str
+    est_sinistre: bool = Field(default=False, description="Est-ce dans le cadre d'un sinistre ?")
+    franchise_applicable: bool = Field(default=False, description="Franchise applicable ?")
+    montant_franchise: float = Field(default=350.0, description="Montant de la franchise en euros")
 
 
 class DevisDecisionItem(BaseModel):
