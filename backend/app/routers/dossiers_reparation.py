@@ -491,20 +491,29 @@ async def send_bulk_approval(
 
     _check_dossier_open(dossier)
 
-    # Find all devis with statut en_attente
-    pending_devis = [d for d in dossier.devis if d.statut == StatutDevis.EN_ATTENTE]
-    if not pending_devis:
+    # Find all devis eligible for (re)sending: en_attente, envoye, or refuse
+    eligible_devis = [d for d in dossier.devis if d.statut in (StatutDevis.EN_ATTENTE, StatutDevis.ENVOYE, StatutDevis.REFUSE)]
+    if not eligible_devis:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Aucun devis en attente d'approbation",
+            detail="Aucun devis éligible pour approbation",
         )
+
+    # Determine if this is a resend (at least one devis already sent)
+    is_resend = any(d.statut in (StatutDevis.ENVOYE, StatutDevis.REFUSE) for d in eligible_devis)
 
     import os
     frontend_url = os.getenv("FRONTEND_URL", "http://localhost:4200")
     approval_svc = ApprovalService(redis_client=valkey.redis, dt=dt)
 
-    # Create ONE dossier-level approval token covering all pending devis
-    devis_ids = [d.id for d in pending_devis]
+    # Invalidate old approval tokens if re-sending
+    if is_resend:
+        for d in eligible_devis:
+            if d.token_approbation:
+                await approval_svc.invalidate_token(d.token_approbation)
+
+    # Create ONE dossier-level approval token covering all eligible devis
+    devis_ids = [d.id for d in eligible_devis]
     token_data = await approval_svc.create_dossier_approval_token(
         immat=immat,
         numero_dossier=numero,
@@ -515,7 +524,7 @@ async def send_bulk_approval(
     approval_url = f"{frontend_url}/approbation/{dossier_token}"
 
     devis_dicts = []
-    for devis in pending_devis:
+    for devis in eligible_devis:
         devis_dicts.append(devis.model_dump(mode="json"))
 
         # Update devis status to "envoye" with the SAME token
@@ -548,23 +557,29 @@ async def send_bulk_approval(
     )
 
     # Add historique entry
+    action = ActionHistorique.DOSSIER_ENVOYE_APPROBATION
+    details_msg = f"{len(eligible_devis)} devis envoyés pour approbation groupée à {body.valideur_email}"
+    if is_resend:
+        details_msg = f"{len(eligible_devis)} devis renvoyés pour approbation groupée à {body.valideur_email}"
+
     key = f"{valkey.dt}:vehicules:{immat}:travaux:{numero}"
     await valkey.add_historique_entry(
         immat=immat,
         numero=numero,
         entry=HistoriqueEntry(
             auteur=current_user.email,
-            action=ActionHistorique.DOSSIER_ENVOYE_APPROBATION,
-            details=f"{len(pending_devis)} devis envoyés pour approbation groupée à {body.valideur_email}",
+            action=action,
+            details=details_msg,
             ref=key,
         ),
     )
 
+    msg = f"{len(eligible_devis)} devis renvoyés pour approbation" if is_resend else f"{len(eligible_devis)} devis envoyés pour approbation"
     return BulkApprovalResponse(
-        count=len(pending_devis),
+        count=len(eligible_devis),
         token=dossier_token,
         valideur_email=body.valideur_email,
-        message=f"{len(pending_devis)} devis envoyés pour approbation",
+        message=msg,
     )
 
 
