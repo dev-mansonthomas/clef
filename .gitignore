@@ -161,3 +161,8 @@ Référentiel*.csv
 # (chemin codé en dur dans le binaire, non configurable)
 # ============================================
 .claude/worktrees/
+
+# ============================================
+# Rapports des outils git de l'hôte (git-pr-merge, git-check)
+# ============================================
+debug/
