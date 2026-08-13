@@ -6,21 +6,21 @@ build-backend = "setuptools.build_meta"
 name = "clef-backend"
 version = "0.1.0"
 description = "FastAPI backend for Clef project"
-requires-python = ">=3.13"
+requires-python = ">=3.14"
 dependencies = [
-    "fastapi>=0.115.0",
-    "uvicorn[standard]>=0.32.0",
-    "pydantic>=2.9.0",
-    "pydantic-settings>=2.6.0",
+    "fastapi>=0.141.0",
+    "uvicorn[standard]>=0.52.0",
+    "pydantic>=2.13.0",
+    "pydantic-settings>=2.15.0",
     "redis>=5.2.0",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=8.3.0",
-    "pytest-asyncio>=0.24.0",
-    "httpx>=0.27.0",
-    "fakeredis[json]>=2.26.0",
+    "pytest>=9.1.0",
+    "pytest-asyncio>=1.4.0",
+    "httpx>=0.28.0",
+    "fakeredis[json]>=2.37.0",
 ]
 
 [tool.setuptools.packages.find]
@@ -30,4 +30,8 @@ include = ["app*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+markers = [
+    "integration: exige un serveur Redis joignable via REDIS_URL (skip sinon)",
+]
 
