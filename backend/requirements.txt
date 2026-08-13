@@ -35,6 +35,8 @@ icalendar==6.1.0
 # Testing
 pytest==8.3.4
 pytest-asyncio==0.24.0
-fakeredis==2.26.2
+# extra [json] requis : le code utilise JSON.SET/JSON.GET (RedisJSON).
+# Sans jsonpath-ng, fakeredis répond "unknown command `json.set`" → 56 tests en échec.
+fakeredis[json]==2.26.2
 httpx==0.27.2
 
