@@ -49,6 +49,18 @@
             <span matListItemTitle>Administration DT</span>
           </a>
         }
+        @if (isUlResponsable(user)) {
+          <a mat-list-item routerLink="/configuration-ul" routerLinkActive="active">
+            <mat-icon matListItemIcon>tune</mat-icon>
+            <span matListItemTitle>Configuration UL</span>
+          </a>
+        }
+        @if (isSuperAdmin(user)) {
+          <a mat-list-item routerLink="/super-admin" routerLinkActive="active">
+            <mat-icon matListItemIcon>shield_person</mat-icon>
+            <span matListItemTitle>Super Admin</span>
+          </a>
+        }
       }
     </mat-nav-list>
   </mat-sidenav>
@@ -64,7 +76,12 @@
         <h1 class="app-title">Admin</h1>
       </div>
       <div class="header-right">
-        <button mat-icon-button (click)="toggleTutorial()" matTooltip="Aide à la configuration">
+        <button
+          mat-icon-button
+          (click)="toggleTutorial()"
+          matTooltip="Aide à la configuration"
+          aria-label="Aide à la configuration"
+        >
           <mat-icon>help_outline</mat-icon>
         </button>
         @if (currentUser$ | async; as user) {

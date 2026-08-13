@@ -1,5 +1,10 @@
+import { provideHttpClient } from '@angular/common/http';
+import {
+  HttpTestingController,
+  provideHttpClientTesting,
+} from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import { HttpClientTestingModule, HttpTestingController } from '@angular/common/http/testing';
+
 import { QrCodeService } from './qr-code.service';
 
 describe('QrCodeService', () => {
@@ -8,8 +13,11 @@ describe('QrCodeService', () => {
 
   beforeEach(() => {
     TestBed.configureTestingModule({
-      imports: [HttpClientTestingModule],
-      providers: [QrCodeService]
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        QrCodeService,
+      ],
     });
     service = TestBed.inject(QrCodeService);
     httpMock = TestBed.inject(HttpTestingController);
@@ -23,14 +31,18 @@ describe('QrCodeService', () => {
     expect(service).toBeTruthy();
   });
 
-  it('should generate QR code URL for a vehicle', (done) => {
-    const nomSynthetique = 'VSAV-TEST-01';
-    
-    service.generateQrCodeUrl(nomSynthetique).subscribe(url => {
-      expect(url).toContain('/vehicle/');
-      expect(url).toContain('https://');
-      done();
+  it('should generate QR code URL for a vehicle', () => {
+    // `generateQrCodeUrl` n'appelle pas le backend : il construit l'URL et émet
+    // de façon synchrone. Le `done()` de la version Jasmine était donc inutile
+    // autant qu'incompatible avec le runner.
+    let emitted: string | undefined;
+    service.generateQrCodeUrl('VSAV-TEST-01').subscribe((url) => {
+      emitted = url;
     });
+
+    expect(emitted).toBeDefined();
+    expect(emitted).toContain('https://');
+    expect(emitted).toContain('/vehicle/');
   });
 
   it('should get QR config from backend', () => {
@@ -40,16 +52,18 @@ describe('QrCodeService', () => {
       sheets_url_responsables: 'https://docs.google.com/spreadsheets/test',
       template_doc_url: 'https://docs.google.com/document/test',
       email_destinataire_alertes: 'test@example.com',
-      email_gestionnaire_dt: 'manager@example.com'
+      email_gestionnaire_dt: 'manager@example.com',
     };
 
-    service.getQrConfig().subscribe(config => {
-      expect(config).toEqual(mockConfig);
+    let received: unknown;
+    service.getQrConfig().subscribe((config) => {
+      received = config;
     });
 
     const req = httpMock.expectOne('/api/config');
     expect(req.request.method).toBe('GET');
     req.flush(mockConfig);
+
+    expect(received).toEqual(mockConfig);
   });
 });
-

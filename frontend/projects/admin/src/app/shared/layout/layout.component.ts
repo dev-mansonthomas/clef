@@ -99,5 +99,26 @@ export class LayoutComponent implements OnInit {
   isDTManager(user: any): boolean {
     return this.authService.isDTManager(user);
   }
+
+  /**
+   * Check if user is a super admin.
+   *
+   * La route `/super-admin` existe et est gardée par `superAdminGuard`, mais
+   * aucun lien de navigation ne la desservait : elle n'était atteignable qu'en
+   * saisissant l'URL. Le contrôle d'accès reste porté par le guard.
+   */
+  isSuperAdmin(user: any): boolean {
+    return this.authService.isSuperAdmin(user);
+  }
+
+  /**
+   * Check if user is a UL responsable.
+   *
+   * Même constat que `isSuperAdmin` pour la route `/configuration-ul`, gardée
+   * par `ulResponsableGuard`.
+   */
+  isUlResponsable(user: any): boolean {
+    return this.authService.isUlResponsable(user);
+  }
 }
 
