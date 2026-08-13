@@ -1,7 +1,7 @@
 # Production Dockerfile for CLEF Frontend
 # Multi-stage build for both admin and form apps
 
-FROM node:22-alpine AS builder
+FROM node:24-alpine AS builder
 
 # Set working directory
 WORKDIR /app
