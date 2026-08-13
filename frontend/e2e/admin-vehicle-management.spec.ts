@@ -18,7 +18,11 @@ test.describe('Admin - Vehicle Management', () => {
 
     // Should redirect to dashboard after authentication
     await expect(page).toHaveURL(/.*dashboard/);
-    await expect(page.locator('h1')).toContainText('Tableau de bord');
+    // Le gabarit rend deux `h1` : le titre applicatif de la barre d'en-tête
+    // (« Admin ») et celui de la page. `locator('h1')` violait donc le mode strict.
+    await expect(
+      page.getByRole('heading', { level: 1, name: 'Tableau de bord' }),
+    ).toBeVisible();
 
     // Navigate to vehicles list
     await page.click('a[routerlink="/vehicles"]');
@@ -31,17 +35,23 @@ test.describe('Admin - Vehicle Management', () => {
     await expect(page.locator('table')).toBeVisible();
     
     // Check that mock vehicles are displayed
-    await expect(page.locator('text=VL75-01')).toBeVisible();
-    await expect(page.locator('text=VL75-02')).toBeVisible();
-    await expect(page.locator('text=Renault')).toBeVisible();
-    await expect(page.locator('text=Peugeot')).toBeVisible();
+    await expect(page.locator('text=VL75-01').first()).toBeVisible();
+    await expect(page.locator('text=VL75-02').first()).toBeVisible();
+    await expect(page.locator('text=Renault').first()).toBeVisible();
+    await expect(page.locator('text=Peugeot').first()).toBeVisible();
 
     // Click on first vehicle row to edit
     await page.click('table tbody tr:first-child');
 
-    // Should navigate to edit page
+    // Should navigate to edit page.
+    // Le gabarit rend `<h1>Véhicule : {{ nom_synthetique }}</h1>`
+    // (vehicle-edit.html:3) : il n'y a aucun `h2`, et aucun libellé « Édition du
+    // véhicule ». On atteste l'en-tête réel, ce qui vérifie du même coup qu'on
+    // édite bien le véhicule cliqué.
     await expect(page).toHaveURL(/.*vehicles\/.*\/edit/);
-    await expect(page.locator('h2')).toContainText('Édition du véhicule');
+    await expect(
+      page.getByRole('heading', { level: 1, name: 'Véhicule : VL75-01-KANGOO' }),
+    ).toBeVisible();
 
     // Verify form is populated with vehicle data
     await expect(page.locator('input[formcontrolname="immat"]')).toHaveValue('AB-123-CD');
@@ -108,7 +118,7 @@ test.describe('Admin - Vehicle Management', () => {
       await searchInput.fill('VL75-01');
 
       // Should show only matching vehicle
-      await expect(page.locator('text=VL75-01')).toBeVisible();
+      await expect(page.locator('text=VL75-01').first()).toBeVisible();
       await expect(page.locator('text=VL75-02')).not.toBeVisible();
     }
   });
@@ -119,14 +129,15 @@ test.describe('Admin - Vehicle Management', () => {
     // Wait for vehicles to load
     await page.waitForSelector('table');
 
-    // Check status indicators
-    // VL75-01 should have green status (CT valid)
+    // Check status indicators. Chaque ligne porte plusieurs pastilles (CT,
+    // pollution, disponibilité) : on atteste la présence d'au moins une pastille
+    // de la couleur attendue, pas son unicité.
     const firstRow = page.locator('table tbody tr:first-child');
-    await expect(firstRow.locator('.status-green')).toBeVisible();
+    await expect(firstRow.locator('.status-green').first()).toBeVisible();
 
     // VL75-02 should have orange status (CT < 2 months)
     const secondRow = page.locator('table tbody tr:nth-child(2)');
-    await expect(secondRow.locator('.status-orange')).toBeVisible();
+    await expect(secondRow.locator('.status-orange').first()).toBeVisible();
   });
 });
 

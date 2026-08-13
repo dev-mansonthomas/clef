@@ -65,7 +65,11 @@ export async function setupApiMocks(page: Page) {
     });
   });
 
-  await page.route('**/api/calendar/reservations', async (route) => {
+  // ⚠️ La route réelle porte le segment `{dt}` : `/api/calendar/{dt}/reservations`
+  // (calendar.service.ts:36). Avec `**/api/calendar/reservations`, le mock ne
+  // correspondait jamais et le calendrier restait vide — même classe de bug que
+  // pour l'import de véhicules.
+  await page.route('**/api/calendar/*/reservations**', async (route) => {
     if (route.request().method() === 'POST') {
       await route.fulfill({
         status: 201,
@@ -79,13 +83,16 @@ export async function setupApiMocks(page: Page) {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({ reservations: mockReservations }),
+        body: JSON.stringify({ count: mockReservations.length, reservations: mockReservations }),
       });
     }
   });
 
-  // Mock carnet de bord endpoints
-  await page.route('**/api/carnet-bord/prise', async (route) => {
+  // Mock carnet de bord endpoints.
+  // ⚠️ Le préfixe réel est `/api/carnet-de-bord` — avec le « de » — côté backend
+  // (routers/carnet_bord.py:18) comme côté service (carnet-bord.service.ts:16).
+  // Les motifs `**/api/carnet-bord/*` ne correspondaient donc jamais.
+  await page.route('**/api/carnet-de-bord/prise', async (route) => {
     await route.fulfill({
       status: 201,
       contentType: 'application/json',
@@ -96,7 +103,7 @@ export async function setupApiMocks(page: Page) {
     });
   });
 
-  await page.route('**/api/carnet-bord/retour', async (route) => {
+  await page.route('**/api/carnet-de-bord/retour', async (route) => {
     await route.fulfill({
       status: 201,
       contentType: 'application/json',
@@ -122,8 +129,13 @@ export async function setupApiMocks(page: Page) {
     });
   });
 
-  // Mock vehicle import endpoint
-  await page.route('**/api/vehicles/import', async (route) => {
+  // Mock vehicle import endpoint.
+  // ⚠️ La route réelle est `/api/{dt}/import/vehicles`
+  // (vehicle-import.service.ts:122), et non `/api/vehicles/import`. Avec l'ancien
+  // motif, le mock ne correspondait jamais : la requête partait vers le proxy du
+  // serveur de dev, échouait en `ENOTFOUND backend`, et l'app affichait
+  // « Erreur lors de l'import » — ce que le test prenait pour un succès manqué.
+  await page.route('**/api/*/import/vehicles', async (route) => {
     if (route.request().method() === 'POST') {
       await route.fulfill({
         status: 200,
