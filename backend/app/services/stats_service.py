@@ -2,9 +2,9 @@
 import logging
 from datetime import datetime, date, timedelta
 from typing import Dict, Any, List, Optional
-from app.services.valkey_service import ValkeyService
-from app.models.valkey_models import VehicleData
-from app.models.reservation import ValkeyReservation
+from app.services.redis_service import RedisService
+from app.models.redis_models import VehicleData
+from app.models.reservation import RedisReservation
 
 logger = logging.getLogger(__name__)
 
@@ -15,21 +15,21 @@ class StatsService:
     ALERT_THRESHOLD_DAYS = 60  # 2 months
     
     @staticmethod
-    async def get_dashboard_stats(valkey_service: ValkeyService) -> Dict[str, Any]:
+    async def get_dashboard_stats(redis_service: RedisService) -> Dict[str, Any]:
         """
         Calculate dashboard statistics for vehicles.
         
         Args:
-            valkey_service: Valkey service instance
+            redis_service: Redis service instance
             
         Returns:
             Dictionary with statistics
         """
         # Get all vehicles
-        vehicle_immats = await valkey_service.list_vehicles()
+        vehicle_immats = await redis_service.list_vehicles()
         vehicles: List[VehicleData] = []
         for immat in vehicle_immats:
-            vehicle_data = await valkey_service.get_vehicle(immat)
+            vehicle_data = await redis_service.get_vehicle(immat)
             if vehicle_data:
                 vehicles.append(vehicle_data)
         
@@ -40,14 +40,14 @@ class StatsService:
         now = datetime.now()
         
         # Get all reservations
-        all_reservation_ids = await valkey_service.redis.smembers(
-            valkey_service._key("reservations", "index")
+        all_reservation_ids = await redis_service.redis.smembers(
+            redis_service._key("reservations", "index")
         )
         
         # Check which vehicles are currently reserved
         reserved_immats = set()
         for res_id in all_reservation_ids:
-            reservation_data = await valkey_service.get_reservation(res_id)
+            reservation_data = await redis_service.get_reservation(res_id)
             if reservation_data:
                 # Check if reservation is active now
                 if reservation_data.debut <= now <= reservation_data.fin:

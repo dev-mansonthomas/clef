@@ -1,7 +1,7 @@
 """Cache service for calendar ID persistence.
 
-DEPRECATED: Bénévoles and responsables are now stored in Valkey with DT prefixes.
-Use ValkeyService for benevoles/responsables operations.
+DEPRECATED: Bénévoles and responsables are now stored in Redis with DT prefixes.
+Use RedisService for benevoles/responsables operations.
 This service only maintains calendar ID persistence for backward compatibility.
 """
 import logging
@@ -17,7 +17,7 @@ class CacheService:
     Service for managing calendar ID persistence.
 
     DEPRECATED: Bénévoles and responsables methods have been removed.
-    Use ValkeyService for benevoles/responsables operations.
+    Use RedisService for benevoles/responsables operations.
 
     Handles:
     - Calendar ID persistence (still needed for Google Calendar integration)

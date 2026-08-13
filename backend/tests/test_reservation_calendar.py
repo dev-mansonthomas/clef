@@ -6,14 +6,14 @@ from unittest.mock import patch, AsyncMock, MagicMock
 
 os.environ["USE_MOCKS"] = "true"
 
-from app.services.valkey_service import ValkeyService
-from app.models.reservation import ValkeyReservationCreate
-from app.models.valkey_models import VehicleData
+from app.services.redis_service import RedisService
+from app.models.reservation import RedisReservationCreate
+from app.models.redis_models import VehicleData
 
 
 @pytest.fixture
-async def valkey_service():
-    """Create a ValkeyService instance for testing."""
+async def redis_service():
+    """Create a RedisService instance for testing."""
     from redis.asyncio import Redis
     from unittest.mock import AsyncMock
 
@@ -26,7 +26,7 @@ async def valkey_service():
     redis_mock.smembers = AsyncMock(return_value=set())
     redis_mock.delete = AsyncMock()
 
-    service = ValkeyService(redis_client=redis_mock, dt="DT75")
+    service = RedisService(redis_client=redis_mock, dt="DT75")
     return service
 
 
@@ -34,10 +34,10 @@ class TestReservationCalendarIntegration:
     """Test reservation-calendar integration."""
     
     @pytest.mark.asyncio
-    async def test_create_reservation_creates_calendar_event(self, valkey_service):
+    async def test_create_reservation_creates_calendar_event(self, redis_service):
         """When calendar is configured, creating reservation creates event."""
         # Mock configuration with calendar_id
-        valkey_service.redis.json().get.return_value = {
+        redis_service.redis.json().get.return_value = {
             "calendar_id": "cal-123@group.calendar.google.com"
         }
         
@@ -57,8 +57,8 @@ class TestReservationCalendarIntegration:
             lieu_stationnement="Garage UL"
         )
         
-        with patch.object(valkey_service, 'get_vehicle', new_callable=AsyncMock) as mock_get_vehicle:
-            with patch('app.services.valkey_service._get_calendar_service') as mock_get_cal_service:
+        with patch.object(redis_service, 'get_vehicle', new_callable=AsyncMock) as mock_get_vehicle:
+            with patch('app.services.redis_service._get_calendar_service') as mock_get_cal_service:
                 mock_get_vehicle.return_value = vehicle_mock
                 
                 mock_calendar = AsyncMock()
@@ -69,10 +69,10 @@ class TestReservationCalendarIntegration:
                 mock_get_cal_service.return_value = mock_calendar
                 
                 # Mock overlap check
-                with patch.object(valkey_service, 'check_reservation_overlap', new_callable=AsyncMock) as mock_overlap:
+                with patch.object(redis_service, 'check_reservation_overlap', new_callable=AsyncMock) as mock_overlap:
                     mock_overlap.return_value = []
                     
-                    reservation_data = ValkeyReservationCreate(
+                    reservation_data = RedisReservationCreate(
                         vehicule_immat="AB-123-CD",
                         chauffeur_nivol="123456",
                         chauffeur_nom="Jean DUPONT",
@@ -81,7 +81,7 @@ class TestReservationCalendarIntegration:
                         fin=datetime.now() + timedelta(hours=2),
                     )
                     
-                    result = await valkey_service.create_reservation(
+                    result = await redis_service.create_reservation(
                         reservation_data=reservation_data,
                         created_by="test@croix-rouge.fr"
                     )
@@ -91,15 +91,15 @@ class TestReservationCalendarIntegration:
                     mock_calendar.create_event.assert_called_once()
     
     @pytest.mark.asyncio
-    async def test_create_reservation_without_calendar(self, valkey_service):
+    async def test_create_reservation_without_calendar(self, redis_service):
         """When no calendar configured, reservation still created."""
         # Mock configuration without calendar_id
-        valkey_service.redis.json().get.return_value = {}
+        redis_service.redis.json().get.return_value = {}
         
-        with patch.object(valkey_service, 'check_reservation_overlap', new_callable=AsyncMock) as mock_overlap:
+        with patch.object(redis_service, 'check_reservation_overlap', new_callable=AsyncMock) as mock_overlap:
             mock_overlap.return_value = []
             
-            reservation_data = ValkeyReservationCreate(
+            reservation_data = RedisReservationCreate(
                 vehicule_immat="AB-123-CD",
                 chauffeur_nivol="123456",
                 chauffeur_nom="Jean DUPONT",
@@ -108,7 +108,7 @@ class TestReservationCalendarIntegration:
                 fin=datetime.now() + timedelta(hours=2),
             )
             
-            result = await valkey_service.create_reservation(
+            result = await redis_service.create_reservation(
                 reservation_data=reservation_data,
                 created_by="test@croix-rouge.fr"
             )
@@ -118,12 +118,12 @@ class TestReservationCalendarIntegration:
             assert result.id is not None
 
     @pytest.mark.asyncio
-    async def test_update_reservation_updates_calendar_event(self, valkey_service):
+    async def test_update_reservation_updates_calendar_event(self, redis_service):
         """When reservation has calendar event, updating reservation updates event."""
-        from app.models.reservation import ValkeyReservation
+        from app.models.reservation import RedisReservation
 
         # Mock existing reservation with calendar event
-        existing_reservation = ValkeyReservation(
+        existing_reservation = RedisReservation(
             id="res-123",
             vehicule_immat="AB-123-CD",
             chauffeur_nivol="123456",
@@ -138,13 +138,13 @@ class TestReservationCalendarIntegration:
         )
 
         # Mock configuration with calendar_id
-        valkey_service.redis.json().get.return_value = {
+        redis_service.redis.json().get.return_value = {
             "calendar_id": "cal-123@group.calendar.google.com"
         }
 
-        with patch.object(valkey_service, 'get_reservation', new_callable=AsyncMock) as mock_get_res:
-            with patch.object(valkey_service, 'check_reservation_overlap', new_callable=AsyncMock) as mock_overlap:
-                with patch('app.services.valkey_service._get_calendar_service') as mock_get_cal_service:
+        with patch.object(redis_service, 'get_reservation', new_callable=AsyncMock) as mock_get_res:
+            with patch.object(redis_service, 'check_reservation_overlap', new_callable=AsyncMock) as mock_overlap:
+                with patch('app.services.redis_service._get_calendar_service') as mock_get_cal_service:
                     mock_get_res.return_value = existing_reservation
                     mock_overlap.return_value = []
 
@@ -153,7 +153,7 @@ class TestReservationCalendarIntegration:
                     mock_get_cal_service.return_value = mock_calendar
 
                     # Update with new mission
-                    updated_data = ValkeyReservationCreate(
+                    updated_data = RedisReservationCreate(
                         vehicule_immat="AB-123-CD",
                         chauffeur_nivol="123456",
                         chauffeur_nom="Jean DUPONT",
@@ -162,7 +162,7 @@ class TestReservationCalendarIntegration:
                         fin=existing_reservation.fin,
                     )
 
-                    result = await valkey_service.update_reservation(
+                    result = await redis_service.update_reservation(
                         reservation_id="res-123",
                         reservation_data=updated_data
                     )
@@ -171,12 +171,12 @@ class TestReservationCalendarIntegration:
                     mock_calendar.update_event.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_delete_reservation_deletes_calendar_event(self, valkey_service):
+    async def test_delete_reservation_deletes_calendar_event(self, redis_service):
         """When reservation has calendar event, deleting reservation deletes event."""
-        from app.models.reservation import ValkeyReservation
+        from app.models.reservation import RedisReservation
 
         # Mock existing reservation with calendar event
-        existing_reservation = ValkeyReservation(
+        existing_reservation = RedisReservation(
             id="res-123",
             vehicule_immat="AB-123-CD",
             chauffeur_nivol="123456",
@@ -191,19 +191,19 @@ class TestReservationCalendarIntegration:
         )
 
         # Mock configuration with calendar_id
-        valkey_service.redis.json().get.return_value = {
+        redis_service.redis.json().get.return_value = {
             "calendar_id": "cal-123@group.calendar.google.com"
         }
 
-        with patch.object(valkey_service, 'get_reservation', new_callable=AsyncMock) as mock_get_res:
-            with patch('app.services.valkey_service._get_calendar_service') as mock_get_cal_service:
+        with patch.object(redis_service, 'get_reservation', new_callable=AsyncMock) as mock_get_res:
+            with patch('app.services.redis_service._get_calendar_service') as mock_get_cal_service:
                 mock_get_res.return_value = existing_reservation
 
                 mock_calendar = AsyncMock()
                 mock_calendar.delete_event = AsyncMock(return_value=True)
                 mock_get_cal_service.return_value = mock_calendar
 
-                result = await valkey_service.delete_reservation("res-123")
+                result = await redis_service.delete_reservation("res-123")
 
                 assert result is True
                 mock_calendar.delete_event.assert_called_once_with(

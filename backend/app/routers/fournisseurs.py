@@ -13,8 +13,8 @@ from app.models.repair_models import (
 )
 from app.auth.models import User
 from app.auth.dependencies import require_authenticated_user
-from app.services.valkey_service import ValkeyService
-from app.services.valkey_dependencies import get_valkey_service
+from app.services.redis_service import RedisService
+from app.services.redis_dependencies import get_redis_service
 
 router = APIRouter(
     prefix="/api/{dt}/fournisseurs",
@@ -50,11 +50,11 @@ def _check_can_manage(user: User, niveau: NiveauFournisseur, ul_id: str | None) 
 async def list_fournisseurs(
     dt: str,
     current_user: User = Depends(require_authenticated_user),
-    valkey_service: ValkeyService = Depends(get_valkey_service),
+    redis_service: RedisService = Depends(get_redis_service),
 ) -> FournisseurListResponse:
     """List suppliers visible to the current user (DT + user's UL combined)."""
     ul_id = current_user.ul if current_user.role != "Gestionnaire DT" else None
-    fournisseurs = await valkey_service.list_fournisseurs(ul_id=ul_id)
+    fournisseurs = await redis_service.list_fournisseurs(ul_id=ul_id)
     return FournisseurListResponse(count=len(fournisseurs), fournisseurs=fournisseurs)
 
 
@@ -63,7 +63,7 @@ async def create_fournisseur(
     dt: str,
     body: FournisseurCreate,
     current_user: User = Depends(require_authenticated_user),
-    valkey_service: ValkeyService = Depends(get_valkey_service),
+    redis_service: RedisService = Depends(get_redis_service),
 ) -> Fournisseur:
     """Add a new supplier."""
     # Validate UL-level requires ul_id
@@ -94,7 +94,7 @@ async def create_fournisseur(
         cree_le=datetime.utcnow(),
     )
 
-    success = await valkey_service.set_fournisseur(fournisseur)
+    success = await redis_service.set_fournisseur(fournisseur)
     if not success:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -109,13 +109,13 @@ async def update_fournisseur(
     fournisseur_id: str,
     body: FournisseurUpdate,
     current_user: User = Depends(require_authenticated_user),
-    valkey_service: ValkeyService = Depends(get_valkey_service),
+    redis_service: RedisService = Depends(get_redis_service),
 ) -> Fournisseur:
     """Update a supplier."""
     # Try DT-level first, then UL-level with user's UL
-    fournisseur = await valkey_service.get_fournisseur(fournisseur_id)
+    fournisseur = await redis_service.get_fournisseur(fournisseur_id)
     if not fournisseur and current_user.ul:
-        fournisseur = await valkey_service.get_fournisseur(fournisseur_id, ul_id=current_user.ul)
+        fournisseur = await redis_service.get_fournisseur(fournisseur_id, ul_id=current_user.ul)
     if not fournisseur:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -129,7 +129,7 @@ async def update_fournisseur(
     for field, value in update_data.items():
         setattr(fournisseur, field, value)
 
-    success = await valkey_service.set_fournisseur(fournisseur)
+    success = await redis_service.set_fournisseur(fournisseur)
     if not success:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

@@ -14,7 +14,7 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app.auth import routes as auth_routes
 from app.auth.config import auth_settings
-from app.services.valkey_dependencies import get_valkey_service
+from app.services.redis_dependencies import get_redis_service
 
 # Load mock vehicle data
 _mock_data_path = os.path.join(os.path.dirname(__file__), "..", "app", "mocks", "data", "vehicules.json")
@@ -23,7 +23,7 @@ with open(_mock_data_path) as _f:
 for _v in MOCK_VEHICLES:
     _v["dt"] = "DT75"
 
-from app.models.valkey_models import VehicleData as _VehicleData
+from app.models.redis_models import VehicleData as _VehicleData
 _MOCK_VEHICLE_DATA = {v["immat"]: _VehicleData(**v) for v in MOCK_VEHICLES}
 
 # In-memory stores for dossier data
@@ -33,8 +33,8 @@ _dossier_counters: dict = {}  # immat -> int
 _historique_store: dict = {}  # key -> list of entries
 
 
-class _MockValkeyService:
-    """Mock ValkeyService for dossier tests."""
+class _MockRedisService:
+    """Mock RedisService for dossier tests."""
     dt = "DT75"
 
     async def list_vehicles(self):
@@ -111,16 +111,16 @@ class _MockValkeyService:
         return True
 
 
-def _override_valkey():
-    return _MockValkeyService()
+def _override_redis():
+    return _MockRedisService()
 
 
 @pytest.fixture(autouse=True)
-def _mock_valkey_and_cleanup():
-    """Override ValkeyService and clean up dossier stores after each test."""
-    app.dependency_overrides[get_valkey_service] = _override_valkey
+def _mock_redis_and_cleanup():
+    """Override RedisService and clean up dossier stores after each test."""
+    app.dependency_overrides[get_redis_service] = _override_redis
     yield
-    app.dependency_overrides.pop(get_valkey_service, None)
+    app.dependency_overrides.pop(get_redis_service, None)
     _dossier_store.clear()
     _dossier_index.clear()
     _dossier_counters.clear()

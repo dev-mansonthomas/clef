@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Optional, List, Dict, Any
 
 from app.services.drive_service import drive_service
-from app.services.valkey_service import ValkeyService
+from app.services.redis_service import RedisService
 
 logger = logging.getLogger(__name__)
 
@@ -14,15 +14,15 @@ logger = logging.getLogger(__name__)
 class VehiclePhotoService:
     """Service for managing vehicle photos on Google Drive."""
     
-    async def get_drive_folder_id(self, valkey_service: ValkeyService) -> Optional[str]:
+    async def get_drive_folder_id(self, redis_service: RedisService) -> Optional[str]:
         """Get configured Drive folder ID for DT."""
-        config_key = f"{valkey_service.dt}:configuration"
-        config = await valkey_service.redis.json().get(config_key)
+        config_key = f"{redis_service.dt}:configuration"
+        config = await redis_service.redis.json().get(config_key)
         return config.get("drive_folder_id") if config else None
     
     async def upload_vehicle_photo(
         self,
-        valkey_service: ValkeyService,
+        redis_service: RedisService,
         vehicle_id: str,
         immatriculation: str,
         file_content: bytes,
@@ -36,7 +36,7 @@ class VehiclePhotoService:
         Creates a subfolder per vehicle (by immatriculation) if needed.
         
         Args:
-            valkey_service: ValkeyService instance
+            redis_service: RedisService instance
             vehicle_id: Vehicle ID
             immatriculation: Vehicle plate number (used for folder name)
             file_content: Photo content as bytes
@@ -47,10 +47,10 @@ class VehiclePhotoService:
         Returns:
             Photo metadata with Drive URLs
         """
-        dt_id = valkey_service.dt
+        dt_id = redis_service.dt
         
         # Get root folder
-        root_folder_id = await self.get_drive_folder_id(valkey_service)
+        root_folder_id = await self.get_drive_folder_id(redis_service)
         if not root_folder_id:
             logger.warning(f"No Drive folder configured for {dt_id}")
             return {
@@ -99,12 +99,12 @@ class VehiclePhotoService:
     
     async def list_vehicle_photos(
         self,
-        valkey_service: ValkeyService,
+        redis_service: RedisService,
         immatriculation: str,
     ) -> List[Dict[str, Any]]:
         """List all photos for a vehicle."""
-        dt_id = valkey_service.dt
-        root_folder_id = await self.get_drive_folder_id(valkey_service)
+        dt_id = redis_service.dt
+        root_folder_id = await self.get_drive_folder_id(redis_service)
         if not root_folder_id:
             return []
         
@@ -131,11 +131,11 @@ class VehiclePhotoService:
     
     async def delete_vehicle_photo(
         self,
-        valkey_service: ValkeyService,
+        redis_service: RedisService,
         file_id: str,
     ) -> bool:
         """Delete a vehicle photo from Drive."""
-        dt_id = valkey_service.dt
+        dt_id = redis_service.dt
         try:
             return await drive_service.delete_file(dt_id=dt_id, file_id=file_id)
         except Exception as e:

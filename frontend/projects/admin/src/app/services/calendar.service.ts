@@ -3,7 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
 
-export interface ValkeyReservation {
+export interface RedisReservation {
   id: string;
   vehicule_immat: string;
   chauffeur_nivol: string;
@@ -17,9 +17,9 @@ export interface ValkeyReservation {
   created_at: string;
 }
 
-export interface ValkeyReservationListResponse {
+export interface RedisReservationListResponse {
   count: number;
-  reservations: ValkeyReservation[];
+  reservations: RedisReservation[];
 }
 
 @Injectable({
@@ -32,7 +32,7 @@ export class CalendarService {
   /**
    * Get reservations for a DT
    */
-  getReservations(dt: string, fromDate?: string, toDate?: string): Observable<ValkeyReservationListResponse> {
+  getReservations(dt: string, fromDate?: string, toDate?: string): Observable<RedisReservationListResponse> {
     let url = `${this.apiUrl}/api/calendar/${dt}/reservations`;
     const params: any = {};
 
@@ -43,7 +43,7 @@ export class CalendarService {
       params.to = toDate;
     }
 
-    return this.http.get<ValkeyReservationListResponse>(url, { params });
+    return this.http.get<RedisReservationListResponse>(url, { params });
   }
 
   /**

@@ -12,13 +12,13 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app.auth.dependencies import require_authenticated_user
 from app.auth.models import User
-from app.services.valkey_dependencies import get_valkey_service
+from app.services.redis_dependencies import get_redis_service
 from app.models.repair_models import Fournisseur, NiveauFournisseur
 
 
-# --------------- Mock ValkeyService ---------------
+# --------------- Mock RedisService ---------------
 
-class _MockValkeyService:
+class _MockRedisService:
     """In-memory mock for fournisseur CRUD."""
 
     def __init__(self):
@@ -50,11 +50,11 @@ class _MockValkeyService:
         return True
 
 
-_mock_valkey = _MockValkeyService()
+_mock_redis = _MockRedisService()
 
 
-def _override_valkey():
-    return _mock_valkey
+def _override_redis():
+    return _mock_redis
 
 
 # --------------- User helpers ---------------
@@ -88,11 +88,11 @@ def _benevole():
 @pytest.fixture(autouse=True)
 def _setup():
     """Reset mock data and override dependencies for each test."""
-    _mock_valkey._dt.clear()
-    _mock_valkey._ul.clear()
-    app.dependency_overrides[get_valkey_service] = _override_valkey
+    _mock_redis._dt.clear()
+    _mock_redis._ul.clear()
+    app.dependency_overrides[get_redis_service] = _override_redis
     yield
-    app.dependency_overrides.pop(get_valkey_service, None)
+    app.dependency_overrides.pop(get_redis_service, None)
     app.dependency_overrides.pop(require_authenticated_user, None)
 
 

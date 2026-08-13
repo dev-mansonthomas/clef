@@ -1,12 +1,12 @@
-"""Valkey service with multi-tenant DT prefixing."""
+"""Redis service with multi-tenant DT prefixing."""
 import logging
 import uuid
 import secrets
 from typing import Optional, List, Dict, Any, Set
 from datetime import datetime, date
 from redis.asyncio import Redis
-from app.models.valkey_models import VehicleData, BenevoleData, ResponsableData, ResponsableVehiculeData, CarnetBordEntry, DTConfiguration
-from app.models.reservation import ValkeyReservation, ValkeyReservationCreate
+from app.models.redis_models import VehicleData, BenevoleData, ResponsableData, ResponsableVehiculeData, CarnetBordEntry, DTConfiguration
+from app.models.reservation import RedisReservation, RedisReservationCreate
 from app.models.repair_models import (
     DossierReparation, Devis, Facture, Fournisseur, HistoriqueEntry,
     FournisseurSnapshot,
@@ -27,9 +27,9 @@ def _get_calendar_service():
     return _calendar_service
 
 
-class ValkeyService:
+class RedisService:
     """
-    Service for Valkey operations with automatic DT prefixing.
+    Service for Redis operations with automatic DT prefixing.
 
     All keys are prefixed with the DT identifier to ensure multi-tenant isolation.
     Key pattern: DT{id}:resource:identifier
@@ -42,7 +42,7 @@ class ValkeyService:
 
     def __init__(self, redis_client: Redis, dt: str):
         """
-        Initialize Valkey service.
+        Initialize Redis service.
 
         Args:
             redis_client: Async Redis client
@@ -485,7 +485,7 @@ class ValkeyService:
     # ========== Responsables Véhicules ==========
 
     async def set_responsable_vehicule(self, responsable: ResponsableVehiculeData) -> bool:
-        """Store responsable véhicule in Valkey."""
+        """Store responsable véhicule in Redis."""
         try:
             key = self._key("responsables_vehicules", responsable.email)
             await self.redis.json().set(key, "$", responsable.model_dump(mode="json"))
@@ -754,9 +754,9 @@ class ValkeyService:
 
     async def create_reservation(
         self,
-        reservation_data: ValkeyReservationCreate,
+        reservation_data: RedisReservationCreate,
         created_by: str
-    ) -> ValkeyReservation:
+    ) -> RedisReservation:
         """
         Create a new reservation and sync to Google Calendar if configured.
 
@@ -787,7 +787,7 @@ class ValkeyService:
         now = datetime.now()
 
         # Create full reservation object
-        reservation = ValkeyReservation(
+        reservation = RedisReservation(
             id=reservation_id,
             **reservation_data.model_dump(),
             created_by=created_by,
@@ -858,7 +858,7 @@ class ValkeyService:
             logger.error(f"Error creating reservation: {e}")
             raise
 
-    async def get_reservation(self, reservation_id: str) -> Optional[ValkeyReservation]:
+    async def get_reservation(self, reservation_id: str) -> Optional[RedisReservation]:
         """
         Get a reservation by ID.
 
@@ -871,14 +871,14 @@ class ValkeyService:
         data = await self.redis.json().get(self._key("reservations", reservation_id))
         if not data:
             return None
-        return ValkeyReservation(**data)
+        return RedisReservation(**data)
 
     async def list_reservations(
         self,
         from_date: Optional[date] = None,
         to_date: Optional[date] = None,
         vehicule_immat: Optional[str] = None
-    ) -> List[ValkeyReservation]:
+    ) -> List[RedisReservation]:
         """
         List reservations with optional filters.
 
@@ -937,8 +937,8 @@ class ValkeyService:
     async def update_reservation(
         self,
         reservation_id: str,
-        reservation_data: ValkeyReservationCreate
-    ) -> Optional[ValkeyReservation]:
+        reservation_data: RedisReservationCreate
+    ) -> Optional[RedisReservation]:
         """
         Update an existing reservation.
 
@@ -972,7 +972,7 @@ class ValkeyService:
 
         try:
             # Update reservation (keep original metadata and Google Calendar info)
-            updated = ValkeyReservation(
+            updated = RedisReservation(
                 id=reservation_id,
                 **reservation_data.model_dump(),
                 created_by=existing.created_by,
@@ -1145,7 +1145,7 @@ class ValkeyService:
         debut: datetime,
         fin: datetime,
         exclude_id: Optional[str] = None
-    ) -> List[ValkeyReservation]:
+    ) -> List[RedisReservation]:
         """
         Check if a reservation would overlap with existing reservations.
 

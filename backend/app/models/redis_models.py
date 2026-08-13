@@ -1,4 +1,4 @@
-"""Pydantic models for Valkey data structures."""
+"""Pydantic models for Redis data structures."""
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from pydantic import BaseModel, Field, ConfigDict, field_validator
@@ -53,7 +53,7 @@ class DTConfiguration(BaseModel):
 
 
 class VehicleData(BaseModel):
-    """Vehicle data stored in Valkey - matches all 19 columns from referential."""
+    """Vehicle data stored in Redis - matches all 19 columns from referential."""
     # Primary keys
     immat: str = Field(..., description="License plate (immatriculation)")
     dt: str = Field(..., description="DT identifier")
@@ -124,7 +124,7 @@ class VehicleData(BaseModel):
 
 
 class BenevoleData(BaseModel):
-    """Bénévole data stored in Valkey."""
+    """Bénévole data stored in Redis."""
     nivol: str = Field(..., description="NIVOL identifier")
     dt: str = Field(..., description="DT identifier")
     ul: Optional[str] = Field(None, description="UL identifier")
@@ -149,7 +149,7 @@ class BenevoleData(BaseModel):
 
 
 class ResponsableData(BaseModel):
-    """Responsable data stored in Valkey."""
+    """Responsable data stored in Redis."""
     email: str = Field(..., description="Email address")
     dt: str = Field(..., description="DT identifier")
     nom: str = Field(..., description="Last name")
@@ -176,7 +176,7 @@ class ResponsableData(BaseModel):
 
 
 class ResponsableVehiculeData(BaseModel):
-    """Responsable véhicule data stored in Valkey."""
+    """Responsable véhicule data stored in Redis."""
     email: str = Field(..., description="Email address")
     nivol: str = Field(..., description="NIVOL identifier")
     nom: str = Field(..., description="Last name")
@@ -199,7 +199,7 @@ class ResponsableVehiculeData(BaseModel):
 
 
 class CarnetBordEntry(BaseModel):
-    """Carnet de bord entry stored in Valkey."""
+    """Carnet de bord entry stored in Redis."""
     immat: str = Field(..., description="Vehicle license plate")
     dt: str = Field(..., description="DT identifier")
     timestamp: datetime = Field(..., description="Entry timestamp")

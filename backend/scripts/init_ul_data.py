@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Script d'initialisation des Unités Locales (UL) et Délégations Territoriales (DT).
-Charge les données de base dans Valkey au démarrage de l'application.
+Charge les données de base dans Redis au démarrage de l'application.
 """
 import os
 import sys
@@ -150,7 +150,7 @@ DT_DATA = [
 
 
 def init_data():
-    """Initialize DT and UL data in Valkey if not already present."""
+    """Initialize DT and UL data in Redis if not already present."""
     # Get Redis URL from environment
     redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 

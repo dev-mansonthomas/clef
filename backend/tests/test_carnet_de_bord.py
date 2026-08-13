@@ -1,4 +1,4 @@
-"""Tests for Carnet de Bord API endpoints with Valkey."""
+"""Tests for Carnet de Bord API endpoints with Redis."""
 import os
 import pytest
 import pytest_asyncio
@@ -17,9 +17,9 @@ os.environ["JWT_SECRET_KEY"] = "test_secret_key_for_testing_only_min_32_chars"
 from app.main import app
 from app.auth.dependencies import require_authenticated_user
 from app.auth.models import User
-from app.services.valkey_dependencies import get_valkey_service
-from app.services.valkey_service import ValkeyService
-from app.models.valkey_models import VehicleData
+from app.services.redis_dependencies import get_redis_service
+from app.services.redis_service import RedisService
+from app.models.redis_models import VehicleData
 
 
 @pytest_asyncio.fixture
@@ -32,9 +32,9 @@ async def redis_client() -> AsyncGenerator:
 
 
 @pytest_asyncio.fixture
-async def valkey_dt75(redis_client) -> ValkeyService:
-    """Create ValkeyService for DT75 with test vehicle."""
-    service = ValkeyService(redis_client=redis_client, dt="DT75")
+async def redis_dt75(redis_client) -> RedisService:
+    """Create RedisService for DT75 with test vehicle."""
+    service = RedisService(redis_client=redis_client, dt="DT75")
 
     # Add test vehicle with all required fields
     vehicle = VehicleData(
@@ -75,17 +75,17 @@ def client():
     c = TestClient(app)
     yield c
     app.dependency_overrides.pop(require_authenticated_user, None)
-    app.dependency_overrides.pop(get_valkey_service, None)
+    app.dependency_overrides.pop(get_redis_service, None)
 
 
 class TestCarnetDeBordAPI:
-    """Test suite for Carnet de Bord API endpoints with Valkey."""
+    """Test suite for Carnet de Bord API endpoints with Redis."""
 
     @pytest.mark.asyncio
-    async def test_enregistrer_prise_success(self, client, valkey_dt75):
+    async def test_enregistrer_prise_success(self, client, redis_dt75):
         """Test successful prise registration."""
-        # Override Valkey dependency
-        app.dependency_overrides[get_valkey_service] = lambda: valkey_dt75
+        # Override Redis dependency
+        app.dependency_overrides[get_redis_service] = lambda: redis_dt75
 
         prise_data = {
             "vehicule_id": "VSAV-PARIS15-01",
@@ -106,16 +106,16 @@ class TestCarnetDeBordAPI:
         assert "Prise enregistrée avec succès" in data["message"]
         assert data["perimetre"] == "DT75"
 
-        # Verify data was stored in Valkey
-        derniere_prise = await valkey_dt75.get_derniere_prise("AB-123-CD")
+        # Verify data was stored in Redis
+        derniere_prise = await redis_dt75.get_derniere_prise("AB-123-CD")
         assert derniere_prise is not None
         assert derniere_prise["benevole_nom"] == "Dupont"
         assert derniere_prise["kilometrage"] == 12500
 
     @pytest.mark.asyncio
-    async def test_enregistrer_prise_vehicule_not_found(self, client, valkey_dt75):
+    async def test_enregistrer_prise_vehicule_not_found(self, client, redis_dt75):
         """Test prise registration with non-existent vehicle."""
-        app.dependency_overrides[get_valkey_service] = lambda: valkey_dt75
+        app.dependency_overrides[get_redis_service] = lambda: redis_dt75
 
         prise_data = {
             "vehicule_id": "NONEXISTENT-01",
@@ -133,12 +133,12 @@ class TestCarnetDeBordAPI:
         assert "non trouvé" in response.json()["detail"]
 
     @pytest.mark.asyncio
-    async def test_enregistrer_prise_vehicule_deja_pris(self, client, valkey_dt75):
+    async def test_enregistrer_prise_vehicule_deja_pris(self, client, redis_dt75):
         """Test prise registration when vehicle is already taken."""
-        app.dependency_overrides[get_valkey_service] = lambda: valkey_dt75
+        app.dependency_overrides[get_redis_service] = lambda: redis_dt75
 
         # First prise
-        await valkey_dt75.enregistrer_prise(
+        await redis_dt75.enregistrer_prise(
             immat="AB-123-CD",
             benevole_nom="Martin",
             benevole_prenom="Pierre",
@@ -165,12 +165,12 @@ class TestCarnetDeBordAPI:
         assert "déjà pris" in response.json()["detail"]
 
     @pytest.mark.asyncio
-    async def test_enregistrer_retour_success(self, client, valkey_dt75):
+    async def test_enregistrer_retour_success(self, client, redis_dt75):
         """Test successful retour registration."""
-        app.dependency_overrides[get_valkey_service] = lambda: valkey_dt75
+        app.dependency_overrides[get_redis_service] = lambda: redis_dt75
 
         # First register a prise
-        await valkey_dt75.enregistrer_prise(
+        await redis_dt75.enregistrer_prise(
             immat="AB-123-CD",
             benevole_nom="Dupont",
             benevole_prenom="Jean",
@@ -201,13 +201,13 @@ class TestCarnetDeBordAPI:
         assert data["perimetre"] == "DT75"
 
         # Verify derniere_prise was cleared
-        derniere_prise = await valkey_dt75.get_derniere_prise("AB-123-CD")
+        derniere_prise = await redis_dt75.get_derniere_prise("AB-123-CD")
         assert derniere_prise is None
 
     @pytest.mark.asyncio
-    async def test_enregistrer_retour_vehicule_not_found(self, client, valkey_dt75):
+    async def test_enregistrer_retour_vehicule_not_found(self, client, redis_dt75):
         """Test retour registration with non-existent vehicle."""
-        app.dependency_overrides[get_valkey_service] = lambda: valkey_dt75
+        app.dependency_overrides[get_redis_service] = lambda: redis_dt75
 
         retour_data = {
             "vehicule_id": "NONEXISTENT-01",
@@ -225,9 +225,9 @@ class TestCarnetDeBordAPI:
         assert "non trouvé" in response.json()["detail"]
 
     @pytest.mark.asyncio
-    async def test_enregistrer_retour_vehicule_non_pris(self, client, valkey_dt75):
+    async def test_enregistrer_retour_vehicule_non_pris(self, client, redis_dt75):
         """Test retour registration when vehicle is not taken."""
-        app.dependency_overrides[get_valkey_service] = lambda: valkey_dt75
+        app.dependency_overrides[get_redis_service] = lambda: redis_dt75
 
         retour_data = {
             "vehicule_id": "VSAV-PARIS15-01",
@@ -245,9 +245,9 @@ class TestCarnetDeBordAPI:
         assert "non pris" in response.json()["detail"]
 
     @pytest.mark.asyncio
-    async def test_get_derniere_prise_vehicule_not_found(self, client, valkey_dt75):
+    async def test_get_derniere_prise_vehicule_not_found(self, client, redis_dt75):
         """Test getting last prise for non-existent vehicle."""
-        app.dependency_overrides[get_valkey_service] = lambda: valkey_dt75
+        app.dependency_overrides[get_redis_service] = lambda: redis_dt75
 
         response = client.get("/api/carnet-de-bord/NONEXISTENT-01/derniere-prise")
 
@@ -255,9 +255,9 @@ class TestCarnetDeBordAPI:
         assert "non trouvé" in response.json()["detail"]
 
     @pytest.mark.asyncio
-    async def test_get_derniere_prise_no_data(self, client, valkey_dt75):
+    async def test_get_derniere_prise_no_data(self, client, redis_dt75):
         """Test getting last prise when no data exists."""
-        app.dependency_overrides[get_valkey_service] = lambda: valkey_dt75
+        app.dependency_overrides[get_redis_service] = lambda: redis_dt75
 
         response = client.get("/api/carnet-de-bord/VSAV-PARIS15-01/derniere-prise")
 
@@ -267,12 +267,12 @@ class TestCarnetDeBordAPI:
         assert response.json() is None
 
     @pytest.mark.asyncio
-    async def test_get_derniere_prise_with_data(self, client, valkey_dt75):
+    async def test_get_derniere_prise_with_data(self, client, redis_dt75):
         """Test getting last prise when data exists."""
-        app.dependency_overrides[get_valkey_service] = lambda: valkey_dt75
+        app.dependency_overrides[get_redis_service] = lambda: redis_dt75
 
         # Register a prise
-        await valkey_dt75.enregistrer_prise(
+        await redis_dt75.enregistrer_prise(
             immat="AB-123-CD",
             benevole_nom="Dupont",
             benevole_prenom="Jean",
@@ -292,9 +292,9 @@ class TestCarnetDeBordAPI:
         assert data["kilometrage"] == 12500
 
     @pytest.mark.asyncio
-    async def test_prise_validation_negative_kilometrage(self, client, valkey_dt75):
+    async def test_prise_validation_negative_kilometrage(self, client, redis_dt75):
         """Test prise validation with negative kilometrage."""
-        app.dependency_overrides[get_valkey_service] = lambda: valkey_dt75
+        app.dependency_overrides[get_redis_service] = lambda: redis_dt75
 
         prise_data = {
             "vehicule_id": "VSAV-PARIS15-01",
@@ -312,13 +312,13 @@ class TestCarnetDeBordAPI:
 
 
 
-class TestValkeyCarnetMethods:
-    """Test suite for ValkeyService carnet methods."""
+class TestRedisCarnetMethods:
+    """Test suite for RedisService carnet methods."""
 
     @pytest.mark.asyncio
-    async def test_enregistrer_prise_and_get_derniere_prise(self, valkey_dt75):
+    async def test_enregistrer_prise_and_get_derniere_prise(self, redis_dt75):
         """Test registering a prise and retrieving it."""
-        timestamp = await valkey_dt75.enregistrer_prise(
+        timestamp = await redis_dt75.enregistrer_prise(
             immat="AB-123-CD",
             benevole_nom="Dupont",
             benevole_prenom="Jean",
@@ -332,16 +332,16 @@ class TestValkeyCarnetMethods:
         assert timestamp is not None
 
         # Get derniere prise
-        derniere_prise = await valkey_dt75.get_derniere_prise("AB-123-CD")
+        derniere_prise = await redis_dt75.get_derniere_prise("AB-123-CD")
         assert derniere_prise is not None
         assert derniere_prise["benevole_nom"] == "Dupont"
         assert derniere_prise["kilometrage"] == 12500
 
     @pytest.mark.asyncio
-    async def test_enregistrer_retour_clears_derniere_prise(self, valkey_dt75):
+    async def test_enregistrer_retour_clears_derniere_prise(self, redis_dt75):
         """Test that retour clears derniere_prise."""
         # Register prise
-        await valkey_dt75.enregistrer_prise(
+        await redis_dt75.enregistrer_prise(
             immat="AB-123-CD",
             benevole_nom="Dupont",
             benevole_prenom="Jean",
@@ -352,7 +352,7 @@ class TestValkeyCarnetMethods:
         )
 
         # Register retour
-        await valkey_dt75.enregistrer_retour(
+        await redis_dt75.enregistrer_retour(
             immat="AB-123-CD",
             benevole_nom="Dupont",
             benevole_prenom="Jean",
@@ -364,14 +364,14 @@ class TestValkeyCarnetMethods:
         )
 
         # Derniere prise should be None
-        derniere_prise = await valkey_dt75.get_derniere_prise("AB-123-CD")
+        derniere_prise = await redis_dt75.get_derniere_prise("AB-123-CD")
         assert derniere_prise is None
 
     @pytest.mark.asyncio
-    async def test_get_historique_carnet(self, valkey_dt75):
+    async def test_get_historique_carnet(self, redis_dt75):
         """Test getting carnet history."""
         # Register prise
-        await valkey_dt75.enregistrer_prise(
+        await redis_dt75.enregistrer_prise(
             immat="AB-123-CD",
             benevole_nom="Dupont",
             benevole_prenom="Jean",
@@ -382,7 +382,7 @@ class TestValkeyCarnetMethods:
         )
 
         # Register retour
-        await valkey_dt75.enregistrer_retour(
+        await redis_dt75.enregistrer_retour(
             immat="AB-123-CD",
             benevole_nom="Dupont",
             benevole_prenom="Jean",
@@ -393,20 +393,20 @@ class TestValkeyCarnetMethods:
         )
 
         # Get history
-        historique = await valkey_dt75.get_historique_carnet("AB-123-CD")
+        historique = await redis_dt75.get_historique_carnet("AB-123-CD")
         assert len(historique) == 2
         # Most recent first
         assert historique[0]["type"] == "Retour"
         assert historique[1]["type"] == "Prise"
 
     @pytest.mark.asyncio
-    async def test_get_vehicle_by_nom_synthetique(self, valkey_dt75):
+    async def test_get_vehicle_by_nom_synthetique(self, redis_dt75):
         """Test getting vehicle by synthetic name."""
-        vehicle = await valkey_dt75.get_vehicle_by_nom_synthetique("VSAV-PARIS15-01")
+        vehicle = await redis_dt75.get_vehicle_by_nom_synthetique("VSAV-PARIS15-01")
         assert vehicle is not None
         assert vehicle.immat == "AB-123-CD"
         assert vehicle.nom_synthetique == "VSAV-PARIS15-01"
 
         # Test non-existent
-        vehicle = await valkey_dt75.get_vehicle_by_nom_synthetique("NONEXISTENT")
+        vehicle = await redis_dt75.get_vehicle_by_nom_synthetique("NONEXISTENT")
         assert vehicle is None

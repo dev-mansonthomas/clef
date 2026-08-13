@@ -8,7 +8,7 @@ import { environment } from '../../environments/environment';
  */
 export interface ColumnMapping {
   csv_column: number;  // Index of CSV column
-  target_field: string;  // Target Valkey field or "skip"
+  target_field: string;  // Target Redis field or "skip"
 }
 
 /**

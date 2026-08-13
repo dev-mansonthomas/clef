@@ -9,7 +9,7 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { ReservationService } from '../../services/reservation.service';
 import { AuthService } from '../../services/auth.service';
-import { ValkeyReservation } from '../../models/reservation.model';
+import { RedisReservation } from '../../models/reservation.model';
 
 /**
  * Reservation list component
@@ -37,7 +37,7 @@ export class ReservationListComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly snackBar = inject(MatSnackBar);
 
-  reservations = signal<ValkeyReservation[]>([]);
+  reservations = signal<RedisReservation[]>([]);
   loading = signal(false);
   view = signal<'ul' | 'dt'>('ul');
   currentUserEmail = signal<string>('');
@@ -102,7 +102,7 @@ export class ReservationListComponent implements OnInit {
   /**
    * Delete a reservation
    */
-  deleteReservation(reservation: ValkeyReservation, event: Event): void {
+  deleteReservation(reservation: RedisReservation, event: Event): void {
     event.stopPropagation();
     
     if (!this.canDelete(reservation)) {
@@ -136,14 +136,14 @@ export class ReservationListComponent implements OnInit {
   /**
    * Check if user can edit a reservation
    */
-  canEdit(reservation: ValkeyReservation): boolean {
+  canEdit(reservation: RedisReservation): boolean {
     return this.reservationService.canEdit(reservation, this.currentUserEmail());
   }
 
   /**
    * Check if user can delete a reservation
    */
-  canDelete(reservation: ValkeyReservation): boolean {
+  canDelete(reservation: RedisReservation): boolean {
     return this.reservationService.canDelete(reservation, this.currentUserEmail());
   }
 }

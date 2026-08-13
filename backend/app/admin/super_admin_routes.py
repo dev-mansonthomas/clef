@@ -3,8 +3,8 @@ from fastapi import APIRouter, Depends
 
 from app.auth.dependencies import require_authenticated_user, require_super_admin, user_is_super_admin
 from app.auth.models import User
-from app.services.valkey_dependencies import get_valkey_service
-from app.services.valkey_service import ValkeyService
+from app.services.redis_dependencies import get_redis_service
+from app.services.redis_service import RedisService
 
 
 router = APIRouter(prefix="/admin/super", tags=["super-admin"])
@@ -34,16 +34,16 @@ async def get_super_admin_status(current_user: User = Depends(require_authentica
 @router.get("/cache/drive-folders")
 async def get_drive_cache(
     current_user: User = Depends(require_super_admin),
-    valkey: ValkeyService = Depends(get_valkey_service),
+    redis_store: RedisService = Depends(get_redis_service),
 ):
     """List cached Google Drive folders for the current DT."""
     _ = current_user
-    config = await valkey.get_configuration()
+    config = await redis_store.get_configuration()
 
-    ul_ids = sorted(await valkey.redis.smembers(f"{valkey.dt}:unite_locales:index"))
+    ul_ids = sorted(await redis_store.redis.smembers(f"{redis_store.dt}:unite_locales:index"))
     uls = []
     for ul_id in ul_ids:
-        ul_data = await valkey.redis.json().get(f"{valkey.dt}:unite_locale:{ul_id}")
+        ul_data = await redis_store.redis.json().get(f"{redis_store.dt}:unite_locale:{ul_id}")
         if ul_data and ul_data.get("drive_folder_id"):
             uls.append({
                 "id": ul_id,
@@ -53,8 +53,8 @@ async def get_drive_cache(
             })
 
     vehicles_with_folders = []
-    for immat in sorted(await valkey.list_vehicles()):
-        vehicle = await valkey.get_vehicle(immat)
+    for immat in sorted(await redis_store.list_vehicles()):
+        vehicle = await redis_store.get_vehicle(immat)
         if not vehicle:
             continue
         summary = _extract_vehicle_folder_summary(vehicle)
@@ -79,13 +79,13 @@ async def get_drive_cache(
 @router.delete("/cache/drive-folders")
 async def clear_drive_cache(
     current_user: User = Depends(require_super_admin),
-    valkey: ValkeyService = Depends(get_valkey_service),
+    redis_store: RedisService = Depends(get_redis_service),
 ):
     """Clear cached Google Drive folders for DT config, ULs, and vehicles."""
     _ = current_user
     cleared = {"dt_config": False, "unites_locales": 0, "vehicles": 0}
 
-    config = await valkey.get_configuration()
+    config = await redis_store.get_configuration()
     if config:
         had_dt_cache = any([
             config.drive_folder_id,
@@ -102,28 +102,28 @@ async def clear_drive_cache(
             config.drive_vehicles_folder_url = None
             config.drive_dt_folder_id = None
             config.drive_dt_folder_url = None
-            await valkey.set_configuration(config)
+            await redis_store.set_configuration(config)
             cleared["dt_config"] = True
 
-    ul_ids = await valkey.redis.smembers(f"{valkey.dt}:unite_locales:index")
+    ul_ids = await redis_store.redis.smembers(f"{redis_store.dt}:unite_locales:index")
     for ul_id in ul_ids:
-        ul_key = f"{valkey.dt}:unite_locale:{ul_id}"
-        ul_data = await valkey.redis.json().get(ul_key)
+        ul_key = f"{redis_store.dt}:unite_locale:{ul_id}"
+        ul_data = await redis_store.redis.json().get(ul_key)
         if not ul_data:
             continue
         if ul_data.get("drive_folder_id") or ul_data.get("drive_folder_url"):
             updated_ul = dict(ul_data)
             updated_ul["drive_folder_id"] = None
             updated_ul["drive_folder_url"] = None
-            await valkey.redis.json().set(ul_key, "$", updated_ul)
+            await redis_store.redis.json().set(ul_key, "$", updated_ul)
             cleared["unites_locales"] += 1
 
-    for immat in await valkey.list_vehicles():
-        vehicle = await valkey.get_vehicle(immat)
+    for immat in await redis_store.list_vehicles():
+        vehicle = await redis_store.get_vehicle(immat)
         if not vehicle or not getattr(vehicle, "drive_folders", {}):
             continue
         vehicle.drive_folders = {}
-        await valkey.set_vehicle(vehicle)
+        await redis_store.set_vehicle(vehicle)
         cleared["vehicles"] += 1
 
     return {

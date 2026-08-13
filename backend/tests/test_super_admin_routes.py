@@ -6,8 +6,8 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app.auth import routes as auth_routes
 from app.auth.config import auth_settings
-from app.models.valkey_models import DTConfiguration, VehicleData
-from app.services.valkey_dependencies import get_valkey_service
+from app.models.redis_models import DTConfiguration, VehicleData
+from app.services.redis_dependencies import get_redis_service
 
 
 okta_mock = auth_routes.okta_mock
@@ -62,7 +62,7 @@ class FakeRedis:
         return self._json
 
 
-class FakeValkeyService:
+class FakeRedisService:
     def __init__(self):
         self.dt = "DT75"
         self._config = DTConfiguration(
@@ -151,9 +151,9 @@ class FakeValkeyService:
 
 
 @pytest.fixture
-def valkey_dt75():
-    """Valkey-like service with cached Drive data."""
-    return FakeValkeyService()
+def redis_dt75():
+    """Redis-like service with cached Drive data."""
+    return FakeRedisService()
 
 
 def get_authenticated_client(email: str) -> TestClient:
@@ -185,16 +185,16 @@ class TestSuperAdminStatusRoute:
 
 
 class TestSuperAdminDriveCacheRoutes:
-    def test_get_drive_cache_forbidden_for_non_super_admin(self, super_admin_email, valkey_dt75):
-        app.dependency_overrides[get_valkey_service] = lambda: valkey_dt75
+    def test_get_drive_cache_forbidden_for_non_super_admin(self, super_admin_email, redis_dt75):
+        app.dependency_overrides[get_redis_service] = lambda: redis_dt75
         auth_client = get_authenticated_client("jean.dupont@croix-rouge.fr")
 
         response = auth_client.get("/admin/super/cache/drive-folders")
         assert response.status_code == 403
         assert response.json()["detail"] == "Super admin access required"
 
-    def test_get_drive_cache_returns_cached_entries(self, super_admin_email, valkey_dt75):
-        app.dependency_overrides[get_valkey_service] = lambda: valkey_dt75
+    def test_get_drive_cache_returns_cached_entries(self, super_admin_email, redis_dt75):
+        app.dependency_overrides[get_redis_service] = lambda: redis_dt75
         auth_client = get_authenticated_client(super_admin_email)
 
         response = auth_client.get("/admin/super/cache/drive-folders")
@@ -219,8 +219,8 @@ class TestSuperAdminDriveCacheRoutes:
         }]
 
     @pytest.mark.asyncio
-    async def test_clear_drive_cache_clears_dt_ul_and_vehicle_cache(self, super_admin_email, valkey_dt75):
-        app.dependency_overrides[get_valkey_service] = lambda: valkey_dt75
+    async def test_clear_drive_cache_clears_dt_ul_and_vehicle_cache(self, super_admin_email, redis_dt75):
+        app.dependency_overrides[get_redis_service] = lambda: redis_dt75
         auth_client = get_authenticated_client(super_admin_email)
 
         response = auth_client.delete("/admin/super/cache/drive-folders")
@@ -232,7 +232,7 @@ class TestSuperAdminDriveCacheRoutes:
             "vehicles": 1,
         }
 
-        config = await valkey_dt75.get_configuration()
+        config = await redis_dt75.get_configuration()
         assert config is not None
         assert config.drive_folder_id is None
         assert config.drive_folder_url is None
@@ -241,10 +241,10 @@ class TestSuperAdminDriveCacheRoutes:
         assert config.drive_dt_folder_id is None
         assert config.drive_dt_folder_url is None
 
-        ul_data = await valkey_dt75.redis.json().get("DT75:unite_locale:81")
+        ul_data = await redis_dt75.redis.json().get("DT75:unite_locale:81")
         assert ul_data["drive_folder_id"] is None
         assert ul_data["drive_folder_url"] is None
 
-        vehicle = await valkey_dt75.get_vehicle("AB-123-CD")
+        vehicle = await redis_dt75.get_vehicle("AB-123-CD")
         assert vehicle is not None
         assert vehicle.drive_folders == {}

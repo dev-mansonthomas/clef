@@ -8,8 +8,8 @@ from fastapi.responses import StreamingResponse, HTMLResponse
 from app.models.repair_models import DepensesResponse
 from app.auth.models import User
 from app.auth.dependencies import require_authenticated_user
-from app.services.valkey_dependencies import get_valkey_service
-from app.services.valkey_service import ValkeyService
+from app.services.redis_dependencies import get_redis_service
+from app.services.redis_service import RedisService
 
 logger = logging.getLogger(__name__)
 
@@ -24,17 +24,17 @@ async def get_depenses(
     dt: str,
     immat: str,
     current_user: User = Depends(require_authenticated_user),
-    valkey: ValkeyService = Depends(get_valkey_service),
+    redis_store: RedisService = Depends(get_redis_service),
 ) -> DepensesResponse:
     """Get aggregated expenses for a vehicle, grouped by year."""
-    vehicle = await valkey.get_vehicle(immat)
+    vehicle = await redis_store.get_vehicle(immat)
     if not vehicle:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Vehicle '{immat}' not found",
         )
 
-    data = await valkey.get_vehicle_depenses(immat)
+    data = await redis_store.get_vehicle_depenses(immat)
     return DepensesResponse(**data)
 
 
@@ -44,17 +44,17 @@ async def export_depenses(
     immat: str,
     format: str = Query("csv", pattern="^(csv|pdf)$"),
     current_user: User = Depends(require_authenticated_user),
-    valkey: ValkeyService = Depends(get_valkey_service),
+    redis_store: RedisService = Depends(get_redis_service),
 ):
     """Export vehicle expenses as CSV or PDF."""
-    vehicle = await valkey.get_vehicle(immat)
+    vehicle = await redis_store.get_vehicle(immat)
     if not vehicle:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Vehicle '{immat}' not found",
         )
 
-    data = await valkey.get_vehicle_depenses(immat)
+    data = await redis_store.get_vehicle_depenses(immat)
 
     if format == "csv":
         return _build_csv_response(immat, data)

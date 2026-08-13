@@ -151,7 +151,7 @@ class HistoriqueEntry(BaseModel):
     auteur: str = Field(..., description="Email de l'auteur")
     action: ActionHistorique = Field(..., description="Type d'action")
     details: str = Field(..., description="Description de l'action")
-    ref: str = Field(..., description="Clé Valkey de l'objet concerné")
+    ref: str = Field(..., description="Clé Redis de l'objet concerné")
 
 
 class DossierReparation(BaseModel):

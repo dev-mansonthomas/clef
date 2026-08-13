@@ -10,10 +10,10 @@ from typing import Annotated, Dict, Any, List, Optional
 from pydantic import BaseModel
 
 from app.models.config import ConfigUpdate, ConfigResponse
-from app.models.valkey_models import DTConfiguration
+from app.models.redis_models import DTConfiguration
 from app.services.config_service import ConfigService
-from app.services.valkey_service import ValkeyService
-from app.services.valkey_dependencies import get_valkey_service
+from app.services.redis_service import RedisService
+from app.services.redis_dependencies import get_redis_service
 from app.services.calendar_service import calendar_service
 from app.services.vehicle_document_service import vehicle_document_service
 from app.auth.models import User
@@ -70,10 +70,10 @@ router = APIRouter(
 
 
 def get_config_service(
-    valkey_service: Annotated[ValkeyService, Depends(get_valkey_service)]
+    redis_service: Annotated[RedisService, Depends(get_redis_service)]
 ) -> ConfigService:
     """Dependency to get ConfigService instance."""
-    return ConfigService(valkey_service)
+    return ConfigService(redis_service)
 
 
 @router.get("", response_model=ConfigResponse)
@@ -94,8 +94,8 @@ async def get_config(
 
     # Enrich sync message with subfolder progress if sync is in_progress
     if response.drive_sync_status == 'in_progress' and response.drive_sync_message:
-        valkey_service = config_service.valkey_service
-        response = await _enrich_sync_message_with_subfolder_count(valkey_service, response)
+        redis_service = config_service.redis_service
+        response = await _enrich_sync_message_with_subfolder_count(redis_service, response)
 
     return response
 
@@ -141,8 +141,8 @@ async def update_config(
 
     try:
         # Read current config BEFORE update to compare drive_folder_id
-        valkey_service = config_service.valkey_service
-        previous_config = await valkey_service.get_configuration()
+        redis_service = config_service.redis_service
+        previous_config = await redis_service.get_configuration()
         previous_folder_id = previous_config.drive_folder_id if previous_config else None
 
         updated_config = await config_service.update_config(updates_dict)
@@ -150,7 +150,7 @@ async def update_config(
         # Only launch sync if folder_id actually changed (new URL or was previously empty)
         if folder_id and folder_id != previous_folder_id:
             # Set sync status BEFORE returning response so frontend starts polling
-            dt_config = await valkey_service.get_configuration()
+            dt_config = await redis_service.get_configuration()
             if dt_config:
                 dt_config.drive_sync_status = "in_progress"
                 dt_config.drive_sync_processed = 0
@@ -159,10 +159,10 @@ async def update_config(
                 dt_config.drive_sync_current_vehicle = None
                 dt_config.drive_sync_cancel_requested = False
                 dt_config.drive_sync_message = "Démarrage de la synchronisation..."
-                await valkey_service.set_configuration(dt_config)
+                await redis_service.set_configuration(dt_config)
 
             asyncio.create_task(
-                _run_drive_sync(valkey_service, folder_id)
+                _run_drive_sync(redis_service, folder_id)
             )
 
             # Re-read config to include the in_progress status in the response
@@ -178,11 +178,11 @@ async def update_config(
 
 @router.post("/drive-sync/cancel")
 async def cancel_drive_sync(
-    valkey_service: Annotated[ValkeyService, Depends(get_valkey_service)],
+    redis_service: Annotated[RedisService, Depends(get_redis_service)],
     current_user: User = Depends(is_dt_manager)
 ) -> Dict[str, Any]:
     """Request cancellation of the ongoing Drive sync."""
-    dt_config = await valkey_service.get_configuration()
+    dt_config = await redis_service.get_configuration()
     if not dt_config or dt_config.drive_sync_status != "in_progress":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -190,17 +190,17 @@ async def cancel_drive_sync(
         )
     dt_config.drive_sync_cancel_requested = True
     dt_config.drive_sync_message = "Annulation en cours..."
-    await valkey_service.set_configuration(dt_config)
+    await redis_service.set_configuration(dt_config)
     return {"message": "Annulation demandée"}
 
 
 @router.post("/drive-sync/restart")
 async def restart_drive_sync(
-    valkey_service: Annotated[ValkeyService, Depends(get_valkey_service)],
+    redis_service: Annotated[RedisService, Depends(get_redis_service)],
     current_user: User = Depends(is_dt_manager)
 ) -> Dict[str, Any]:
     """Restart the Drive folder creation for all vehicles."""
-    dt_config = await valkey_service.get_configuration()
+    dt_config = await redis_service.get_configuration()
     if not dt_config or not dt_config.drive_folder_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -214,10 +214,10 @@ async def restart_drive_sync(
     dt_config.drive_sync_current_vehicle = None
     dt_config.drive_sync_cancel_requested = False
     dt_config.drive_sync_message = "Relancement de la création des dossiers..."
-    await valkey_service.set_configuration(dt_config)
+    await redis_service.set_configuration(dt_config)
 
     asyncio.create_task(
-        _run_drive_sync(valkey_service, dt_config.drive_folder_id)
+        _run_drive_sync(redis_service, dt_config.drive_folder_id)
     )
 
     return {"message": "Synchronisation relancée", "status": "in_progress"}
@@ -225,7 +225,7 @@ async def restart_drive_sync(
 
 
 async def _enrich_sync_message_with_subfolder_count(
-    valkey_service: ValkeyService, response: ConfigResponse
+    redis_service: RedisService, response: ConfigResponse
 ) -> ConfigResponse:
     """Compute and set (X/Y) subfolder count on sync message."""
     current_vehicle_label = response.drive_sync_current_vehicle
@@ -243,7 +243,7 @@ async def _enrich_sync_message_with_subfolder_count(
         return response
 
     immat = parts[-1].strip()
-    vehicle = await valkey_service.get_vehicle(immat)
+    vehicle = await redis_service.get_vehicle(immat)
     if not vehicle:
         logger.warning(f"Subfolder enrichment: vehicle not found for immat={immat}")
         return response
@@ -254,7 +254,7 @@ async def _enrich_sync_message_with_subfolder_count(
         1 for key, val in drive_folders.items()
         if isinstance(val, dict) and val.get('folder_url')
     )
-    dt_config = await valkey_service.get_configuration()
+    dt_config = await redis_service.get_configuration()
     total_folders = len(dt_config.document_folders) if dt_config and dt_config.document_folders else len(drive_folders) if drive_folders else 11
 
     logger.info(f"Enrichment: immat={immat}, found_vehicle={vehicle is not None}, drive_folders_keys={list(drive_folders.keys())}, subfolder_count={subfolder_count}")
@@ -273,23 +273,23 @@ async def _enrich_sync_message_with_subfolder_count(
     })
 
 
-async def _run_drive_sync(valkey_service: ValkeyService, folder_id: str) -> None:
+async def _run_drive_sync(redis_service: RedisService, folder_id: str) -> None:
     """Background task: create Drive tree for all vehicles with progress updates."""
     try:
-        dt_config = await valkey_service.get_configuration()
+        dt_config = await redis_service.get_configuration()
         if not dt_config:
             return
         # Status was already set to in_progress by the caller
         # Just ensure cancel flag is reset
         dt_config.drive_sync_cancel_requested = False
-        await valkey_service.set_configuration(dt_config)
+        await redis_service.set_configuration(dt_config)
 
         cancelled = False
 
         async def progress_callback(index: int, total: int, vehicle, subfolder_created: int = 0, subfolder_total: int = 0) -> None:
             nonlocal cancelled
             # Check for cancellation before processing each vehicle
-            cfg = await valkey_service.get_configuration()
+            cfg = await redis_service.get_configuration()
             if cfg and cfg.drive_sync_cancel_requested:
                 cancelled = True
                 raise asyncio.CancelledError("Sync cancelled by user")
@@ -303,17 +303,17 @@ async def _run_drive_sync(valkey_service: ValkeyService, folder_id: str) -> None
                     vehicle_label += f" ({subfolder_created}/{subfolder_total})"
                 cfg.drive_sync_current_vehicle = vehicle_label
                 cfg.drive_sync_message = f"Traitement {index}/{total}: {vehicle_label}"
-                await valkey_service.set_configuration(cfg)
+                await redis_service.set_configuration(cfg)
 
         try:
             count, errors = await vehicle_document_service.ensure_vehicle_trees_for_all_vehicles(
-                valkey_service=valkey_service,
+                redis_service=redis_service,
                 root_folder_id=folder_id,
                 progress_callback=progress_callback,
             )
         except asyncio.CancelledError:
             # Cancelled by user — clean up all Drive folder data
-            cfg = await valkey_service.get_configuration()
+            cfg = await redis_service.get_configuration()
             if cfg:
                 cfg.drive_folder_id = None
                 cfg.drive_folder_url = None
@@ -328,20 +328,20 @@ async def _run_drive_sync(valkey_service: ValkeyService, folder_id: str) -> None
                 cfg.drive_sync_current_vehicle = None
                 cfg.drive_sync_message = "Synchronisation stoppée"
                 cfg.drive_sync_error = None
-                await valkey_service.set_configuration(cfg)
+                await redis_service.set_configuration(cfg)
 
             # Clear drive_folders and documents from all vehicles
-            vehicle_ids = await valkey_service.list_vehicles()
+            vehicle_ids = await redis_service.list_vehicles()
             for immat in vehicle_ids:
-                vehicle = await valkey_service.get_vehicle(immat)
+                vehicle = await redis_service.get_vehicle(immat)
                 if vehicle and (vehicle.drive_folders or vehicle.documents):
                     vehicle.drive_folders = {}
                     vehicle.documents = {}
-                    await valkey_service.set_vehicle(vehicle)
+                    await redis_service.set_vehicle(vehicle)
             return
 
         # Mark sync as complete
-        cfg = await valkey_service.get_configuration()
+        cfg = await redis_service.get_configuration()
         if cfg:
             total_vehicles = count + len(errors)
             if errors:
@@ -360,23 +360,23 @@ async def _run_drive_sync(valkey_service: ValkeyService, folder_id: str) -> None
                 cfg.drive_sync_current_vehicle = None
                 cfg.drive_sync_cancel_requested = False
                 cfg.drive_sync_message = f"Synchronisation terminée: {count} véhicules traités"
-            await valkey_service.set_configuration(cfg)
+            await redis_service.set_configuration(cfg)
 
     except Exception as e:
         logger.error(f"Drive sync failed: {e}")
-        cfg = await valkey_service.get_configuration()
+        cfg = await redis_service.get_configuration()
         if cfg:
             cfg.drive_sync_status = "error"
             cfg.drive_sync_error = str(e)
             cfg.drive_sync_message = f"Erreur: {str(e)}"
             cfg.drive_sync_current_vehicle = None
             cfg.drive_sync_cancel_requested = False
-            await valkey_service.set_configuration(cfg)
+            await redis_service.set_configuration(cfg)
 
 
 @router.get("/document-folders")
 async def get_document_folders(
-    valkey_service: Annotated[ValkeyService, Depends(get_valkey_service)],
+    redis_service: Annotated[RedisService, Depends(get_redis_service)],
     current_user: User = Depends(is_dt_manager),
 ) -> List[Dict[str, Any]]:
     """
@@ -387,7 +387,7 @@ async def get_document_folders(
     Returns the document_folders list from DTConfiguration.
     If empty or not set, returns the defaults.
     """
-    dt_config = await valkey_service.get_configuration()
+    dt_config = await redis_service.get_configuration()
     if dt_config and dt_config.document_folders:
         return dt_config.document_folders
     # Return defaults from the model
@@ -418,7 +418,7 @@ def _validate_mandatory_folders(folders: List[DocumentFolderItem]) -> None:
 @router.put("/document-folders")
 async def update_document_folders(
     body: DocumentFoldersUpdate,
-    valkey_service: Annotated[ValkeyService, Depends(get_valkey_service)],
+    redis_service: Annotated[RedisService, Depends(get_redis_service)],
     current_user: User = Depends(is_dt_manager),
 ) -> List[Dict[str, Any]]:
     """
@@ -430,7 +430,7 @@ async def update_document_folders(
     """
     _validate_mandatory_folders(body.folders)
 
-    dt_config = await valkey_service.get_configuration()
+    dt_config = await redis_service.get_configuration()
     if not dt_config:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -438,7 +438,7 @@ async def update_document_folders(
         )
 
     dt_config.document_folders = [f.model_dump() for f in body.folders]
-    await valkey_service.set_configuration(dt_config)
+    await redis_service.set_configuration(dt_config)
 
     return dt_config.document_folders
 
@@ -447,7 +447,7 @@ async def update_document_folders(
 async def sync_document_folders(
     body: DocumentFoldersUpdate,
     config_service: Annotated[ConfigService, Depends(get_config_service)],
-    valkey_service: Annotated[ValkeyService, Depends(get_valkey_service)],
+    redis_service: Annotated[RedisService, Depends(get_redis_service)],
     current_user: User = Depends(is_dt_manager),
 ) -> ConfigResponse:
     """
@@ -462,7 +462,7 @@ async def sync_document_folders(
     """
     _validate_mandatory_folders(body.folders)
 
-    dt_config = await valkey_service.get_configuration()
+    dt_config = await redis_service.get_configuration()
     if not dt_config:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -486,11 +486,11 @@ async def sync_document_folders(
     dt_config.drive_sync_current_vehicle = None
     dt_config.drive_sync_cancel_requested = False
     dt_config.drive_sync_message = "Démarrage de la synchronisation des dossiers..."
-    await valkey_service.set_configuration(dt_config)
+    await redis_service.set_configuration(dt_config)
 
     folder_names = [f.name for f in body.folders]
     asyncio.create_task(
-        _run_folder_sync(valkey_service, dt_config.drive_folder_id, folder_names)
+        _run_folder_sync(redis_service, dt_config.drive_folder_id, folder_names)
     )
 
     # Re-read config to include the in_progress status in the response
@@ -499,18 +499,18 @@ async def sync_document_folders(
 
 
 async def _run_folder_sync(
-    valkey_service: ValkeyService, root_folder_id: str, folder_names: list[str]
+    redis_service: RedisService, root_folder_id: str, folder_names: list[str]
 ) -> None:
     """Background task: sync document folders for all vehicles."""
     try:
-        dt_config = await valkey_service.get_configuration()
+        dt_config = await redis_service.get_configuration()
         if not dt_config:
             return
 
-        vehicle_ids = await valkey_service.list_vehicles()
+        vehicle_ids = await redis_service.list_vehicles()
         vehicles = []
         for immat in vehicle_ids:
-            vehicle = await valkey_service.get_vehicle(immat)
+            vehicle = await redis_service.get_vehicle(immat)
             if vehicle and vehicle.drive_folders:
                 vehicles.append(vehicle)
 
@@ -527,12 +527,12 @@ async def _run_folder_sync(
         errors = []
         for index, vehicle in enumerate(vehicles, start=1):
             # Check for cancellation
-            cfg = await valkey_service.get_configuration()
+            cfg = await redis_service.get_configuration()
             if cfg and cfg.drive_sync_cancel_requested:
                 cfg.drive_sync_status = "idle"
                 cfg.drive_sync_message = "Synchronisation annulée"
                 cfg.drive_sync_cancel_requested = False
-                await valkey_service.set_configuration(cfg)
+                await redis_service.set_configuration(cfg)
                 return
 
             vehicle_label = (
@@ -546,11 +546,11 @@ async def _run_folder_sync(
                 cfg.drive_sync_total = total
                 cfg.drive_sync_current_vehicle = vehicle_label
                 cfg.drive_sync_message = f"Synchronisation dossiers {index}/{total}: {vehicle_label}"
-                await valkey_service.set_configuration(cfg)
+                await redis_service.set_configuration(cfg)
 
             try:
                 await vehicle_document_service.sync_vehicle_folders(
-                    valkey_service=valkey_service,
+                    redis_service=redis_service,
                     vehicle=vehicle,
                     root_folder_id=root_folder_id,
                     configured_folder_names=folder_names,
@@ -560,7 +560,7 @@ async def _run_folder_sync(
                 errors.append(f"{vehicle.immat}: {str(e)}")
 
         # Mark complete
-        cfg = await valkey_service.get_configuration()
+        cfg = await redis_service.get_configuration()
         if cfg:
             if errors:
                 cfg.drive_sync_status = "complete"
@@ -578,23 +578,23 @@ async def _run_folder_sync(
                 cfg.drive_sync_current_vehicle = None
                 cfg.drive_sync_cancel_requested = False
                 cfg.drive_sync_message = f"Synchronisation des dossiers terminée: {total} véhicules traités"
-            await valkey_service.set_configuration(cfg)
+            await redis_service.set_configuration(cfg)
 
     except Exception as e:
         logger.error(f"Folder sync failed: {e}")
-        cfg = await valkey_service.get_configuration()
+        cfg = await redis_service.get_configuration()
         if cfg:
             cfg.drive_sync_status = "error"
             cfg.drive_sync_error = str(e)
             cfg.drive_sync_message = f"Erreur: {str(e)}"
             cfg.drive_sync_current_vehicle = None
             cfg.drive_sync_cancel_requested = False
-            await valkey_service.set_configuration(cfg)
+            await redis_service.set_configuration(cfg)
 
 
 @router.post("/calendar")
 async def create_calendar(
-    valkey_service: Annotated[ValkeyService, Depends(get_valkey_service)],
+    redis_service: Annotated[RedisService, Depends(get_redis_service)],
     current_user: User = Depends(is_dt_manager)
 ) -> Dict[str, Any]:
     """
@@ -612,7 +612,7 @@ async def create_calendar(
 
     # Check if calendar already exists
     config_key = f"{dt_id}:configuration"
-    config = await valkey_service.redis.json().get(config_key)
+    config = await redis_service.redis.json().get(config_key)
 
     if config and config.get("calendar_id"):
         raise HTTPException(
@@ -634,7 +634,7 @@ async def create_calendar(
         config["calendar_id"] = calendar["id"]
         config["calendar_url"] = f"https://calendar.google.com/calendar/embed?src={calendar['id']}"
 
-        await valkey_service.redis.json().set(config_key, "$", config)
+        await redis_service.redis.json().set(config_key, "$", config)
 
         return {
             "calendar_id": calendar["id"],
@@ -650,7 +650,7 @@ async def create_calendar(
 
 @router.get("/calendar")
 async def get_calendar_config(
-    valkey_service: Annotated[ValkeyService, Depends(get_valkey_service)],
+    redis_service: Annotated[RedisService, Depends(get_redis_service)],
     current_user: User = Depends(is_dt_manager)
 ) -> Dict[str, Any]:
     """
@@ -664,7 +664,7 @@ async def get_calendar_config(
     dt_id = current_user.dt or "DT75"
 
     config_key = f"{dt_id}:configuration"
-    config = await valkey_service.redis.json().get(config_key)
+    config = await redis_service.redis.json().get(config_key)
 
     if not config or not config.get("calendar_id"):
         return {"configured": False}
@@ -678,7 +678,7 @@ async def get_calendar_config(
 
 @router.delete("/calendar")
 async def delete_calendar_config(
-    valkey_service: Annotated[ValkeyService, Depends(get_valkey_service)],
+    redis_service: Annotated[RedisService, Depends(get_redis_service)],
     current_user: User = Depends(is_dt_manager)
 ) -> Dict[str, str]:
     """
@@ -692,19 +692,19 @@ async def delete_calendar_config(
     dt_id = current_user.dt or "DT75"
 
     config_key = f"{dt_id}:configuration"
-    config = await valkey_service.redis.json().get(config_key)
+    config = await redis_service.redis.json().get(config_key)
 
     if config:
         config.pop("calendar_id", None)
         config.pop("calendar_url", None)
-        await valkey_service.redis.json().set(config_key, "$", config)
+        await redis_service.redis.json().set(config_key, "$", config)
 
     return {"message": "Configuration du calendrier supprimée"}
 
 
 @router.delete("/drive-sync")
 async def reset_drive_sync(
-    valkey_service: Annotated[ValkeyService, Depends(get_valkey_service)],
+    redis_service: Annotated[RedisService, Depends(get_redis_service)],
     current_user: User = Depends(is_dt_manager)
 ) -> Dict[str, Any]:
     """
@@ -712,7 +712,7 @@ async def reset_drive_sync(
     Does NOT delete files from Google Drive (user must clean up manually).
     """
     # Clear drive-related fields from DT configuration
-    dt_config = await valkey_service.get_configuration()
+    dt_config = await redis_service.get_configuration()
     if dt_config:
         dt_config.drive_folder_id = None
         dt_config.drive_folder_url = None
@@ -726,16 +726,16 @@ async def reset_drive_sync(
         dt_config.drive_sync_current_vehicle = None
         dt_config.drive_sync_message = None
         dt_config.drive_sync_error = None
-        await valkey_service.set_configuration(dt_config)
+        await redis_service.set_configuration(dt_config)
 
     # Clear drive_folders and documents from all vehicles
-    vehicle_ids = await valkey_service.list_vehicles()
+    vehicle_ids = await redis_service.list_vehicles()
     for immat in vehicle_ids:
-        vehicle = await valkey_service.get_vehicle(immat)
+        vehicle = await redis_service.get_vehicle(immat)
         if vehicle and (vehicle.drive_folders or vehicle.documents):
             vehicle.drive_folders = {}
             vehicle.documents = {}
-            await valkey_service.set_vehicle(vehicle)
+            await redis_service.set_vehicle(vehicle)
 
     return {"message": "Synchronisation Drive supprimée. Veuillez nettoyer le contenu du dossier Google Drive manuellement."}
 
@@ -743,7 +743,7 @@ async def reset_drive_sync(
 @router.post("/drive-folder")
 async def set_drive_folder(
     config_data: DriveFolderConfig,
-    valkey_service: Annotated[ValkeyService, Depends(get_valkey_service)],
+    redis_service: Annotated[RedisService, Depends(get_redis_service)],
     current_user: User = Depends(is_dt_manager)
 ) -> Dict[str, Any]:
     """
@@ -761,13 +761,13 @@ async def set_drive_folder(
 
     # Get existing config
     config_key = f"{dt_id}:configuration"
-    config = await valkey_service.redis.json().get(config_key) or {}
+    config = await redis_service.redis.json().get(config_key) or {}
 
     # Update with Drive folder
     config["drive_folder_id"] = config_data.folder_id
     config["drive_folder_url"] = config_data.folder_url or f"https://drive.google.com/drive/folders/{config_data.folder_id}"
 
-    await valkey_service.redis.json().set(config_key, "$", config)
+    await redis_service.redis.json().set(config_key, "$", config)
 
     return {
         "message": "Drive folder configured",
@@ -778,7 +778,7 @@ async def set_drive_folder(
 
 @router.get("/drive-folder")
 async def get_drive_folder(
-    valkey_service: Annotated[ValkeyService, Depends(get_valkey_service)],
+    redis_service: Annotated[RedisService, Depends(get_redis_service)],
     current_user: User = Depends(is_dt_manager)
 ) -> Dict[str, Any]:
     """
@@ -792,7 +792,7 @@ async def get_drive_folder(
     dt_id = current_user.dt or "DT75"
 
     config_key = f"{dt_id}:configuration"
-    config = await valkey_service.redis.json().get(config_key)
+    config = await redis_service.redis.json().get(config_key)
 
     if not config or not config.get("drive_folder_id"):
         return {"configured": False}

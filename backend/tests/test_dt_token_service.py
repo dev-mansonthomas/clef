@@ -81,7 +81,7 @@ class TestDTTokenService:
         # Verify KMS encryption was called for both tokens
         assert mock_kms.encrypt.call_count == 2
 
-        # Verify Valkey storage (service uses plain set with json.dumps)
+        # Verify Redis storage (service uses plain set with json.dumps)
         stored_raw = await mock_cache.client.get("DT75:oauth:dt_manager_tokens")
         assert stored_raw is not None
         stored_data = _json.loads(stored_raw)

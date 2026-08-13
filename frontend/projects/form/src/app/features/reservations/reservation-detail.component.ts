@@ -8,7 +8,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { ReservationService } from '../../services/reservation.service';
 import { AuthService } from '../../services/auth.service';
-import { ValkeyReservation } from '../../models/reservation.model';
+import { RedisReservation } from '../../models/reservation.model';
 
 /**
  * Reservation detail component
@@ -36,7 +36,7 @@ export class ReservationDetailComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly snackBar = inject(MatSnackBar);
 
-  reservation = signal<ValkeyReservation | null>(null);
+  reservation = signal<RedisReservation | null>(null);
   loading = signal(false);
   currentUserEmail = signal<string>('');
 

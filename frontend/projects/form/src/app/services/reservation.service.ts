@@ -3,9 +3,9 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
 import {
-  ValkeyReservation,
-  ValkeyReservationCreate,
-  ValkeyReservationListResponse,
+  RedisReservation,
+  RedisReservationCreate,
+  RedisReservationListResponse,
   Benevole
 } from '../models/reservation.model';
 
@@ -33,7 +33,7 @@ export class ReservationService {
     fromDate?: string,
     toDate?: string,
     vehiculeImmat?: string
-  ): Observable<ValkeyReservationListResponse> {
+  ): Observable<RedisReservationListResponse> {
     let params = new HttpParams();
     
     if (fromDate) {
@@ -46,7 +46,7 @@ export class ReservationService {
       params = params.set('vehicule_immat', vehiculeImmat);
     }
 
-    return this.http.get<ValkeyReservationListResponse>(
+    return this.http.get<RedisReservationListResponse>(
       `${this.apiUrl}/api/calendar/${dt}/reservations`,
       { params }
     );
@@ -57,8 +57,8 @@ export class ReservationService {
    * @param dt Délégation Territoriale code
    * @param id Reservation ID
    */
-  getReservation(dt: string, id: string): Observable<ValkeyReservation> {
-    return this.http.get<ValkeyReservation>(
+  getReservation(dt: string, id: string): Observable<RedisReservation> {
+    return this.http.get<RedisReservation>(
       `${this.apiUrl}/api/calendar/${dt}/reservations/${id}`
     );
   }
@@ -70,9 +70,9 @@ export class ReservationService {
    */
   createReservation(
     dt: string,
-    data: ValkeyReservationCreate
-  ): Observable<ValkeyReservation> {
-    return this.http.post<ValkeyReservation>(
+    data: RedisReservationCreate
+  ): Observable<RedisReservation> {
+    return this.http.post<RedisReservation>(
       `${this.apiUrl}/api/calendar/${dt}/reservations`,
       data
     );
@@ -87,9 +87,9 @@ export class ReservationService {
   updateReservation(
     dt: string,
     id: string,
-    data: ValkeyReservationCreate
-  ): Observable<ValkeyReservation> {
-    return this.http.put<ValkeyReservation>(
+    data: RedisReservationCreate
+  ): Observable<RedisReservation> {
+    return this.http.put<RedisReservation>(
       `${this.apiUrl}/api/calendar/${dt}/reservations/${id}`,
       data
     );
@@ -111,7 +111,7 @@ export class ReservationService {
    * @param reservation The reservation to check
    * @param currentUserEmail Current user's email
    */
-  canEdit(reservation: ValkeyReservation, currentUserEmail: string): boolean {
+  canEdit(reservation: RedisReservation, currentUserEmail: string): boolean {
     return reservation.created_by === currentUserEmail;
   }
 
@@ -120,7 +120,7 @@ export class ReservationService {
    * @param reservation The reservation to check
    * @param currentUserEmail Current user's email
    */
-  canDelete(reservation: ValkeyReservation, currentUserEmail: string): boolean {
+  canDelete(reservation: RedisReservation, currentUserEmail: string): boolean {
     return reservation.created_by === currentUserEmail;
   }
 

@@ -6,7 +6,7 @@ from pydantic import ValidationError
 
 from app.cache import get_cache
 from app.services.approval_service import ApprovalService
-from app.services.valkey_service import ValkeyService
+from app.services.redis_service import RedisService
 from app.models.repair_models import (
     ApprobationDataResponse,
     DossierApprobationDataResponse,
@@ -90,20 +90,20 @@ async def get_approbation_data(token: str) -> DossierApprobationDataResponse:
     devis_ids = token_data.get("devis_ids") or [token_data["devis_id"]]
 
     cache = get_cache()
-    valkey = ValkeyService(redis_client=cache.client, dt=dt)
+    redis_store = RedisService(redis_client=cache.client, dt=dt)
 
-    dossier = await valkey.get_dossier_reparation(immat, numero)
+    dossier = await redis_store.get_dossier_reparation(immat, numero)
     if not dossier:
         raise HTTPException(status_code=404, detail="Dossier not found")
 
     # Get franchise config
-    config = await valkey.get_configuration()
+    config = await redis_store.get_configuration()
     montant_franchise = config.montant_franchise if config else 350.0
 
     # Fetch all devis referenced in the token
     devis_list = []
     for did in devis_ids:
-        d = await valkey.get_devis(immat, numero, did)
+        d = await redis_store.get_devis(immat, numero, did)
         if d:
             devis_list.append(d)
 
@@ -145,7 +145,7 @@ async def submit_decision(token: str, request: Request):
     devis_ids = token_data.get("devis_ids") or [token_data.get("devis_id")]
 
     cache = get_cache()
-    valkey = ValkeyService(redis_client=cache.client, dt=dt)
+    redis_store = RedisService(redis_client=cache.client, dt=dt)
 
     raw_body = await request.json()
 
@@ -160,7 +160,7 @@ async def submit_decision(token: str, request: Request):
 
         # Check if already decided — allow change if no facture yet
         if token_data["status"] in ("approuve", "refuse"):
-            dossier = await valkey.get_dossier_reparation(immat, numero)
+            dossier = await redis_store.get_dossier_reparation(immat, numero)
             if dossier:
                 has_facture_for_devis = any(
                     f.devis_id == devis_id for f in dossier.factures
@@ -181,12 +181,12 @@ async def submit_decision(token: str, request: Request):
         update_data = {"statut": new_statut}
         if body.commentaire:
             update_data["valideur_commentaire"] = body.commentaire
-        await valkey.update_devis(immat, numero, devis_id, update_data)
+        await redis_store.update_devis(immat, numero, devis_id, update_data)
 
         # Add historique entry
         action = ActionHistorique.DEVIS_APPROUVE if body.decision == "approuve" else ActionHistorique.DEVIS_REFUSE
         ref_key = f"{dt}:vehicules:{immat}:travaux:{numero}:devis:{devis_id}"
-        await valkey.add_historique_entry(
+        await redis_store.add_historique_entry(
             immat=immat,
             numero=numero,
             entry=HistoriqueEntry(
@@ -249,13 +249,13 @@ async def submit_decision(token: str, request: Request):
         update_data = {"statut": new_statut}
         if body.commentaire:
             update_data["valideur_commentaire"] = body.commentaire
-        await valkey.update_devis(immat, numero, did, update_data)
+        await redis_store.update_devis(immat, numero, did, update_data)
 
         # Add historique entry
         action = ActionHistorique.DEVIS_APPROUVE if decision == "approuve" else ActionHistorique.DEVIS_REFUSE
         ref_key = f"{dt}:vehicules:{immat}:travaux:{numero}:devis:{did}"
         label = "approuvé" if decision == "approuve" else "refusé"
-        await valkey.add_historique_entry(
+        await redis_store.add_historique_entry(
             immat=immat,
             numero=numero,
             entry=HistoriqueEntry(

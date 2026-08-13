@@ -3,7 +3,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import List, Dict, Any
 
-from app.services.valkey_service import ValkeyService
+from app.services.redis_service import RedisService
 from app.models.repair_models import StatutDevis
 
 logger = logging.getLogger(__name__)
@@ -14,12 +14,12 @@ DEFAULT_DELAI_RAPPEL_JOURS = 7
 class ReminderService:
     """Scans dossiers to find overdue devis awaiting approval."""
 
-    def __init__(self, valkey: ValkeyService):
-        self.valkey = valkey
+    def __init__(self, redis_store: RedisService):
+        self.redis_store = redis_store
 
     async def get_delai_rappel(self) -> int:
         """Get configured reminder delay in days, defaults to 7."""
-        config = await self.valkey.get_configuration()
+        config = await self.redis_store.get_configuration()
         if config and hasattr(config, "delai_rappel_devis_jours"):
             return config.delai_rappel_devis_jours
         return DEFAULT_DELAI_RAPPEL_JOURS
@@ -37,10 +37,10 @@ class ReminderService:
         overdue: List[Dict[str, Any]] = []
 
         # Get all vehicles
-        vehicle_immats = await self.valkey.list_vehicles()
+        vehicle_immats = await self.redis_store.list_vehicles()
 
         for immat in vehicle_immats:
-            dossiers = await self.valkey.list_dossiers_reparation(immat)
+            dossiers = await self.redis_store.list_dossiers_reparation(immat)
             for dossier in dossiers:
                 if dossier.statut.value != "ouvert":
                     continue
@@ -63,7 +63,7 @@ class ReminderService:
                         })
 
         logger.info(
-            f"Reminder check for {self.valkey.dt}: "
+            f"Reminder check for {self.redis_store.dt}: "
             f"{len(overdue)} overdue devis found (delay={delai} days)"
         )
         return overdue

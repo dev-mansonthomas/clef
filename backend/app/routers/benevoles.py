@@ -6,9 +6,9 @@ from pydantic import BaseModel, EmailStr, Field
 
 from app.auth.models import User
 from app.auth.dependencies import require_dt_manager
-from app.services.valkey_dependencies import get_valkey_service
-from app.services.valkey_service import ValkeyService
-from app.models.valkey_models import BenevoleData, ResponsableData
+from app.services.redis_dependencies import get_redis_service
+from app.services.redis_service import RedisService
+from app.models.redis_models import BenevoleData, ResponsableData
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +44,7 @@ class BenevoleRoleUpdate(BaseModel):
 async def list_benevoles(
     dt: str,
     current_user: User = Depends(require_dt_manager),
-    valkey: ValkeyService = Depends(get_valkey_service)
+    redis_store: RedisService = Depends(get_redis_service)
 ) -> BenevoleListResponse:
     """
     List all bénévoles for the DT.
@@ -54,7 +54,7 @@ async def list_benevoles(
     Args:
         dt: DT identifier
         current_user: Current authenticated user (must be DT manager)
-        valkey: Valkey service
+        redis_store: Redis service
         
     Returns:
         List of all bénévoles in the DT
@@ -66,12 +66,12 @@ async def list_benevoles(
             detail="Access denied to this DT"
         )
     
-    # Get all benevoles from Valkey (now includes responsables with role field)
-    benevole_nivols = await valkey.list_benevoles()
+    # Get all benevoles from Redis (now includes responsables with role field)
+    benevole_nivols = await redis_store.list_benevoles()
 
     benevoles = []
     for nivol in benevole_nivols:
-        benevole_data = await valkey.get_benevole(nivol)
+        benevole_data = await redis_store.get_benevole(nivol)
         if benevole_data:
             benevoles.append(BenevoleResponse(
                 email=benevole_data.email or "",
@@ -85,9 +85,9 @@ async def list_benevoles(
     # For backward compatibility: also get responsables if they still exist
     # (This can be removed after migration is complete)
     try:
-        responsable_emails = await valkey.list_responsables()
+        responsable_emails = await redis_store.list_responsables()
         for email in responsable_emails:
-            responsable_data = await valkey.get_responsable(email)
+            responsable_data = await redis_store.get_responsable(email)
             if responsable_data:
                 # Check if already in benevoles list
                 if not any(b.email == responsable_data.email for b in benevoles):
@@ -123,7 +123,7 @@ async def update_benevole_role(
     email: str,
     role_update: BenevoleRoleUpdate,
     current_user: User = Depends(require_dt_manager),
-    valkey: ValkeyService = Depends(get_valkey_service)
+    redis_store: RedisService = Depends(get_redis_service)
 ) -> BenevoleResponse:
     """
     Update a bénévole's role.
@@ -135,7 +135,7 @@ async def update_benevole_role(
         email: Bénévole email
         role_update: New role information
         current_user: Current authenticated user (must be DT manager)
-        valkey: Valkey service
+        redis_store: Redis service
         
     Returns:
         Updated bénévole information
@@ -164,9 +164,9 @@ async def update_benevole_role(
 
     # Find the benevole by email
     benevole_data = None
-    benevole_nivols = await valkey.list_benevoles()
+    benevole_nivols = await redis_store.list_benevoles()
     for nivol in benevole_nivols:
-        b = await valkey.get_benevole(nivol)
+        b = await redis_store.get_benevole(nivol)
         if b and b.email and b.email.lower() == email.lower():
             benevole_data = b
             break
@@ -193,7 +193,7 @@ async def update_benevole_role(
         benevole_data.ul = role_update.ul
 
     # Save updated benevole
-    await valkey.set_benevole(benevole_data)
+    await redis_store.set_benevole(benevole_data)
 
     # For backward compatibility: also update responsables table if it still exists
     # (This can be removed after migration is complete)
@@ -211,12 +211,12 @@ async def update_benevole_role(
                 type_perimetre="UL" if role_update.role == "responsable_ul" else "DT",
                 ul=role_update.ul if role_update.role == "responsable_ul" else None
             )
-            await valkey.set_responsable(responsable_data)
+            await redis_store.set_responsable(responsable_data)
         else:
             # If demoting, remove from responsables if exists
-            existing_resp = await valkey.get_responsable(email)
+            existing_resp = await redis_store.get_responsable(email)
             if existing_resp:
-                await valkey.delete_responsable(email)
+                await redis_store.delete_responsable(email)
     except Exception as e:
         logger.warning(f"Could not update responsables table (may have been removed): {e}")
 
