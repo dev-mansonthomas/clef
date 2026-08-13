@@ -2,6 +2,26 @@
 
 Web application for managing vehicles of the Croix-Rouge Française (French Red Cross) Délégation Territoriale: vehicle checkout/return by volunteers, administrative tracking (CT, insurance), reservations, and alerts.
 
+## Documentation
+
+| Pour | Où |
+|---|---|
+| **Démarrer, installer, lancer, tester** | ce README |
+| **Carte d'entrée pour agents IA** | [`CLAUDE.md`](CLAUDE.md) — stack, commandes vérifiées, carte des modules, pièges |
+| Besoin, utilisateurs, périmètre | [`docs/product/PRD.md`](docs/product/PRD.md) |
+| Architecture, flux, modèle de données | [`docs/architecture/overview.md`](docs/architecture/overview.md) |
+| Contrats par fonctionnalité | [`docs/specs/`](docs/specs/) — et [`docs/specs-gestion-factures.md`](docs/specs-gestion-factures.md), spec fonctionnel d'origine |
+| Décisions techniques et leurs conséquences | [`docs/adr/`](docs/adr/) |
+| **Défauts connus, par sévérité** | [`docs/TODO.md`](docs/TODO.md) |
+| Ce qui a été reconstruit, ce qui est perdu | [`docs/migration-status.md`](docs/migration-status.md) |
+
+> Les documents de `docs/` ont été **reconstruits depuis le code le 2026-08-13**,
+> les notes de l'agent qui a construit le projet ayant été perdues. Toute affirmation
+> non vérifiable y est marquée `(inferred — verify)`. Les documents
+> `DEPLOYMENT.md`, `DOCKER_SETUP.md` et `SECRETS_SETUP.md` sont **obsolètes** sur
+> plusieurs points (Redis vs Valkey, Okta vs Google OAuth, noms de secrets) — voir
+> `docs/TODO.md` (M23) avant de s'y fier.
+
 ## Architecture Overview
 
 - **Frontend**: Angular 21 monorepo with 2 PWA apps
@@ -139,27 +159,54 @@ The DT Manager authorizes via OAuth; tokens are encrypted with Cloud KMS.
 
 Scripts in [`google-apps-scripts/`](google-apps-scripts/) are installed in the referential Spreadsheet. Automatic triggers sync data to the backend API:
 
-| Data | Sync Frequency | Endpoint |
-|------|---------------|----------|
-| Vehicles | Every 1 minute | `/api/sync/vehicules` |
-| Responsables | Every hour | `/api/sync/responsables` |
-| Bénévoles | Every hour | `/api/sync/benevoles` |
+| Data | Sync Frequency | Method | Endpoint |
+|------|---------------|--------|----------|
+| Vehicles | Every 1 minute | `GET` | `/api/sync/{DT}/vehicules` |
+| Responsables | Every hour | `GET` | `/api/sync/{DT}/responsables` |
+| Bénévoles | Every hour | `POST` | `/api/sync/{DT}/benevoles` |
 
-Uses API Key authentication. See [`google-apps-scripts/README.md`](google-apps-scripts/README.md) for installation guide.
+`{DT}` is the délégation code (e.g. `DT75`), supplied by the Apps Script `CLEF_DT`
+script property. It is **not** optional — see `backend/app/routers/sync.py` and
+`google-apps-scripts/api.gs`.
+
+Uses API Key authentication (`X-API-Key` header, checked against the `SYNC_API_KEY`
+environment variable). See [`google-apps-scripts/README.md`](google-apps-scripts/README.md) for installation guide.
 
 ## Testing
 
+> ⚠️ **État réel mesuré le 2026-08-13.** La suite n'est pas verte. Les chiffres
+> ci-dessous sont des sorties d'exécution, pas des objectifs. Détail des causes
+> racines dans [`docs/TODO.md`](docs/TODO.md).
+
 ```bash
-# Backend unit tests
-cd backend && python -m pytest tests/ -x -q
+# Backend — nécessite Python 3.13. `python3 -m venv` est cassé dans la VM
+# (ensurepip absent) : utiliser uv.
+cd backend
+uv venv .venv && uv pip install --python .venv/bin/python -r requirements.txt
+export USE_MOCKS=true
+.venv/bin/python -m pytest tests/ -q
+#   → 12 failed, 356 passed, 1 skipped
 
-# Frontend unit tests
-cd frontend && npx ng test admin
-cd frontend && npx ng test form
+# Idem avec un vrai Valkey (fait tomber 4 échecs sur 12) :
+docker run -d --rm -p 6379:6379 valkey/valkey-bundle:8
+export REDIS_URL="redis://localhost:6379/0"
+.venv/bin/python -m pytest tests/ -q
+#   → 8 failed, 360 passed, 1 skipped
+#   Les 8 restants : fixture CSV perdue, voir docs/TODO.md (H2).
 
-# E2E tests (Playwright)
+# Frontend — tests unitaires : NE COMPILENT PAS
+cd frontend && npx ng test admin --watch=false
+#   → TS2304: Cannot find name 'spyOn'  (specs Jasmine sur runner Vitest)
+#   Aucun test unitaire frontend n'est actuellement exécutable.
+
+# E2E (Playwright) — 6 specs, jamais exécutées par la CI
 cd frontend && npx playwright test
 ```
+
+Ne pas utiliser `pytest -x` : le premier échec masquerait l'état réel de la suite.
+
+⚠️ Le module **JSON** de Valkey est obligatoire : d'où l'image `valkey-bundle:8`
+(et non `valkey:8`) et l'extra `fakeredis[json]` dans `requirements.txt`.
 
 See [`frontend/e2e/README.md`](frontend/e2e/README.md) for detailed E2E test documentation.
 
@@ -212,7 +259,20 @@ redis-cli -h VALKEY_INTERNAL_IP -p 6379
 
 ### Authentication
 
-Memorystore for Valkey uses **IAM** authentication. The Service Account `clef-backend@{project}.iam.gserviceaccount.com` has the `roles/memorystore.dbConnectionUser` role.
+Memorystore for Valkey uses **IAM** authentication.
+
+> ⚠️ **Écart vérifié le 2026-08-13 — cette section décrit une intention, pas la réalité.**
+> `roles/memorystore.dbConnectionUser` n'est accordé **nulle part** dans le dépôt.
+> Les seuls rôles réellement attribués au service account `clef-backend` par
+> `backend/terraform/service_account.tf` sont :
+>
+> - `roles/cloudkms.cryptoKeyEncrypterDecrypter`
+> - `roles/compute.instanceAdmin.v1`
+>
+> Le rôle nécessaire à la connexion IAM à Memorystore doit donc être ajouté avant
+> tout déploiement, sinon le backend ne pourra pas s'authentifier auprès de
+> l'instance Valkey. Voir `docs/TODO.md` (M23) et
+> `docs/adr/0005-deux-arbres-terraform-et-deploiement-imperatif.md`.
 
 ### Useful Commands
 
