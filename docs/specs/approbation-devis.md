@@ -26,7 +26,7 @@ tokens déjà créés.
 
 ## Modèle de données
 
-Clé Valkey/Redis : **`{DT}:approbation:{token}`**, TTL **7 jours**
+Clé Redis/Redis : **`{DT}:approbation:{token}`**, TTL **7 jours**
 (`approval_service.py:11` `APPROVAL_TTL_DAYS = 7`, `approval_service.py:22`
 `_token_key`, appliqué à la création `approval_service.py:51,77` et conservé/rafraîchi
 à la décision `approval_service.py:126-130`).

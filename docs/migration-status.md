@@ -119,6 +119,14 @@ documentation de déploiement (M23) — est réel mais vient après ces trois-l�
 
 Mesuré **dans la VM**, le 2026-08-13.
 
+> ⚠️ **Ce tableau décrit la situation *avant* le chantier « CI verte » du même jour.**
+> Il est conservé comme état des lieux de départ. Après chantier : le projet exige
+> Python **3.14** (installé via `uv`, toujours absent du `PATH`), Node **24** partout
+> (donc plus de divergence), le datastore est **`redis:8.10`**, et
+> `@playwright/test` est en **1.62.1** — version qui cible exactement le
+> `chromium-1234` déjà en cache, ce qui a débloqué les 30 e2e. Voir la section
+> « Après le chantier » plus bas.
+
 | Outil | Version requise (+ où détectée) | Cette VM a | Verdict |
 |---|---|---|---|
 | Python | `>=3.13` (`backend/pyproject.toml:9`) ; `python:3.13-slim` (`backend/Dockerfile:2,22`) ; `python-version: '3.13'` (`.github/workflows/ci.yml:27`) | `python3` du PATH = **3.12.3** ; mais `uv` dispose d'un **CPython 3.13.14** managé, et le venv du projet tourne dessus | **OK via `uv`**, mauvaise version sur le PATH |
@@ -196,3 +204,53 @@ mise install node@22
 Reportées en fin de la synthèse de session ; les cinq retenues portent sur le
 montant de la franchise, l'ambition multi-DT, l'arbre Terraform autoritaire, le
 statut du référentiel Google Sheets, et l'arbitrage sur la fixture CSV perdue.
+
+
+---
+
+## Après le chantier « CI verte » — 2026-08-13 (seconde passe)
+
+Ce que ce chantier a changé par rapport à l'état des lieux ci-dessus. Toutes les
+valeurs sont **mesurées par exécution**.
+
+### Toolchain, après alignement
+
+| Outil | Exigé par le dépôt | Cette VM | Verdict |
+|---|---|---|---|
+| Python | `>=3.14` (`pyproject.toml`, `Dockerfile`, `ci.yml`) | `python3` du PATH = **3.12.3** ; `uv` gère un **CPython 3.14.6** | **OK via `uv`** — le PATH reste en 3.12, `tests/test_runtime.py` garde l'écart |
+| `python3 -m venv` | plus au parcours documenté | **réparé** (`ensurepip` présent) | OK, mais donnerait un venv 3.12 : insuffisant |
+| Node.js | **24** (Dockerfiles + `ci.yml`) | **24.18.0** | **OK** — divergence supprimée |
+| Datastore | **`redis:8.10`** (`docker-compose.yml`) | conteneur ; `MODULE LIST` → `ReJSON`, `search`, `timeseries`, `bf`, `vectorset` | **OK** |
+| `redis-cli` | fourni par l'image | 8.8.0 en VM, 8.10 dans l'image | **OK** |
+| Playwright | **`^1.62.1`** (`package.json`) | `chromium-1234` **déjà en cache** — aucun téléchargement | **OK** — c'est ce bump qui a débloqué les e2e |
+
+### Ce que la mise au vert a révélé
+
+Rendre les suites exécutables a mis au jour des défauts qu'aucun outil ne pouvait
+voir tant que rien ne tournait. Ils sont tous consignés dans
+[`docs/TODO.md`](TODO.md), section « Constats nouveaux » :
+
+- **Deux écrans inaccessibles** (`/super-admin`, `/configuration-ul`) : routes et
+  guards en place, aucun lien de navigation (H9, corrigé).
+- **Trois motifs de mock e2e ne correspondaient à aucune URL réelle** — les requêtes
+  fuyaient vers le proxy du serveur de dev (corrigés).
+- **Deux jeux de données mock hors contrat d'API** : `status_ct` en chaîne au lieu de
+  `{value, color}`, et les réservations sur l'ancien modèle Google Calendar (corrigés).
+- **Une fixture e2e dépendante de l'heure d'exécution** : la réservation était placée
+  « dans 24 h », donc hors de la plage horaire affichée par le calendrier passé 22 h
+  (corrigée).
+- **L'autorisation évaluée après l'acquisition du datastore** dans les 8 routes de
+  `config.py` (M26, non corrigé — hors périmètre).
+- **Un flake de tri** dans l'historique du carnet de bord (M27, observé, non corrigé).
+
+### Ce qui reste perdu ou ouvert
+
+Rien de ce chantier ne change les conclusions de la section « Ce qui est
+définitivement perdu » ci-dessus. En particulier :
+
+- **Terraform reste cassé** et provisionne toujours un Memorystore for **Valkey** :
+  seul le nom du fichier a changé (`memorystore_valkey.tf` → `memorystore_redis.tf`).
+  La cible de production n'est pas tranchée — voir
+  [ADR 0006](adr/0006-redis-8-10-remplace-valkey.md) et `docs/TODO.md` H7/N1.
+- **Les constats de sécurité** C1, C3, S1–S12 et les bugs R1–R7 sont **intacts** : ce
+  chantier ne les a ni corrigés ni aggravés.

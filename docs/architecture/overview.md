@@ -20,7 +20,7 @@ flowchart TB
     end
 
     subgraph data["Données"]
-        VK[("Memorystore for Valkey 8<br/>modules JSON + Search")]
+        VK[("Memorystore for Redis 8.10<br/>modules JSON + Search")]
         KMS["Cloud KMS<br/>oauth-tokens-key"]
         SM["Secret Manager"]
     end
@@ -73,7 +73,7 @@ Points structurants :
   (legacy) ; (4) défaut `Bénévole` sans périmètre.
 - Le **super admin** est un email unique (`SUPER_ADMIN_EMAIL`), orthogonal au rôle.
 - Les **gestionnaires DT** disposent en plus de tokens OAuth à scope étendu,
-  chiffrés par KMS et stockés dans Valkey (`dt_token_service.py`), pour agir sur
+  chiffrés par KMS et stockés dans Redis (`dt_token_service.py`), pour agir sur
   Drive/Gmail/Calendar en leur nom.
 
 ### Prise de véhicule par un bénévole
@@ -82,14 +82,14 @@ Points structurants :
 form: scan QR → POST /api/vehicles/decode (HMAC, public)
     → PriseFormComponent : km, carburant, état, jusqu'à 5 photos, signature
     → POST /api/carnet-de-bord/prise
-    → ValkeyService : entrée {DT}:carnet:{immat}:{ts}
+    → RedisService : entrée {DT}:carnet:{immat}:{ts}
                     + pointeur {DT}:carnet:derniere_prise:{immat}
     → puis second appel POST /api/upload/photos (photos sur Drive)
 ```
 
 Trois pièges vérifiés sur ce flux, détaillés dans `docs/TODO.md` :
 
-- **Le stockage est Valkey uniquement.** `CarnetBordService`
+- **Le stockage est Redis uniquement.** `CarnetBordService`
   (`app/services/carnet_bord_service.py`), qui implémentait l'écriture dans un
   Google Sheet par périmètre, est **du code mort jamais importé** — le router
   écrit `spreadsheet_id=None,  # No longer using Google Sheets`
@@ -105,7 +105,7 @@ Trois pièges vérifiés sur ce flux, détaillés dans `docs/TODO.md` :
 
 ```
 Gestionnaire crée un devis → POST …/devis
-    → ApprovalService génère un token (TTL 7 jours dans Valkey)
+    → ApprovalService génère un token (TTL 7 jours dans Redis)
     → EmailService envoie un lien magique au valideur
 Valideur (non authentifié) → GET /api/approbation/{token}
     → POST /api/approbation/{token} avec sa décision
@@ -116,11 +116,11 @@ C'est le seul chemin **volontairement public**, sécurisé par l'entropie du tok
 La recherche du token fait un `SCAN` sur tout le keyspace en repli
 (`app/routers/approbation.py:60`) car le DT n'est pas connu à l'avance.
 
-## 3. Modèle de données Valkey
+## 3. Modèle de données Redis
 
-**Convention unique et centrale** : `ValkeyService._key()` produit toujours
+**Convention unique et centrale** : `RedisService._key()` produit toujours
 `f"{dt}:{...}"`. **Le code DT est le premier segment de chaque clé.** C'est le seul
-mécanisme d'isolation multi-tenant, appliqué par l'application — Valkey n'impose
+mécanisme d'isolation multi-tenant, appliqué par l'application — Redis n'impose
 rien. Le `dt` provient de `current_user.dt`.
 
 | Motif de clé | Structure | Contenu |
@@ -146,7 +146,7 @@ portent **aucun** code DT (espace de noms global, isolation plus faible), et les
 clés `ical:*` placent le DT en deuxième position.
 
 Numérotation métier des dossiers : `REP-{YYYY}-{NNN}`
-(`valkey_service.py:1305-1307`), conforme à `docs/specs-gestion-factures.md`.
+(`redis_service.py:1305-1307`), conforme à `docs/specs-gestion-factures.md`.
 
 ## 4. Modèle d'autorisation
 
@@ -166,7 +166,7 @@ get_current_user          (lit le cookie, ne lève jamais)
     → require_super_admin                            (403 sauf email exact)
 ```
 
-`get_valkey_service` dépend lui-même de `require_authenticated_user` : tout
+`get_redis_service` dépend lui-même de `require_authenticated_user` : tout
 endpoint qui injecte le service est donc authentifié transitivement.
 
 **Faiblesses structurelles constatées** (détail et sévérité dans `docs/TODO.md`) :
@@ -182,8 +182,8 @@ endpoint qui injecte le service est donc authentifié transitivement.
 
 | Système | Usage | Mode mock |
 |---|---|---|
-| Valkey 8 (bundle) | stockage principal ; **modules JSON et Search requis** | `fakeredis[json]` |
-| Google Sheets | référentiels véhicules / bénévoles / responsables. **Plus le carnet de bord** : ce chemin a été abandonné au profit de Valkey, le service Sheets correspondant est du code mort | `google_sheets_mock.py` |
+| Redis 8.10 (bundle) | stockage principal ; **modules JSON et Search requis** | `fakeredis[json]` |
+| Google Sheets | référentiels véhicules / bénévoles / responsables. **Plus le carnet de bord** : ce chemin a été abandonné au profit de Redis, le service Sheets correspondant est du code mort | `google_sheets_mock.py` |
 | Google Drive | documents et photos par véhicule, arborescence de dossiers | `google_drive_mock.py` |
 | Gmail | alertes CT/pollution, demandes d'approbation | `google_gmail_mock.py` |
 | Google Calendar | événements de réservation | `google_calendar_mock.py` |
@@ -205,12 +205,12 @@ ne le dit pas et le *pourquoi* est perdu.
 |---|---|
 | Images | 2 en production : `clef-api` (backend) et `clef-frontend` (nginx servant `/admin` et `/form` depuis **une seule** image) |
 | Exécution | Cloud Run, région `europe-west1` (CI) |
-| Données | Memorystore for Valkey, région `europe-west9` (`backend/terraform`) |
+| Données | Memorystore for Redis, région `europe-west9` (`backend/terraform`) |
 | État Terraform | **local**, aucun backend distant déclaré |
 | Service Cloud Run | **déclaré nulle part en IaC** — créé impérativement par `gcloud run deploy` dans la CI |
 
 ⚠️ **Deux arbres Terraform divergents et incompatibles** coexistent :
-`backend/terraform/` (récent : KMS + Memorystore Valkey + IAM Compute, provider
+`backend/terraform/` (récent : KMS + Memorystore Redis + IAM Compute, provider
 google 7.23.0, `europe-west9`) et `infra/` (antérieur : Cloud Run + Artifact
 Registry + Memorystore **Redis** legacy + Secret Manager, provider `~> 5.0`,
 `europe-west1`). Aucun des deux ne valide. Voir `docs/adr/0005-*.md` et

@@ -25,7 +25,7 @@ branche `feat/sinistres-franchise`.
 
 | Champ | Type | Note |
 |---|---|---|
-| `numero` | `str` | `REP-{YYYY}-{NNN}`, séquence par véhicule (`valkey_service.py:1305-1307`) |
+| `numero` | `str` | `REP-{YYYY}-{NNN}`, séquence par véhicule (`redis_service.py:1305-1307`) |
 | `immat`, `dt` | `str` | véhicule et délégation |
 | `titre` | `Optional[str]` | 50 caractères max |
 | `description` | `List[str]` | liste d'items, **min 1 à la création** |
@@ -41,7 +41,7 @@ branche `feat/sinistres-franchise`.
 `description_items`, `montant_total` et `montant_crf` (part Croix-Rouge).
 `Devis.token_approbation` (`:125`) porte le token d'approbation — voir Écarts.
 
-### Clés Valkey
+### Clés Redis
 
 ```
 {DT}:vehicules:{immat}:travaux:counter                 STRING  (INCR)
@@ -54,7 +54,7 @@ branche `feat/sinistres-franchise`.
 ```
 
 Le montant de franchise ne vit **pas** sur le dossier : il est porté par
-`DTConfiguration.montant_franchise` (`valkey_models.py:34`, défaut `350.0`) et lu au
+`DTConfiguration.montant_franchise` (`redis_models.py:34`, défaut `350.0`) et lu au
 moment du besoin (`dossiers_reparation.py:423,540`, `approbation.py:101`).
 
 ## Machine à états
@@ -125,7 +125,7 @@ relance d'approbation avec invalidation de l'ancien token.
 
 **Non traités** : aucune atomicité entre le compteur, le document et l'index — une
 écriture partielle laisse un index désynchronisé et rien ne le détecte (conséquence
-de l'[ADR 0001](../adr/0001-valkey-8-comme-datastore-principal.md)). Aucune
+de l'[ADR 0001](../adr/0001-redis-8-comme-datastore-principal.md)). Aucune
 pagination sur la liste des dossiers.
 
 ## Critères d'acceptation
@@ -150,7 +150,7 @@ pagination sur la liste des dossiers.
 
 | # | Écart | Sévérité |
 |---|---|---|
-| **E1** | **Le `montant_franchise` n'est ni enregistrable ni relisible.** Il est stocké (`valkey_models.py:34`) et consommé (`dossiers_reparation.py:423,540`, `approbation.py:101`), et l'écran Configuration propose un champ de saisie ; mais il est **absent de `ConfigUpdate` et de `ConfigResponse`** (`backend/app/models/config.py` — vérifié : une seule classe de chaque, aucune ne le déclare). `PATCH /api/config` le jette via `model_dump(exclude_none=True)` (`routers/config.py:128`) et l'UI ne peut jamais relire la valeur stockée. **La franchise est figée à 350 € pour toutes les délégations**, malgré une interface qui suggère le contraire. | 🟠 haute |
+| **E1** | **Le `montant_franchise` n'est ni enregistrable ni relisible.** Il est stocké (`redis_models.py:34`) et consommé (`dossiers_reparation.py:423,540`, `approbation.py:101`), et l'écran Configuration propose un champ de saisie ; mais il est **absent de `ConfigUpdate` et de `ConfigResponse`** (`backend/app/models/config.py` — vérifié : une seule classe de chaque, aucune ne le déclare). `PATCH /api/config` le jette via `model_dump(exclude_none=True)` (`routers/config.py:128`) et l'UI ne peut jamais relire la valeur stockée. **La franchise est figée à 350 € pour toutes les délégations**, malgré une interface qui suggère le contraire. | 🟠 haute |
 | **E2** | **`sinistre_id` est un champ mort** (`repair_models.py:168`). Jamais écrit, jamais lu — seule une assertion de test constate qu'il vaut `None`. La fonctionnalité a finalement été portée par deux booléens. Aucune trace de la raison de cet abandon. | 🟡 moyenne |
 | **E3** | **`PATCH .../factures/{facture_id}` n'a aucun test backend**, alors que le chemin est câblé de bout en bout (`repair.service.ts` → `facture-form.component.ts:303`). | 🟡 moyenne |
 | **E4** | **`Devis.token_approbation` n'est pas exclu du `response_model`** : des tokens d'approbation actifs sont renvoyés dans le JSON servi aux clients admin. | 🟠 haute |

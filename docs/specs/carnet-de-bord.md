@@ -22,7 +22,7 @@ Pydantic (`backend/app/models/carnet_bord.py`) :
   Écarts), `perimetre`.
 - `DernierePrise` (`:83-92`) : reflet de la dernière prise pour un véhicule.
 
-Persistance réelle : `ValkeyService` (via `get_valkey_service`), pas Google Sheets. Le service
+Persistance réelle : `RedisService` (via `get_redis_service`), pas Google Sheets. Le service
 `backend/app/services/carnet_bord_service.py` (Google Sheets `append_prise`/`append_retour`, Drive
 `_find_existing_sheet`/`_create_new_sheet`, cache Redis du `spreadsheet_id`) **n'est importé nulle part
 dans `routers/carnet_bord.py`** — les commentaires `# No longer using Google Sheets` (`routers/carnet_bord.py:78,148`)
@@ -67,7 +67,7 @@ plus `POST /api/upload/photos` pour les photos (`:46-77`, backend non lu — hor
 4. `kilometrage` doit être `>= 0` (validation Pydantic `Field(..., ge=0)`, `models/carnet_bord.py:13,41`).
 5. Le retour calcule `km_parcourus = retour.kilometrage - derniere_prise.kilometrage` (`:142-143`) et
    l'inclut dans le message de succès — **aucune vérification que ce delta soit positif** (voir Cas limites).
-6. Un retour réussi efface la dernière prise active (`enregistrer_retour` côté Valkey — comportement
+6. Un retour réussi efface la dernière prise active (`enregistrer_retour` côté Redis — comportement
    déduit des tests, `test_enregistrer_retour_clears_derniere_prise`).
 7. `perimetre` retourné = `current_user.dt` de l'utilisateur authentifié (`:79`, `:149`), **pas** le
    périmètre du véhicule lui-même.
@@ -111,7 +111,7 @@ pas branché** sur le carnet de bord.
 | Dernière prise : null si aucune donnée | `::test_get_derniere_prise_no_data` |
 | Dernière prise : renvoyée si existante | `::test_get_derniere_prise_with_data` |
 | Kilométrage négatif rejeté (422) | `::test_prise_validation_negative_kilometrage` |
-| Retour efface la dernière prise (Valkey) | `::test_enregistrer_retour_clears_derniere_prise` |
+| Retour efface la dernière prise (Redis) | `::test_enregistrer_retour_clears_derniere_prise` |
 | Historique carnet (prise + retour, plus récent d'abord) | `::test_get_historique_carnet` |
 | Soumission formulaire prise (UI, e2e) | `frontend/e2e/form-prise-submission.spec.ts` |
 | Soumission formulaire retour (UI) | **NON COUVERT** |
@@ -151,7 +151,7 @@ pas branché** sur le carnet de bord.
    `grep -rn 'CarnetBordService' backend/app/` ne retourne que sa propre définition
    (`services/carnet_bord_service.py:13`). Le router écrit explicitement
    `spreadsheet_id=None,  # No longer using Google Sheets`
-   (`routers/carnet_bord.py:78,148`). Le stockage est **Valkey uniquement** ; le
+   (`routers/carnet_bord.py:78,148`). Le stockage est **Redis uniquement** ; le
    chemin Google Sheets par périmètre a été abandonné sans que le service soit retiré.
 6. **VÉRIFIÉ — le mode hors ligne n'est pas branché.**
    `grep -rn 'OfflineSyncService' frontend/projects/form/src/app` ne retourne que sa

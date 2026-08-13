@@ -60,7 +60,7 @@ le vrai backend sur ce parcours.
 
 ## 🟠 Haute
 
-### H1 — Le job de déploiement n'est gardé par aucun test
+### ~~H1~~ — ✅ **RÉSOLU le 2026-08-13** — Le job de déploiement n'est gardé par aucun test
 
 `.github/workflows/ci.yml` : `backend-test` et `frontend-build` sont conditionnés
 `if: github.event_name == 'pull_request'` ; `deploy-dev` est conditionné
@@ -72,13 +72,27 @@ hors de ce fichier — peut l'empêcher.
 **Action :** ajouter `needs: [backend-test, frontend-build]` et faire tourner les
 tests aussi sur `push`.
 
-### H2 — Fixture de test perdue : 8 tests en échec, seule cause de CI rouge restante
+> ✅ **Fait.** `deploy-dev` déclare
+> `needs: [backend-test, frontend-build, frontend-test, e2e]` et les jobs de test ne
+> sont plus conditionnés `pull_request`. `backend/tests/test_ci_workflow.py` (8
+> assertions) relit `ci.yml` et fait échouer la suite si le garde-fou disparaît.
+
+### ~~H2~~ — ✅ **RÉSOLU le 2026-08-13** — Fixture de test perdue : 8 tests en échec
 
 `backend/tests/fixtures/vehicles_import_sample.csv` n'existe pas et **n'a jamais été
 committé** (0 occurrence dans tout l'historique). La règle `.gitignore:156 *.csv`,
 posée pour protéger les données personnelles, l'a avalé. La machine source a été
 supprimée. Forme reconstruite et deux options de remédiation dans
 `docs/specs/import-vehicules-csv.md`. **Décision produit requise.**
+
+> ✅ **Tranché : les deux options.** Les CSV de test sont désormais **générés** par
+> les fixtures `vehicles_import_sample_csv` et `vehicles_no_indicatif_csv`
+> (`backend/tests/conftest.py`) — plus aucun `.csv` versionné sous `backend/`, donc
+> cette classe de panne a disparu. Un exemple documenté, 100 % fictif, vit sous
+> `docs/examples/referentiel-vehicules-exemple.csv`, couvert par l'exception
+> `.gitignore` `!docs/examples/*.csv`, **strictement limitée à ce répertoire**.
+> La même panne existait côté e2e (`e2e/fixtures/test-vehicles.csv`, jamais
+> committé) : réglée de la même façon via `e2e/helpers/vehicles-csv.ts`.
 
 ### H3 → requalifié en **C3** après vérification endpoint par endpoint
 
@@ -196,8 +210,8 @@ réservation créée depuis l'admin n'apparaît donc pas dans le calendrier admi
 | M1 | **Le champ « Montant de la franchise » est décoratif.** Stocké (`valkey_models.py:34`) et consommé (`dossiers_reparation.py:423,540`, `approbation.py:101`), mais absent de `ConfigUpdate` **et** de `ConfigResponse` → ni écrit ni relu, figé à 350 € | `backend/app/models/config.py` |
 | M2 | **Toute exception d'authentification est avalée** en 401 muet, sans log — c'est ce qui a masqué le bug de fuseau pendant des mois | `auth/dependencies.py:60-61` |
 | M3 | **Identité bénévole factice** dans le carnet de bord : entrées mal attribuées | `prise-form.component.ts:178-179`, `retour-form.component.ts:147-152` |
-| M4 | **`ng test` ne compile pas** : 8 specs en Jasmine (`spyOn`, `done()`) sur un runner Vitest → 0 test unitaire frontend exécutable | `frontend/projects/**/*.spec.ts` |
-| M5 | **La CI ne lance ni `ng test` ni Playwright** — d'où M4 invisible | `.github/workflows/ci.yml` |
+| ~~M4~~ | ✅ **RÉSOLU 2026-08-13.** Les 2 specs Jasmine portées vers Vitest ; les 2 `app.spec.ts` scaffold (`Hello, admin`/`Hello, form`) réécrits sur le contrat réel. 22 tests passent. ⚠️ La couverture reste mince : 6 fichiers pour ~100 composants | `frontend/projects/**/*.spec.ts` |
+| ~~M5~~ | ✅ **RÉSOLU 2026-08-13.** Deux nouveaux jobs : `frontend-test` (matrice admin/form) et `e2e`. Tous deux dans le `needs:` de `deploy-dev` | `.github/workflows/ci.yml` |
 | M6 | **`SCAN` cross-tenant de tout le keyspace** pour retrouver un token, après un essai sur un préfixe `"DT75"` codé en dur | `routers/approbation.py:50,60` |
 | M7 | **4 services admin codent `dt = 'DT75'` en dur** → application mono-DT en pratique | `api-keys`, `stats`, `unite-locale`, `vehicle-import` services |
 | M8 | **Deux caches sans préfixe DT** (`clef:calendar_ids:*`, `clef:carnet_bord:sheet_id:*`) : espace de noms global, isolation plus faible | `valkey_service.py`, `carnet_bord_service.py:16` |
@@ -216,8 +230,8 @@ réservation créée depuis l'admin n'apparaît donc pas dans le calendrier admi
 | M21 | **`_build_cost_html`** (ventilation sinistre/franchise dans l'email) et le chemin **relance + invalidation de token** : aucun test | `services/email_service.py`, `approval_service.py:82` |
 | M22 | **Le spec d'origine est en décalage** : `docs/specs-gestion-factures.md` (2026-03-21) n'anticipait le sinistre que comme une note en prose ; l'implémentation a introduit `est_sinistre`/`franchise_applicable`/`montant_franchise`. **Le spec n'a jamais été mis à jour.** | `docs/specs-gestion-factures.md` §4.2 |
 | M23 | **Documentation de déploiement obsolète** : `DEPLOYMENT.md` et `SECRETS_SETUP.md` décrivent `clef-cache` / `redis_7_0` (Memorystore for **Redis**) et des noms de secrets GitHub erronés ; `DOCKER_SETUP.md` parle du service `redis`, ignore le conteneur `frontend-form` (port 4202) et invite à « configurer Okta ». `README.md` omet le segment `{DT}` des endpoints de sync et attribue un rôle IAM (`memorystore.dbConnectionUser`) qui n'est accordé nulle part | racine du dépôt |
-| M24 | **`e2e/admin-reservation-calendar.spec.ts` est écrit contre un formulaire qui n'existe pas** (`vehicule_id`, `chauffeur_prenom`, `date_debut`…) et toutes ses assertions sont gardées par `if (await createButton.isVisible())` : le test **ne teste rien** silencieusement | `frontend/e2e/` |
-| M25 | **Le module Search de Valkey est provisionné mais inutilisé** : aucun `FT.CREATE` dans le code | image `valkey-bundle:8` |
+| M24 | **Partiellement résolu 2026-08-13.** La cause racine est identifiée : le mock portait l'ancien modèle Google Calendar (`vehicule_id`, `date_debut`) alors que le calendrier lit le modèle Redis (`vehicule_immat`, `debut`) — corrigé, le calendrier affiche désormais l'événement et les 5 tests passent. ⚠️ **Le bloc gardé par `if (await createButton.isVisible())` reste inerte** : le bouton « Nouvelle réservation » n'existe pas, donc la création de réservation n'est toujours pas couverte | `frontend/e2e/` |
+| M25 | **Le module Search est disponible mais inutilisé** : aucun `FT.CREATE` dans le code. Fourni sans coût par l'image officielle `redis:8.10` — plus rien à décider côté provisionnement | image `redis:8.10` |
 
 ## ⚪ Faible
 
@@ -234,8 +248,8 @@ réservation créée depuis l'admin n'apparaît donc pas dans le calendrier admi
 | F9 | 3 services frontend codent leur URL d'API en dur au lieu d'`environment.apiUrl` : `qr-code.service.ts:13`, `reservation.service.ts:11` (admin), `carnet-bord.service.ts:16` (form) |
 | F10 | `OnPush` n'est utilisé que dans **un** composant sur ~100 |
 | F11 | `dossier-detail.component.ts` fait 1028 lignes — candidat au découpage |
-| F12 | `valkey_service.py` fait 1849 lignes et porte tous les domaines |
-| F13 | `main.py` déclare encore `@app.on_event("startup")`, déprécié par FastAPI au profit de `lifespan` |
+| F12 | `redis_service.py` (ex-`valkey_service.py`) fait 1849 lignes et porte tous les domaines |
+| ~~F13~~ | ✅ **RÉSOLU 2026-08-13.** `main.py` utilise `lifespan`. Nécessaire : Starlette 1.0 a **supprimé** `on_event()` (encode/starlette#3117) ; seul un shim FastAPI le maintenait en vie |
 | F14 | Deux familles Drive/Gmail coexistent (service account vs OAuth délégué), avec deux motifs mock/réel différents — migration inachevée |
 | F15 | `calendar-view/README.md` dit que le composant utilise des données mockées : obsolète |
 
@@ -267,20 +281,29 @@ admin/services/vehicle-import.service.ts:96,118
 admin/services/unite-locale.service.ts:13
 ```
 
-## État des tests (mesuré le 2026-08-13)
+## État des tests
+
+### Après le chantier « CI verte » (mesuré le 2026-08-13, seconde passe)
 
 | Suite | Commande | Résultat |
 |---|---|---|
-| Backend, sans Valkey (= CI) | `pytest tests/ -q` | **12 échecs / 356 passés / 1 ignoré** |
-| Backend, avec Valkey | idem + `REDIS_URL` | **8 échecs / 360 passés / 1 ignoré** |
-| Backend, référence historique | avant les correctifs du jour | 154 échecs / 214 passés |
-| Frontend unitaire | `ng test admin --watch=false` | **ne compile pas** |
-| Frontend build ×3 | `ng build {admin,form,frontend}` | exit 0 |
-| E2E | `playwright test` | non exécuté (6 specs, jamais en CI) |
-| Terraform ×2 | `tofu validate` | **échec des deux racines** |
+| Backend, avec `redis:8.10` | `pytest tests/ -q` + `REDIS_URL` | ✅ **410 passed, 1 skipped** |
+| Backend, sans serveur | `pytest tests/ -q` | ✅ **394 passed, 17 skipped** (aucun échec) |
+| Frontend unitaire `admin` | `ng test admin --watch=false` | ✅ **19 passed** (6 fichiers) |
+| Frontend unitaire `form` | `ng test form --watch=false` | ✅ **3 passed** |
+| E2E | `playwright test` | ✅ **30 passed** |
+| Builds ×2 | `ng build {admin,form} --configuration production` | ✅ exit 0 |
+| Terraform ×2 | `tofu validate` | ❌ **toujours cassé** — hors périmètre (H7) |
 
-Les 12 échecs restants : **8** faute de la fixture CSV perdue (H2), **4** faute
-d'un Valkey réel (les 4 disparaissent si un `valkey-bundle:8` tourne).
+### Référence historique (première passe, avant le chantier)
+
+| Suite | Résultat |
+|---|---|
+| Backend, sans Valkey (= CI de l'époque) | 12 échecs / 356 passés / 1 ignoré |
+| Backend, avec Valkey | 8 échecs / 360 passés / 1 ignoré |
+| Backend, avant les correctifs du jour | 154 échecs / 214 passés |
+| Frontend unitaire | ne compilait pas |
+| E2E | 30 échecs (navigateur introuvable), jamais exécutée en CI |
 
 ## Branches et travail inachevé
 
@@ -309,7 +332,7 @@ appliquée.
 
 ## 🔴 Sécurité — critique
 
-### S1 — `USE_MOCKS=true` en production = contournement total de l'authentification
+### ~~S1~~ — ✅ **RÉSOLU le 2026-08-13** — `USE_MOCKS=true` en production = contournement total de l'authentification
 
 ```
 auth/config.py:52   use_mocks: bool = os.getenv("USE_MOCKS", "false").lower() == "true"
@@ -329,6 +352,18 @@ n'empêche un mauvais fichier d'environnement de partir en production.
 
 **Action :** refuser le démarrage si `USE_MOCKS=true` et `ENVIRONMENT` vaut
 production. Le même drapeau désactive aussi le chiffrement KMS (voir S2).
+
+> ✅ **Fait.** `assert_mocks_not_in_production()`
+> (`app/mocks/service_factory.py`) lève une `RuntimeError` si `USE_MOCKS=true` et que
+> `ENVIRONMENT` **ou** `ENV` vaut `production`/`prod`. Appelée **à l'import** de
+> `app/main.py`, avant la création de l'app — délibérément pas dans le `lifespan`,
+> dont le `except Exception` avalerait l'erreur et laisserait l'app servir.
+> 28 tests dans `tests/test_mocks_guard.py`, dont un qui vérifie que la garde n'est
+> pas déplacée dans le `lifespan`. Vérifié par exécution :
+> `USE_MOCKS=true ENVIRONMENT=production python -c "import app.main"` → `RuntimeError`.
+>
+> ⚠️ **S2 reste ouvert** : le mode mock réduit toujours le chiffrement KMS à du
+> base64. La garde empêche seulement que ce mode atteigne la production.
 
 ### S2 — Le même drapeau réduit le chiffrement KMS à du base64
 
@@ -506,3 +541,94 @@ est le moins couvert par les tests et le moins présent dans les specs d'origine
 | N3 | **Python 3.14.x** | La VM va passer en 3.14 et `python3 -m venv` sera réparé. À mettre à jour : `backend/pyproject.toml` (`requires-python`), `backend/Dockerfile` + `Dockerfile.dev` (image de base), `.github/workflows/ci.yml` (`python-version`), et le parcours d'install du `README.md` (le contournement par `uv` restera valide mais ne sera plus nécessaire) |
 | N4 | **Node 24** | Aligner sur la VM : `frontend/Dockerfile:4`, `frontend/Dockerfile.dev:1`, `.github/workflows/ci.yml:61`. Les 3 builds passent déjà en 24, donc l'alignement ne devrait rien casser. Vérifier la compatibilité Angular 21 ↔ Node 24 avant de figer |
 | N5 | **Remplacer Valkey par Redis 8.10** | Redis **8.10.0** est GA depuis juillet 2026. Motif de fond : Redis 8.0 a ajouté **AGPLv3**, ce qui retire la raison d'être du fork Valkey ici. Points d'attention : (a) le module **JSON** doit rester disponible — vérifier l'image et le déploiement Memorystore ; (b) `docker-compose.yml:4` (`valkey/valkey-bundle:8`) ; (c) le healthcheck utilise `valkey-cli` ; (d) `backend/terraform/memorystore_valkey.tf` provisionne `google_memorystore_instance` en mode Valkey — vérifier l'équivalent Redis 8 sur GCP ; (e) `fakeredis[json]` côté tests ; (f) le module **Search**, provisionné mais inutilisé (M25), peut être abandonné à cette occasion |
+
+---
+
+# Constats nouveaux — chantier « CI verte » du 2026-08-13
+
+Découverts en rendant les quatre suites exécutables. Tous **vérifiés par exécution**.
+Aucun n'a été corrigé, sauf mention explicite.
+
+## 🟠 Haute
+
+### H9 — `/super-admin` et `/configuration-ul` n'étaient desservies par aucun lien
+
+Les deux routes existent et sont gardées (`superAdminGuard`, `ulResponsableGuard`),
+`AuthService` expose `isSuperAdmin` et `isUlResponsable` — mais `LayoutComponent`
+n'appelait ni l'un ni l'autre : **les deux écrans n'étaient atteignables qu'en
+saisissant l'URL à la main**. `layout.component.spec.ts` décrivait pourtant la
+navigation attendue ; ses assertions échouaient depuis toujours, invisibles parce que
+`ng test` ne compilait pas.
+
+> ✅ **Corrigé** : les deux liens sont câblés, conditionnés par les mêmes prédicats de
+> rôle. Le contrôle d'accès reste porté par les guards — aucun élargissement de droits.
+
+### H10 — Le bouton d'aide du back-office n'avait pas de nom accessible
+
+`layout.component.html` posait un `matTooltip` mais aucun `aria-label` : le bouton
+était muet pour un lecteur d'écran, et introuvable par nom accessible.
+
+> ✅ **Corrigé** : `aria-label="Aide à la configuration"`, aligné sur le texte visible
+> du tooltip (WCAG 2.5.3 *Label in Name*).
+
+### ~~H11~~ — ✅ **RÉSOLU le 2026-08-13** — `./run_local.sh` ne peut pas démarrer dans une VM sans credential GCP
+
+`docker-compose.yml` ne positionne pas `USE_MOCKS` : la valeur vient de
+`backend/.env`, qui porte `USE_MOCKS=false`. L'app instancie alors le vrai
+`GoogleSheetsService`, qui exige `/credentials/clef-backend-dev-key.json` — monté
+depuis `~/.cred/CLEF`. Or le modèle de sécurité veut que la VM de développement ne
+détienne **aucune credential sortante**. Le healthcheck du backend échoue, et
+`depends_on: condition: service_healthy` empêche les deux frontends de démarrer :
+
+```
+dependency failed to start: container clef-backend is unhealthy
+FileNotFoundError: '/credentials/clef-backend-dev-key.json'   (sheets_real.py:39)
+```
+
+**Vérifié : la stack démarre intégralement avec `USE_MOCKS=true`** — `/health` répond
+`{"status":"healthy","redis":"connected"}`, `4200` et `4202` renvoient 200. Le seul
+obstacle est ce drapeau.
+
+**Décision requise**, car elle touche un drapeau à portée de sécurité (voir **S1** :
+`USE_MOCKS=true` en production contourne toute l'authentification) :
+
+- **Option A** — poser `USE_MOCKS=true` dans le `backend/.env` local. Aucun fichier
+  versionné ne change ; chaque poste doit le faire.
+- **Option B** — déclarer `USE_MOCKS=${USE_MOCKS:-true}` dans le service `backend` de
+  `docker-compose.yml`. La stack démarre alors partout sans credential. Contrepartie :
+  un fichier versionné porterait la valeur `true` par défaut pour ce drapeau, et
+  `environment:` **prime sur** `env_file:` — un `USE_MOCKS=false` délibéré dans
+  `.env` serait silencieusement ignoré.
+- **Option C** — corriger **S1** d'abord (refuser le démarrage si `USE_MOCKS=true` et
+  `ENVIRONMENT` vaut production), ce qui rend l'option B sans danger, puis appliquer B.
+
+> ✅ **Option C retenue et appliquée.** Le garde-fou S1 est posé (voir S1 ci-dessus),
+> puis `docker-compose.yml` déclare `USE_MOCKS=${USE_MOCKS:-true}` sur le service
+> `backend` — surchargeable depuis le shell (`USE_MOCKS=false docker compose up`,
+> vérifié). `./run_local.sh` passe désormais de bout en bout **sans aucune
+> credential** :
+>
+> ```
+>   Redis: ✅ Ready     Backend: ✅ Ready     Frontend: ✅ Ready
+>   GET localhost:8000/health → {"status":"healthy","redis":"connected"}
+>   GET localhost:4200 → 200    GET localhost:4202 → 200    /docs → 200
+> ```
+
+## 🟡 Moyenne
+
+| # | Constat | Emplacement |
+|---|---|---|
+| M26 | **L'autorisation est évaluée *après* l'acquisition du datastore.** Les 8 routes de `config.py` déclarent `Depends(get_config_service)` / `Depends(get_redis_service)` **avant** `Depends(is_dt_manager)`. FastAPI résolvant les dépendances dans l'ordre déclaré, un appelant non autorisé fait ouvrir une connexion Redis avant de recevoir son 403 — et si le datastore est absent, il reçoit un 500 au lieu d'un 403. Défense en profondeur à inverser ; non corrigé, car réordonner une chaîne d'autorisation dépassait le périmètre du chantier | `app/routers/config.py:79-82,103-107,179-182,197-200,377-380,418-422,446-451,595-598,651-654,679-681` |
+| M27 | **Flake de tri dans l'historique du carnet de bord.** `get_carnet_entries` trie les entrées sur `timestamp.isoformat()` en ordre lexicographique. `test_get_historique_carnet` a échoué **une fois sur ~10 exécutions** (`Retour` et `Prise` inversés) ; il passe systématiquement isolé. Un tri de dates sur des chaînes n'est pas robuste aux égalités ni aux variations de format (fuseau, microsecondes à zéro). Impact utilisateur : l'historique affiché peut inverser deux entrées proches | `app/services/redis_service.py:568` |
+| M28 | **Le wizard d'import ne demande jamais la prévisualisation au backend.** `import-config.component.ts:193` calcule l'aperçu côté client (`.slice(skipLines, skipLines + 5)`), et la valeur par défaut de `skip_lines` vaut **6** côté frontend contre **4** détecté par `POST /preview`. L'endpoint de prévisualisation est donc du code mort du point de vue du wizard, et les deux valeurs divergent silencieusement | `frontend/.../import-config.component.ts` vs `app/routers/import_vehicles.py:196` |
+| M29 | **`tests/test_cache.py:9` écrase `REDIS_URL` à l'import**, pour toute la session pytest. Un développeur ou une CI qui pointe un autre serveur voit sa variable ignorée par tous les tests suivants. C'est ce qui a d'abord faussé la mesure « suite sans serveur » | `backend/tests/test_cache.py:9` |
+| M30 | **`backend/test_output.txt` est un artefact de run versionné** (sortie pytest de mars 2026, mentionnant Valkey). À supprimer et à gitignorer | racine `backend/` |
+
+## ⚪ Faible
+
+| # | Constat |
+|---|---|
+| F16 | **`proxy.conf` cible l'hôte `backend`** (nom de service docker compose). Hors compose, chaque requête non interceptée par un mock produit `[WebServer] Error: getaddrinfo ENOTFOUND backend` dans la sortie Playwright. Bruit sans conséquence, mais il masque de vrais problèmes réseau. |
+| F17 | **`starlette.testclient` avertit** : `Using httpx with starlette.testclient is deprecated; install httpx2 instead`. Migration à prévoir. |
+| F18 | **`backend/scripts/setup_gcp.sh` lit des sorties Terraform nommées `valkey_host` / `valkey_port`.** Ces noms appartiennent à l'arbre Terraform, non touché par le renommage : les changer d'un seul côté casserait le script. À traiter avec H7. |
+| F19 | **`PyJWT` avertit** `InsecureKeyLengthWarning: The HMAC key is 27 bytes long` en test — le secret du mock OIDC est sous les 32 octets recommandés pour SHA-256. Sans effet en test ; à ne pas reproduire en production. |

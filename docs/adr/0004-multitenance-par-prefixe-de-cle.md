@@ -1,7 +1,7 @@
 # ADR 0004 — Multi-tenance par préfixe de clé, appliquée par l'application
 
 **Statut :** accepté, en production, **incomplet** — **(reconstructed — verify)**
-**Date de la décision :** 2026-03-13 (journée de migration vers Valkey)
+**Date de la décision :** 2026-03-13 (journée de migration vers Valkey ; le datastore est passé à Redis 8.10 le 2026-08-13, voir [ADR 0006](0006-redis-8-10-remplace-valkey.md) — la décision de multi-tenance elle-même est inchangée)
 
 ## Contexte
 
@@ -10,16 +10,16 @@ territoriales, mais une seule existe (`DT75`). Le mécanisme d'isolation est uni
 et tient en une méthode :
 
 ```python
-# app/services/valkey_service.py:54-64
+# app/services/redis_service.py:54-64
 def _key(self, *parts):
     return f"{self.dt}:{':'.join(parts)}"
 ```
 
 Le code DT est le **premier segment de chaque clé**. Le `dt` provient de
-`current_user.dt`, injecté par `valkey_dependencies.py`, lui-même dépendant de
+`current_user.dt`, injecté par `redis_dependencies.py`, lui-même dépendant de
 `require_authenticated_user`.
 
-Valkey n'impose rien : pas d'ACL par préfixe, pas de base séparée par tenant. Toute
+Redis n'impose rien : pas d'ACL par préfixe, pas de base séparée par tenant. Toute
 l'isolation repose sur le fait que le code passe systématiquement par `_key()`.
 
 ## Décision
@@ -30,7 +30,7 @@ unique et centralisée, sans mécanisme de contrainte côté datastore.
 ## Conséquences
 
 **Assumées**
-- Coût nul : une seule instance Valkey pour toutes les délégations.
+- Coût nul : une seule instance Redis pour toutes les délégations.
 - Convention simple, lisible, et facile à vérifier par revue.
 
 **Subies — quatre brèches constatées**

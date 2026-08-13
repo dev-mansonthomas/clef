@@ -30,59 +30,61 @@ Un troisième projet Angular, `frontend`, est un **squelette CLI vide et non dé
 
 | Couche | Techno | Version |
 |---|---|---|
-| Backend | FastAPI + Pydantic v2, Uvicorn | fastapi 0.115.0, pydantic 2.9.2 |
-| Runtime backend | Python | **3.13** requis (`backend/pyproject.toml` `requires-python = ">=3.13"`) |
-| Datastore | **Valkey 8** (bundle avec modules **JSON** et **Search**) | image `valkey/valkey-bundle:8` |
-| Client datastore | `redis` (asyncio) | 5.2.0 |
+| Backend | FastAPI + Pydantic v2, Uvicorn | fastapi 0.141.1, pydantic 2.13.4, starlette 1.6.0 |
+| Runtime backend | Python | **3.14** requis (`backend/pyproject.toml` `requires-python = ">=3.14"`) |
+| Datastore | **Redis 8.10** (modules **JSON**, Search, TimeSeries, Bloom inclus dans l'image officielle) | image `redis:8.10` |
+| Client datastore | `redis` (asyncio) | 5.2.0 (inchangé : fonctionne tel quel contre Redis 8.10) |
 | Frontend | Angular standalone + Angular Material | **21.2.4**, TypeScript 5.9 |
-| Runtime frontend | Node | **22** en CI/Docker (la VM a 24 — voir Pièges) |
-| Tests backend | pytest + `fakeredis[json]` | 8.3.4 / 2.26.2 |
+| Runtime frontend | Node | **24** partout : VM, CI et Docker |
+| Tests backend | pytest + `fakeredis[json]` | 9.1.1 / 2.37.0 |
 | Tests frontend | **Vitest** via `@angular/build:unit-test` | 4.0.8 |
-| E2E | Playwright (chromium) | 1.58.2 |
+| E2E | Playwright (chromium) | 1.62.1 |
 | IaC | OpenTofu / Terraform, provider google | `>= 1.0`, google 7.23.0 |
-| Cible de déploiement | GCP Cloud Run + Memorystore for Valkey + Secret Manager + KMS | — |
+| Cible de déploiement | GCP Cloud Run + Secret Manager + KMS ; **datastore de prod non tranché** (voir ADR 0006) | — |
 
 ## Commandes réelles (toutes exécutées le 2026-08-13, sorties authentiques)
 
 ### Backend — installation
 
-⚠️ **`python3 -m venv` ne fonctionne pas dans cette VM** (`ensurepip` absent) et le
-`python3` du PATH est en 3.12.3 alors que le projet exige 3.13. Utiliser `uv`, qui
-dispose d'un CPython 3.13.14 managé :
+⚠️ **La VM n'a pas de Python 3.14 dans le `PATH`** : `python3 -V` → `3.12.3`. Utiliser
+`uv`, qui télécharge et gère un CPython 3.14.6 :
 
 ```sh
 cd backend
-uv venv .venv                                            # crée un venv en Python 3.13.14
+uv venv --python 3.14 .venv
 uv pip install --python .venv/bin/python -r requirements.txt
 ```
 
+`python3 -m venv` fonctionne désormais (`ensurepip` est réparé), mais donnerait un
+venv 3.12 — insuffisant pour `requires-python = ">=3.14"`, ce que
+`tests/test_runtime.py` fait échouer explicitement.
+
 ### Backend — tests
 
+Démarrer le datastore, puis lancer la suite :
+
 ```sh
+docker compose up -d redis
 cd backend
-export USE_MOCKS=true
-.venv/bin/python -m pytest tests/ -q
+USE_MOCKS=true REDIS_URL="redis://localhost:6379/0" .venv/bin/python -m pytest tests/ -q
 ```
 
-Sortie réelle, sans Valkey (conditions identiques à la CI) :
-
 ```
-12 failed, 356 passed, 1 skipped, 349 warnings in 3.40s
+410 passed, 1 skipped in 3.06s
 ```
 
-Avec un Valkey réel disponible sur `localhost:6379` :
+Sans aucun Redis joignable, les tests qui traversent le vrai chemin de données sont
+**ignorés, pas mis en échec** :
 
 ```sh
-docker run -d --rm --name clef-valkey -p 6379:6379 valkey/valkey-bundle:8
-export USE_MOCKS=true REDIS_URL="redis://localhost:6379/0"
-.venv/bin/python -m pytest tests/ -q
-#  → 8 failed, 360 passed, 1 skipped
+USE_MOCKS=true .venv/bin/python -m pytest tests/ -q
+#  → 394 passed, 17 skipped
 ```
 
-**La suite n'est pas verte, et ne l'était pas non plus sur `main`.** Les 8 à 12
-échecs restants sont documentés dans `docs/TODO.md` avec leur cause racine. Le
-module JSON est indispensable : c'est pourquoi l'image est `valkey-bundle` et non
-`valkey`, et pourquoi `requirements.txt` épingle `fakeredis[json]`.
+**La suite est verte.** C'est nouveau : la référence historique était de 8 à 12
+échecs (voir `docs/TODO.md`). Le module JSON reste indispensable — c'est pourquoi
+`requirements.txt` épingle `fakeredis[json]`, et pourquoi `tests/test_datastore.py`
+garde sa présence sur le serveur réel.
 
 ### Backend — démarrage
 
@@ -113,29 +115,37 @@ npx ng build form  --configuration production      # exit 0
 Tailles réelles : `admin` ≈ 1,5 Mo initial (566 kB pour le chunk `vehicle-edit`),
 `form` 1,36 Mo initial / 290 kB transféré.
 
-### Frontend — tests unitaires : ❌ CASSÉS
+### Frontend — tests unitaires
 
 ```sh
-cd frontend && npx ng test admin --watch=false
+cd frontend
+npx ng test admin --watch=false     # → 19 passed (6 fichiers)
+npx ng test form  --watch=false     # →  3 passed (1 fichier)
 ```
 
-```
-✘ TS2304: Cannot find name 'spyOn'.        qr-code-generator.component.spec.ts:83
-✘ TS2445: Property 'printQrCodes' is protected …
-✘ TS2349: Type 'TestContext' has no call signatures.   qr-code.service.spec.ts:32
-```
-
-Les 8 specs sont écrites en **Jasmine** (`spyOn`, `done()`) alors que le projet a
-migré vers **Vitest**. Elles ne compilent pas : **zéro test unitaire frontend
-exécutable**. La CI ne lançant jamais `ng test`, personne ne l'a vu.
+Les specs sont en **Vitest** (`vi.fn()`, `vi.spyOn`), pas en Jasmine. `tsconfig.spec.json`
+déclare `types: ["vitest/globals"]` : `describe`/`it`/`expect`/`vi` sont globaux, aucun
+import à ajouter. Deux membres testés sont `protected` — y accéder par indexation
+(`component['error']()`) plutôt qu'élargir la visibilité du composant.
 
 ### E2E
 
 ```sh
-cd frontend && npx playwright test        # non exécuté ici : démarre 2 serveurs Angular
+cd frontend && npx playwright test --reporter=line     # → 30 passed
 ```
 
-6 specs dans `frontend/e2e/`, backend mocké via `e2e/helpers/mock-api.ts`.
+6 specs dans `frontend/e2e/`, backend mocké via `e2e/helpers/mock-api.ts`. Playwright
+démarre lui-même les deux serveurs Angular (`webServer` de `playwright.config.ts`).
+
+⚠️ **Les motifs de route du mock doivent correspondre aux URL réelles**, segment
+`{dt}` compris. Trois d'entre eux ne correspondaient à rien — l'app partait alors
+vers le proxy du serveur de dev et échouait en `ENOTFOUND backend`, ce que les tests
+interprétaient en erreur d'assertion. Vérifier le service Angular avant d'écrire un
+motif.
+
+⚠️ Les lignes `[WebServer] Error: getaddrinfo ENOTFOUND backend` dans la sortie sont
+**normales** hors docker compose : `proxy.conf` cible l'hôte `backend`. Elles ne
+concernent que les requêtes non interceptées par les mocks.
 
 ### Environnement complet en local
 
@@ -143,7 +153,19 @@ cd frontend && npx playwright test        # non exécuté ici : démarre 2 serve
 ./run_local.sh          # docker compose down puis up --build ; exige docker + docker compose
 ```
 
-Services compose : `valkey`, `backend`, `frontend`, `frontend-form`.
+Services compose : `redis`, `backend`, `frontend`, `frontend-form`.
+
+⚠️ **Échoue tel quel dans cette VM** : `backend/.env` porte `USE_MOCKS=false`, donc le
+backend exige `/credentials/clef-backend-dev-key.json`, absent par construction (la VM
+ne détient aucune credential sortante). Le healthcheck échoue et les frontends ne
+démarrent pas. Avec `USE_MOCKS=true`, **tout démarre** — vérifié :
+
+```
+GET localhost:8000/health  → {"status":"healthy","redis":"connected"}
+GET localhost:4200         → 200      GET localhost:4202  → 200
+```
+
+Décision en attente : voir le constat **H11** de `docs/TODO.md`.
 
 ### Terraform — ❌ CASSÉ (validation seule dans la VM, jamais d'apply)
 
@@ -170,7 +192,7 @@ Les **deux** racines Terraform échouent à `validate` (`backend/terraform/` et
 |---|---|
 | `app/main.py` | Point d'entrée FastAPI, monte 21 routers. ⚠️ contient aussi des routes inline **sans authentification** — voir Pièges |
 | `app/routers/` | Un router par domaine métier (véhicules, dossiers de réparation, réservations, config, sync, iCal…) |
-| `app/services/` | Logique métier et adaptateurs externes. `valkey_service.py` (1849 lignes) est la couche d'accès aux données de tout le domaine |
+| `app/services/` | Logique métier et adaptateurs externes. `redis_service.py` (1849 lignes) est la couche d'accès aux données de tout le domaine |
 | `app/models/` | Modèles Pydantic. `repair_models.py` porte le domaine réparation/sinistre/franchise |
 | `app/auth/` | Session par cookie, OAuth Google, guards de rôle, mock OIDC |
 | `app/cache/` | Client Redis async partagé (`redis_cache.py`) ; `cache_service.py` est marqué déprécié |
@@ -178,7 +200,7 @@ Les **deux** racines Terraform échouent à `validate` (`backend/terraform/` et
 | `app/admin/` | Routes de debug réservées au super admin |
 | `app/scheduler.py` | Tâches de fond APScheduler (alertes CT/pollution, rappels de devis) |
 | `scripts/` | Scripts ponctuels d'ops et de migration |
-| `terraform/` | IaC OpenTofu : APIs GCP, KMS, Memorystore Valkey, service account |
+| `terraform/` | IaC OpenTofu : APIs GCP, KMS, Memorystore, service account. ⚠️ cassé, et son contenu provisionne encore un Memorystore **Valkey** — hors périmètre, voir ADR 0006 |
 | `tests/` | ~40 fichiers pytest, un par domaine |
 
 ### `frontend/`
@@ -205,7 +227,7 @@ Les **deux** racines Terraform échouent à `validate` (`backend/terraform/` et
 - **Langue** : domaine, commentaires et messages de commit en **français** ;
   identifiants de code en anglais. Conserver cette séparation.
 - **Commits** : Conventional Commits. Les PR sont **squash-mergées** — voir Pièges.
-- **Clés Valkey** : `ValkeyService._key()` produit toujours
+- **Clés Redis** : `RedisService._key()` produit toujours
   `f"{dt}:{...}"`. **Le code DT est le premier segment de toute clé** ; c'est le
   *seul* mécanisme d'isolation multi-tenant, appliqué par l'application et non par
   le datastore.
@@ -213,15 +235,24 @@ Les **deux** racines Terraform échouent à `validate` (`backend/terraform/` et
   Ne pas introduire de `KEYS`.
 - **Mocks** : `USE_MOCKS=true` bascule tous les services Google et l'OIDC sur des
   doubles en mémoire. Aucun appel réseau, aucune credential nécessaire.
+- **Marqueur `integration`** : les tests qui traversent le vrai chemin de données le
+  portent. `pytest_runtest_setup` (`tests/conftest.py`) les **ignore** si `REDIS_URL`
+  n'est pas joignable — jamais d'échec pour une dépendance d'environnement absente.
+- **Aucune fixture `.csv` versionnée** : la règle `.gitignore` `*.csv` en a déjà fait
+  disparaître deux définitivement. Les CSV de test sont **générés** — `conftest.py`
+  côté backend, `e2e/helpers/vehicles-csv.ts` côté e2e. Seule exception, strictement
+  scopée : `docs/examples/*.csv`, de la documentation, pas des fixtures.
 - **Angular** : composants standalone, nouveau control flow (`@if`/`@for`),
   signals partiellement adoptés. `OnPush` n'est utilisé que dans **un** fichier —
   ne pas en déduire une convention établie.
 
 ## Pièges
 
-1. **Les tests ne sont pas verts, et ne l'ont jamais été récemment.** Ne pas
-   conclure qu'un changement a cassé quelque chose sans comparer à la référence
-   documentée dans `docs/TODO.md` (8 échecs avec Valkey, 12 sans).
+1. **Les quatre suites sont vertes depuis le 2026-08-13** — c'est la référence à
+   tenir : backend `410 passed, 1 skipped` (avec `docker compose up -d redis`),
+   `ng test admin` 19, `ng test form` 3, Playwright 30. Un échec est désormais un
+   **signal**, plus du bruit hérité. Historique : la suite a longtemps été à 8 ou 12
+   échecs, et l'e2e n'avait jamais tourné.
 
 2. **Le fuseau horaire cassait 86 tests.** `datetime.utcnow()` renvoie un datetime
    *naïf* : `.timestamp()` l'interprète en heure locale. Corrigé dans
@@ -234,17 +265,21 @@ Les **deux** racines Terraform échouent à `validate` (`backend/terraform/` et
    Sévérité critique, détaillé dans `docs/TODO.md`. Ne pas ajouter de route dans
    `main.py` : passer par un router avec un guard.
 
-4. **La CI déploie sans tests.** `Backend Tests` et `Frontend Build` ne tournent que
-   sur `pull_request` ; `Deploy to Dev` tourne sur `push` vers `main` **sans
-   `needs:`**. Un merge sur `main` déploie donc sans qu'aucun test ne s'exécute.
+4. **La CI garde désormais le déploiement.** `deploy-dev` déclare
+   `needs: [backend-test, frontend-build, frontend-test, e2e]`, et les jobs de test
+   tournent sur `pull_request` **et** sur `push`. `tests/test_ci_workflow.py` relit
+   `ci.yml` et fait échouer la suite si ce garde-fou disparaît — ne pas le retirer
+   sans retirer aussi ce test, ce qui rendra la régression visible en revue.
 
 5. **Les PR sont squash-mergées.** Une branche vivante affiche « ahead de N
    commits » alors que leur contenu est déjà dans `main`. Ne jamais réutiliser un
    nom de branche déjà associé à une PR mergée : les outils qui cherchent « la PR
    de cette branche » retombent sur l'ancienne et concluent à tort « déjà mergée ».
 
-6. **`ng test` ne compile pas** (specs Jasmine sur runner Vitest). Il n'y a
-   aucun filet de sécurité unitaire côté frontend.
+6. **Le filet unitaire frontend est mince : 22 tests pour ~100 composants.** Il
+   compile et passe, mais ne couvre que `App`, `LayoutComponent`, le générateur de
+   QR codes, `QrCodeService`, `superAdminGuard` et `ConfigurationUlComponent`. Ne
+   pas confondre « vert » et « couvert ».
 
 7. **Le champ « Montant de la franchise » de l'écran Configuration est décoratif.**
    L'UI l'envoie, mais `ConfigUpdate` (`app/models/config.py`) ne le déclare pas :
@@ -263,15 +298,33 @@ Les **deux** racines Terraform échouent à `validate` (`backend/terraform/` et
     Cette règle a avalé une fixture de test : `backend/tests/fixtures/vehicles_import_sample.csv`
     n'a **jamais** été committée et est perdue — 8 tests d'import échouent de ce fait.
 
-11. **La VM a Node 24, le projet épingle Node 22.** Les trois builds passent
-    quand même. Voir la section toolchain de `docs/migration-status.md`.
+11. **La VM n'a pas de Python 3.14 dans le `PATH`** (`python3 -V` → 3.12.3) alors
+    que le projet exige `>=3.14`. Passer par `uv venv --python 3.14`.
+    `tests/test_runtime.py` échoue explicitement si le venv est trop ancien. Node,
+    lui, est aligné en 24 partout.
+
+12. **Trois motifs de route des mocks e2e ne correspondaient à aucune URL réelle**
+    (`/api/vehicles/import`, `/api/calendar/reservations`, `/api/carnet-bord/*`).
+    Corrigés. Symptôme à reconnaître : `ENOTFOUND backend` dans la sortie Playwright
+    plus une assertion qui échoue « sans raison » — la requête a fui vers le proxy.
+
+13. **Deux jeux de données mock e2e ne respectaient pas le contrat de l'API** :
+    `status_ct` était une chaîne au lieu de `{value, color}`, et les réservations
+    portaient l'ancien modèle Google Calendar (`vehicule_id`, `date_debut`) au lieu
+    du modèle Redis (`vehicule_immat`, `debut`). Vérifier le modèle avant d'ajouter
+    une fixture.
+
+14. **Un flake de timing subsiste** dans
+    `tests/test_carnet_de_bord.py::test_get_historique_carnet` : il trie l'historique
+    sur `timestamp.isoformat()` et a échoué une fois sur ~10 exécutions. Observé, non
+    corrigé — voir `docs/TODO.md` M27.
 
 ## Où commencer selon la tâche
 
 | Tâche | Point d'entrée |
 |---|---|
 | Domaine réparation / sinistre / franchise | `backend/app/models/repair_models.py`, `backend/app/routers/dossiers_reparation.py`, `frontend/.../dossier-reparation/dossier-detail.component.ts` |
-| Accès aux données, nouvelle entité | `backend/app/services/valkey_service.py` |
+| Accès aux données, nouvelle entité | `backend/app/services/redis_service.py` |
 | Authentification, rôles | `backend/app/auth/dependencies.py` |
 | Nouvel écran admin | `frontend/projects/admin/src/app/app.routes.ts` (lazy + guard) |
 | Écran terrain bénévole | `frontend/projects/form/src/app/` |

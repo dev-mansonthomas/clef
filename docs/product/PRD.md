@@ -30,7 +30,7 @@ Les besoins que le code cherche visiblement à résoudre :
 |---|---|
 | Savoir qui détient un véhicule, depuis quand, dans quel état | carnet de bord avec prise/retour, km, carburant, état, photos, signature |
 | Ne pas laisser expirer un contrôle technique ou antipollution | `alert_service.py`, alertes email planifiées, `ALERT_DELAY_DAYS` (défaut 60 j) |
-| Éviter les réservations concurrentes d'un même véhicule | validation de chevauchement (`test_reservations_valkey.py`) |
+| Éviter les réservations concurrentes d'un même véhicule | validation de chevauchement (`test_reservations_store.py`) |
 | Tracer les réparations et faire approuver les devis avant engagement de dépense | module Dossiers Réparation, workflow d'approbation par token |
 | Distinguer ce que paie la Croix-Rouge de ce que couvre l'assurance | `est_sinistre`, `franchise_applicable`, `montant_franchise`, `montant_crf` |
 | Permettre à un bénévole d'agir depuis son téléphone, sans compte à créer | app `form` en PWA, scan QR, mode hors ligne |
@@ -55,7 +55,7 @@ sont résolus à chaque requête depuis le référentiel bénévoles Google Shee
 ### Dans le périmètre, implémenté
 
 1. **Référentiel véhicules** — CRUD, filtrage par UL, statuts CT/antipollution, import CSV assisté (assistant 4 étapes), QR code signé HMAC par véhicule.
-2. **Carnet de bord** — prise et retour de véhicule avec km, carburant, état, jusqu'à 5 photos, signature manuscrite. Stockage **Valkey uniquement** (le chemin Google Sheets par périmètre a été abandonné, son service subsiste en code mort). ⚠️ **La prise échoue en 422** : écart de contrat entre le formulaire et le modèle backend — voir `docs/TODO.md`, sévérité critique. La signature n'est jamais persistée (aucun champ backend).
+2. **Carnet de bord** — prise et retour de véhicule avec km, carburant, état, jusqu'à 5 photos, signature manuscrite. Stockage **Redis uniquement** (le chemin Google Sheets par périmètre a été abandonné, son service subsiste en code mort). ⚠️ **La prise échoue en 422** : écart de contrat entre le formulaire et le modèle backend — voir `docs/TODO.md`, sévérité critique. La signature n'est jamais persistée (aucun champ backend).
 3. **Réservations** — création, calendrier, validation de chevauchement, flux iCal par DT et par véhicule.
 4. **Dossiers de réparation** — dossiers numérotés `REP-{YYYY}-{NNN}`, devis, factures, dépenses, pièces jointes sur Drive, piste d'audit horodatée.
 5. **Approbation de devis** — lien magique à token (TTL 7 jours), approbation unitaire ou multi-devis au niveau dossier, décisions partielles, relance avec invalidation de l'ancien token, rappels automatiques des devis en attente.
@@ -93,8 +93,8 @@ Ces points orientent l'architecture mais ne sont **justifiés nulle part** :
 | 2026-03-09 | Commit initial |
 | 2026-03-10 | **39 commits en une journée** : squelette complet — Docker, Angular admin+form, FastAPI, mocks Google, QR, carnet de bord, alertes, PWA, Terraform |
 | 03-11 → 03-12 | Mise au propre de la mise en page, durcissement infra |
-| 2026-03-13 | **48 commits, plus grosse journée** : migration Redis → Valkey 8, multi-tenance, assistant d'import CSV, sync Apps Script, iCal |
-| 03-14 → 03-16 | UX d'édition véhicule, gestion d'erreurs, réservations reconstruites sur Valkey, passe responsive mobile, PR #1 |
+| 2026-03-13 | **48 commits, plus grosse journée** : migration Redis → Redis 8.10, multi-tenance, assistant d'import CSV, sync Apps Script, iCal |
+| 03-14 → 03-16 | UX d'édition véhicule, gestion d'erreurs, réservations reconstruites sur Redis, passe responsive mobile, PR #1 |
 | 2026-03-20 | Stabilisation des tests backend (PR #2, PR #4) |
 | 2026-03-21 | **Spec écrite avant le code** : `docs/specs-gestion-factures.md`, puis module Dossiers Réparation (« Wave 2.2 ») |
 | 2026-03-22 | Fournisseurs, valideurs, approbation multi-devis, deux renommages en cascade |
@@ -124,7 +124,7 @@ solide que mon jugement pour évaluer l'état du produit.
 | Formulaire prise : km, carburant, état, photos, **signature** | ⚠️ la signature est exigée à la saisie mais **jamais persistée** (M14), et la soumission échoue en 422 (C2) |
 | Formulaire retour : idem + signalement de problèmes | ⚠️ fonctionne, mais **les photos ne sont jamais envoyées** (M13) |
 | Photos uploadées vers le Drive du véhicule | ⚠️ prise seulement ; l'identifiant du dossier Drive est encore un `TODO` (`upload.py:63`) |
-| Données enregistrées dans un Google Sheet par périmètre | ⛔ **critère périmé, pas échoué** : Wave 11 a fait de Valkey la source de vérité. `CarnetBordService` est devenu du code mort |
+| Données enregistrées dans un Google Sheet par périmètre | ⛔ **critère périmé, pas échoué** : Wave 11 a fait de Redis la source de vérité. `CarnetBordService` est devenu du code mort |
 | **« Fonctionne offline (PWA) »** (les deux apps) | ❌ **non atteint**. `OfflineSyncService` existe mais n'est appelé par aucun formulaire et cible un endpoint inexistant (M15) |
 | Liste véhicules avec statuts colorés | ✅ |
 | Édition véhicule | ✅ |
@@ -159,7 +159,7 @@ des critères d'acceptation d'origine. Son seul document de référence est
 |---|---|
 | Montant de la franchise | **350 €, national** — contrat d'assurance couvrant **toutes** les délégations. Le stockage actuel par DT est donc au mauvais niveau |
 | Mono-DT ou multi-DT | **Multi-DT est l'objectif.** DT75 est la première délégation, pas la seule. Le `DT75` codé en dur doit disparaître |
-| Source de vérité | Sheets **en amont** (export du SI), **Valkey dans CLEF**, pont par Apps Script authentifié par jeton. ⚠️ l'authentification n'a pas suivi cette bascule |
+| Source de vérité | Sheets **en amont** (export du SI), **Redis dans CLEF**, pont par Apps Script authentifié par jeton. ⚠️ l'authentification n'a pas suivi cette bascule |
 | Terraform autoritaire | à creuser ; un `gcp-deploy.sh` paramétrable par environnement est à écrire d'abord |
 
 Détail et tâches induites dans `docs/TODO.md`, section « Décisions du propriétaire ».

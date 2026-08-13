@@ -1,7 +1,12 @@
 # ADR 0001 — Valkey 8 (bundle JSON) comme datastore principal
 
-**Statut :** accepté, en production — **(reconstructed — verify)**
+**Statut :** ⛔ **remplacé le 2026-08-13 par [ADR 0006 — Redis 8.10 remplace Valkey 8](0006-redis-8-10-remplace-valkey.md)**
 **Date de la décision :** entre le 2026-03-10 et le 2026-03-13 (observée dans l'historique)
+
+> Ce document est conservé tel quel comme **trace historique** : il décrit la décision
+> qui était en vigueur de mars à août 2026. Le datastore de CLEF est désormais
+> **Redis 8.10**. Ne pas s'appuyer sur ce qui suit pour du code neuf — l'hypothèse de
+> licence qu'il avance a été invalidée par le passage de Redis 8.0 sous AGPLv3.
 
 ## Contexte
 

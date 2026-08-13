@@ -1,4 +1,9 @@
-# ADR 0002 — Valkey est la source de vérité applicative, Google Sheets est l'amont
+# ADR 0002 — Redis est la source de vérité applicative, Google Sheets est l'amont
+
+> Note : les intitulés de Wave cités ci-dessous mentionnent « Valkey », nom du
+> datastore de mars à août 2026. Ce sont des **citations** du tracker d'origine et
+> sont conservées telles quelles. Le datastore est aujourd'hui Redis 8.10 —
+> voir [ADR 0006](0006-redis-8-10-remplace-valkey.md).
 
 **Statut :** accepté, en production, **migration inachevée** — rationale **confirmée**
 par `debug/specs-intent.md` et par le propriétaire du projet le 2026-08-13
@@ -23,7 +28,7 @@ comme **base de données primaire** (✅ migré Wave 15-16) ».
 
 **Modèle cible, confirmé par le propriétaire :** Google Sheets reste la source de
 vérité **hors** de CLEF (c'est l'export du SI Croix-Rouge, tenu par les équipes) ;
-**dans** CLEF, Valkey est la source de vérité. Le pont est un Apps Script qui appelle
+**dans** CLEF, Redis est la source de vérité. Le pont est un Apps Script qui appelle
 l'API avec authentification par jeton, en synchronisation périodique.
 
 Ce modèle est **effectivement en place** — et une exception a été oubliée :
@@ -42,8 +47,8 @@ Vérifié par lecture du code le 2026-08-13. Les bénévoles existent **en doubl
 
 | Chemin | Source réelle | Preuve |
 |---|---|---|
-| Écriture par la sync Apps Script | **Valkey** ✅ | `routers/sync.py:244` `valkey.set_benevole(...)` |
-| Lecture par l'app (bénévoles, réservations) | **Valkey** ✅ | `routers/benevoles.py:70,74,167,169` ; `reservations_valkey.py:106,221` |
+| Écriture par la sync Apps Script | **Redis** ✅ | `routers/sync.py:244` `redis_store.set_benevole(...)` |
+| Lecture par l'app (bénévoles, réservations) | **Redis** ✅ | `routers/benevoles.py:70,74,167,169` ; `reservations_store.py:106,221` |
 | **Résolution du rôle, à chaque requête** | **Google Sheets** ❌ | `auth/service.py:47` → `:104` `sheets_service.get_benevole_by_email` |
 | Les 3 routes PII non authentifiées | **Google Sheets** ❌ | `main.py:112,201,213` |
 
@@ -61,14 +66,14 @@ Conséquences concrètes de cet oubli :
 3. **La sync est inutile pour ce qui compte le plus.** Le travail de Wave 11 n'a pas
    atteint le chemin le plus sensible.
 
-**Action :** migrer `auth/service.py` pour lire les bénévoles depuis Valkey
-(`valkey.get_benevole`), comme le fait déjà `routers/benevoles.py`. C'est le geste
+**Action :** migrer `auth/service.py` pour lire les bénévoles depuis Redis
+(`redis_store.get_benevole`), comme le fait déjà `routers/benevoles.py`. C'est le geste
 qui termine Wave 11. Voir `docs/TODO.md`.
 
 ## Décision
 
 Google Sheets reste la source de vérité **en amont** (export du SI Croix-Rouge,
-tenu hors de CLEF). **Valkey est la source de vérité applicative.** Le pont est un
+tenu hors de CLEF). **Redis est la source de vérité applicative.** Le pont est un
 Apps Script authentifié par jeton, en synchronisation périodique. Drive et Gmail
 restent utilisés pour ce qu'ils sont : stockage de documents et envoi d'emails.
 
