@@ -12,8 +12,8 @@ os.environ["USE_MOCKS"] = "true"
 
 from app.main import app
 from app.services.config_service import ConfigService
-from app.services.valkey_service import ValkeyService
-from app.models.valkey_models import DTConfiguration
+from app.services.redis_service import RedisService
+from app.models.redis_models import DTConfiguration
 from app.auth.config import auth_settings
 
 # Ensure we're using mocks for auth tests
@@ -38,10 +38,10 @@ def cleanup_overrides():
 
 
 @pytest.fixture
-def mock_valkey_service():
-    """Create a mock ValkeyService with stateful configuration."""
-    valkey_mock = AsyncMock(spec=ValkeyService)
-    valkey_mock.dt = "DT75"
+def mock_redis_service():
+    """Create a mock RedisService with stateful configuration."""
+    redis_mock = AsyncMock(spec=RedisService)
+    redis_mock.dt = "DT75"
 
     # Store configuration state
     stored_config = None
@@ -54,15 +54,15 @@ def mock_valkey_service():
         stored_config = config
         return True
 
-    valkey_mock.get_configuration.side_effect = get_config
-    valkey_mock.set_configuration.side_effect = set_config
+    redis_mock.get_configuration.side_effect = get_config
+    redis_mock.set_configuration.side_effect = set_config
 
-    return valkey_mock
+    return redis_mock
 
 
 @pytest.fixture
-async def client(mock_valkey_service):
-    """Create an async test client with mocked ValkeyService and auth."""
+async def client(mock_redis_service):
+    """Create an async test client with mocked RedisService and auth."""
     # Override the dependencies
     from app.routers.config import get_config_service
     from app.services.config_service import ConfigService
@@ -70,7 +70,7 @@ async def client(mock_valkey_service):
     from app.auth.models import User
 
     def override_get_config_service():
-        return ConfigService(mock_valkey_service)
+        return ConfigService(mock_redis_service)
 
     def override_is_dt_manager():
         """Mock DT manager user for tests."""
@@ -121,7 +121,7 @@ class TestGetConfig:
     """Tests for GET /api/config endpoint."""
 
     @pytest.mark.asyncio
-    async def test_get_config_from_env(self, client, env_vars, mock_valkey_service):
+    async def test_get_config_from_env(self, client, env_vars, mock_redis_service):
         """Test getting configuration from environment variables."""
         response = await client.get("/api/config")
 
@@ -135,13 +135,13 @@ class TestGetConfig:
         assert data["drive_sync_total"] == 0
 
     @pytest.mark.asyncio
-    async def test_get_config_from_valkey(self, client, env_vars, mock_valkey_service):
-        """Test getting configuration from Valkey storage."""
+    async def test_get_config_from_redis(self, client, env_vars, mock_redis_service):
+        """Test getting configuration from Redis storage."""
         stored_config = DTConfiguration(
             dt="DT75",
             nom="DT Paris",
             gestionnaire_email="thomas.manson@croix-rouge.fr",
-            email_destinataire_alertes="valkey-alerts@croix-rouge.fr",
+            email_destinataire_alertes="redis_store-alerts@croix-rouge.fr",
             drive_folder_id="folder-abc123",
             drive_folder_url="https://drive.google.com/drive/folders/folder-abc123",
             drive_sync_status="complete",
@@ -150,15 +150,15 @@ class TestGetConfig:
         )
 
         # Use side_effect to set the stored config
-        await mock_valkey_service.set_configuration(stored_config)
+        await mock_redis_service.set_configuration(stored_config)
 
         response = await client.get("/api/config")
 
         assert response.status_code == 200
         data = response.json()
 
-        # Should use Valkey values
-        assert data["email_destinataire_alertes"] == "valkey-alerts@croix-rouge.fr"
+        # Should use Redis values
+        assert data["email_destinataire_alertes"] == "redis_store-alerts@croix-rouge.fr"
         assert data["drive_folder_id"] == "folder-abc123"
         assert data["drive_folder_url"] == "https://drive.google.com/drive/folders/folder-abc123"
         assert data["drive_sync_status"] == "complete"
@@ -171,7 +171,7 @@ class TestUpdateConfig:
     """Tests for PATCH /api/config endpoint."""
 
     @pytest.mark.asyncio
-    async def test_update_single_field(self, client, env_vars, mock_valkey_service):
+    async def test_update_single_field(self, client, env_vars, mock_redis_service):
         """Test updating a single configuration field."""
         update_data = {
             "email_destinataire_alertes": "new-alerts@croix-rouge.fr"
@@ -184,11 +184,11 @@ class TestUpdateConfig:
 
         assert data["email_destinataire_alertes"] == "new-alerts@croix-rouge.fr"
 
-        # Verify Valkey was called to store the update
-        mock_valkey_service.set_configuration.assert_called_once()
+        # Verify Redis was called to store the update
+        mock_redis_service.set_configuration.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_update_with_invalid_email(self, client, env_vars, mock_valkey_service):
+    async def test_update_with_invalid_email(self, client, env_vars, mock_redis_service):
         """Test that invalid emails are rejected."""
         update_data = {
             "email_destinataire_alertes": "not-an-email"
@@ -199,7 +199,7 @@ class TestUpdateConfig:
         assert response.status_code == 422  # Validation error
 
     @pytest.mark.asyncio
-    async def test_cannot_update_gestionnaire_dt_email(self, client, env_vars, mock_valkey_service):
+    async def test_cannot_update_gestionnaire_dt_email(self, client, env_vars, mock_redis_service):
         """Test that email_gestionnaire_dt cannot be updated (read-only)."""
         update_data = {
             "email_gestionnaire_dt": "hacker@example.com"
@@ -215,7 +215,7 @@ class TestUpdateConfig:
         assert data["email_gestionnaire_dt"] == "thomas.manson@croix-rouge.fr"
 
     @pytest.mark.asyncio
-    async def test_update_drive_folder_url_invalid(self, client, env_vars, mock_valkey_service):
+    async def test_update_drive_folder_url_invalid(self, client, env_vars, mock_redis_service):
         """Test that invalid Drive URLs are rejected."""
         update_data = {
             "drive_folder_url": "https://example.com/not-drive"
@@ -229,7 +229,7 @@ class TestConfigValidation:
     """Tests for configuration validation."""
 
     @pytest.mark.asyncio
-    async def test_valid_drive_folder_url(self, client, env_vars, mock_valkey_service):
+    async def test_valid_drive_folder_url(self, client, env_vars, mock_redis_service):
         """Test that valid Google Drive folder URLs are accepted."""
         update_data = {
             "drive_folder_url": "https://drive.google.com/drive/folders/abc123xyz"
@@ -239,7 +239,7 @@ class TestConfigValidation:
         assert response.status_code == 200
 
     @pytest.mark.asyncio
-    async def test_valid_email_format(self, client, env_vars, mock_valkey_service):
+    async def test_valid_email_format(self, client, env_vars, mock_redis_service):
         """Test that valid email formats are accepted."""
         update_data = {
             "email_destinataire_alertes": "test.user@croix-rouge.fr"
@@ -285,8 +285,15 @@ class TestConfigAuthGuard:
         assert response.status_code == 401
         assert response.json()["detail"] == "Not authenticated"
 
+    @pytest.mark.integration
     def test_patch_config_as_non_dt_manager(self, env_vars):
-        """Test that PATCH /api/config rejects non-DT manager users."""
+        """Test that PATCH /api/config rejects non-DT manager users.
+
+        Exige un serveur Redis : `update_config` déclare
+        `Depends(get_config_service)` **avant** `Depends(is_dt_manager)`, donc la
+        connexion au datastore est ouverte avant que le 403 ne soit levé. Voir le
+        constat M26 de docs/TODO.md.
+        """
         # Authenticate as UL responsible (not DT manager)
         test_client = self._get_authenticated_client("claire.rousseau@croix-rouge.fr")
 
@@ -298,7 +305,7 @@ class TestConfigAuthGuard:
         assert response.status_code == 403
         assert response.json()["detail"] == "DT manager access required"
 
-    @pytest.mark.skip(reason="Requires real Redis/Valkey connection - integration test")
+    @pytest.mark.skip(reason="Requires real Redis/Redis connection - integration test")
     def test_patch_config_as_dt_manager(self, env_vars):
         """Test that PATCH /api/config allows DT manager users."""
         # Authenticate as DT manager

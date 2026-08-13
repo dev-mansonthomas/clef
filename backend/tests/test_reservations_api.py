@@ -136,6 +136,7 @@ class TestCreateReservation:
         assert response.status_code == 401
 
 
+@pytest.mark.integration
 class TestGetAvailableVehicles:
     """Test GET /api/vehicles/available endpoint."""
 

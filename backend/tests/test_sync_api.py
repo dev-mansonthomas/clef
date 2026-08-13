@@ -8,8 +8,8 @@ import os
 
 from app.main import app
 from app.cache import get_cache
-from app.services.valkey_service import ValkeyService
-from app.models.valkey_models import VehicleData, ResponsableData, BenevoleData
+from app.services.redis_service import RedisService
+from app.models.redis_models import VehicleData, ResponsableData, BenevoleData
 
 
 @pytest.fixture
@@ -28,9 +28,9 @@ async def redis_client() -> AsyncGenerator:
 
 
 @pytest_asyncio.fixture
-async def valkey_dt75(redis_client) -> ValkeyService:
-    """Create ValkeyService for DT75."""
-    return ValkeyService(redis_client=redis_client, dt="DT75")
+async def redis_dt75(redis_client) -> RedisService:
+    """Create RedisService for DT75."""
+    return RedisService(redis_client=redis_client, dt="DT75")
 
 
 @pytest.fixture
@@ -65,7 +65,8 @@ class TestSyncAPIAuthentication:
         assert response.status_code == 401
         assert "Invalid API key" in response.json()["detail"]
     
-    def test_valid_api_key(self, client, auth_headers, valkey_dt75):
+    @pytest.mark.integration
+    def test_valid_api_key(self, client, auth_headers, redis_dt75):
         """Test request with valid API key."""
         # This will fail if Redis is not mocked properly, but auth should pass
         response = client.get("/api/sync/DT75/vehicules", headers=auth_headers)
@@ -77,7 +78,7 @@ class TestSyncVehicules:
     """Test vehicle sync endpoint."""
     
     @pytest.mark.asyncio
-    async def test_get_empty_vehicules(self, client, auth_headers, valkey_dt75, redis_client):
+    async def test_get_empty_vehicules(self, client, auth_headers, redis_dt75, redis_client):
         """Test getting vehicles when none exist."""
         # Mock the cache
         cache = get_cache()
@@ -89,7 +90,7 @@ class TestSyncVehicules:
         assert response.json() == []
     
     @pytest.mark.asyncio
-    async def test_get_vehicules_with_data(self, client, auth_headers, valkey_dt75, redis_client):
+    async def test_get_vehicules_with_data(self, client, auth_headers, redis_dt75, redis_client):
         """Test getting vehicles with data."""
         # Setup test data
         vehicle1 = VehicleData(
@@ -107,8 +108,8 @@ class TestSyncVehicules:
             nb_places="5", lieu_stationnement="Garage UL Paris 15"
         )
         
-        await valkey_dt75.set_vehicle(vehicle1)
-        await valkey_dt75.set_vehicle(vehicle2)
+        await redis_dt75.set_vehicle(vehicle1)
+        await redis_dt75.set_vehicle(vehicle2)
         
         # Mock the cache
         cache = get_cache()
@@ -127,7 +128,7 @@ class TestSyncResponsables:
     """Test responsables sync endpoint."""
     
     @pytest.mark.asyncio
-    async def test_get_empty_responsables(self, client, auth_headers, valkey_dt75, redis_client):
+    async def test_get_empty_responsables(self, client, auth_headers, redis_dt75, redis_client):
         """Test getting responsables when none exist."""
         cache = get_cache()
         cache.client = redis_client
@@ -138,7 +139,7 @@ class TestSyncResponsables:
         assert response.json() == []
     
     @pytest.mark.asyncio
-    async def test_get_responsables_with_data(self, client, auth_headers, valkey_dt75, redis_client):
+    async def test_get_responsables_with_data(self, client, auth_headers, redis_dt75, redis_client):
         """Test getting responsables with data."""
         # Setup test data
         resp1 = ResponsableData(
@@ -160,8 +161,8 @@ class TestSyncResponsables:
             type_perimetre="DT"
         )
         
-        await valkey_dt75.set_responsable(resp1)
-        await valkey_dt75.set_responsable(resp2)
+        await redis_dt75.set_responsable(resp1)
+        await redis_dt75.set_responsable(resp2)
         
         cache = get_cache()
         cache.client = redis_client
@@ -192,7 +193,7 @@ class TestSyncBenevoles:
         assert data["count"] == 0
 
     @pytest.mark.asyncio
-    async def test_sync_benevoles_with_data(self, client, auth_headers, valkey_dt75, redis_client):
+    async def test_sync_benevoles_with_data(self, client, auth_headers, redis_dt75, redis_client):
         """Test syncing benevoles with data."""
         cache = get_cache()
         cache.client = redis_client
@@ -225,18 +226,18 @@ class TestSyncBenevoles:
         assert "Successfully synced 2 bénévoles" in data["message"]
 
         # Verify data was stored
-        benevole1 = await valkey_dt75.get_benevole("123456")
+        benevole1 = await redis_dt75.get_benevole("123456")
         assert benevole1 is not None
         assert benevole1.nom == "Dupont"
         assert benevole1.prenom == "Jean"
         assert benevole1.email == "jean.dupont@croix-rouge.fr"
 
-        benevole2 = await valkey_dt75.get_benevole("789012")
+        benevole2 = await redis_dt75.get_benevole("789012")
         assert benevole2 is not None
         assert benevole2.nom == "Martin"
 
     @pytest.mark.asyncio
-    async def test_sync_benevoles_upsert(self, client, auth_headers, valkey_dt75, redis_client):
+    async def test_sync_benevoles_upsert(self, client, auth_headers, redis_dt75, redis_client):
         """Test that sync updates existing benevoles."""
         cache = get_cache()
         cache.client = redis_client
@@ -252,7 +253,7 @@ class TestSyncBenevoles:
             ul="UL Paris 15",
             role="Bénévole"
         )
-        await valkey_dt75.set_benevole(initial)
+        await redis_dt75.set_benevole(initial)
 
         # Sync with updated data
         updated_data = [
@@ -270,7 +271,7 @@ class TestSyncBenevoles:
         assert response.status_code == 200
 
         # Verify data was updated
-        benevole = await valkey_dt75.get_benevole("123456")
+        benevole = await redis_dt75.get_benevole("123456")
         assert benevole is not None
         assert benevole.email == "new.email@croix-rouge.fr"
         assert benevole.ul == "UL Paris 16"

@@ -155,6 +155,12 @@ service-account*.json
 # ============================================
 *.csv
 Référentiel*.csv
+# Exception strictement limitée à docs/examples/ : exemples de format 100 %
+# fictifs, sans aucune donnée personnelle. Toute autre exception à la règle
+# `*.csv` doit être refusée — c'est elle qui a fait perdre les fixtures d'import
+# (docs/TODO.md H2), lesquelles sont désormais générées par pytest et non
+# versionnées.
+!docs/examples/*.csv
 
 # ============================================
 # Worktrees créés par Claude Code

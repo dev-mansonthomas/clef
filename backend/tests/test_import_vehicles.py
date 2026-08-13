@@ -2,7 +2,6 @@
 import os
 import json
 import pytest
-from pathlib import Path
 
 # Set USE_MOCKS before importing anything
 os.environ["USE_MOCKS"] = "true"
@@ -46,13 +45,12 @@ def get_authenticated_client(email: str) -> TestClient:
 class TestImportVehiclesPreview:
     """Tests for CSV preview endpoint."""
 
-    def test_preview_csv_success(self):
+    def test_preview_csv_success(self, vehicles_import_sample_csv):
         """Test successful CSV preview."""
         # Get authenticated client (thomas.manson@croix-rouge.fr is DT manager)
         test_client = get_authenticated_client("thomas.manson@croix-rouge.fr")
 
-        # Load sample CSV
-        csv_path = Path(__file__).parent / "fixtures" / "vehicles_import_sample.csv"
+        csv_path = vehicles_import_sample_csv
 
         with open(csv_path, "rb") as f:
             response = test_client.post(
@@ -115,8 +113,14 @@ class TestImportVehiclesPreview:
         assert "skip" in response.json()["detail"].lower()
 
 
+@pytest.mark.integration
 class TestImportVehicles:
-    """Tests for CSV import endpoint."""
+    """Tests for CSV import endpoint.
+
+    Ces tests postent sur `POST /api/{dt}/import/vehicles`, dont la dépendance
+    `get_redis_service` ouvre une connexion réelle : ils exigent un serveur
+    Redis joignable et sont ignorés sinon (conftest.py, marqueur `integration`).
+    """
 
     @pytest.fixture(autouse=True)
     def cleanup_vehicles(self):
@@ -135,23 +139,22 @@ class TestImportVehicles:
             after_immats = {v["immat"] for v in response.json()["vehicles"]}
             new_immats = after_immats - before_immats
             if new_immats:
-                # Delete new vehicles via ValkeyService through the cache
+                # Delete new vehicles via RedisService through the cache
                 from app.cache import get_cache
-                from app.services.valkey_service import ValkeyService
+                from app.services.redis_service import RedisService
                 import asyncio
                 cache = get_cache()
                 if cache._connected and cache.client:
-                    valkey = ValkeyService(redis_client=cache.client, dt="DT75")
+                    redis_store = RedisService(redis_client=cache.client, dt="DT75")
                     loop = asyncio.get_event_loop()
                     for immat in new_immats:
-                        loop.run_until_complete(valkey.delete_vehicle(immat))
+                        loop.run_until_complete(redis_store.delete_vehicle(immat))
 
-    def test_import_csv_success(self):
+    def test_import_csv_success(self, vehicles_import_sample_csv):
         """Test successful CSV import."""
         test_client = get_authenticated_client("thomas.manson@croix-rouge.fr")
 
-        # Load sample CSV
-        csv_path = Path(__file__).parent / "fixtures" / "vehicles_import_sample.csv"
+        csv_path = vehicles_import_sample_csv
         
         # Build config with column mappings
         config = {
@@ -209,15 +212,14 @@ class TestImportVehicles:
             print(f"Import errors: {data['errors']}")
 
         # Should have created or updated 4 vehicles (5 data rows - 1 with N/A immat)
-        # Vehicles may already exist in Valkey from mock data, so they count as "updated"
+        # Vehicles may already exist in Redis from mock data, so they count as "updated"
         assert data["created"] + data["updated"] >= 4
 
-    def test_import_csv_all_fields_saved_to_redis(self):
+    def test_import_csv_all_fields_saved_to_redis(self, vehicles_import_sample_csv):
         """Test that ALL 19 mapped fields are saved to Redis."""
         test_client = get_authenticated_client("thomas.manson@croix-rouge.fr")
 
-        # Load sample CSV
-        csv_path = Path(__file__).parent / "fixtures" / "vehicles_import_sample.csv"
+        csv_path = vehicles_import_sample_csv
 
         # Build config with ALL 19 field mappings using frontend IDs
         config = {
@@ -262,11 +264,11 @@ class TestImportVehicles:
         # Verify minimal errors (header row, N/A immat, empty lines, or event loop issues)
         assert len(data["errors"]) <= 3
 
-    def test_import_csv_missing_required_fields(self):
+    def test_import_csv_missing_required_fields(self, vehicles_import_sample_csv):
         """Test import with missing required field mappings."""
         test_client = get_authenticated_client("thomas.manson@croix-rouge.fr")
 
-        csv_path = Path(__file__).parent / "fixtures" / "vehicles_import_sample.csv"
+        csv_path = vehicles_import_sample_csv
 
         # Config missing 'immat' mapping (required field)
         config = {
@@ -288,11 +290,11 @@ class TestImportVehicles:
         assert response.status_code == 400
         assert "required fields" in response.json()["detail"].lower()
 
-    def test_import_csv_invalid_config_json(self):
+    def test_import_csv_invalid_config_json(self, vehicles_import_sample_csv):
         """Test import with invalid JSON config."""
         test_client = get_authenticated_client("thomas.manson@croix-rouge.fr")
 
-        csv_path = Path(__file__).parent / "fixtures" / "vehicles_import_sample.csv"
+        csv_path = vehicles_import_sample_csv
 
         with open(csv_path, "rb") as f:
             response = test_client.post(
@@ -304,12 +306,12 @@ class TestImportVehicles:
         assert response.status_code == 400
         assert "json" in response.json()["detail"].lower()
 
-    def test_import_csv_non_dt_manager(self):
+    def test_import_csv_non_dt_manager(self, vehicles_import_sample_csv):
         """Test that non-DT managers cannot import."""
         # UL manager (not DT manager) - use jean.dupont who is a regular user
         test_client = get_authenticated_client("jean.dupont@croix-rouge.fr")
 
-        csv_path = Path(__file__).parent / "fixtures" / "vehicles_import_sample.csv"
+        csv_path = vehicles_import_sample_csv
 
         config = {
             "skip_lines": 4,
@@ -330,11 +332,11 @@ class TestImportVehicles:
         assert response.status_code == 403
         assert "dt manager" in response.json()["detail"].lower()
 
-    def test_import_csv_with_skip_field(self):
+    def test_import_csv_with_skip_field(self, vehicles_import_sample_csv):
         """Test import with some fields marked as 'skip'."""
         test_client = get_authenticated_client("thomas.manson@croix-rouge.fr")
 
-        csv_path = Path(__file__).parent / "fixtures" / "vehicles_import_sample.csv"
+        csv_path = vehicles_import_sample_csv
 
         config = {
             "skip_lines": 4,
@@ -360,11 +362,11 @@ class TestImportVehicles:
         data = response.json()
         assert data["created"] >= 0  # Should still work
 
-    def test_import_csv_without_indicatif(self):
+    def test_import_csv_without_indicatif(self, vehicles_no_indicatif_csv):
         """Test import of vehicles without indicatif (issue #16.4)."""
         test_client = get_authenticated_client("thomas.manson@croix-rouge.fr")
 
-        csv_path = Path(__file__).parent / "fixtures" / "vehicles_no_indicatif.csv"
+        csv_path = vehicles_no_indicatif_csv
 
         config = {
             "skip_lines": 4,

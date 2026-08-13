@@ -1,0 +1,12 @@
+Référentiel Véhicules — export de test
+Délégation Territoriale de Paris (DT75)
+Document fictif — aucune donnée réelle
+
+DT 75 / UL,Immat,Indicatif,Opérationnel Mécanique,Raison Indispo,Prochain Controle Technique,Prochain Controle Pollution,Marque,Modèle,Type,Date de MEC,Nom Syntéthique,Carte Grise,# de Place,Commentaires,Lieu de Stationnement,Instructions pour récuperer le véhicule (lien vers google docs),Assurance,N° Serie BAUS
+UL Paris 1,AA-101-AA,PARIS-01-01,Dispo,,2027-06-30,2027-06-30,Renault,Master,VSAV,12/03/2020,vsav-paris-01,CG-AA101AA,3,,Garage fictif,,Contrat fictif 2026,BAUS-AA101AA
+UL Paris 5,AB-202-BB,PARIS-05-01,Dispo,,2027-06-30,2027-06-30,Peugeot,Boxer,VPSP,12/03/2020,vpsp-paris-05,CG-AB202BB,3,,Garage fictif,,Contrat fictif 2026,BAUS-AB202BB
+UL Paris 12,AC-303-CC,PARIS-12-01,Dispo,,2027-06-30,2027-06-30,Citroën,Jumper,VL,12/03/2020,vl-paris-12,CG-AC303CC,3,,Garage fictif,,Contrat fictif 2026,BAUS-AC303CC
+UL Paris 15,N/A,PARIS-15-01,Dispo,,2027-06-30,2027-06-30,Renault,Trafic,VL,12/03/2020,vl-paris-15,CG-N/A,3,,Garage fictif,,Contrat fictif 2026,BAUS-N/A
+UL Paris 20,AD-404-DD,PARIS-20-01,Dispo,,2027-06-30,2027-06-30,Ford,Transit,VPSP,12/03/2020,vpsp-paris-20,CG-AD404DD,3,,Garage fictif,,Contrat fictif 2026,BAUS-AD404DD
+
+
