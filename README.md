@@ -60,13 +60,27 @@ clef/
 ## Quick Start (Docker Compose — recommended)
 
 ```bash
-# Clone and start all services
-docker compose up
+# Mode mock — aucune credential requise, fonctionne partout
+./run_local.sh
 
-# ⚠️ Prérequis : `backend/.env` doit porter USE_MOCKS=true si vous n'avez pas de
-# credential de service account GCP dans ~/.cred/CLEF. Sinon le backend échoue au
-# démarrage (FileNotFoundError sur /credentials/…) et les frontends ne démarrent
-# pas. Voir docs/TODO.md (H11).
+# Intégration réelle — vrais services Google, À LANCER DEPUIS L'HÔTE
+./run_local.sh --real
+```
+
+Le mode par défaut est le **mock** : services Google et OIDC simulés, données
+fictives, aucune credential nécessaire. Le backend annonce son mode au démarrage
+(`docker compose logs backend | grep USE_MOCKS`), donc aucun doute possible.
+
+`--real` bascule sur les vrais services Google. Le script **vérifie les prérequis
+avant de démarrer quoi que ce soit** et s'arrête net en les nommant s'il en manque :
+le service account sous `~/.cred/CLEF/`, et les trois identifiants de feuilles
+`*_SPREADSHEET_ID` dans `backend/.env`. Ce mode n'a de sens que sur l'hôte — la VM de
+développement ne détient aucune credential sortante.
+
+```bash
+# Équivalent direct, sans le script
+docker compose up                      # mock
+USE_MOCKS=false docker compose up      # réel
 
 # Services:
 # - Admin app:  http://localhost:4200

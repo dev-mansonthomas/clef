@@ -632,3 +632,127 @@ obstacle est ce drapeau.
 | F17 | **`starlette.testclient` avertit** : `Using httpx with starlette.testclient is deprecated; install httpx2 instead`. Migration à prévoir. |
 | F18 | **`backend/scripts/setup_gcp.sh` lit des sorties Terraform nommées `valkey_host` / `valkey_port`.** Ces noms appartiennent à l'arbre Terraform, non touché par le renommage : les changer d'un seul côté casserait le script. À traiter avec H7. |
 | F19 | **`PyJWT` avertit** `InsecureKeyLengthWarning: The HMAC key is 27 bytes long` en test — le secret du mock OIDC est sous les 32 octets recommandés pour SHA-256. Sans effet en test ; à ne pas reproduire en production. |
+
+
+---
+
+# Constats du 2026-08-14 — premier passage réel de la CI sur `main`
+
+Le squash-merge de PR #6 a déclenché le premier run `push` sur `main` avec le
+workflow gardé. **Les 6 jobs de test sont passés** ; seul `deploy-dev` a échoué.
+
+## 🟠 Haute
+
+### H12 — Le déploiement automatique n'a jamais pu fonctionner : le secret GitHub est absent
+
+Run `31786247125`, job `Deploy to Dev (Cloud Run)`, échec en 8 s à l'étape
+« Authenticate to Google Cloud » :
+
+```
+google-github-actions/auth failed with: the GitHub Action workflow must specify
+exactly one of "workload_identity_provider" or "credentials_json"!
+```
+
+`credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}` résout à **chaîne vide** :
+le secret n'est pas configuré sur le dépôt. Les runs `push` sur `main` d'il y a quatre
+mois échouaient déjà en 12 à 15 s — très probablement au même endroit. Le déploiement
+automatique n'a donc **jamais fonctionné**, ce que l'absence de `needs:` (H1) rendait
+invisible : le job partait, échouait seul, et personne ne regardait.
+
+**Ce n'est pas une régression du chantier CI.** C'est ce chantier qui l'a rendu visible.
+
+**Action, à arbitrer avec H6** : ne pas se contenter d'ajouter le secret. H6 relève déjà
+qu'une clé de service account à longue durée exposée en secret GitHub est le mauvais
+patron. La **Workload Identity Federation** (`workload_identity_provider`, sans clé) est
+la voie recommandée, et l'action `google-github-actions/auth@v2` la prend en charge
+directement. À trancher dans le chantier déploiement (N1).
+
+## ⚪ Faible
+
+| # | Constat |
+|---|---|
+| F20 | **`Event loop is closed` remonte en annotation d'erreur sur `Backend Tests` en CI**, alors que le job passe. Même famille que **M27** et que la fuite de boucle d'événements décrite dans `tests/conftest.py` : un teardown asynchrone incomplet. Non fatal aujourd'hui, mais c'est le terreau des flakes. À traiter avec M27. |
+| F21 | **Toutes les actions du workflow tirent Node 20, déprécié** : `actions/checkout@v4`, `actions/setup-node@v4`, `actions/setup-python@v5`, `actions/upload-artifact@v4`, `google-github-actions/auth@v2`. GitHub les force déjà sur Node 24 et avertit à chaque run. Monter les actions d'un cran (`@v5` / `@v6` selon les cas) supprimera huit avertissements par run. |
+| F22 | **`git-pr-merge` ne réécrit pas le titre d'une PR réutilisée** : le commit de squash sur `main` s'appelle « feat: sinistres, franchise et édition de factures (#6) » et ne mentionne pas le chantier CI. Cosmétique, mais à savoir : passer le titre à l'outil ne suffit pas si la PR existe déjà. |
+
+
+---
+
+# Constats du 2026-08-14 — le mode réel n'est pas praticable en l'état
+
+Relevés en construisant le préflight de `./run_local.sh --real`. Tous **vérifiés par
+lecture du code**, avec les lignes citées.
+
+## 🔴 Critique
+
+### M31 — `get_benevole_by_email()` n'existe que sur le mock : en mode réel, tout le monde devient « Bénévole » sans périmètre
+
+Deuxième instance de la famille de bugs relevée en **M16** (`calendar_service.get_events()`),
+et celle-ci est sur le **chemin d'authentification**.
+
+```
+auth/service.py:104        return self.sheets_service.get_benevole_by_email(email)
+mocks/google_sheets_mock.py:290   def get_benevole_by_email(...)     ← existe
+services/sheets_real.py           ← N'EXISTE PAS
+```
+
+Avec `USE_MOCKS=false`, l'appel lève `AttributeError`. Mais `_get_benevole`
+(`auth/service.py:103-106`) l'enveloppe dans `except Exception: return None`, et
+`get_current_user` fait de même (`auth/dependencies.py:60-61`, constat **M2**). La
+chaîne complète, vérifiée par lecture de `get_user_from_token` :
+
+1. `email == EMAIL_GESTIONNAIRE_DT` → **Gestionnaire DT**. Ce chemin ne touche pas
+   Sheets (`auth/service.py:33-43`) : il continue de fonctionner.
+2. sinon `_get_benevole()` → `AttributeError` avalée → `None`.
+3. sinon `_get_responsable()` → `get_responsables()` existe bien sur le service réel,
+   mais avec `spreadsheet_id=None` l'appel Sheets échoue → avalé → `None`.
+4. sinon **repli** (`auth/service.py:88-99`) : `role="Bénévole"`, `ul=None`,
+   `perimetre=None`, `type_perimetre=None`.
+
+**Conséquence en production ou en intégration réelle :** seul le compte
+`EMAIL_GESTIONNAIRE_DT` obtient un rôle correct. **Tous les autres utilisateurs
+authentifiés sont silencieusement ramenés à « Bénévole » sans UL ni périmètre**, sans
+la moindre trace dans les logs. Les Responsables UL perdent leurs droits, les autres
+gestionnaires DT aussi.
+
+Le sens de la dégradation est heureusement *fail-closed* — personne ne gagne de droits.
+Mais c'est une panne fonctionnelle totale et muette.
+
+**Action :** c'est exactement la tâche **N2** de la décision **D4** — faire lire les
+bénévoles depuis Redis (`redis_store.get_benevole`, comme `routers/benevoles.py:70,74`
+le fait déjà) au lieu de Google Sheets. Cela supprime d'un coup : ce bug, la latence
+Sheets sur chaque requête d'authentification, et la dépendance du contrôle d'accès à un
+tableur en direct. À faire **avant** que le mode réel serve à quoi que ce soit.
+
+## 🟠 Haute
+
+### H13 — Les trois URL de feuilles de la configuration DT sont entièrement inertes
+
+`DTConfiguration` (`models/redis_models.py:16-18`) déclare `sheets_url_vehicules`,
+`sheets_url_benevoles` et `sheets_url_responsables`. Recherche exhaustive dans tout le
+dépôt : **ces noms n'apparaissent nulle part ailleurs** que dans ces trois déclarations
+et deux mocks de test.
+
+- Ils ne sont **pas** dans `ConfigUpdate` → `PATCH /api/config` ne peut pas les écrire.
+- Ils ne sont **pas** dans `ConfigResponse` → `GET /api/config` ne les relit pas.
+- **Aucune ligne de code ne les consomme.**
+
+Le mécanisme réellement utilisé est ailleurs : `sheets_real.py:24-26` lit les variables
+d'environnement `VEHICULES_SPREADSHEET_ID`, `BENEVOLES_SPREADSHEET_ID` et
+`RESPONSABLES_SPREADSHEET_ID` — qui ne sont définies **ni** dans `backend/.env`, **ni**
+dans `.env.example` (constat **M9/M10**).
+
+Même défaut que **M1** (`montant_franchise`), mais en version intégrale : M1 était au
+moins consommé en aval, ici rien ne l'est.
+
+**Action :** trancher où vit cette configuration. Deux voies cohérentes :
+- **La configuration DT est la source** → ajouter les champs à
+  `ConfigUpdate`/`ConfigResponse`, extraire l'identifiant depuis l'URL (le code sait déjà
+  le faire pour `drive_folder_url`, `routers/config.py`), et faire lire la config par le
+  service Sheets.
+- **L'environnement est la source** → retirer les trois champs de `DTConfiguration`,
+  qui ne font que suggérer un réglage inexistant, et documenter les variables.
+
+La première voie est plus cohérente avec le multi-DT (**D2**) : chaque délégation a ses
+propres feuilles. Mais si **N2** est fait d'abord, l'authentification n'a plus besoin de
+Sheets du tout, et la question se réduit à l'import de véhicules.

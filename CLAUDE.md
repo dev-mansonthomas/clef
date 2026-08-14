@@ -155,17 +155,23 @@ concernent que les requêtes non interceptées par les mocks.
 
 Services compose : `redis`, `backend`, `frontend`, `frontend-form`.
 
-⚠️ **Échoue tel quel dans cette VM** : `backend/.env` porte `USE_MOCKS=false`, donc le
-backend exige `/credentials/clef-backend-dev-key.json`, absent par construction (la VM
-ne détient aucune credential sortante). Le healthcheck échoue et les frontends ne
-démarrent pas. Avec `USE_MOCKS=true`, **tout démarre** — vérifié :
+**Deux modes**, le mock étant le défaut :
 
-```
-GET localhost:8000/health  → {"status":"healthy","redis":"connected"}
-GET localhost:4200         → 200      GET localhost:4202  → 200
+```sh
+./run_local.sh          # mock : aucune credential, fonctionne dans la VM
+./run_local.sh --real   # intégration réelle : hôte uniquement
 ```
 
-Décision en attente : voir le constat **H11** de `docs/TODO.md`.
+Vérifié en mode mock : `/health` → `{"status":"healthy","redis":"connected"}`, `4200`
+et `4202` → 200.
+
+`--real` exécute un **préflight** qui échoue avant tout démarrage si le service
+account (`~/.cred/CLEF/…`) ou les trois `*_SPREADSHEET_ID` de `backend/.env` manquent.
+Dans cette VM il échoue donc toujours, et c'est le comportement voulu.
+
+⚠️ Le backend **annonce son mode au démarrage** (`WARNING` en mock). Ne pas diagnostiquer
+un comportement bizarre sans avoir lu cette ligne :
+`docker compose logs backend | grep USE_MOCKS`.
 
 ### Terraform — ❌ CASSÉ (validation seule dans la VM, jamais d'apply)
 

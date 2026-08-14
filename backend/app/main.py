@@ -61,6 +61,22 @@ async def lifespan(app: FastAPI):
     FastAPI n'en conserve qu'un shim déprécié. `lifespan` est la seule API portée.
     """
     # --- Démarrage ---
+    # Annoncer le mode avant toute autre chose : le défaut local de docker-compose est
+    # le mode mock, et démarrer dans le mauvais mode sans le voir est une confusion
+    # coûteuse. En mock, l'app sert des données fictives, accepte des jetons signés
+    # avec un secret public du dépôt et réduit le chiffrement KMS à du base64 (S1, S2)
+    # — d'où le niveau WARNING, pour que ça ressorte d'un flot d'INFO.
+    if use_mocks():
+        logger.warning(
+            "USE_MOCKS=true — services Google et OIDC simulés, données fictives, "
+            "aucune credential requise. Ne jamais utiliser en production."
+        )
+    else:
+        logger.info(
+            "USE_MOCKS=false — services Google réels "
+            "(GOOGLE_APPLICATION_CREDENTIALS requis)."
+        )
+
     try:
         # Connect to Redis
         await cache.connect()
