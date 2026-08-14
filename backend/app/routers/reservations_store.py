@@ -1,36 +1,36 @@
-"""Valkey-based Reservation API endpoints."""
+"""Redis-based Reservation API endpoints."""
 import logging
 from typing import Optional
 from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 
 from app.models.reservation import (
-    ValkeyReservationCreate,
-    ValkeyReservation,
-    ValkeyReservationListResponse
+    RedisReservationCreate,
+    RedisReservation,
+    RedisReservationListResponse
 )
 from app.auth.models import User
 from app.auth.dependencies import require_authenticated_user
-from app.services.valkey_dependencies import get_valkey_service
-from app.services.valkey_service import ValkeyService
+from app.services.redis_dependencies import get_redis_service
+from app.services.redis_service import RedisService
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/api/calendar/{dt}/reservations",
-    tags=["reservations-valkey"]
+    tags=["reservations-redis_store"]
 )
 
 
-@router.get("", response_model=ValkeyReservationListResponse)
+@router.get("", response_model=RedisReservationListResponse)
 async def list_reservations(
     dt: str,
     from_date: Optional[date] = Query(None, alias="from"),
     to_date: Optional[date] = Query(None, alias="to"),
     vehicule_immat: Optional[str] = Query(None),
     current_user: User = Depends(require_authenticated_user),
-    valkey: ValkeyService = Depends(get_valkey_service)
-) -> ValkeyReservationListResponse:
+    redis_store: RedisService = Depends(get_redis_service)
+) -> RedisReservationListResponse:
     """
     Liste des réservations avec filtres optionnels.
 
@@ -40,19 +40,19 @@ async def list_reservations(
         to_date: Date de fin (optionnel)
         vehicule_immat: Immatriculation du véhicule (optionnel)
         current_user: Utilisateur authentifié
-        valkey: Service Valkey
+        redis_store: Service Redis
 
     Returns:
         Liste des réservations
     """
     try:
-        reservations = await valkey.list_reservations(
+        reservations = await redis_store.list_reservations(
             from_date=from_date,
             to_date=to_date,
             vehicule_immat=vehicule_immat
         )
 
-        return ValkeyReservationListResponse(
+        return RedisReservationListResponse(
             count=len(reservations),
             reservations=reservations
         )
@@ -64,13 +64,13 @@ async def list_reservations(
         )
 
 
-@router.post("", response_model=ValkeyReservation, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=RedisReservation, status_code=status.HTTP_201_CREATED)
 async def create_reservation(
     dt: str,
-    reservation: ValkeyReservationCreate,
+    reservation: RedisReservationCreate,
     current_user: User = Depends(require_authenticated_user),
-    valkey: ValkeyService = Depends(get_valkey_service)
-) -> ValkeyReservation:
+    redis_store: RedisService = Depends(get_redis_service)
+) -> RedisReservation:
     """
     Créer une réservation.
 
@@ -78,7 +78,7 @@ async def create_reservation(
         dt: Code de la Délégation Territoriale
         reservation: Données de la réservation
         current_user: Utilisateur authentifié
-        valkey: Service Valkey
+        redis_store: Service Redis
 
     Returns:
         Réservation créée
@@ -95,7 +95,7 @@ async def create_reservation(
         )
 
     # Verify vehicle exists
-    vehicle = await valkey.get_vehicle(reservation.vehicule_immat)
+    vehicle = await redis_store.get_vehicle(reservation.vehicule_immat)
     if not vehicle:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -103,7 +103,7 @@ async def create_reservation(
         )
 
     # Verify driver exists
-    benevole = await valkey.get_benevole(reservation.chauffeur_nivol)
+    benevole = await redis_store.get_benevole(reservation.chauffeur_nivol)
     if not benevole:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -111,7 +111,7 @@ async def create_reservation(
         )
 
     try:
-        created = await valkey.create_reservation(
+        created = await redis_store.create_reservation(
             reservation_data=reservation,
             created_by=current_user.email
         )
@@ -130,13 +130,13 @@ async def create_reservation(
         )
 
 
-@router.get("/{id}", response_model=ValkeyReservation)
+@router.get("/{id}", response_model=RedisReservation)
 async def get_reservation(
     dt: str,
     id: str,
     current_user: User = Depends(require_authenticated_user),
-    valkey: ValkeyService = Depends(get_valkey_service)
-) -> ValkeyReservation:
+    redis_store: RedisService = Depends(get_redis_service)
+) -> RedisReservation:
     """
     Détail d'une réservation.
 
@@ -144,7 +144,7 @@ async def get_reservation(
         dt: Code de la Délégation Territoriale
         id: ID de la réservation
         current_user: Utilisateur authentifié
-        valkey: Service Valkey
+        redis_store: Service Redis
 
     Returns:
         Réservation
@@ -152,7 +152,7 @@ async def get_reservation(
     Raises:
         404: Réservation non trouvée
     """
-    reservation = await valkey.get_reservation(id)
+    reservation = await redis_store.get_reservation(id)
     if not reservation:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -161,14 +161,14 @@ async def get_reservation(
     return reservation
 
 
-@router.put("/{id}", response_model=ValkeyReservation)
+@router.put("/{id}", response_model=RedisReservation)
 async def update_reservation(
     dt: str,
     id: str,
-    reservation: ValkeyReservationCreate,
+    reservation: RedisReservationCreate,
     current_user: User = Depends(require_authenticated_user),
-    valkey: ValkeyService = Depends(get_valkey_service)
-) -> ValkeyReservation:
+    redis_store: RedisService = Depends(get_redis_service)
+) -> RedisReservation:
     """
     Modifier une réservation (admin ou créateur).
 
@@ -177,7 +177,7 @@ async def update_reservation(
         id: ID de la réservation
         reservation: Données mises à jour
         current_user: Utilisateur authentifié
-        valkey: Service Valkey
+        redis_store: Service Redis
 
     Returns:
         Réservation mise à jour
@@ -188,7 +188,7 @@ async def update_reservation(
         404: Réservation non trouvée
     """
     # Get existing reservation
-    existing = await valkey.get_reservation(id)
+    existing = await redis_store.get_reservation(id)
     if not existing:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -210,7 +210,7 @@ async def update_reservation(
         )
 
     # Verify vehicle exists
-    vehicle = await valkey.get_vehicle(reservation.vehicule_immat)
+    vehicle = await redis_store.get_vehicle(reservation.vehicule_immat)
     if not vehicle:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -218,7 +218,7 @@ async def update_reservation(
         )
 
     # Verify driver exists
-    benevole = await valkey.get_benevole(reservation.chauffeur_nivol)
+    benevole = await redis_store.get_benevole(reservation.chauffeur_nivol)
     if not benevole:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -226,7 +226,7 @@ async def update_reservation(
         )
 
     try:
-        updated = await valkey.update_reservation(
+        updated = await redis_store.update_reservation(
             reservation_id=id,
             reservation_data=reservation
         )
@@ -255,7 +255,7 @@ async def delete_reservation(
     dt: str,
     id: str,
     current_user: User = Depends(require_authenticated_user),
-    valkey: ValkeyService = Depends(get_valkey_service)
+    redis_store: RedisService = Depends(get_redis_service)
 ) -> None:
     """
     Annuler une réservation (admin ou créateur).
@@ -264,14 +264,14 @@ async def delete_reservation(
         dt: Code de la Délégation Territoriale
         id: ID de la réservation
         current_user: Utilisateur authentifié
-        valkey: Service Valkey
+        redis_store: Service Redis
 
     Raises:
         403: Pas autorisé à supprimer cette réservation
         404: Réservation non trouvée
     """
     # Get existing reservation
-    existing = await valkey.get_reservation(id)
+    existing = await redis_store.get_reservation(id)
     if not existing:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -286,7 +286,7 @@ async def delete_reservation(
         )
 
     try:
-        deleted = await valkey.delete_reservation(id)
+        deleted = await redis_store.delete_reservation(id)
         if not deleted:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,

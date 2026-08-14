@@ -12,7 +12,7 @@ auth_settings.use_mocks = True
 from fastapi.testclient import TestClient
 from app.main import app
 from app.auth import routes as auth_routes
-from app.services.valkey_dependencies import get_valkey_service
+from app.services.redis_dependencies import get_redis_service
 
 # Load mock vehicle data
 _mock_data_path = os.path.join(os.path.dirname(__file__), "..", "app", "mocks", "data", "vehicules.json")
@@ -21,7 +21,7 @@ with open(_mock_data_path) as _f:
 for _v in MOCK_VEHICLES:
     _v["dt"] = "DT75"
 
-from app.models.valkey_models import VehicleData as _VehicleData
+from app.models.redis_models import VehicleData as _VehicleData
 _MOCK_VEHICLE_DATA = {v["immat"]: _VehicleData(**v) for v in MOCK_VEHICLES}
 
 # In-memory stores
@@ -32,8 +32,8 @@ _facture_counters: dict = {}
 _historique_store: dict = {}
 
 
-class _MockValkeyService:
-    """Mock ValkeyService for depenses tests."""
+class _MockRedisService:
+    """Mock RedisService for depenses tests."""
     dt = "DT75"
 
     async def get_vehicle(self, immat: str):
@@ -45,7 +45,7 @@ class _MockValkeyService:
     def _key(self, *parts: str) -> str:
         return f"{self.dt}:{':'.join(parts)}"
 
-    async def create_dossier_reparation(self, immat: str, description, cree_par: str, commentaire=None, titre=None):
+    async def create_dossier_reparation(self, immat: str, description, cree_par: str, commentaire=None, titre=None, est_sinistre=False, franchise_applicable=False):
         from datetime import datetime
         from app.models.repair_models import DossierReparation, HistoriqueEntry, ActionHistorique
         _dossier_counters[immat] = _dossier_counters.get(immat, 0) + 1
@@ -57,6 +57,7 @@ class _MockValkeyService:
         dossier = DossierReparation(
             numero=numero, immat=immat, dt=self.dt,
             titre=titre, description=description, commentaire=commentaire,
+            est_sinistre=est_sinistre, franchise_applicable=franchise_applicable,
             cree_par=cree_par, cree_le=datetime.utcnow(),
         )
         key = self._key("vehicules", immat, "travaux", numero)
@@ -156,15 +157,15 @@ class _MockValkeyService:
         return {"years": years, "total_all_years_cout": round(total_cout, 2), "total_all_years_crf": round(total_crf, 2)}
 
 
-def _override_valkey():
-    return _MockValkeyService()
+def _override_redis():
+    return _MockRedisService()
 
 
 @pytest.fixture(autouse=True)
-def _mock_valkey_and_cleanup():
-    app.dependency_overrides[get_valkey_service] = _override_valkey
+def _mock_redis_and_cleanup():
+    app.dependency_overrides[get_redis_service] = _override_redis
     yield
-    app.dependency_overrides.pop(get_valkey_service, None)
+    app.dependency_overrides.pop(get_redis_service, None)
     _dossier_store.clear()
     _dossier_index.clear()
     _dossier_counters.clear()

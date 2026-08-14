@@ -1,6 +1,19 @@
 import { test, expect } from '@playwright/test';
 import { setupApiMocks, mockAuthentication } from './helpers/mock-api';
-import * as path from 'path';
+import { vehiclesCsvFile } from './helpers/vehicles-csv';
+import type { Page } from '@playwright/test';
+
+/**
+ * Le stepper Material conserve dans le DOM les boutons de toutes les étapes ;
+ * un seul jeu est visible à la fois. Ces helpers ciblent celui de l'étape
+ * courante — sans quoi le mode strict de Playwright échoue sur 2 correspondances,
+ * ou clique sur un bouton masqué et attend jusqu'au timeout.
+ */
+const nextButton = (page: Page) =>
+  page.locator('button:has-text("Suivant"):visible').first();
+
+const previousButton = (page: Page) =>
+  page.locator('button:has-text("Précédent"):visible').first();
 
 /**
  * E2E Test: Import Wizard
@@ -18,23 +31,26 @@ test.describe('Import Wizard', () => {
   });
 
   test('should show all 4 steps in wizard', async ({ page }) => {
-    // Check all steps are visible in the stepper
-    await expect(page.locator('text=Upload fichier')).toBeVisible();
-    await expect(page.locator('text=Configuration')).toBeVisible();
-    await expect(page.locator('text=Mapping colonnes')).toBeVisible();
-    await expect(page.locator('text=Résultat')).toBeVisible();
+    // Les libellés du stepper, et eux seuls : « Configuration » tout court
+    // apparaît aussi dans la navigation latérale et dans le panneau d'aide, ce
+    // qui faisait échouer l'assertion en mode strict.
+    const stepLabels = page.locator('.mat-step-text-label');
+    await expect(stepLabels.filter({ hasText: 'Upload fichier' })).toBeVisible();
+    await expect(stepLabels.filter({ hasText: /^Configuration$/ })).toBeVisible();
+    await expect(stepLabels.filter({ hasText: 'Mapping colonnes' })).toBeVisible();
+    await expect(stepLabels.filter({ hasText: 'Résultat' })).toBeVisible();
   });
 
   test('should upload CSV and navigate through all steps', async ({ page }) => {
     // Step 1: Upload file
     const fileInput = page.locator('input[type="file"]');
-    await fileInput.setInputFiles(path.join(__dirname, 'fixtures/test-vehicles.csv'));
+    await fileInput.setInputFiles(vehiclesCsvFile());
     
     // Wait for file to be recognized
-    await expect(page.locator('button:has-text("Suivant")')).not.toBeDisabled();
+    await expect(nextButton(page)).not.toBeDisabled();
     
     // Navigate to Step 2 (Configuration)
-    await page.click('button:has-text("Suivant")');
+    await nextButton(page).click();
     
     // Should be on Configuration step (step 2)
     await expect(page.locator('h3:has-text("Configuration de l\'import")')).toBeVisible();
@@ -48,20 +64,20 @@ test.describe('Import Wizard', () => {
     await expect(page.locator('h4:has-text("Aperçu des données")')).toBeVisible();
     
     // Navigate to Step 3 (Mapping)
-    await page.click('button:has-text("Suivant")');
+    await nextButton(page).click();
     
     // Should be on Mapping step (step 3)
     await expect(page.locator('text=Colonne CSV')).toBeVisible();
-    await expect(page.locator('text=Champ CLEF')).toBeVisible();
+    await expect(page.getByText('Champ CLEF', { exact: true })).toBeVisible();
   });
 
   test('should have default skip lines = 6', async ({ page }) => {
     // Upload file
     const fileInput = page.locator('input[type="file"]');
-    await fileInput.setInputFiles(path.join(__dirname, 'fixtures/test-vehicles.csv'));
+    await fileInput.setInputFiles(vehiclesCsvFile());
     
     // Go to step 2
-    await page.click('button:has-text("Suivant")');
+    await nextButton(page).click();
     
     // Check default value
     const skipInput = page.locator('input[type="number"]');
@@ -71,10 +87,10 @@ test.describe('Import Wizard', () => {
   test('should allow changing skip lines value', async ({ page }) => {
     // Upload file
     const fileInput = page.locator('input[type="file"]');
-    await fileInput.setInputFiles(path.join(__dirname, 'fixtures/test-vehicles.csv'));
+    await fileInput.setInputFiles(vehiclesCsvFile());
     
     // Go to step 2
-    await page.click('button:has-text("Suivant")');
+    await nextButton(page).click();
     
     // Change skip lines value
     const skipInput = page.locator('input[type="number"]');
@@ -90,28 +106,30 @@ test.describe('Import Wizard', () => {
   test('should navigate back and forth between steps', async ({ page }) => {
     // Upload file
     const fileInput = page.locator('input[type="file"]');
-    await fileInput.setInputFiles(path.join(__dirname, 'fixtures/test-vehicles.csv'));
+    await fileInput.setInputFiles(vehiclesCsvFile());
     
     // Go to step 2
-    await page.click('button:has-text("Suivant")');
+    await nextButton(page).click();
     await expect(page.locator('h3:has-text("Configuration de l\'import")')).toBeVisible();
     
     // Go to step 3
-    await page.click('button:has-text("Suivant")');
+    await nextButton(page).click();
     await expect(page.locator('text=Colonne CSV')).toBeVisible();
     
     // Go back to step 2
-    await page.click('button:has-text("Précédent")');
+    await previousButton(page).click();
     await expect(page.locator('h3:has-text("Configuration de l\'import")')).toBeVisible();
     
     // Go back to step 1
-    await page.click('button:has-text("Précédent")');
-    await expect(page.locator('input[type="file"]')).toBeVisible();
+    await previousButton(page).click();
+    // L'`input[type="file"]` porte `style="display: none"` : il n'est jamais
+    // visible. On atteste le retour à l'étape 1 sur la zone de dépôt.
+    await expect(page.locator('.upload-area')).toBeVisible();
   });
 
   test('should complete full import flow', async ({ page }) => {
-    // Mock the import API endpoint
-    await page.route('**/api/vehicles/import', async (route) => {
+    // Mock the import API endpoint — route réelle : `/api/{dt}/import/vehicles`.
+    await page.route('**/api/*/import/vehicles', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -126,30 +144,36 @@ test.describe('Import Wizard', () => {
 
     // Step 1: Upload file
     const fileInput = page.locator('input[type="file"]');
-    await fileInput.setInputFiles(path.join(__dirname, 'fixtures/test-vehicles.csv'));
-    await page.click('button:has-text("Suivant")');
-    
-    // Step 2: Configuration (keep default skip lines = 6)
-    await page.click('button:has-text("Suivant")');
+    await fileInput.setInputFiles(vehiclesCsvFile());
+    await nextButton(page).click();
+
+    // Step 2: Configuration (on conserve la valeur par défaut de skip lines).
+    // L'attente est nécessaire : sans elle, le second « Suivant » cible un bouton
+    // détaché pendant la transition du stepper.
+    await expect(page.locator('h3:has-text("Configuration de l\'import")')).toBeVisible();
+    await nextButton(page).click();
     
     // Step 3: Mapping (click import button)
-    await page.click('button:has-text("Importer")');
+    await page.locator('button:has-text("Importer"):visible').first().click();
     
     // Should show success message
     await expect(page.locator('.mat-mdc-snack-bar-container')).toContainText('Import terminé');
     
-    // Should be on Step 4 (Result)
-    await expect(page.locator('text=créés')).toBeVisible();
-    await expect(page.locator('text=mis à jour')).toBeVisible();
+    // Should be on Step 4 (Result). On cible les libellés du panneau de résultat
+    // et non un texte libre : « créés » et « mis à jour » apparaissent aussi dans
+    // le snackbar, ce qui viole le mode strict.
+    const statLabels = page.locator('.stat-label');
+    await expect(statLabels.filter({ hasText: 'Véhicules créés' })).toBeVisible();
+    await expect(statLabels.filter({ hasText: 'mis à jour' })).toBeVisible();
   });
 
   test('should cancel import and return to vehicles list', async ({ page }) => {
     // Upload file
     const fileInput = page.locator('input[type="file"]');
-    await fileInput.setInputFiles(path.join(__dirname, 'fixtures/test-vehicles.csv'));
+    await fileInput.setInputFiles(vehiclesCsvFile());
     
     // Click cancel button
-    await page.click('button:has-text("Annuler")');
+    await page.locator('button:has-text("Annuler"):visible').first().click();
     
     // Should navigate back to vehicles list
     await expect(page).toHaveURL(/.*vehicles$/);

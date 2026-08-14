@@ -5,8 +5,8 @@ from typing import List, Dict, Any
 from fastapi import APIRouter, Header, HTTPException, status, Depends
 from pydantic import BaseModel, Field
 
-from app.services.valkey_service import ValkeyService
-from app.models.valkey_models import VehicleData, ResponsableData, BenevoleData, ResponsableVehiculeData
+from app.services.redis_service import RedisService
+from app.models.redis_models import VehicleData, ResponsableData, BenevoleData, ResponsableVehiculeData
 from app.cache import get_cache
 
 logger = logging.getLogger(__name__)
@@ -70,15 +70,15 @@ async def verify_api_key(x_api_key: str = Header(...)) -> None:
         )
 
 
-async def get_valkey_for_dt(dt: str) -> ValkeyService:
+async def get_redis_for_dt(dt: str) -> RedisService:
     """
-    Get ValkeyService instance for a specific DT.
+    Get RedisService instance for a specific DT.
     
     Args:
         dt: DT identifier (e.g., "DT75")
         
     Returns:
-        ValkeyService instance
+        RedisService instance
         
     Raises:
         HTTPException: If Redis is not available
@@ -94,7 +94,7 @@ async def get_valkey_for_dt(dt: str) -> ValkeyService:
             detail="Database connection not available"
         )
     
-    return ValkeyService(redis_client=cache.client, dt=dt)
+    return RedisService(redis_client=cache.client, dt=dt)
 
 
 @router.get("/{dt}/vehicules")
@@ -111,15 +111,15 @@ async def get_vehicules_for_sync(
     Returns:
         List of vehicle dictionaries
     """
-    valkey = await get_valkey_for_dt(dt)
+    redis_store = await get_redis_for_dt(dt)
 
     # Get all vehicle IDs
-    vehicle_ids = await valkey.list_vehicles()
+    vehicle_ids = await redis_store.list_vehicles()
 
     # Fetch all vehicles
     vehicles = []
     for immat in vehicle_ids:
-        vehicle = await valkey.get_vehicle(immat)
+        vehicle = await redis_store.get_vehicle(immat)
         if vehicle:
             vehicles.append(vehicle.model_dump())
 
@@ -144,17 +144,17 @@ async def get_vehicules_for_ul(
     Returns:
         List of vehicle dictionaries filtered by UL
     """
-    valkey = await get_valkey_for_dt(dt)
+    redis_store = await get_redis_for_dt(dt)
 
     # Validate API key for this UL
-    if not await valkey.validate_api_key(x_api_key, ul_id=ul_id):
+    if not await redis_store.validate_api_key(x_api_key, ul_id=ul_id):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid API key for this UL"
         )
 
     # Get UL name to match against vehicle dt_ul field
-    ul_data = await valkey.redis.json().get(valkey._key("unite_locale", ul_id))
+    ul_data = await redis_store.redis.json().get(redis_store._key("unite_locale", ul_id))
     if not ul_data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -164,12 +164,12 @@ async def get_vehicules_for_ul(
     ul_name = ul_data.get("nom")
 
     # Get all vehicle IDs
-    vehicle_ids = await valkey.list_vehicles()
+    vehicle_ids = await redis_store.list_vehicles()
 
     # Fetch and filter vehicles by UL name
     vehicles = []
     for immat in vehicle_ids:
-        vehicle = await valkey.get_vehicle(immat)
+        vehicle = await redis_store.get_vehicle(immat)
         # Match by UL name (dt_ul field contains the full UL name)
         if vehicle and vehicle.dt_ul == ul_name:
             vehicles.append(vehicle.model_dump())
@@ -192,15 +192,15 @@ async def get_responsables_for_sync(
     Returns:
         List of responsable dictionaries
     """
-    valkey = await get_valkey_for_dt(dt)
+    redis_store = await get_redis_for_dt(dt)
     
     # Get all responsable emails
-    responsable_emails = await valkey.list_responsables()
+    responsable_emails = await redis_store.list_responsables()
     
     # Fetch all responsables
     responsables = []
     for email in responsable_emails:
-        responsable = await valkey.get_responsable(email)
+        responsable = await redis_store.get_responsable(email)
         if responsable:
             responsables.append(responsable.model_dump())
     
@@ -215,7 +215,7 @@ async def sync_benevoles(
     _: None = Depends(verify_api_key)
 ) -> SyncResponse:
     """
-    Sync bénévoles from Apps Script to Valkey.
+    Sync bénévoles from Apps Script to Redis.
     
     Args:
         dt: DT identifier (e.g., "DT75")
@@ -224,7 +224,7 @@ async def sync_benevoles(
     Returns:
         Sync response with count of processed records
     """
-    valkey = await get_valkey_for_dt(dt)
+    redis_store = await get_redis_for_dt(dt)
     
     processed = 0
     for benevole_data in benevoles:
@@ -240,8 +240,8 @@ async def sync_benevoles(
                 role=benevole_data.role
             )
             
-            # Store in Valkey
-            success = await valkey.set_benevole(benevole)
+            # Store in Redis
+            success = await redis_store.set_benevole(benevole)
             if success:
                 processed += 1
         except Exception as e:
@@ -264,7 +264,7 @@ async def sync_responsables_vehicules(
     _: None = Depends(verify_api_key)
 ) -> SyncResponse:
     """
-    Sync responsables véhicules from Apps Script to Valkey.
+    Sync responsables véhicules from Apps Script to Redis.
 
     Args:
         dt: DT identifier (e.g., "DT75")
@@ -273,7 +273,7 @@ async def sync_responsables_vehicules(
     Returns:
         Sync response with count of processed records
     """
-    valkey = await get_valkey_for_dt(dt)
+    redis_store = await get_redis_for_dt(dt)
 
     processed = 0
     for resp_data in responsables:
@@ -288,8 +288,8 @@ async def sync_responsables_vehicules(
                 telephone=resp_data.telephone
             )
 
-            # Store in Valkey
-            success = await valkey.set_responsable_vehicule(responsable)
+            # Store in Redis
+            success = await redis_store.set_responsable_vehicule(responsable)
             if success:
                 processed += 1
         except Exception as e:
@@ -319,10 +319,10 @@ async def get_responsables_vehicules_for_sync(
     Returns:
         List of responsable véhicule dictionaries
     """
-    valkey = await get_valkey_for_dt(dt)
+    redis_store = await get_redis_for_dt(dt)
 
     # Get all responsables véhicules
-    responsables = await valkey.get_all_responsables_vehicules()
+    responsables = await redis_store.get_all_responsables_vehicules()
 
     logger.info(f"Sync API: Retrieved {len(responsables)} responsables véhicules for {dt}")
     return [r.model_dump() for r in responsables]

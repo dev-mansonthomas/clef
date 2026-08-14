@@ -50,7 +50,7 @@ import { ApprobationData, SubmitDossierDecisionRequest } from '../models/repair.
       <h1><mat-icon>gavel</mat-icon> Approbation — Dossier {{ data()!.numero_dossier }}</h1>
       <p class="subtitle">Véhicule {{ data()!.immat }}</p>
 
-      @if (data()!.dossier_description?.length) {
+      @if (data()!.dossier_description.length) {
       <div class="travaux-section">
         <h3>Travaux prévus</h3>
         <ul>
@@ -62,7 +62,7 @@ import { ApprobationData, SubmitDossierDecisionRequest } from '../models/repair.
       @for (d of data()!.devis; track d.id) {
       <mat-card class="devis-card" [class.devis-refused]="devisDecisions.get(d.id) === 'refuse'">
         <mat-card-header>
-          <mat-card-title>{{ d.fournisseur?.nom || 'Fournisseur' }}</mat-card-title>
+          <mat-card-title>{{ d.fournisseur.nom || 'Fournisseur' }}</mat-card-title>
           <span class="devis-montant">{{ d.montant | number:'1.2-2' }} €</span>
         </mat-card-header>
         <mat-card-content>
@@ -93,7 +93,25 @@ import { ApprobationData, SubmitDossierDecisionRequest } from '../models/repair.
       }
 
       <div class="total-row">
-        <strong>Total : {{ totalMontant() | number:'1.2-2' }} €</strong>
+        @if (data()!.est_sinistre) {
+        <div class="sinistre-label">
+          <mat-icon>warning</mat-icon>
+          @if (data()!.franchise_applicable) {
+            Sinistre — Responsable (franchise à payer)
+          } @else {
+            Sinistre — Non Responsable
+          }
+        </div>
+        <div class="cost-crf-highlight">
+          <div class="cost-crf-label">Coût pour la Croix-Rouge</div>
+          <div class="cost-crf-amount">{{ data()!.franchise_applicable ? data()!.montant_franchise : 0 | number:'1.2-2' }} €</div>
+        </div>
+        <div class="cost-travaux-secondary">
+          Coût total des travaux : {{ totalMontant() | number:'1.2-2' }} €
+        </div>
+        } @else {
+        <strong>Coût des travaux : {{ totalMontant() | number:'1.2-2' }} €</strong>
+        }
       </div>
 
       <div class="decision-section">
@@ -155,6 +173,12 @@ import { ApprobationData, SubmitDossierDecisionRequest } from '../models/repair.
     .decision-section { margin: 24px 0; }
     .decision-section mat-radio-button { display: block; margin: 8px 0; }
     .total-row { text-align: right; font-size: 18px; margin: 16px 0; padding: 12px; background: #f5f5f5; border-radius: 8px; }
+    .sinistre-label { display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 600; color: #e65100; margin-bottom: 8px; }
+    .sinistre-label mat-icon { color: #e65100; }
+    .cost-crf-highlight { background: #e8f5e9; border: 2px solid #2e7d32; border-radius: 8px; padding: 16px; margin-bottom: 8px; text-align: center; }
+    .cost-crf-label { font-size: 14px; color: #2e7d32; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; }
+    .cost-crf-amount { font-size: 32px; font-weight: 700; color: #2e7d32; }
+    .cost-travaux-secondary { font-size: 14px; color: rgba(0,0,0,0.54); }
     .comment-field { width: 100%; margin: 16px 0; }
     .submit-btn { width: 100%; padding: 12px; font-size: 16px; }
     .devis-refused { opacity: 0.6; border-left: 4px solid #c62828; }

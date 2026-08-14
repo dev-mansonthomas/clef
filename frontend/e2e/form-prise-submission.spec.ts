@@ -16,59 +16,69 @@ test.describe('Form - Vehicle Prise Submission', () => {
     // Navigate to form app
     await page.goto('http://localhost:4202');
 
-    // Should show vehicle selector
-    await expect(page.locator('h2')).toContainText('Sélection du véhicule');
+    // Should show vehicle selector.
+    // L'écran rend `<mat-card-title>Sélection du Véhicule</mat-card-title>` — avec
+    // un V majuscule — et non un `<h2>` : l'ancienne assertion ne pouvait pas
+    // passer (vehicle-selector.component.html:4).
+    await expect(page.getByText('Sélection du Véhicule')).toBeVisible();
 
     // Wait for vehicles to load
-    await page.waitForSelector('.vehicle-card, mat-card');
+    await page.waitForSelector('mat-select');
 
-    // Select a vehicle (click on vehicle card)
-    const vehicleCard = page.locator('mat-card:has-text("VL75-01")').first();
-    await vehicleCard.click();
+    // Select a vehicle. La sélection passe par le `mat-select` de la section
+    // « Sélection Manuelle » : le gabarit n'a jamais proposé de cartes véhicule
+    // cliquables, ce que l'ancienne version du test supposait.
+    await page.locator('mat-select').click();
+    await page.locator('mat-option', { hasText: 'VL75-01' }).click();
 
-    // Should navigate to prise form
-    await expect(page).toHaveURL(/.*prise\/VL75-01-KANGOO/);
-    await expect(page.locator('h2')).toContainText('Prise de véhicule');
+    // Should navigate to prise form. `navigateToForm` utilise
+    // l'**immatriculation** (vehicle-selector.component.ts:213), pas le nom
+    // synthétique : la route est `/prise/AB-123-CD`.
+    await expect(page).toHaveURL(/.*prise\/AB-123-CD/);
+    await expect(page.getByText('Prise de Véhicule')).toBeVisible();
 
-    // Verify vehicle info is displayed
-    await expect(page.locator('text=VL75-01')).toBeVisible();
-    await expect(page.locator('text=Renault Kangoo')).toBeVisible();
+    // Verify vehicle info is displayed. Le sous-titre affiche l'immatriculation
+    // issue de la route ; la marque et le modèle ne sont pas rendus sur cet écran.
+    await expect(page.getByText('AB-123-CD').first()).toBeVisible();
 
     // Fill in the prise form
     await page.fill('input[formcontrolname="kmDepart"]', '12500');
-    
+
     // Select fuel level
     await page.click('mat-select[formcontrolname="niveauCarburant"]');
     await page.click('mat-option:has-text("3/4")');
 
-    // Set general condition (slider or input)
-    const etatInput = page.locator('input[formcontrolname="etatGeneral"]');
-    if (await etatInput.isVisible()) {
-      await etatInput.fill('5');
-    }
+    // ⚠️ Attendre la disparition du backdrop de l'overlay Material avant de
+    // dessiner : tant qu'il est présent, il intercepte le `pointerdown` et le pad
+    // de signature reste vide. Le formulaire est alors rejeté par
+    // « Veuillez signer le formulaire », sans que la cause soit visible.
+    await expect(page.locator('.cdk-overlay-backdrop')).toHaveCount(0);
+
+    // `etatGeneral` est un `mat-slider` déjà initialisé à 5 par le formulaire
+    // (prise-form.component.ts:82) : rien à saisir, et `fill()` échouerait sur un
+    // `input[type=range]`.
 
     // Add comments
     await page.fill('textarea[formcontrolname="commentaires"]', 'Véhicule en bon état');
 
-    // Mock signature pad (if present)
-    // Note: Signature pad interaction might need special handling
-    const signatureCanvas = page.locator('canvas');
-    if (await signatureCanvas.isVisible()) {
-      // Simulate drawing on canvas
-      const box = await signatureCanvas.boundingBox();
-      if (box) {
-        await page.mouse.move(box.x + 10, box.y + 10);
-        await page.mouse.down();
-        await page.mouse.move(box.x + 100, box.y + 50);
-        await page.mouse.up();
-      }
-    }
+    // Signature : obligatoire (`signaturePad.isEmpty()` bloque la soumission).
+    // Un `mouse.move` interpolé émet assez de `pointermove` pour que SignaturePad
+    // enregistre un tracé.
+    const signatureCanvas = page.locator('canvas').first();
+    await signatureCanvas.scrollIntoViewIfNeeded();
+    const box = (await signatureCanvas.boundingBox())!;
+    await page.mouse.move(box.x + box.width * 0.2, box.y + box.height * 0.5);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width * 0.5, box.y + box.height * 0.3, { steps: 10 });
+    await page.mouse.move(box.x + box.width * 0.8, box.y + box.height * 0.7, { steps: 10 });
+    await page.mouse.up();
 
     // Submit the form
     await page.click('button[type="submit"]:has-text("Valider")');
 
-    // Should show success message
-    await expect(page.locator('.mat-mdc-snack-bar-container')).toContainText('enregistré avec succès', {
+    // Should show success message. Le libellé exact est « Prise de véhicule
+    // enregistrée avec succès » (prise-form.component.ts:220) — au féminin.
+    await expect(page.locator('.mat-mdc-snack-bar-container')).toContainText('enregistrée avec succès', {
       timeout: 10000,
     });
 
@@ -90,7 +100,10 @@ test.describe('Form - Vehicle Prise Submission', () => {
     const isDisabled = await submitButton.isDisabled();
     if (!isDisabled) {
       // Check for validation error messages
-      await expect(page.locator('.mat-error, .error-message')).toBeVisible();
+      // `.mat-error` est l'ancien nom de classe : Angular Material MDC rend
+      // `<mat-error class="mat-mdc-form-field-error">`. On cible l'élément, dont
+      // l'apparition est garantie par `markAllAsTouched()` dans `onSubmit()`.
+      await expect(page.locator('mat-error, .error-message').first()).toBeVisible();
     }
 
     // Fill required field
@@ -130,14 +143,14 @@ test.describe('Form - Vehicle Prise Submission', () => {
   test('should allow photo upload in prise form', async ({ page }) => {
     await page.goto('http://localhost:4202/prise/VL75-01-KANGOO');
 
-    // Look for photo upload button
-    const photoButton = page.locator('button:has-text("Ajouter"), input[type="file"]');
-    
-    if (await photoButton.isVisible()) {
-      // Create a test file
-      const fileInput = page.locator('input[type="file"]');
-      
-      if (await fileInput.isVisible()) {
+    // L'ancien sélecteur combiné `button, input[type=file]` correspondait à deux
+    // éléments et violait le mode strict. L'input est le seul point d'entrée utile,
+    // et `setInputFiles` fonctionne même sur un input masqué.
+    const fileInput = page.locator('input[type="file"]');
+    await expect(fileInput).toHaveCount(1);
+
+    {
+      {
         // Set files on the input
         await fileInput.setInputFiles({
           name: 'test-photo.jpg',
@@ -146,7 +159,7 @@ test.describe('Form - Vehicle Prise Submission', () => {
         });
 
         // Verify photo was added
-        await expect(page.locator('.photo-preview, img[src*="blob:"]')).toBeVisible();
+        await expect(page.locator('.photo-preview').first()).toBeVisible();
       }
     }
   });

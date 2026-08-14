@@ -2,9 +2,21 @@
 
 ## Summary
 
-- **Total Tests**: 13
-- **Test Files**: 3
-- **Critical Flows Covered**: 3+
+> Mis à jour le 2026-08-13. Avant cette date, **aucun de ces tests n'avait jamais été
+> exécuté** : la version épinglée de Playwright réclamait un build de navigateur absent
+> du cache, et les 30 tests échouaient au lancement. Les ✅ ci-dessous étaient donc
+> déclaratifs. Ils sont maintenant **mesurés**.
+
+- **Total Tests**: 30
+- **Test Files**: 6
+- **Résultat** : ✅ `30 passed` (`npx playwright test --reporter=line`)
+- **Exécutés en CI** : oui, job `e2e`, gardant `deploy-dev`
+
+⚠️ **Une réserve** : dans `admin-reservation-calendar.spec.ts`, le bloc de création de
+réservation est gardé par `if (await createButton.isVisible())` et le bouton
+« Nouvelle réservation » n'existe pas. Ce bloc ne s'exécute donc **jamais** : la
+création de réservation n'est pas couverte, malgré un fichier vert. Voir
+`docs/TODO.md` M24.
 
 ## Test Suites
 

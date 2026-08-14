@@ -8,7 +8,7 @@ from typing import Any, Awaitable, Callable, Dict
 
 from fastapi import HTTPException, status
 
-from app.models.valkey_models import VehicleData
+from app.models.redis_models import VehicleData
 from app.models.vehicle import (
     VehicleDocumentType,
     VehicleDriveDocument,
@@ -17,7 +17,7 @@ from app.models.vehicle import (
     VehicleDriveFileListResponse,
 )
 from app.services.drive_service import drive_service
-from app.services.valkey_service import ValkeyService
+from app.services.redis_service import RedisService
 
 logger = logging.getLogger(__name__)
 
@@ -94,7 +94,7 @@ class VehicleDocumentService:
 
     async def ensure_vehicle_trees_for_all_vehicles(
         self,
-        valkey_service: ValkeyService,
+        redis_service: RedisService,
         root_folder_id: str,
         progress_callback: Callable[..., Awaitable[None]] | None = None,
     ) -> tuple[int, list[str]]:
@@ -107,10 +107,10 @@ class VehicleDocumentService:
         if not root_folder_id:
             return 0, []
 
-        vehicle_ids = await valkey_service.list_vehicles()
+        vehicle_ids = await redis_service.list_vehicles()
         vehicles: list[VehicleData] = []
         for immat in vehicle_ids:
-            vehicle = await valkey_service.get_vehicle(immat)
+            vehicle = await redis_service.get_vehicle(immat)
             if vehicle:
                 vehicles.append(vehicle)
 
@@ -127,7 +127,7 @@ class VehicleDocumentService:
         ensured_count = 0
         errors: list[str] = []
         # Get total configured folders for subfolder progress reporting
-        dt_config = await valkey_service.get_configuration()
+        dt_config = await redis_service.get_configuration()
         total_folders = len(dt_config.document_folders) if dt_config and dt_config.document_folders else len(DOCUMENT_CONFIG)
 
         for index, vehicle in enumerate(vehicles, start=1):
@@ -135,7 +135,7 @@ class VehicleDocumentService:
                 await progress_callback(index, total_vehicles, vehicle)
 
             try:
-                await self._ensure_vehicle_tree(valkey_service, vehicle, root_folder_id)
+                await self._ensure_vehicle_tree(redis_service, vehicle, root_folder_id)
             except Exception as e:
                 logger.error(f"Failed to ensure tree for vehicle {vehicle.immat}: {e}")
                 errors.append(f"{vehicle.immat}: {str(e)}")
@@ -156,11 +156,11 @@ class VehicleDocumentService:
 
     async def get_documents_overview(
         self,
-        valkey_service: ValkeyService,
+        redis_service: RedisService,
         vehicle: VehicleData,
     ) -> VehicleDriveDocumentsResponse:
-        """Return the Drive overview for a vehicle using cached folder data from Valkey."""
-        root_config = await self._get_drive_root(valkey_service)
+        """Return the Drive overview for a vehicle using cached folder data from Redis."""
+        root_config = await self._get_drive_root(redis_service)
         documents = self._build_empty_documents()
 
         if not root_config["folder_id"]:
@@ -174,13 +174,13 @@ class VehicleDocumentService:
                 documents=documents,
             )
 
-        # Use cached folder data from Valkey — NO Drive API calls needed
+        # Use cached folder data from Redis — NO Drive API calls needed
         drive_folders = getattr(vehicle, "drive_folders", {}) or {}
 
         if not drive_folders.get("vehicle_folder_id"):
             # No cached data — need to build tree (first time only)
             try:
-                await self._ensure_vehicle_tree(valkey_service, vehicle, root_config["folder_id"])
+                await self._ensure_vehicle_tree(redis_service, vehicle, root_config["folder_id"])
             except Exception as e:
                 logger.error(f"Failed to ensure Drive tree for vehicle {vehicle.immat}: {e}")
                 return VehicleDriveDocumentsResponse(
@@ -203,7 +203,7 @@ class VehicleDocumentService:
                 documents[document_type].folder_id = cached.get("folder_id")
                 documents[document_type].folder_url = cached.get("folder_url")
 
-        # Populate current file from stored documents (also in Valkey — no Drive API)
+        # Populate current file from stored documents (also in Redis — no Drive API)
         stored_documents = getattr(vehicle, "documents", {}) or {}
         for document_type in MANAGED_DOCUMENT_TYPES:
             stored_file = stored_documents.get(document_type.value)
@@ -227,29 +227,29 @@ class VehicleDocumentService:
 
     async def list_document_files(
         self,
-        valkey_service: ValkeyService,
+        redis_service: RedisService,
         vehicle: VehicleData,
         document_type: VehicleDocumentType,
     ) -> VehicleDriveFileListResponse:
         """List files in a managed vehicle document folder."""
         self._ensure_managed_document(document_type)
-        folder = await self._get_document_folder(valkey_service, vehicle, document_type)
-        files = await self._list_folder_files(valkey_service, folder_id=folder["id"])
+        folder = await self._get_document_folder(redis_service, vehicle, document_type)
+        files = await self._list_folder_files(redis_service, folder_id=folder["id"])
         return VehicleDriveFileListResponse(
             files=[self._serialize_file(file, folder=folder) for file in files]
         )
 
     async def associate_existing_file(
         self,
-        valkey_service: ValkeyService,
+        redis_service: RedisService,
         vehicle: VehicleData,
         document_type: VehicleDocumentType,
         file_id: str,
     ) -> VehicleDriveDocument:
         """Select an existing file in the folder as the current document."""
         self._ensure_managed_document(document_type)
-        folder = await self._get_document_folder(valkey_service, vehicle, document_type)
-        files = await self._list_folder_files(valkey_service, folder_id=folder["id"])
+        folder = await self._get_document_folder(redis_service, vehicle, document_type)
+        files = await self._list_folder_files(redis_service, folder_id=folder["id"])
         selected_file = next((file for file in files if file["id"] == file_id), None)
 
         if not selected_file:
@@ -264,14 +264,14 @@ class VehicleDocumentService:
         label = DOCUMENT_CONFIG[document_type]["label"]
         new_name = f"{vehicle.nom_synthetique} - {label}{extension}"
         await drive_service.rename_file(
-            dt_id=valkey_service.dt,
+            dt_id=redis_service.dt,
             file_id=file_id,
             new_name=new_name,
         )
         selected_file["name"] = new_name
 
         stored_file = self._build_stored_file(selected_file, folder)
-        await self._persist_document_selection(valkey_service, vehicle, document_type, stored_file)
+        await self._persist_document_selection(redis_service, vehicle, document_type, stored_file)
 
         return VehicleDriveDocument(
             key=document_type,
@@ -286,7 +286,7 @@ class VehicleDocumentService:
 
     async def upload_document(
         self,
-        valkey_service: ValkeyService,
+        redis_service: RedisService,
         vehicle: VehicleData,
         document_type: VehicleDocumentType,
         file_content: bytes,
@@ -295,7 +295,7 @@ class VehicleDocumentService:
     ) -> VehicleDriveDocument:
         """Upload a new document version and make it the current association."""
         self._ensure_managed_document(document_type)
-        folder = await self._get_document_folder(valkey_service, vehicle, document_type)
+        folder = await self._get_document_folder(redis_service, vehicle, document_type)
 
         # Check if there's already a file for this document type
         existing_documents = getattr(vehicle, "documents", {}) or {}
@@ -305,12 +305,12 @@ class VehicleDocumentService:
         if existing_file_id:
             # Ensure the first revision is kept forever (it may have been uploaded outside CLEF)
             await drive_service.ensure_first_revision_kept(
-                dt_id=valkey_service.dt,
+                dt_id=redis_service.dt,
                 file_id=existing_file_id,
             )
             # Update existing file with new version (Google Drive versioning)
             uploaded_file = await drive_service.update_file_version(
-                dt_id=valkey_service.dt,
+                dt_id=redis_service.dt,
                 file_id=existing_file_id,
                 file_content=file_content,
                 mime_type=mime_type,
@@ -320,7 +320,7 @@ class VehicleDocumentService:
             # First upload — create new file
             upload_name = self._build_upload_filename(document_type, filename, vehicle.nom_synthetique)
             uploaded_file = await drive_service.upload_file(
-                dt_id=valkey_service.dt,
+                dt_id=redis_service.dt,
                 file_content=file_content,
                 filename=upload_name,
                 mime_type=mime_type,
@@ -329,9 +329,9 @@ class VehicleDocumentService:
             )
 
         stored_file = self._build_stored_file(uploaded_file, folder)
-        await self._persist_document_selection(valkey_service, vehicle, document_type, stored_file)
+        await self._persist_document_selection(redis_service, vehicle, document_type, stored_file)
 
-        files = await self._list_folder_files(valkey_service, folder_id=folder["id"])
+        files = await self._list_folder_files(redis_service, folder_id=folder["id"])
         return VehicleDriveDocument(
             key=document_type,
             label=DOCUMENT_CONFIG[document_type]["label"],
@@ -343,9 +343,9 @@ class VehicleDocumentService:
             current_file=self._serialize_file(uploaded_file, stored_file=stored_file, folder=folder),
         )
 
-    async def _get_drive_root(self, valkey_service: ValkeyService) -> dict[str, str | None]:
-        config_key = f"{valkey_service.dt}:configuration"
-        config = await valkey_service.redis.json().get(config_key) or {}
+    async def _get_drive_root(self, redis_service: RedisService) -> dict[str, str | None]:
+        config_key = f"{redis_service.dt}:configuration"
+        config = await redis_service.redis.json().get(config_key) or {}
         return {
             "folder_id": config.get("drive_folder_id"),
             "folder_url": config.get("drive_folder_url"),
@@ -353,13 +353,13 @@ class VehicleDocumentService:
 
     async def _rename_legacy_factures_folder(
         self,
-        valkey_service: ValkeyService,
+        redis_service: RedisService,
         vehicle_folder: dict[str, Any],
     ) -> None:
         """Rename legacy 'Factures' or 'Dossier Réparation' folder to 'Dossiers Réparation'."""
         # Check if the target folder already exists
         new_folder = await drive_service.find_folder(
-            dt_id=valkey_service.dt,
+            dt_id=redis_service.dt,
             name="Dossiers Réparation",
             parent_folder_id=vehicle_folder["id"],
         )
@@ -368,13 +368,13 @@ class VehicleDocumentService:
 
         # Try renaming "Factures" → "Dossiers Réparation"
         old_folder = await drive_service.find_folder(
-            dt_id=valkey_service.dt,
+            dt_id=redis_service.dt,
             name="Factures",
             parent_folder_id=vehicle_folder["id"],
         )
         if old_folder:
             await drive_service.rename_file(
-                dt_id=valkey_service.dt,
+                dt_id=redis_service.dt,
                 file_id=old_folder["id"],
                 new_name="Dossiers Réparation",
             )
@@ -385,13 +385,13 @@ class VehicleDocumentService:
 
         # Try renaming "Dossier Réparation" (singular) → "Dossiers Réparation" (plural)
         singular_folder = await drive_service.find_folder(
-            dt_id=valkey_service.dt,
+            dt_id=redis_service.dt,
             name="Dossier Réparation",
             parent_folder_id=vehicle_folder["id"],
         )
         if singular_folder:
             await drive_service.rename_file(
-                dt_id=valkey_service.dt,
+                dt_id=redis_service.dt,
                 file_id=singular_folder["id"],
                 new_name="Dossiers Réparation",
             )
@@ -401,29 +401,29 @@ class VehicleDocumentService:
 
     async def _ensure_vehicle_tree(
         self,
-        valkey_service: ValkeyService,
+        redis_service: RedisService,
         vehicle: VehicleData,
         root_folder_id: str,
         folder_names: list[str] | None = None,
     ) -> dict[str, Any]:
         vehicles_root = await drive_service.get_or_create_folder(
-            dt_id=valkey_service.dt,
+            dt_id=redis_service.dt,
             name="Véhicules",
             parent_folder_id=root_folder_id,
         )
         perimeter_folder = await drive_service.get_or_create_folder(
-            dt_id=valkey_service.dt,
+            dt_id=redis_service.dt,
             name=vehicle.dt_ul,
             parent_folder_id=vehicles_root["id"],
         )
         vehicle_folder = await drive_service.get_or_create_folder(
-            dt_id=valkey_service.dt,
+            dt_id=redis_service.dt,
             name=vehicle.nom_synthetique,
             parent_folder_id=perimeter_folder["id"],
         )
 
         # Migrate: rename "Factures" or "Dossier Réparation" → "Dossiers Réparation" if needed
-        await self._rename_legacy_factures_folder(valkey_service, vehicle_folder)
+        await self._rename_legacy_factures_folder(redis_service, vehicle_folder)
 
         document_folders: dict[VehicleDocumentType, dict[str, Any]] = {}
 
@@ -431,21 +431,21 @@ class VehicleDocumentService:
             # Use dynamic folder names from config
             for name in folder_names:
                 await drive_service.get_or_create_folder(
-                    dt_id=valkey_service.dt,
+                    dt_id=redis_service.dt,
                     name=name,
                     parent_folder_id=vehicle_folder["id"],
                 )
             # Still create DOCUMENT_CONFIG folders for managed types tracking
             for document_type, config in DOCUMENT_CONFIG.items():
                 document_folders[document_type] = await drive_service.get_or_create_folder(
-                    dt_id=valkey_service.dt,
+                    dt_id=redis_service.dt,
                     name=config["folder_name"],
                     parent_folder_id=vehicle_folder["id"],
                 )
         else:
             for document_type, config in DOCUMENT_CONFIG.items():
                 document_folders[document_type] = await drive_service.get_or_create_folder(
-                    dt_id=valkey_service.dt,
+                    dt_id=redis_service.dt,
                     name=config["folder_name"],
                     parent_folder_id=vehicle_folder["id"],
                 )
@@ -461,7 +461,7 @@ class VehicleDocumentService:
                 "folder_url": folder.get("webViewLink"),
             }
         vehicle.drive_folders = drive_folders
-        await valkey_service.set_vehicle(vehicle)
+        await redis_service.set_vehicle(vehicle)
 
         return {
             "vehicles_root": vehicles_root,
@@ -472,7 +472,7 @@ class VehicleDocumentService:
 
     async def sync_vehicle_folders(
         self,
-        valkey_service: ValkeyService,
+        redis_service: RedisService,
         vehicle: VehicleData,
         root_folder_id: str,
         configured_folder_names: list[str],
@@ -481,27 +481,27 @@ class VehicleDocumentService:
         """Sync folders for a vehicle: create missing, delete empty removed ones."""
         # Get or create vehicle folder hierarchy
         vehicles_root = await drive_service.get_or_create_folder(
-            dt_id=valkey_service.dt,
+            dt_id=redis_service.dt,
             name="Véhicules",
             parent_folder_id=root_folder_id,
         )
         perimeter_folder = await drive_service.get_or_create_folder(
-            dt_id=valkey_service.dt,
+            dt_id=redis_service.dt,
             name=vehicle.dt_ul,
             parent_folder_id=vehicles_root["id"],
         )
         vehicle_folder = await drive_service.get_or_create_folder(
-            dt_id=valkey_service.dt,
+            dt_id=redis_service.dt,
             name=vehicle.nom_synthetique,
             parent_folder_id=perimeter_folder["id"],
         )
 
         # Migrate: rename "Factures" or "Dossier Réparation" → "Dossiers Réparation" if needed
-        await self._rename_legacy_factures_folder(valkey_service, vehicle_folder)
+        await self._rename_legacy_factures_folder(redis_service, vehicle_folder)
 
         # List existing subfolders
         existing_subfolders = await drive_service.list_subfolders(
-            dt_id=valkey_service.dt,
+            dt_id=redis_service.dt,
             parent_folder_id=vehicle_folder["id"],
         )
         existing_by_name = {f["name"]: f for f in existing_subfolders}
@@ -514,7 +514,7 @@ class VehicleDocumentService:
         for folder_name in configured_folder_names:
             if folder_name not in existing_by_name:
                 await drive_service.create_folder(
-                    dt_id=valkey_service.dt,
+                    dt_id=redis_service.dt,
                     name=folder_name,
                     parent_folder_id=vehicle_folder["id"],
                 )
@@ -526,12 +526,12 @@ class VehicleDocumentService:
             if folder_name not in configured_set:
                 # Check if folder is empty
                 contents = await drive_service.list_files(
-                    dt_id=valkey_service.dt,
+                    dt_id=redis_service.dt,
                     folder_id=folder_data["id"],
                 )
                 if len(contents) == 0:
                     await drive_service.delete_file(
-                        dt_id=valkey_service.dt,
+                        dt_id=redis_service.dt,
                         file_id=folder_data["id"],
                     )
                     deleted += 1
@@ -546,7 +546,7 @@ class VehicleDocumentService:
 
     async def _get_document_folder(
         self,
-        valkey_service: ValkeyService,
+        redis_service: RedisService,
         vehicle: VehicleData,
         document_type: VehicleDocumentType,
     ) -> dict[str, Any]:
@@ -561,18 +561,18 @@ class VehicleDocumentService:
             }
 
         # Fallback: build tree if no cache (should be rare)
-        root_config = await self._get_drive_root(valkey_service)
+        root_config = await self._get_drive_root(redis_service)
         if not root_config["folder_id"]:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Google Drive folder is not configured for this DT",
             )
 
-        tree = await self._ensure_vehicle_tree(valkey_service, vehicle, root_config["folder_id"])
+        tree = await self._ensure_vehicle_tree(redis_service, vehicle, root_config["folder_id"])
         return tree["document_folders"][document_type]
 
-    async def _list_folder_files(self, valkey_service: ValkeyService, folder_id: str) -> list[dict[str, Any]]:
-        files = await drive_service.list_files(dt_id=valkey_service.dt, folder_id=folder_id)
+    async def _list_folder_files(self, redis_service: RedisService, folder_id: str) -> list[dict[str, Any]]:
+        files = await drive_service.list_files(dt_id=redis_service.dt, folder_id=folder_id)
         return sorted(
             files,
             key=lambda file: file.get("modifiedTime") or file.get("createdTime") or "",
@@ -581,7 +581,7 @@ class VehicleDocumentService:
 
     async def _persist_document_selection(
         self,
-        valkey_service: ValkeyService,
+        redis_service: RedisService,
         vehicle: VehicleData,
         document_type: VehicleDocumentType,
         stored_file: dict[str, Any],
@@ -590,7 +590,7 @@ class VehicleDocumentService:
         documents[document_type.value] = stored_file
         vehicle.documents = documents
 
-        saved = await valkey_service.set_vehicle(vehicle)
+        saved = await redis_service.set_vehicle(vehicle)
         if not saved:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

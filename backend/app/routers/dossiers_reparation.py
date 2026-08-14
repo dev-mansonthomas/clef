@@ -13,6 +13,7 @@ from app.models.repair_models import (
     DevisCreate,
     DevisUpdate,
     FactureCreate,
+    FactureUpdate,
     FactureResponse,
     Devis,
     Facture,
@@ -29,8 +30,8 @@ from app.models.repair_models import (
 )
 from app.auth.models import User
 from app.auth.dependencies import require_authenticated_user
-from app.services.valkey_dependencies import get_valkey_service
-from app.services.valkey_service import ValkeyService
+from app.services.redis_dependencies import get_redis_service
+from app.services.redis_service import RedisService
 from app.services.approval_service import ApprovalService
 from app.services.email_service import email_service
 from app.services.drive_service import drive_service
@@ -49,23 +50,25 @@ async def create_dossier(
     immat: str,
     body: DossierReparationCreate,
     current_user: User = Depends(require_authenticated_user),
-    valkey: ValkeyService = Depends(get_valkey_service),
+    redis_store: RedisService = Depends(get_redis_service),
 ) -> DossierReparation:
     """Create a new dossier de réparation for a vehicle."""
     # Verify vehicle exists
-    vehicle = await valkey.get_vehicle(immat)
+    vehicle = await redis_store.get_vehicle(immat)
     if not vehicle:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Vehicle '{immat}' not found",
         )
 
-    dossier = await valkey.create_dossier_reparation(
+    dossier = await redis_store.create_dossier_reparation(
         immat=immat,
         description=body.description,
         commentaire=body.commentaire,
         titre=body.titre,
         cree_par=current_user.email,
+        est_sinistre=body.est_sinistre,
+        franchise_applicable=body.franchise_applicable,
     )
     return dossier
 
@@ -75,17 +78,17 @@ async def list_dossiers(
     dt: str,
     immat: str,
     current_user: User = Depends(require_authenticated_user),
-    valkey: ValkeyService = Depends(get_valkey_service),
+    redis_store: RedisService = Depends(get_redis_service),
 ) -> DossierReparationListResponse:
     """List all dossiers de réparation for a vehicle."""
-    vehicle = await valkey.get_vehicle(immat)
+    vehicle = await redis_store.get_vehicle(immat)
     if not vehicle:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Vehicle '{immat}' not found",
         )
 
-    dossiers = await valkey.list_dossiers_reparation(immat)
+    dossiers = await redis_store.list_dossiers_reparation(immat)
     return DossierReparationListResponse(count=len(dossiers), dossiers=dossiers)
 
 
@@ -95,10 +98,10 @@ async def get_dossier(
     immat: str,
     numero: str,
     current_user: User = Depends(require_authenticated_user),
-    valkey: ValkeyService = Depends(get_valkey_service),
+    redis_store: RedisService = Depends(get_redis_service),
 ) -> DossierReparation:
     """Get details of a specific dossier de réparation."""
-    dossier = await valkey.get_dossier_reparation(immat, numero)
+    dossier = await redis_store.get_dossier_reparation(immat, numero)
     if not dossier:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -114,10 +117,10 @@ async def update_dossier(
     numero: str,
     body: DossierReparationUpdate,
     current_user: User = Depends(require_authenticated_user),
-    valkey: ValkeyService = Depends(get_valkey_service),
+    redis_store: RedisService = Depends(get_redis_service),
 ) -> DossierReparation:
     """Update a dossier de réparation (description, close/reopen, cancel)."""
-    dossier = await valkey.get_dossier_reparation(immat, numero)
+    dossier = await redis_store.get_dossier_reparation(immat, numero)
     if not dossier:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -147,6 +150,20 @@ async def update_dossier(
             action = ActionHistorique.MODIFICATION
             details = "Commentaire modifié"
 
+    if body.est_sinistre is not None:
+        dossier.est_sinistre = body.est_sinistre
+        updated = True
+        if action is None:
+            action = ActionHistorique.MODIFICATION
+            details = "Sinistre modifié"
+
+    if body.franchise_applicable is not None:
+        dossier.franchise_applicable = body.franchise_applicable
+        updated = True
+        if action is None:
+            action = ActionHistorique.MODIFICATION
+            details = "Franchise modifiée"
+
     if body.statut is not None and body.statut != dossier.statut:
         old_statut = dossier.statut
         dossier.statut = body.statut
@@ -168,7 +185,7 @@ async def update_dossier(
     if not updated:
         return dossier
 
-    success = await valkey.update_dossier_reparation(immat, numero, dossier)
+    success = await redis_store.update_dossier_reparation(immat, numero, dossier)
     if not success:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -176,8 +193,8 @@ async def update_dossier(
         )
 
     if action:
-        key = f"{valkey.dt}:vehicules:{immat}:travaux:{numero}"
-        await valkey.add_historique_entry(
+        key = f"{redis_store.dt}:vehicules:{immat}:travaux:{numero}"
+        await redis_store.add_historique_entry(
             immat=immat,
             numero=numero,
             entry=HistoriqueEntry(
@@ -211,10 +228,10 @@ async def create_devis(
     numero: str,
     body: DevisCreate,
     current_user: User = Depends(require_authenticated_user),
-    valkey: ValkeyService = Depends(get_valkey_service),
+    redis_store: RedisService = Depends(get_redis_service),
 ) -> Devis:
     """Add a devis to a dossier de réparation."""
-    dossier = await valkey.get_dossier_reparation(immat, numero)
+    dossier = await redis_store.get_dossier_reparation(immat, numero)
     if not dossier:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -226,7 +243,7 @@ async def create_devis(
     devis_data = body.model_dump()
     devis_data["cree_par"] = current_user.email
 
-    devis = await valkey.add_devis(immat, numero, devis_data)
+    devis = await redis_store.add_devis(immat, numero, devis_data)
     return devis
 
 
@@ -237,10 +254,10 @@ async def get_devis(
     numero: str,
     devis_id: str,
     current_user: User = Depends(require_authenticated_user),
-    valkey: ValkeyService = Depends(get_valkey_service),
+    redis_store: RedisService = Depends(get_redis_service),
 ) -> Devis:
     """Get a specific devis."""
-    devis = await valkey.get_devis(immat, numero, devis_id)
+    devis = await redis_store.get_devis(immat, numero, devis_id)
     if not devis:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -257,17 +274,17 @@ async def update_devis(
     devis_id: str,
     body: DevisUpdate,
     current_user: User = Depends(require_authenticated_user),
-    valkey: ValkeyService = Depends(get_valkey_service),
+    redis_store: RedisService = Depends(get_redis_service),
 ) -> Devis:
     """Update a devis (field edits when en_attente, or status change for approval workflow)."""
-    dossier = await valkey.get_dossier_reparation(immat, numero)
+    dossier = await redis_store.get_dossier_reparation(immat, numero)
     if not dossier:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Dossier '{numero}' not found for vehicle '{immat}'",
         )
 
-    existing_devis = await valkey.get_devis(immat, numero, devis_id)
+    existing_devis = await redis_store.get_devis(immat, numero, devis_id)
     if not existing_devis:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -305,7 +322,7 @@ async def update_devis(
     if not update_data:
         return existing_devis
 
-    devis = await valkey.update_devis(immat, numero, devis_id, update_data)
+    devis = await redis_store.update_devis(immat, numero, devis_id, update_data)
     if not devis:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -313,7 +330,7 @@ async def update_devis(
         )
 
     # Add history entry
-    key = f"{valkey.dt}:vehicules:{immat}:travaux:{numero}:devis:{devis_id}"
+    key = f"{redis_store.dt}:vehicules:{immat}:travaux:{numero}:devis:{devis_id}"
     if body.statut is not None and not has_field_edits:
         # Pure status change — use specific action
         action_map = {
@@ -329,7 +346,7 @@ async def update_devis(
         changed = [k for k in edit_fields if k != "statut"]
         details = f"Devis #{devis_id} modifié ({', '.join(changed)})"
 
-    await valkey.add_historique_entry(
+    await redis_store.add_historique_entry(
         immat=immat,
         numero=numero,
         entry=HistoriqueEntry(
@@ -355,10 +372,10 @@ async def send_devis_for_approval(
     devis_id: str,
     body: SendApprovalRequest,
     current_user: User = Depends(require_authenticated_user),
-    valkey: ValkeyService = Depends(get_valkey_service),
+    redis_store: RedisService = Depends(get_redis_service),
 ) -> SendApprovalResponse:
     """Send a devis for approval: create token, send email, update status."""
-    dossier = await valkey.get_dossier_reparation(immat, numero)
+    dossier = await redis_store.get_dossier_reparation(immat, numero)
     if not dossier:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -367,7 +384,7 @@ async def send_devis_for_approval(
 
     _check_dossier_open(dossier)
 
-    devis = await valkey.get_devis(immat, numero, devis_id)
+    devis = await redis_store.get_devis(immat, numero, devis_id)
     if not devis:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -384,7 +401,7 @@ async def send_devis_for_approval(
     is_resend = devis.statut in (StatutDevis.ENVOYE, StatutDevis.REFUSE)
 
     # Invalidate old approval token if re-sending
-    approval_svc = ApprovalService(redis_client=valkey.redis, dt=dt)
+    approval_svc = ApprovalService(redis_client=redis_store.redis, dt=dt)
     if is_resend and devis.token_approbation:
         await approval_svc.invalidate_token(devis.token_approbation)
 
@@ -401,6 +418,10 @@ async def send_devis_for_approval(
     frontend_url = os.getenv("FRONTEND_URL", "http://localhost:4200")
     approval_url = f"{frontend_url}/approbation/{token_data['token']}"
 
+    # Get franchise config
+    config = await redis_store.get_configuration()
+    montant_franchise = config.montant_franchise if config else 350.0
+
     # Send approval email
     devis_dict = devis.model_dump(mode="json")
     await email_service.send_approval_email(
@@ -411,10 +432,14 @@ async def send_devis_for_approval(
         sender_email=current_user.email,
         dossier_description=dossier.description,
         dossier_commentaire=dossier.commentaire,
+        est_sinistre=dossier.est_sinistre,
+        franchise_applicable=dossier.franchise_applicable,
+        montant_franchise=montant_franchise,
+        total_devis=devis.montant,
     )
 
     # Update devis status to "envoye"
-    await valkey.update_devis(immat, numero, devis_id, {
+    await redis_store.update_devis(immat, numero, devis_id, {
         "statut": StatutDevis.ENVOYE,
         "valideur_email": body.valideur_email,
         "token_approbation": token_data["token"],
@@ -424,8 +449,8 @@ async def send_devis_for_approval(
     # Add history entry
     history_action = ActionHistorique.DEVIS_RENVOYE_APPROBATION if is_resend else ActionHistorique.DEVIS_ENVOYE_APPROBATION
     history_verb = "renvoyé" if is_resend else "envoyé"
-    key = f"{valkey.dt}:vehicules:{immat}:travaux:{numero}:devis:{devis_id}"
-    await valkey.add_historique_entry(
+    key = f"{redis_store.dt}:vehicules:{immat}:travaux:{numero}:devis:{devis_id}"
+    await redis_store.add_historique_entry(
         immat=immat,
         numero=numero,
         entry=HistoriqueEntry(
@@ -454,10 +479,10 @@ async def send_bulk_approval(
     numero: str,
     body: BulkApprovalRequest,
     current_user: User = Depends(require_authenticated_user),
-    valkey: ValkeyService = Depends(get_valkey_service),
+    redis_store: RedisService = Depends(get_redis_service),
 ) -> BulkApprovalResponse:
     """Send all pending devis for approval in one action."""
-    dossier = await valkey.get_dossier_reparation(immat, numero)
+    dossier = await redis_store.get_dossier_reparation(immat, numero)
     if not dossier:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -466,20 +491,29 @@ async def send_bulk_approval(
 
     _check_dossier_open(dossier)
 
-    # Find all devis with statut en_attente
-    pending_devis = [d for d in dossier.devis if d.statut == StatutDevis.EN_ATTENTE]
-    if not pending_devis:
+    # Find all devis eligible for (re)sending: en_attente, envoye, or refuse
+    eligible_devis = [d for d in dossier.devis if d.statut in (StatutDevis.EN_ATTENTE, StatutDevis.ENVOYE, StatutDevis.REFUSE)]
+    if not eligible_devis:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Aucun devis en attente d'approbation",
+            detail="Aucun devis éligible pour approbation",
         )
+
+    # Determine if this is a resend (at least one devis already sent)
+    is_resend = any(d.statut in (StatutDevis.ENVOYE, StatutDevis.REFUSE) for d in eligible_devis)
 
     import os
     frontend_url = os.getenv("FRONTEND_URL", "http://localhost:4200")
-    approval_svc = ApprovalService(redis_client=valkey.redis, dt=dt)
+    approval_svc = ApprovalService(redis_client=redis_store.redis, dt=dt)
 
-    # Create ONE dossier-level approval token covering all pending devis
-    devis_ids = [d.id for d in pending_devis]
+    # Invalidate old approval tokens if re-sending
+    if is_resend:
+        for d in eligible_devis:
+            if d.token_approbation:
+                await approval_svc.invalidate_token(d.token_approbation)
+
+    # Create ONE dossier-level approval token covering all eligible devis
+    devis_ids = [d.id for d in eligible_devis]
     token_data = await approval_svc.create_dossier_approval_token(
         immat=immat,
         numero_dossier=numero,
@@ -490,16 +524,21 @@ async def send_bulk_approval(
     approval_url = f"{frontend_url}/approbation/{dossier_token}"
 
     devis_dicts = []
-    for devis in pending_devis:
+    for devis in eligible_devis:
         devis_dicts.append(devis.model_dump(mode="json"))
 
         # Update devis status to "envoye" with the SAME token
-        await valkey.update_devis(immat, numero, devis.id, {
+        await redis_store.update_devis(immat, numero, devis.id, {
             "statut": StatutDevis.ENVOYE,
             "valideur_email": body.valideur_email,
             "token_approbation": dossier_token,
             "date_envoi_approbation": token_data["created_at"],
         })
+
+    # Get franchise config
+    config = await redis_store.get_configuration()
+    montant_franchise = config.montant_franchise if config else 350.0
+    total_devis = sum(d.get("montant", 0) for d in devis_dicts)
 
     # Send ONE summary email with ONE approval URL
     await email_service.send_bulk_approval_email(
@@ -511,26 +550,36 @@ async def send_bulk_approval(
         sender_email=current_user.email,
         dossier_description=dossier.description,
         dossier_commentaire=dossier.commentaire,
+        est_sinistre=dossier.est_sinistre,
+        franchise_applicable=dossier.franchise_applicable,
+        montant_franchise=montant_franchise,
+        total_devis=total_devis,
     )
 
     # Add historique entry
-    key = f"{valkey.dt}:vehicules:{immat}:travaux:{numero}"
-    await valkey.add_historique_entry(
+    action = ActionHistorique.DOSSIER_ENVOYE_APPROBATION
+    details_msg = f"{len(eligible_devis)} devis envoyés pour approbation groupée à {body.valideur_email}"
+    if is_resend:
+        details_msg = f"{len(eligible_devis)} devis renvoyés pour approbation groupée à {body.valideur_email}"
+
+    key = f"{redis_store.dt}:vehicules:{immat}:travaux:{numero}"
+    await redis_store.add_historique_entry(
         immat=immat,
         numero=numero,
         entry=HistoriqueEntry(
             auteur=current_user.email,
-            action=ActionHistorique.DOSSIER_ENVOYE_APPROBATION,
-            details=f"{len(pending_devis)} devis envoyés pour approbation groupée à {body.valideur_email}",
+            action=action,
+            details=details_msg,
             ref=key,
         ),
     )
 
+    msg = f"{len(eligible_devis)} devis renvoyés pour approbation" if is_resend else f"{len(eligible_devis)} devis envoyés pour approbation"
     return BulkApprovalResponse(
-        count=len(pending_devis),
+        count=len(eligible_devis),
         token=dossier_token,
         valideur_email=body.valideur_email,
-        message=f"{len(pending_devis)} devis envoyés pour approbation",
+        message=msg,
     )
 
 
@@ -552,11 +601,11 @@ async def upload_devis_fichier(
     devis_id: str,
     file: UploadFile = File(...),
     current_user: User = Depends(require_authenticated_user),
-    valkey: ValkeyService = Depends(get_valkey_service),
+    redis_store: RedisService = Depends(get_redis_service),
 ) -> Devis:
     """Upload or update the file attached to a devis (PDF/image, max 10 MB)."""
     # Validate dossier exists
-    dossier = await valkey.get_dossier_reparation(immat, numero)
+    dossier = await redis_store.get_dossier_reparation(immat, numero)
     if not dossier:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -564,7 +613,7 @@ async def upload_devis_fichier(
         )
 
     # Validate devis exists
-    devis = await valkey.get_devis(immat, numero, devis_id)
+    devis = await redis_store.get_devis(immat, numero, devis_id)
     if not devis:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -587,7 +636,7 @@ async def upload_devis_fichier(
         )
 
     # Get vehicle for nom_synthetique
-    vehicle = await valkey.get_vehicle(immat)
+    vehicle = await redis_store.get_vehicle(immat)
     if not vehicle:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -658,7 +707,7 @@ async def upload_devis_fichier(
         name=uploaded.get("name", upload_filename),
         web_view_link=uploaded.get("webViewLink", ""),
     )
-    updated_devis = await valkey.update_devis(immat, numero, devis_id, {"fichier": fichier})
+    updated_devis = await redis_store.update_devis(immat, numero, devis_id, {"fichier": fichier})
     if not updated_devis:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -666,9 +715,9 @@ async def upload_devis_fichier(
         )
 
     # Add historique entry
-    key = f"{valkey.dt}:vehicules:{immat}:travaux:{numero}:devis:{devis_id}"
+    key = f"{redis_store.dt}:vehicules:{immat}:travaux:{numero}:devis:{devis_id}"
     action_detail = "mis à jour" if devis.fichier else "ajouté"
-    await valkey.add_historique_entry(
+    await redis_store.add_historique_entry(
         immat=immat,
         numero=numero,
         entry=HistoriqueEntry(
@@ -689,10 +738,10 @@ async def annuler_devis(
     numero: str,
     devis_id: str,
     current_user: User = Depends(require_authenticated_user),
-    valkey: ValkeyService = Depends(get_valkey_service),
+    redis_store: RedisService = Depends(get_redis_service),
 ) -> Devis:
     """Cancel a devis at any stage (as long as dossier is open)."""
-    dossier = await valkey.get_dossier_reparation(immat, numero)
+    dossier = await redis_store.get_dossier_reparation(immat, numero)
     if not dossier:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -701,7 +750,7 @@ async def annuler_devis(
 
     _check_dossier_open(dossier)
 
-    devis = await valkey.get_devis(immat, numero, devis_id)
+    devis = await redis_store.get_devis(immat, numero, devis_id)
     if not devis:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -716,17 +765,17 @@ async def annuler_devis(
 
     # Invalidate approval token if one exists
     if devis.token_approbation:
-        approval_svc = ApprovalService(redis_client=valkey.redis, dt=dt)
+        approval_svc = ApprovalService(redis_client=redis_store.redis, dt=dt)
         await approval_svc.invalidate_token(devis.token_approbation)
 
     # Update devis status to annule
-    updated_devis = await valkey.update_devis(immat, numero, devis_id, {
+    updated_devis = await redis_store.update_devis(immat, numero, devis_id, {
         "statut": StatutDevis.ANNULE,
     })
 
     # Add historique entry
-    key = f"{valkey.dt}:vehicules:{immat}:travaux:{numero}:devis:{devis_id}"
-    await valkey.add_historique_entry(
+    key = f"{redis_store.dt}:vehicules:{immat}:travaux:{numero}:devis:{devis_id}"
+    await redis_store.add_historique_entry(
         immat=immat,
         numero=numero,
         entry=HistoriqueEntry(
@@ -750,10 +799,10 @@ async def create_facture(
     numero: str,
     body: FactureCreate,
     current_user: User = Depends(require_authenticated_user),
-    valkey: ValkeyService = Depends(get_valkey_service),
+    redis_store: RedisService = Depends(get_redis_service),
 ) -> FactureResponse:
     """Add a facture to a dossier de réparation with business-logic warnings."""
-    dossier = await valkey.get_dossier_reparation(immat, numero)
+    dossier = await redis_store.get_dossier_reparation(immat, numero)
     if not dossier:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -769,7 +818,7 @@ async def create_facture(
     ecart_pourcentage: float | None = None
 
     if body.devis_id:
-        devis = await valkey.get_devis(immat, numero, body.devis_id)
+        devis = await redis_store.get_devis(immat, numero, body.devis_id)
         if not devis:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -794,10 +843,10 @@ async def create_facture(
     facture_data = body.model_dump()
     facture_data["cree_par"] = current_user.email
 
-    facture = await valkey.add_facture(immat, numero, facture_data)
+    facture = await redis_store.add_facture(immat, numero, facture_data)
 
     return FactureResponse(
-        facture=facture,
+        **facture.model_dump(),
         warning_no_devis=warning_no_devis,
         warning_devis_not_approved=warning_devis_not_approved,
         warning_ecart=warning_ecart,
@@ -811,16 +860,16 @@ async def get_historique(
     immat: str,
     numero: str,
     current_user: User = Depends(require_authenticated_user),
-    valkey: ValkeyService = Depends(get_valkey_service),
+    redis_store: RedisService = Depends(get_redis_service),
 ) -> List[HistoriqueEntry]:
     """Get audit trail for a repair dossier, sorted by date descending."""
-    dossier = await valkey.get_dossier_reparation(immat, numero)
+    dossier = await redis_store.get_dossier_reparation(immat, numero)
     if not dossier:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Dossier '{numero}' not found for vehicle '{immat}'",
         )
-    entries = await valkey.get_historique(immat, numero)
+    entries = await redis_store.get_historique(immat, numero)
     # Sort by date descending
     entries.sort(key=lambda e: e.date, reverse=True)
     return entries
@@ -833,10 +882,10 @@ async def get_facture(
     numero: str,
     facture_id: str,
     current_user: User = Depends(require_authenticated_user),
-    valkey: ValkeyService = Depends(get_valkey_service),
+    redis_store: RedisService = Depends(get_redis_service),
 ) -> Facture:
     """Get a specific facture."""
-    facture = await valkey.get_facture(immat, numero, facture_id)
+    facture = await redis_store.get_facture(immat, numero, facture_id)
     if not facture:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -856,11 +905,11 @@ async def upload_facture_fichier(
     facture_id: str,
     file: UploadFile = File(...),
     current_user: User = Depends(require_authenticated_user),
-    valkey: ValkeyService = Depends(get_valkey_service),
+    redis_store: RedisService = Depends(get_redis_service),
 ) -> Facture:
     """Upload or update the file attached to a facture (PDF/image, max 10 MB)."""
     # Validate dossier exists
-    dossier = await valkey.get_dossier_reparation(immat, numero)
+    dossier = await redis_store.get_dossier_reparation(immat, numero)
     if not dossier:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -868,7 +917,7 @@ async def upload_facture_fichier(
         )
 
     # Validate facture exists
-    facture = await valkey.get_facture(immat, numero, facture_id)
+    facture = await redis_store.get_facture(immat, numero, facture_id)
     if not facture:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -891,7 +940,7 @@ async def upload_facture_fichier(
         )
 
     # Get vehicle for nom_synthetique
-    vehicle = await valkey.get_vehicle(immat)
+    vehicle = await redis_store.get_vehicle(immat)
     if not vehicle:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -972,7 +1021,7 @@ async def upload_facture_fichier(
         name=uploaded.get("name", upload_filename),
         web_view_link=uploaded.get("webViewLink", ""),
     )
-    updated_facture = await valkey.update_facture(immat, numero, facture_id, {"fichier": fichier})
+    updated_facture = await redis_store.update_facture(immat, numero, facture_id, {"fichier": fichier})
     if not updated_facture:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -980,9 +1029,9 @@ async def upload_facture_fichier(
         )
 
     # Add historique entry
-    key = f"{valkey.dt}:vehicules:{immat}:travaux:{numero}:factures:{facture_id}"
+    key = f"{redis_store.dt}:vehicules:{immat}:travaux:{numero}:factures:{facture_id}"
     action_detail = "mis à jour" if facture.fichier else "ajouté"
-    await valkey.add_historique_entry(
+    await redis_store.add_historique_entry(
         immat=immat,
         numero=numero,
         entry=HistoriqueEntry(
@@ -994,3 +1043,70 @@ async def upload_facture_fichier(
     )
 
     return updated_facture
+
+
+# ========== Facture Update ==========
+
+
+@router.patch("/{numero}/factures/{facture_id}", response_model=Facture)
+async def update_facture(
+    dt: str,
+    immat: str,
+    numero: str,
+    facture_id: str,
+    body: FactureUpdate,
+    current_user: User = Depends(require_authenticated_user),
+    redis_store: RedisService = Depends(get_redis_service),
+) -> Facture:
+    """Update a facture."""
+    dossier = await redis_store.get_dossier_reparation(immat, numero)
+    if not dossier:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Dossier '{numero}' not found",
+        )
+    _check_dossier_open(dossier)
+
+    facture = await redis_store.get_facture(immat, numero, facture_id)
+    if not facture:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Facture '{facture_id}' not found",
+        )
+
+    update_data = body.model_dump(exclude_none=True)
+    # Handle fournisseur update
+    if 'fournisseur_id' in update_data and 'fournisseur_nom' in update_data:
+        update_data['fournisseur'] = FournisseurSnapshot(
+            id=update_data.pop('fournisseur_id'),
+            nom=update_data.pop('fournisseur_nom'),
+        )
+    elif 'fournisseur_id' in update_data or 'fournisseur_nom' in update_data:
+        update_data.pop('fournisseur_id', None)
+        update_data.pop('fournisseur_nom', None)
+
+    # Map description_travaux to description field
+    if 'description_travaux' in update_data:
+        update_data['description'] = update_data.pop('description_travaux')
+
+    updated = await redis_store.update_facture(immat, numero, facture_id, update_data)
+    if not updated:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update facture",
+        )
+
+    # Add historique entry
+    key = f"{redis_store.dt}:vehicules:{immat}:travaux:{numero}:factures:{facture_id}"
+    await redis_store.add_historique_entry(
+        immat=immat,
+        numero=numero,
+        entry=HistoriqueEntry(
+            auteur=current_user.email,
+            action=ActionHistorique.FACTURE_MODIFIEE,
+            details=f"Facture #{facture_id} modifiée",
+            ref=key,
+        ),
+    )
+
+    return updated

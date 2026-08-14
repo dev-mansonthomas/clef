@@ -9,7 +9,7 @@ import { CalendarOptions, EventInput } from '@fullcalendar/core';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import frLocale from '@fullcalendar/core/locales/fr';
-import { CalendarService, ValkeyReservation } from '../../services/calendar.service';
+import { CalendarService, RedisReservation } from '../../services/calendar.service';
 import { AuthService } from '../../services/auth.service';
 
 interface VehicleMetadata {
@@ -140,7 +140,7 @@ export class CalendarViewComponent implements OnInit, OnDestroy {
   /**
    * Format reservations as FullCalendar events
    */
-  private formatReservationsAsEvents(reservations: ValkeyReservation[]): EventInput[] {
+  private formatReservationsAsEvents(reservations: RedisReservation[]): EventInput[] {
     return reservations.map(reservation => {
       // Use a default color for now - could be enhanced with vehicle colors later
       const color = this.getColorForVehicle(reservation.vehicule_immat);

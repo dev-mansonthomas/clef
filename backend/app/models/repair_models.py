@@ -151,7 +151,7 @@ class HistoriqueEntry(BaseModel):
     auteur: str = Field(..., description="Email de l'auteur")
     action: ActionHistorique = Field(..., description="Type d'action")
     details: str = Field(..., description="Description de l'action")
-    ref: str = Field(..., description="Clé Valkey de l'objet concerné")
+    ref: str = Field(..., description="Clé Redis de l'objet concerné")
 
 
 class DossierReparation(BaseModel):
@@ -162,6 +162,8 @@ class DossierReparation(BaseModel):
     titre: Optional[str] = Field(None, max_length=50, description="Titre du dossier (50 chars max)")
     description: List[str] = Field(default_factory=list, description="Description des travaux (liste d'items)")
     commentaire: Optional[str] = Field(None, description="Commentaire libre")
+    est_sinistre: bool = Field(default=False, description="Est-ce dans le cadre d'un sinistre ?")
+    franchise_applicable: bool = Field(default=False, description="Devez-vous payer la franchise ?")
     photos: List[FichierDrive] = Field(default_factory=list, description="Photos associées")
     sinistre_id: Optional[str] = Field(None, description="ID du sinistre lié (futur)")
     statut: StatutDossier = Field(default=StatutDossier.OUVERT, description="Statut du dossier")
@@ -182,14 +184,18 @@ class DossierReparationCreate(BaseModel):
     titre: Optional[str] = Field(None, max_length=50, description="Titre du dossier")
     description: List[str] = Field(..., min_length=1, description="Description des travaux (liste d'items)")
     commentaire: Optional[str] = Field(None, description="Commentaire libre")
+    est_sinistre: bool = Field(default=False, description="Sinistre ?")
+    franchise_applicable: bool = Field(default=False, description="Franchise applicable ?")
 
 
 class DossierReparationUpdate(BaseModel):
-    """Request body for updating a dossier de réparation (description, close, reopen, cancel)."""
+    """Request body for updating a dossier de réparation."""
     titre: Optional[str] = Field(None, max_length=50, description="Titre du dossier")
     description: Optional[List[str]] = Field(None, description="Nouvelle description (liste d'items)")
     commentaire: Optional[str] = Field(None, description="Commentaire libre")
     statut: Optional[StatutDossier] = Field(None, description="Nouveau statut (cloture, ouvert, annule)")
+    est_sinistre: Optional[bool] = Field(None, description="Est-ce dans le cadre d'un sinistre ?")
+    franchise_applicable: Optional[bool] = Field(None, description="Franchise applicable ?")
 
 
 class DossierReparationListResponse(BaseModel):
@@ -278,9 +284,24 @@ class FactureCreate(BaseModel):
     devis_id: Optional[str] = Field(None, description="UUID du devis associé (optionnel)")
 
 
-class FactureResponse(BaseModel):
-    """Response for facture creation with optional warnings."""
-    facture: Facture = Field(..., description="La facture créée")
+class FactureUpdate(BaseModel):
+    """Update fields for a facture."""
+    date_facture: Optional[date] = None
+    fournisseur_id: Optional[str] = None
+    fournisseur_nom: Optional[str] = None
+    classification: Optional[ClassificationComptable] = None
+    description_travaux: Optional[str] = None
+    description_items: Optional[List[str]] = None
+    montant_total: Optional[float] = Field(None, gt=0)
+    montant_crf: Optional[float] = Field(None, gt=0)
+
+
+class FactureResponse(Facture):
+    """Response for facture creation with optional warnings.
+
+    Extends Facture so all facture fields (including id) are at the top level,
+    matching the frontend FactureCreateResponse interface.
+    """
     warning_no_devis: bool = Field(default=False, description="Aucun devis approuvé trouvé")
     warning_devis_not_approved: bool = Field(default=False, description="Le devis référencé n'est pas approuvé")
     warning_ecart: bool = Field(default=False, description="Écart > 20% entre devis et facture")
@@ -315,6 +336,9 @@ class ApprobationDataResponse(BaseModel):
     status: str = Field(..., description="Statut du token: pending, approuve, refuse")
     created_at: str = Field(..., description="Date de création du token")
     expires_at: str = Field(..., description="Date d'expiration du token")
+    est_sinistre: bool = Field(default=False, description="Est-ce dans le cadre d'un sinistre ?")
+    franchise_applicable: bool = Field(default=False, description="Franchise applicable ?")
+    montant_franchise: float = Field(default=350.0, description="Montant de la franchise en euros")
 
 
 class SubmitDecisionRequest(BaseModel):
@@ -358,6 +382,9 @@ class DossierApprobationDataResponse(BaseModel):
     status: str
     created_at: str
     expires_at: str
+    est_sinistre: bool = Field(default=False, description="Est-ce dans le cadre d'un sinistre ?")
+    franchise_applicable: bool = Field(default=False, description="Franchise applicable ?")
+    montant_franchise: float = Field(default=350.0, description="Montant de la franchise en euros")
 
 
 class DevisDecisionItem(BaseModel):

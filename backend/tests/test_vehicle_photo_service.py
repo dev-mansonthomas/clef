@@ -6,22 +6,22 @@ from unittest.mock import patch, AsyncMock, MagicMock
 os.environ["USE_MOCKS"] = "true"
 
 from app.services.vehicle_photo_service import VehiclePhotoService
-from app.services.valkey_service import ValkeyService
+from app.services.redis_service import RedisService
 
 
 class TestVehiclePhotoService:
     def setup_method(self):
         self.service = VehiclePhotoService()
-        # Create a mock ValkeyService
-        self.mock_valkey = MagicMock(spec=ValkeyService)
-        self.mock_valkey.dt = "DT75"
-        self.mock_valkey.redis = MagicMock()
+        # Create a mock RedisService
+        self.mock_redis = MagicMock(spec=RedisService)
+        self.mock_redis.dt = "DT75"
+        self.mock_redis.redis = MagicMock()
     
     @pytest.mark.asyncio
     async def test_upload_photo_creates_folder_and_uploads(self):
         """Test that upload creates vehicle folder and uploads file."""
         # Mock configuration
-        self.mock_valkey.redis.json().get = AsyncMock(return_value={
+        self.mock_redis.redis.json().get = AsyncMock(return_value={
             "drive_folder_id": "root-folder-123"
         })
         
@@ -37,7 +37,7 @@ class TestVehiclePhotoService:
             })
             
             result = await self.service.upload_vehicle_photo(
-                valkey_service=self.mock_valkey,
+                redis_service=self.mock_redis,
                 vehicle_id="v1",
                 immatriculation="AA-123-BB",
                 file_content=b"fake image content",
@@ -54,10 +54,10 @@ class TestVehiclePhotoService:
     async def test_upload_photo_without_folder_config(self):
         """Test upload fails gracefully when Drive folder not configured."""
         # Mock no configuration
-        self.mock_valkey.redis.json().get = AsyncMock(return_value=None)
+        self.mock_redis.redis.json().get = AsyncMock(return_value=None)
         
         result = await self.service.upload_vehicle_photo(
-            valkey_service=self.mock_valkey,
+            redis_service=self.mock_redis,
             vehicle_id="v1",
             immatriculation="AA-123-BB",
             file_content=b"fake image content",
@@ -70,7 +70,7 @@ class TestVehiclePhotoService:
     @pytest.mark.asyncio
     async def test_upload_photo_with_custom_type(self):
         """Test upload with custom photo type."""
-        self.mock_valkey.redis.json().get = AsyncMock(return_value={
+        self.mock_redis.redis.json().get = AsyncMock(return_value={
             "drive_folder_id": "root-folder-123"
         })
         
@@ -85,7 +85,7 @@ class TestVehiclePhotoService:
             })
             
             result = await self.service.upload_vehicle_photo(
-                valkey_service=self.mock_valkey,
+                redis_service=self.mock_redis,
                 vehicle_id="v1",
                 immatriculation="AA-123-BB",
                 file_content=b"fake image content",
@@ -101,7 +101,7 @@ class TestVehiclePhotoService:
     @pytest.mark.asyncio
     async def test_list_vehicle_photos(self):
         """Test listing photos for a vehicle."""
-        self.mock_valkey.redis.json().get = AsyncMock(return_value={
+        self.mock_redis.redis.json().get = AsyncMock(return_value={
             "drive_folder_id": "root-folder-123"
         })
         
@@ -116,7 +116,7 @@ class TestVehiclePhotoService:
             ])
             
             photos = await self.service.list_vehicle_photos(
-                valkey_service=self.mock_valkey,
+                redis_service=self.mock_redis,
                 immatriculation="AA-123-BB",
             )
             
@@ -128,7 +128,7 @@ class TestVehiclePhotoService:
     @pytest.mark.asyncio
     async def test_list_photos_no_folder(self):
         """Test listing photos when vehicle folder doesn't exist."""
-        self.mock_valkey.redis.json().get = AsyncMock(return_value={
+        self.mock_redis.redis.json().get = AsyncMock(return_value={
             "drive_folder_id": "root-folder-123"
         })
         
@@ -136,7 +136,7 @@ class TestVehiclePhotoService:
             mock_drive.find_folder = AsyncMock(return_value=None)
             
             photos = await self.service.list_vehicle_photos(
-                valkey_service=self.mock_valkey,
+                redis_service=self.mock_redis,
                 immatriculation="AA-123-BB",
             )
             
@@ -149,7 +149,7 @@ class TestVehiclePhotoService:
             mock_drive.delete_file = AsyncMock(return_value=True)
             
             result = await self.service.delete_vehicle_photo(
-                valkey_service=self.mock_valkey,
+                redis_service=self.mock_redis,
                 file_id="file-123",
             )
             

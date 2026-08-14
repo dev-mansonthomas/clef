@@ -12,11 +12,50 @@ from .google_gmail_mock import GoogleGmailMock
 def use_mocks() -> bool:
     """
     Check if mock services should be used.
-    
+
     Returns:
         True if USE_MOCKS environment variable is set to 'true'
     """
     return os.getenv("USE_MOCKS", "false").lower() == "true"
+
+
+#: Valeurs d'environnement considérées comme la production.
+_PRODUCTION_ENVIRONMENTS = {"production", "prod"}
+
+
+def assert_mocks_not_in_production() -> None:
+    """Refuse le démarrage si les mocks sont actifs en production.
+
+    Garde-fou du constat S1 (`docs/TODO.md`, critique). En mode mock,
+    `get_current_user` accepte des JWT HS256 signés avec
+    `mock-secret-key-for-testing` — un secret **présent en clair dans le dépôt**
+    (`app/mocks/okta_mock.py:15`) : une session peut être forgée pour n'importe quel
+    email, super admin compris. Le même drapeau réduit le chiffrement KMS à du base64
+    (S2), exposant les refresh tokens OAuth stockés dans Redis.
+
+    Le défaut (`"false"`) est sûr : cette fonction ajoute la défense en profondeur qui
+    manquait, pour qu'un mauvais fichier d'environnement ne puisse pas partir en
+    production silencieusement.
+
+    Les **deux** variables sont inspectées : le dépôt lit `ENVIRONMENT`
+    (`routers/api_keys.py`, `services/kms_service.py`) et `ENV` (`main.py`,
+    `docker-compose.yml`). N'en garder qu'une laisserait une porte ouverte.
+
+    Raises:
+        RuntimeError: si `USE_MOCKS=true` et que l'environnement est la production.
+    """
+    if not use_mocks():
+        return
+
+    for var in ("ENVIRONMENT", "ENV"):
+        value = os.getenv(var, "").strip().lower()
+        if value in _PRODUCTION_ENVIRONMENTS:
+            raise RuntimeError(
+                f"Démarrage refusé : USE_MOCKS=true avec {var}={os.getenv(var)!r}. "
+                "En mode mock, l'authentification accepte des jetons signés avec un "
+                "secret public du dépôt et le chiffrement KMS est désactivé "
+                "(docs/TODO.md S1, S2). Poser USE_MOCKS=false en production."
+            )
 
 
 def get_sheets_service():

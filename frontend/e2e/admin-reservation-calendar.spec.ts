@@ -23,12 +23,16 @@ test.describe('Admin - Reservation and Calendar', () => {
     // Wait for calendar to load
     await page.waitForSelector('.fc-view, full-calendar');
 
-    // Verify calendar is displayed
-    await expect(page.locator('.fc-view, full-calendar')).toBeVisible();
+    // Verify calendar is displayed. `.fc-view, full-calendar` correspond à deux
+    // éléments imbriqués (le composant et sa vue interne) : mode strict violé.
+    await expect(page.locator('full-calendar')).toBeVisible();
 
-    // Check if existing reservation is visible
-    await expect(page.locator('text=VL75-01')).toBeVisible();
-    await expect(page.locator('text=Jean Dupont')).toBeVisible();
+    // Check if existing reservation is visible. Le titre de l'événement est
+    // `{vehicule_immat} - {chauffeur_nom} - {mission}`
+    // (calendar-view.component.ts:150) : on atteste l'immatriculation, pas
+    // l'indicatif, que le calendrier n'affiche pas.
+    await expect(page.locator('text=AB-123-CD').first()).toBeVisible();
+    await expect(page.locator('text=Jean Dupont').first()).toBeVisible();
 
     // Look for "Create Reservation" button
     const createButton = page.locator('button:has-text("Nouvelle réservation"), button:has-text("Créer")');

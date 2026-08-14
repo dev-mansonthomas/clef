@@ -16,7 +16,7 @@
   </div>
 
   <form *ngIf="!loading && vehicleForm" [formGroup]="vehicleForm" (ngSubmit)="onSubmit()">
-    <mat-tab-group [(selectedIndex)]="activeTabIndex" animationDuration="0ms">
+    <mat-tab-group [selectedIndex]="activeTabIndex" (selectedIndexChange)="onTabChange($event)" animationDuration="0ms">
       <mat-tab label="Informations générales">
         <div class="tab-content">
           <mat-card class="documents-card">

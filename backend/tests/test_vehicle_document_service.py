@@ -6,9 +6,9 @@ import pytest
 
 os.environ["USE_MOCKS"] = "true"
 
-from app.models.valkey_models import VehicleData
+from app.models.redis_models import VehicleData
 from app.models.vehicle import VehicleDocumentType
-from app.services.valkey_service import ValkeyService
+from app.services.redis_service import RedisService
 from app.services.vehicle_document_service import VehicleDocumentService
 
 
@@ -24,10 +24,10 @@ def build_folder(name: str) -> dict:
 class TestVehicleDocumentService:
     def setup_method(self):
         self.service = VehicleDocumentService()
-        self.mock_valkey = MagicMock(spec=ValkeyService)
-        self.mock_valkey.dt = "DT75"
-        self.mock_valkey.redis = MagicMock()
-        self.mock_valkey.set_vehicle = AsyncMock(return_value=True)
+        self.mock_redis = MagicMock(spec=RedisService)
+        self.mock_redis.dt = "DT75"
+        self.mock_redis.redis = MagicMock()
+        self.mock_redis.set_vehicle = AsyncMock(return_value=True)
         self.vehicle = VehicleData(
             immat="AB-123-CD",
             dt="DT75",
@@ -42,7 +42,7 @@ class TestVehicleDocumentService:
             nb_places="5",
             lieu_stationnement="Garage UL 04",
         )
-        self.mock_valkey.redis.json().get = AsyncMock(return_value={
+        self.mock_redis.redis.json().get = AsyncMock(return_value={
             "drive_folder_id": "root-folder-123",
             "drive_folder_url": "https://drive.google.com/drive/folders/root-folder-123",
         })
@@ -95,7 +95,7 @@ class TestVehicleDocumentService:
                 [],
             ])
 
-            result = await self.service.get_documents_overview(self.mock_valkey, self.vehicle)
+            result = await self.service.get_documents_overview(self.mock_redis, self.vehicle)
 
         assert result.configured is True
         assert result.vehicle_folder_name == "UL 04 - VL 75046 - TOYOTA YARIS"
@@ -119,7 +119,7 @@ class TestVehicleDocumentService:
             }])
 
             result = await self.service.associate_existing_file(
-                self.mock_valkey,
+                self.mock_redis,
                 self.vehicle,
                 VehicleDocumentType.CARTE_TOTAL,
                 "file-total-1",
@@ -129,7 +129,7 @@ class TestVehicleDocumentService:
         assert result.current_file.file_id == "file-total-1"
         assert self.vehicle.documents["carte_total"]["file_id"] == "file-total-1"
         # set_vehicle is called twice: once in _ensure_vehicle_tree (drive_folders), once in _persist_document_selection
-        assert self.mock_valkey.set_vehicle.await_count == 2
+        assert self.mock_redis.set_vehicle.await_count == 2
 
     @pytest.mark.asyncio
     async def test_upload_document_uploads_new_version_and_persists_it(self):
@@ -146,7 +146,7 @@ class TestVehicleDocumentService:
             mock_drive.list_files = AsyncMock(return_value=[])
 
             result = await self.service.upload_document(
-                self.mock_valkey,
+                self.mock_redis,
                 self.vehicle,
                 VehicleDocumentType.PLAN_ENTRETIEN,
                 b"fake-pdf",
@@ -159,4 +159,4 @@ class TestVehicleDocumentService:
         assert self.vehicle.documents["plan_entretien"]["file_id"] == "file-plan-1"
         mock_drive.upload_file.assert_awaited_once()
         # set_vehicle is called twice: once in _ensure_vehicle_tree (drive_folders), once in _persist_document_selection
-        assert self.mock_valkey.set_vehicle.await_count == 2
+        assert self.mock_redis.set_vehicle.await_count == 2

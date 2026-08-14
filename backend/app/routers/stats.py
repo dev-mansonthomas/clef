@@ -5,8 +5,8 @@ from fastapi import APIRouter, Depends
 
 from app.auth.models import User
 from app.auth.dependencies import require_authenticated_user
-from app.services.valkey_dependencies import get_valkey_service
-from app.services.valkey_service import ValkeyService
+from app.services.redis_dependencies import get_redis_service
+from app.services.redis_service import RedisService
 from app.services.stats_service import StatsService
 
 logger = logging.getLogger(__name__)
@@ -21,7 +21,7 @@ router = APIRouter(
 async def get_stats(
     dt: str,
     current_user: User = Depends(require_authenticated_user),
-    valkey_service: ValkeyService = Depends(get_valkey_service)
+    redis_service: RedisService = Depends(get_redis_service)
 ) -> Dict[str, Any]:
     """
     Get dashboard statistics for vehicles.
@@ -36,11 +36,11 @@ async def get_stats(
     Args:
         dt: DT identifier
         current_user: Authenticated user
-        valkey_service: Valkey service instance
+        redis_service: Redis service instance
         
     Returns:
         Statistics dictionary
     """
-    stats = await StatsService.get_dashboard_stats(valkey_service)
+    stats = await StatsService.get_dashboard_stats(redis_service)
     return stats
 

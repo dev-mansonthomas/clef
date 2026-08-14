@@ -3,7 +3,7 @@ Mock Okta OAuth2 service for development and testing.
 """
 import secrets
 from typing import Dict, Any, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import jwt
 
 
@@ -118,7 +118,11 @@ class OktaMock:
     
     def _generate_token(self, user_data: Dict[str, Any], token_type: str = "access") -> str:
         """Generate a mock JWT token."""
-        now = datetime.utcnow()
+        # datetime.utcnow() renvoie un datetime NAÏF : .timestamp() l'interprète
+        # alors en heure locale, ce qui décale iat/exp de l'offset du fuseau.
+        # En CEST (UTC+2), le token naissait expiré depuis 1 h → 401 sur toute
+        # requête authentifiée. Il faut un datetime aware.
+        now = datetime.now(timezone.utc)
         payload = {
             **user_data,
             "iss": "https://croix-rouge.okta.com/oauth2/default",

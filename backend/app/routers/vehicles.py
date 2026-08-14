@@ -15,14 +15,14 @@ from app.models.vehicle import (
     VehicleUpdate,
 )
 from app.models.qr_code import QrEncodeRequest, QrEncodeResponse, QrDecodeRequest, QrDecodeResponse
-from app.models.valkey_models import VehicleData
+from app.models.redis_models import VehicleData
 from app.auth.models import User
 from app.auth.dependencies import require_authenticated_user
 from app.services.vehicle_service import VehicleService
 from app.services.qr_code_service import QrCodeService
 from app.services.calendar_service import CalendarService
-from app.services.valkey_service import ValkeyService
-from app.services.valkey_dependencies import get_valkey_service
+from app.services.redis_service import RedisService
+from app.services.redis_dependencies import get_redis_service
 from app.services.vehicle_document_service import vehicle_document_service
 from app.services.vehicle_photo_service import vehicle_photo_service
 from app.cache import get_cache
@@ -39,7 +39,7 @@ def vehicle_data_to_dict(vehicle_data: VehicleData) -> Dict[str, Any]:
     Convert VehicleData to dict compatible with VehicleService.enrich_vehicle().
 
     Args:
-        vehicle_data: VehicleData from Valkey
+        vehicle_data: VehicleData from Redis
 
     Returns:
         Dictionary with all vehicle fields
@@ -48,25 +48,25 @@ def vehicle_data_to_dict(vehicle_data: VehicleData) -> Dict[str, Any]:
 
 
 async def get_vehicle_by_nom_synthetique(
-    valkey_service: ValkeyService,
+    redis_service: RedisService,
     nom_synthetique: str
 ) -> Optional[VehicleData]:
     """
-    Find vehicle by nom_synthetique (since Valkey stores by immat).
+    Find vehicle by nom_synthetique (since Redis stores by immat).
 
     Args:
-        valkey_service: ValkeyService instance
+        redis_service: RedisService instance
         nom_synthetique: Synthetic name to search for
 
     Returns:
         VehicleData if found, None otherwise
     """
     # Get all vehicle IDs
-    vehicle_immats = await valkey_service.list_vehicles()
+    vehicle_immats = await redis_service.list_vehicles()
 
     # Search for matching nom_synthetique
     for immat in vehicle_immats:
-        vehicle_data = await valkey_service.get_vehicle(immat)
+        vehicle_data = await redis_service.get_vehicle(immat)
         if vehicle_data and vehicle_data.nom_synthetique == nom_synthetique:
             return vehicle_data
 
@@ -74,12 +74,12 @@ async def get_vehicle_by_nom_synthetique(
 
 
 async def get_accessible_vehicle_data(
-    valkey_service: ValkeyService,
+    redis_service: RedisService,
     current_user: User,
     immat: str,
 ) -> tuple[str, VehicleData, Dict[str, Any]]:
     """Resolve a vehicle by immat and enforce user access."""
-    vehicle_data = await valkey_service.get_vehicle(immat)
+    vehicle_data = await redis_service.get_vehicle(immat)
 
     if not vehicle_data:
         raise HTTPException(
@@ -101,7 +101,7 @@ async def get_accessible_vehicle_data(
 @router.get("", response_model=VehicleListResponse)
 async def list_vehicles(
     current_user: User = Depends(require_authenticated_user),
-    valkey_service: ValkeyService = Depends(get_valkey_service)
+    redis_service: RedisService = Depends(get_redis_service)
 ) -> VehicleListResponse:
     """
     Get list of vehicles filtered by user's UL.
@@ -113,13 +113,13 @@ async def list_vehicles(
     Returns:
         List of vehicles with computed status fields
     """
-    # Get all vehicles from Valkey
-    vehicle_immats = await valkey_service.list_vehicles()
+    # Get all vehicles from Redis
+    vehicle_immats = await redis_service.list_vehicles()
 
     # Fetch all vehicle data
     all_vehicles = []
     for immat in vehicle_immats:
-        vehicle_data = await valkey_service.get_vehicle(immat)
+        vehicle_data = await redis_service.get_vehicle(immat)
         if vehicle_data:
             all_vehicles.append(vehicle_data_to_dict(vehicle_data))
 
@@ -145,7 +145,7 @@ async def list_vehicles(
 async def create_vehicle(
     vehicle_create: VehicleCreate,
     current_user: User = Depends(require_authenticated_user),
-    valkey_service: ValkeyService = Depends(get_valkey_service)
+    redis_service: RedisService = Depends(get_redis_service)
 ) -> Vehicle:
     """
     Create a new vehicle.
@@ -169,7 +169,7 @@ async def create_vehicle(
         )
 
     # Check if vehicle with this immat already exists
-    existing_vehicle = await valkey_service.get_vehicle(vehicle_create.immat)
+    existing_vehicle = await redis_service.get_vehicle(vehicle_create.immat)
     if existing_vehicle:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -177,7 +177,7 @@ async def create_vehicle(
         )
 
     # Check if vehicle with this nom_synthetique already exists
-    existing_by_nom = await valkey_service.get_vehicle_by_nom_synthetique(vehicle_create.nom_synthetique)
+    existing_by_nom = await redis_service.get_vehicle_by_nom_synthetique(vehicle_create.nom_synthetique)
     if existing_by_nom:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -187,7 +187,7 @@ async def create_vehicle(
     # Get DT from user
     dt = current_user.dt
 
-    # Create VehicleData for Valkey
+    # Create VehicleData for Redis
     vehicle_data = VehicleData(
         immat=vehicle_create.immat,
         dt=dt,
@@ -212,8 +212,8 @@ async def create_vehicle(
         suivi_mode=vehicle_create.suivi_mode.value if vehicle_create.suivi_mode else None
     )
 
-    # Save to Valkey
-    success = await valkey_service.set_vehicle(vehicle_data)
+    # Save to Redis
+    success = await redis_service.set_vehicle(vehicle_data)
     if not success:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -231,7 +231,7 @@ async def get_available_vehicles(
     start: datetime = Query(..., description="Start datetime for availability check"),
     end: datetime = Query(..., description="End datetime for availability check"),
     current_user: User = Depends(require_authenticated_user),
-    valkey_service: ValkeyService = Depends(get_valkey_service)
+    redis_service: RedisService = Depends(get_redis_service)
 ) -> VehicleListResponse:
     """
     Get list of available vehicles for a given time period.
@@ -248,13 +248,13 @@ async def get_available_vehicles(
             detail="End date must be after start date"
         )
 
-    # Get all vehicles from Valkey
-    vehicle_immats = await valkey_service.list_vehicles()
+    # Get all vehicles from Redis
+    vehicle_immats = await redis_service.list_vehicles()
 
     # Fetch all vehicle data
     all_vehicles = []
     for immat in vehicle_immats:
-        vehicle_data = await valkey_service.get_vehicle(immat)
+        vehicle_data = await redis_service.get_vehicle(immat)
         if vehicle_data:
             all_vehicles.append(vehicle_data_to_dict(vehicle_data))
 
@@ -318,11 +318,11 @@ async def get_available_vehicles(
 async def get_vehicle_drive_documents(
     immat: str,
     current_user: User = Depends(require_authenticated_user),
-    valkey_service: ValkeyService = Depends(get_valkey_service)
+    redis_service: RedisService = Depends(get_redis_service)
 ) -> VehicleDriveDocumentsResponse:
     """Return Drive folders and current document associations for a vehicle."""
-    _, vehicle_data, _ = await get_accessible_vehicle_data(valkey_service, current_user, immat)
-    return await vehicle_document_service.get_documents_overview(valkey_service, vehicle_data)
+    _, vehicle_data, _ = await get_accessible_vehicle_data(redis_service, current_user, immat)
+    return await vehicle_document_service.get_documents_overview(redis_service, vehicle_data)
 
 
 @router.get("/{immat}/drive-documents/{document_type}/files", response_model=VehicleDriveFileListResponse)
@@ -330,11 +330,11 @@ async def list_vehicle_drive_document_files(
     immat: str,
     document_type: VehicleDocumentType,
     current_user: User = Depends(require_authenticated_user),
-    valkey_service: ValkeyService = Depends(get_valkey_service)
+    redis_service: RedisService = Depends(get_redis_service)
 ) -> VehicleDriveFileListResponse:
     """List the files available in a managed Drive folder for a vehicle."""
-    _, vehicle_data, _ = await get_accessible_vehicle_data(valkey_service, current_user, immat)
-    return await vehicle_document_service.list_document_files(valkey_service, vehicle_data, document_type)
+    _, vehicle_data, _ = await get_accessible_vehicle_data(redis_service, current_user, immat)
+    return await vehicle_document_service.list_document_files(redis_service, vehicle_data, document_type)
 
 
 @router.post("/{immat}/drive-documents/{document_type}/select", response_model=VehicleDriveDocument)
@@ -343,12 +343,12 @@ async def select_vehicle_drive_document(
     document_type: VehicleDocumentType,
     request: VehicleDocumentSelectRequest,
     current_user: User = Depends(require_authenticated_user),
-    valkey_service: ValkeyService = Depends(get_valkey_service)
+    redis_service: RedisService = Depends(get_redis_service)
 ) -> VehicleDriveDocument:
     """Associate an existing Drive file as the active vehicle document."""
-    _, vehicle_data, _ = await get_accessible_vehicle_data(valkey_service, current_user, immat)
+    _, vehicle_data, _ = await get_accessible_vehicle_data(redis_service, current_user, immat)
     return await vehicle_document_service.associate_existing_file(
-        valkey_service,
+        redis_service,
         vehicle_data,
         document_type,
         request.file_id,
@@ -361,10 +361,10 @@ async def upload_vehicle_drive_document(
     document_type: VehicleDocumentType,
     file: UploadFile = File(...),
     current_user: User = Depends(require_authenticated_user),
-    valkey_service: ValkeyService = Depends(get_valkey_service)
+    redis_service: RedisService = Depends(get_redis_service)
 ) -> VehicleDriveDocument:
     """Upload a new Drive document version and make it the active one."""
-    _, vehicle_data, _ = await get_accessible_vehicle_data(valkey_service, current_user, immat)
+    _, vehicle_data, _ = await get_accessible_vehicle_data(redis_service, current_user, immat)
     file_content = await file.read()
     if not file_content:
         raise HTTPException(
@@ -373,7 +373,7 @@ async def upload_vehicle_drive_document(
         )
 
     return await vehicle_document_service.upload_document(
-        valkey_service,
+        redis_service,
         vehicle_data,
         document_type,
         file_content,
@@ -386,7 +386,7 @@ async def upload_vehicle_drive_document(
 async def get_vehicle(
     immat: str,
     current_user: User = Depends(require_authenticated_user),
-    valkey_service: ValkeyService = Depends(get_valkey_service)
+    redis_service: RedisService = Depends(get_redis_service)
 ) -> Vehicle:
     """
     Get a specific vehicle by its registration plate (immat).
@@ -400,7 +400,7 @@ async def get_vehicle(
     Raises:
         404: Vehicle not found or user doesn't have access
     """
-    _, _, vehicle_dict = await get_accessible_vehicle_data(valkey_service, current_user, immat)
+    _, _, vehicle_dict = await get_accessible_vehicle_data(redis_service, current_user, immat)
 
     # Enrich with status calculations
     return VehicleService.enrich_vehicle(vehicle_dict)
@@ -411,13 +411,13 @@ async def update_vehicle(
     immat: str,
     update_data: VehicleUpdate,
     current_user: User = Depends(require_authenticated_user),
-    valkey_service: ValkeyService = Depends(get_valkey_service)
+    redis_service: RedisService = Depends(get_redis_service)
 ) -> Vehicle:
     """
     Update vehicle metadata (calendar color, comments, etc.).
 
     Note: This endpoint currently only supports updating metadata fields.
-    The main vehicle data (19 columns) is managed in Valkey.
+    The main vehicle data (19 columns) is managed in Redis.
 
     Args:
         immat: Vehicle registration plate
@@ -429,9 +429,9 @@ async def update_vehicle(
     Raises:
         404: Vehicle not found or user doesn't have access
     """
-    _, vehicle_data, vehicle_dict = await get_accessible_vehicle_data(valkey_service, current_user, immat)
+    _, vehicle_data, vehicle_dict = await get_accessible_vehicle_data(redis_service, current_user, immat)
 
-    # Update fields in Valkey
+    # Update fields in Redis
     updated = False
 
     # Identification
@@ -531,9 +531,9 @@ async def update_vehicle(
         vehicle_dict["suivi_mode"] = update_data.suivi_mode.value
         updated = True
 
-    # Save back to Valkey if any field was updated
+    # Save back to Redis if any field was updated
     if updated:
-        await valkey_service.set_vehicle(vehicle_data)
+        await redis_service.set_vehicle(vehicle_data)
 
     # Return enriched vehicle
     return VehicleService.enrich_vehicle(vehicle_dict)
@@ -622,7 +622,7 @@ async def upload_vehicle_photo(
     photo: UploadFile = File(...),
     photo_type: str = Query("general", description="Type of photo: general, damage, before, after"),
     current_user: User = Depends(require_authenticated_user),
-    valkey_service: ValkeyService = Depends(get_valkey_service)
+    redis_service: RedisService = Depends(get_redis_service)
 ) -> Dict[str, Any]:
     """
     Upload a photo for a vehicle.
@@ -639,14 +639,14 @@ async def upload_vehicle_photo(
         404: Vehicle not found
         500: Upload failed
     """
-    _, vehicle_data, _ = await get_accessible_vehicle_data(valkey_service, current_user, immat)
+    _, vehicle_data, _ = await get_accessible_vehicle_data(redis_service, current_user, immat)
 
     # Read file content
     content = await photo.read()
 
     # Upload to Drive
     result = await vehicle_photo_service.upload_vehicle_photo(
-        valkey_service=valkey_service,
+        redis_service=redis_service,
         vehicle_id=immat,
         immatriculation=vehicle_data.immat,
         file_content=content,
@@ -668,7 +668,7 @@ async def upload_vehicle_photo(
 async def list_vehicle_photos(
     immat: str,
     current_user: User = Depends(require_authenticated_user),
-    valkey_service: ValkeyService = Depends(get_valkey_service)
+    redis_service: RedisService = Depends(get_redis_service)
 ) -> Dict[str, Any]:
     """
     List all photos for a vehicle.
@@ -682,11 +682,11 @@ async def list_vehicle_photos(
     Raises:
         404: Vehicle not found
     """
-    _, vehicle_data, _ = await get_accessible_vehicle_data(valkey_service, current_user, immat)
+    _, vehicle_data, _ = await get_accessible_vehicle_data(redis_service, current_user, immat)
 
     # List photos
     photos = await vehicle_photo_service.list_vehicle_photos(
-        valkey_service=valkey_service,
+        redis_service=redis_service,
         immatriculation=vehicle_data.immat,
     )
 

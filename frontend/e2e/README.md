@@ -111,6 +111,39 @@ Configuration is in `playwright.config.ts`:
 
 ## CI Integration
 
+✅ **Ces tests tournent en CI depuis le 2026-08-13** — job `e2e` de
+`.github/workflows/ci.yml`, sur `pull_request` **et** sur `push`, et il figure dans le
+`needs:` de `deploy-dev`. L'exemple de workflow ci-dessous est donc historique : se
+référer au fichier réel.
+
+⚠️ **Deux pièges, appris à leurs dépens :**
+
+1. **Aucune fixture `.csv` sur disque.** `e2e/fixtures/test-vehicles.csv` n'a jamais
+   été committé — la règle `.gitignore` `*.csv` l'a avalé — et les 7 tests d'import
+   échouaient en `ENOENT`. Le CSV est désormais **construit en mémoire** par
+   `e2e/helpers/vehicles-csv.ts` et passé à `setInputFiles({name, mimeType, buffer})`.
+   Ne pas réintroduire de fixture CSV versionnée.
+2. **Les motifs de route des mocks doivent correspondre aux URL réelles**, segment
+   `{dt}` compris. Trois d'entre eux ne correspondaient à rien
+   (`/api/vehicles/import`, `/api/calendar/reservations`, `/api/carnet-bord/*`) : la
+   requête filait vers le proxy du serveur de dev et échouait en
+   `ENOTFOUND backend`, ce que les tests interprétaient en erreur d'assertion.
+   Vérifier le service Angular avant d'écrire un motif.
+
+Autres écueils rencontrés, à connaître avant d'écrire une spec :
+
+- **Mode strict de Playwright** : `page.locator('h1')`, `text=Configuration`,
+  `button:has-text("Suivant")` correspondent souvent à plusieurs éléments. Préférer
+  `getByRole(...)`, un `.first()` assumé, ou `:visible` pour le stepper Material.
+- **Overlay Material** : après avoir choisi une `mat-option`, attendre
+  `expect(page.locator('.cdk-overlay-backdrop')).toHaveCount(0)` avant d'interagir
+  avec le canvas de signature — le backdrop intercepte sinon le `pointerdown`.
+- **Fixtures dépendantes de l'heure** : le calendrier n'affiche que 06 h–22 h. Une
+  réservation placée « dans 24 h » devient invisible passé 22 h. Caler les horaires.
+- **Contrat des données mock** : `status_ct` est un objet `{value, color}`, et les
+  réservations suivent le modèle Redis (`vehicule_immat`, `debut`), pas l'ancien
+  modèle Google Calendar.
+
 Tests are configured for CI/CD:
 
 - Retries: 2 retries on CI

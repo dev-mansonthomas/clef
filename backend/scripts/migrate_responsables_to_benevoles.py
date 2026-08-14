@@ -3,7 +3,7 @@
 Migration script to merge responsables into benevoles with role field.
 
 This script:
-1. Connects to Valkey
+1. Connects to Redis
 2. For each DT, migrates DT:responsables:* into DT:benevoles:*
 3. Adds role field to benevoles based on responsable data
 4. Deletes old responsables keys
@@ -23,7 +23,7 @@ backend_path = Path(__file__).parent.parent
 sys.path.insert(0, str(backend_path))
 
 from app.cache import get_cache
-from app.services.valkey_service import ValkeyService
+from app.services.redis_service import RedisService
 
 logging.basicConfig(
     level=logging.INFO,
@@ -48,25 +48,25 @@ async def migrate_dt(dt: str, dry_run: bool = False):
         await cache.connect()
     
     if not cache.client:
-        logger.error("Failed to connect to Valkey")
+        logger.error("Failed to connect to Redis")
         return
     
-    # Create ValkeyService for this DT
-    valkey = ValkeyService(redis_client=cache.client, dt=dt)
+    # Create RedisService for this DT
+    redis_store = RedisService(redis_client=cache.client, dt=dt)
     
     # Get migration stats
     if dry_run:
         # In dry run, just count what would be migrated
-        responsable_emails = await valkey.list_responsables()
+        responsable_emails = await redis_store.list_responsables()
         logger.info(f"[DRY RUN] Would migrate {len(responsable_emails)} responsables")
         
         for email in responsable_emails:
-            responsable = await valkey.get_responsable(email)
+            responsable = await redis_store.get_responsable(email)
             if responsable:
                 logger.info(f"[DRY RUN] Would process: {email} - {responsable.role}")
     else:
         # Perform actual migration
-        stats = await valkey.migrate_responsables_to_benevoles()
+        stats = await redis_store.migrate_responsables_to_benevoles()
         
         logger.info(f"Migration completed for {dt}:")
         logger.info(f"  - Responsables found: {stats['responsables_found']}")
@@ -76,7 +76,7 @@ async def migrate_dt(dt: str, dry_run: bool = False):
         logger.info(f"  - Errors: {stats['errors']}")
         
         # Verify migration
-        remaining = await valkey.list_responsables()
+        remaining = await redis_store.list_responsables()
         if remaining:
             logger.warning(f"Warning: {len(remaining)} responsables still remain")
         else:

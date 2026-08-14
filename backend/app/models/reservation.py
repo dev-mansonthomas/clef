@@ -1,4 +1,4 @@
-"""Reservation models for calendar events and Valkey storage."""
+"""Reservation models for calendar events and Redis storage."""
 from pydantic import BaseModel, Field, ConfigDict
 from datetime import datetime
 from typing import Optional, List
@@ -27,9 +27,9 @@ class ReservationResponse(BaseModel):
     color_id: Optional[str] = Field(None, description="Calendar color ID")
 
 
-# New Valkey-based models
-class ValkeyReservationCreate(BaseModel):
-    """Model for creating a new reservation in Valkey."""
+# New Redis-based models
+class RedisReservationCreate(BaseModel):
+    """Model for creating a new reservation in Redis."""
     vehicule_immat: str = Field(..., description="Vehicle license plate (immatriculation)")
     chauffeur_nivol: str = Field(..., description="Driver NIVOL identifier")
     chauffeur_nom: str = Field(..., description="Driver full name")
@@ -40,8 +40,8 @@ class ValkeyReservationCreate(BaseModel):
     commentaire: Optional[str] = Field(None, description="Additional comments")
 
 
-class ValkeyReservation(ValkeyReservationCreate):
-    """Model for a complete reservation stored in Valkey."""
+class RedisReservation(RedisReservationCreate):
+    """Model for a complete reservation stored in Redis."""
     id: str = Field(..., description="Unique reservation ID (UUID)")
     created_by: str = Field(..., description="Email of user who created the reservation")
     created_at: datetime = Field(..., description="Creation timestamp")
@@ -69,8 +69,8 @@ class ValkeyReservation(ValkeyReservationCreate):
     )
 
 
-class ValkeyReservationListResponse(BaseModel):
+class RedisReservationListResponse(BaseModel):
     """Response model for listing reservations."""
     count: int = Field(..., description="Number of reservations")
-    reservations: List[ValkeyReservation] = Field(..., description="List of reservations")
+    reservations: List[RedisReservation] = Field(..., description="List of reservations")
 

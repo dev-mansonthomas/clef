@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Migration script to convert existing Valkey data to multi-tenant structure.
+Migration script to convert existing Redis data to multi-tenant structure.
 
 This script:
 1. Scans for existing keys without DT prefix
@@ -24,7 +24,7 @@ sys.path.insert(0, str(backend_path))
 
 from redis.asyncio import Redis
 from app.cache.redis_cache import RedisCache
-from app.services.valkey_service import ValkeyService
+from app.services.redis_service import RedisService
 
 logging.basicConfig(
     level=logging.INFO,
@@ -122,7 +122,7 @@ async def migrate_keys(redis_client: Redis, dt: str, dry_run: bool = False):
 
 async def main():
     """Main migration function."""
-    parser = argparse.ArgumentParser(description="Migrate Valkey data to multi-tenant structure")
+    parser = argparse.ArgumentParser(description="Migrate Redis data to multi-tenant structure")
     parser.add_argument("--dt", required=True, help="DT identifier (e.g., DT75)")
     parser.add_argument("--dry-run", action="store_true", help="Show what would be migrated without making changes")
     parser.add_argument("--redis-url", help="Redis URL (default: from REDIS_URL env var)")

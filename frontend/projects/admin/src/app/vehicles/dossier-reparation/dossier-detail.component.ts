@@ -12,12 +12,15 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatAutocompleteModule, MatAutocompleteTrigger } from '@angular/material/autocomplete';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { Observable, startWith, map } from 'rxjs';
 import { RepairService } from '../../services/repair.service';
 import { ValideurService } from '../../services/valideur.service';
 import { ContactCCService } from '../../services/contact-cc.service';
-import { DossierReparation, Devis, FactureCreateResponse, AuditEntry, Valideur, ContactCC } from '../../models/repair.model';
+import { ConfigService } from '../../services/config.service';
+import { DossierReparation, Devis, Facture, FactureCreateResponse, AuditEntry, Valideur, ContactCC } from '../../models/repair.model';
 import { MatCheckboxModule } from '@angular/material/checkbox';
+import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { DevisFormComponent } from './devis-form.component';
 import { FactureFormComponent } from './facture-form.component';
 import { ConfirmResendDialogComponent } from './confirm-resend-dialog.component';
@@ -42,6 +45,8 @@ import { ConfirmCancelDevisDialogComponent } from './confirm-cancel-devis-dialog
     MatDialogModule,
     MatAutocompleteModule,
     MatCheckboxModule,
+    MatSlideToggleModule,
+    MatTooltipModule,
     DevisFormComponent,
     FactureFormComponent,
   ],
@@ -60,44 +65,115 @@ import { ConfirmCancelDevisDialogComponent } from './confirm-cancel-devis-dialog
               <span class="header-titre">{{ dossier.titre }}</span>
             </ng-container>
             <span class="header-separator">·</span>
-            <span class="header-date">Créé le {{ dossier.cree_le | date:'dd/MM/yyyy HH:mm' }}</span>
+            <span class="header-date">Créé le {{ dossier.cree_le | date:'dd/MM/yyyy HH:mm':'Europe/Paris' }}</span>
             <span class="header-separator">·</span>
             <span class="statut-badge" [ngClass]="'statut-' + dossier.statut">{{ statutLabel(dossier.statut) }}</span>
           </mat-card-title>
         </mat-card-header>
         <mat-card-content>
 
-          <h4>Description</h4>
-          <ul class="description-list" *ngIf="dossier.description?.length">
-            <li *ngFor="let item of dossier.description">{{ item }}</li>
-          </ul>
-          <p class="empty-section" *ngIf="!dossier.description?.length">Aucune description.</p>
-          <div *ngIf="dossier.commentaire" class="commentaire-block">
-            <strong>Commentaire :</strong> {{ dossier.commentaire }}
+          <ng-container *ngIf="!editingDossier">
+            <h4>Description</h4>
+            <ul class="description-list" *ngIf="dossier.description.length">
+              <li *ngFor="let item of dossier.description">{{ item }}</li>
+            </ul>
+            <p class="empty-section" *ngIf="!dossier.description.length">Aucune description.</p>
+            <div *ngIf="dossier.commentaire" class="commentaire-block">
+              <strong>Commentaire :</strong> {{ dossier.commentaire }}
+            </div>
+            <div *ngIf="dossier.est_sinistre" class="sinistre-info">
+              <mat-icon class="sinistre-icon">warning</mat-icon>
+              <span>Sinistre</span>
+              <span *ngIf="dossier.franchise_applicable"> · Franchise applicable ({{ montantFranchise }} €)</span>
+            </div>
+          </ng-container>
+
+          <div *ngIf="editingDossier && editForm" class="edit-form">
+            <h4>Modifier le dossier</h4>
+            <mat-form-field appearance="outline">
+              <mat-label>Titre</mat-label>
+              <input matInput [(ngModel)]="editForm.titre" maxlength="50" placeholder="Titre du dossier">
+            </mat-form-field>
+            <h4>Description</h4>
+            <div *ngFor="let item of editForm.descriptionItems; let i = index; trackBy: trackByIndex" class="description-item-row">
+              <mat-form-field appearance="outline">
+                <input matInput [(ngModel)]="editForm.descriptionItems[i]" placeholder="Élément de description">
+              </mat-form-field>
+              <button mat-icon-button type="button" (click)="removeEditDescriptionItem(i)" [disabled]="editForm.descriptionItems.length <= 1" title="Supprimer">
+                <mat-icon>remove_circle_outline</mat-icon>
+              </button>
+            </div>
+            <button mat-button type="button" (click)="addEditDescriptionItem()">
+              <mat-icon>add</mat-icon> Ajouter un élément
+            </button>
+            <mat-form-field appearance="outline">
+              <mat-label>Commentaire</mat-label>
+              <textarea matInput [(ngModel)]="editForm.commentaire" rows="3" placeholder="Commentaire libre"></textarea>
+            </mat-form-field>
+            <div class="sinistre-section">
+              <div class="toggle-row">
+                <span class="toggle-label">Est-ce dans le cadre d'un sinistre ?</span>
+                <mat-slide-toggle [(ngModel)]="editForm.est_sinistre"></mat-slide-toggle>
+              </div>
+              <div class="toggle-row" *ngIf="editForm.est_sinistre">
+                <div class="toggle-label-group">
+                  <span class="toggle-label">Devez-vous payer la franchise ?</span>
+                  <span class="toggle-hint">(Vous êtes responsable/en tort)</span>
+                </div>
+                <mat-slide-toggle [(ngModel)]="editForm.franchise_applicable"></mat-slide-toggle>
+              </div>
+              <div class="franchise-info" *ngIf="editForm.est_sinistre && editForm.franchise_applicable">
+                <mat-icon>info</mat-icon>
+                <span>La franchise est de {{ montantFranchise }} €</span>
+              </div>
+            </div>
+            <div class="edit-actions">
+              <button mat-raised-button color="primary" type="button" (click)="saveEditDossier()" [disabled]="actionLoading">Enregistrer</button>
+              <button mat-button type="button" (click)="cancelEditDossier()">Annuler</button>
+            </div>
           </div>
 
           <mat-divider></mat-divider>
 
+          <div class="action-buttons-row">
+            <div class="action-buttons-left">
+              <button mat-raised-button type="button" (click)="startEditDossier()"
+                *ngIf="dossier.statut === 'ouvert' && !editingDossier" [disabled]="actionLoading"
+                class="action-btn-fixed">
+                <mat-icon>edit</mat-icon> Éditer le dossier
+              </button>
+              <button mat-raised-button color="primary" type="button"
+                *ngIf="dossier.statut === 'ouvert' && (hasPendingDevis() || hasResendableDevis())"
+                (click)="openBulkApprovalForm()" [disabled]="approvalLoading || bulkApprovalMode"
+                class="action-btn-fixed">
+                <mat-icon>{{ hasPendingDevis() ? 'playlist_add_check' : 'replay' }}</mat-icon> {{ bulkButtonLabel() }}
+              </button>
+            </div>
+            <div class="action-buttons-right">
+              <button mat-stroked-button type="button" *ngIf="dossier.statut === 'ouvert'" (click)="updateStatut('cloture')" [disabled]="actionLoading"
+                matTooltip="Tous les travaux sont terminés et payés">
+                <mat-icon>lock</mat-icon> Clôturer le dossier
+              </button>
+              <button mat-stroked-button type="button" color="warn" *ngIf="dossier.statut === 'ouvert'" (click)="updateStatut('annule')" [disabled]="actionLoading"
+                matTooltip="Les travaux sont annulés ou le dossier doit être refait de zéro">
+                <mat-icon>cancel</mat-icon> Annuler le dossier
+              </button>
+              <button mat-stroked-button type="button" *ngIf="dossier.statut === 'cloture'" (click)="updateStatut('ouvert')" [disabled]="actionLoading">
+                <mat-icon>lock_open</mat-icon> Réouvrir le dossier
+              </button>
+              <button mat-icon-button type="button" (click)="refreshDossier()" title="Rafraîchir" [disabled]="loading">
+                <mat-icon>refresh</mat-icon>
+              </button>
+            </div>
+          </div>
           <div class="action-buttons">
-            <button mat-raised-button type="button" (click)="showDevisForm = true" [disabled]="dossier.statut !== 'ouvert' || showDevisForm">
+            <button mat-raised-button type="button" (click)="showDevisForm = true" [disabled]="dossier.statut !== 'ouvert' || showDevisForm"
+              class="action-btn-fixed">
               <mat-icon>request_quote</mat-icon> Enregistrer un devis
             </button>
-            <button mat-raised-button type="button" (click)="showFactureForm = true" [disabled]="dossier.statut !== 'ouvert' || showFactureForm">
+            <button mat-raised-button type="button" (click)="showFactureForm = true" [disabled]="dossier.statut !== 'ouvert' || showFactureForm"
+              class="action-btn-fixed">
               <mat-icon>receipt</mat-icon> Enregistrer une facture
-            </button>
-            <button mat-stroked-button type="button" *ngIf="dossier.statut === 'ouvert'" (click)="updateStatut('cloture')" [disabled]="actionLoading">
-              <mat-icon>lock</mat-icon> Clôturer le dossier
-            </button>
-            <button mat-stroked-button type="button" *ngIf="dossier.statut === 'cloture'" (click)="updateStatut('ouvert')" [disabled]="actionLoading">
-              <mat-icon>lock_open</mat-icon> Réouvrir le dossier
-            </button>
-            <button mat-stroked-button type="button" color="warn" *ngIf="dossier.statut === 'ouvert'" (click)="updateStatut('annule')" [disabled]="actionLoading">
-              <mat-icon>cancel</mat-icon> Annuler le dossier
-            </button>
-            <button mat-raised-button color="primary" type="button"
-              *ngIf="dossier.statut === 'ouvert' && hasPendingDevis()"
-              (click)="openBulkApprovalForm()" [disabled]="approvalLoading || bulkApprovalMode">
-              <mat-icon>playlist_add_check</mat-icon> Envoyer tout pour approbation
             </button>
           </div>
           <!-- Bulk approval form -->
@@ -133,54 +209,62 @@ import { ConfirmCancelDevisDialogComponent } from './confirm-cancel-devis-dialog
           <app-devis-form *ngIf="showDevisForm" [dt]="dt" [immat]="immat" [numero]="numero"
             [dossierDescription]="dossier.description || []" [dossierTitre]="dossier.titre || ''"
             (devisCreated)="onDevisCreated($event)" (cancelled)="showDevisForm = false"></app-devis-form>
-          <p class="empty-section" *ngIf="!dossier.devis?.length && !showDevisForm">Aucun devis enregistré.</p>
-          <table class="devis-table" *ngIf="dossier.devis?.length">
+          <p class="empty-section" *ngIf="!dossier.devis.length && !showDevisForm">Aucun devis enregistré.</p>
+          <table class="devis-table" *ngIf="dossier.devis.length">
             <thead>
               <tr>
+                <th class="col-numero">N°</th>
                 <th>Date</th>
                 <th>Fournisseur</th>
                 <th class="col-right">Montant</th>
                 <th>Statut</th>
-                <th>Fichier</th>
                 <th class="col-actions">Actions</th>
               </tr>
             </thead>
             <tbody>
-              <tr *ngFor="let d of dossier.devis" [class.devis-annule-row]="d.statut === 'annule'">
-                <td>{{ d.date_devis | date:'dd/MM/yyyy' }}</td>
-                <td>{{ d.fournisseur?.nom || d.id }}</td>
-                <td class="col-right">{{ d.montant | number:'1.2-2' }} €</td>
-                <td><span class="devis-statut-badge" [ngClass]="'devis-statut-' + d.statut">{{ devisStatutLabel(d.statut) }}</span></td>
-                <td>
-                  <a *ngIf="d.fichier" [href]="d.fichier.web_view_link" target="_blank" rel="noopener" class="fichier-link">📎 {{ d.fichier.name }}</a>
-                </td>
-                <td class="col-actions">
-                  <div class="action-cell">
-                    <button type="button" mat-icon-button *ngIf="(d.statut === 'en_attente' || d.statut === 'refuse') && dossier.statut === 'ouvert'"
-                      (click)="startEditDevis(d)" [disabled]="!!editingDevis" title="Modifier">
-                      <mat-icon>edit</mat-icon>
-                    </button>
-                    <button type="button" mat-stroked-button *ngIf="d.statut === 'en_attente' && dossier.statut === 'ouvert'"
-                      (click)="openApprovalForm(d)" [disabled]="approvalLoading" class="approval-btn">
-                      <mat-icon>send</mat-icon> Envoyer pour approbation
-                    </button>
-                    <button type="button" mat-stroked-button *ngIf="(d.statut === 'envoye' || d.statut === 'refuse') && dossier.statut === 'ouvert'"
-                      (click)="confirmResend(d)" [disabled]="approvalLoading" class="approval-btn">
-                      <mat-icon>replay</mat-icon> Renvoyer pour approbation
-                    </button>
-                    <button type="button" mat-stroked-button *ngIf="d.statut === 'approuve' && dossier.statut === 'ouvert'"
-                      (click)="createFactureForDevis(d)" class="add-facture-btn">
-                      <mat-icon>receipt</mat-icon> Ajouter facture
-                    </button>
-                    <!-- Cancel button — ALWAYS far right, RED -->
-                    <button type="button" mat-icon-button *ngIf="d.statut !== 'annule' && dossier.statut === 'ouvert'"
-                      (click)="annulerDevis(d)" [disabled]="actionLoading"
-                      title="Annuler le devis" class="cancel-devis-btn">
-                      <mat-icon>cancel</mat-icon>
-                    </button>
-                  </div>
-                </td>
-              </tr>
+              <ng-container *ngFor="let d of dossier.devis">
+                <tr [class.devis-annule-row]="d.statut === 'annule'">
+                  <td class="col-numero">Devis {{ padId(d.id) }}</td>
+                  <td>{{ d.date_devis | date:'dd/MM/yyyy' }}</td>
+                  <td>{{ d.fournisseur.nom || d.id }}</td>
+                  <td class="col-right">{{ d.montant | number:'1.2-2' }} €</td>
+                  <td><span class="devis-statut-badge" [ngClass]="'devis-statut-' + d.statut">{{ devisStatutLabel(d.statut) }}</span></td>
+                  <td class="col-actions">
+                    <div class="action-cell">
+                      <button type="button" mat-icon-button *ngIf="(d.statut === 'en_attente' || d.statut === 'refuse') && dossier.statut === 'ouvert'"
+                        (click)="startEditDevis(d)" [disabled]="!!editingDevis" title="Modifier">
+                        <mat-icon>edit</mat-icon>
+                      </button>
+                      <button type="button" mat-stroked-button *ngIf="d.statut === 'en_attente' && dossier.statut === 'ouvert'"
+                        (click)="openApprovalForm(d)" [disabled]="approvalLoading" class="approval-btn">
+                        <mat-icon>send</mat-icon> Envoyer pour approbation
+                      </button>
+                      <button type="button" mat-stroked-button *ngIf="(d.statut === 'envoye' || d.statut === 'refuse') && dossier.statut === 'ouvert'"
+                        (click)="confirmResend(d)" [disabled]="approvalLoading" class="approval-btn">
+                        <mat-icon>replay</mat-icon> Renvoyer pour approbation
+                      </button>
+                      <button type="button" mat-stroked-button *ngIf="d.statut === 'approuve' && dossier.statut === 'ouvert' && !getFactureForDevis(d.id)"
+                        (click)="createFactureForDevis(d)" class="add-facture-btn">
+                        <mat-icon>receipt</mat-icon> Ajouter facture
+                      </button>
+                      <button type="button" mat-stroked-button *ngIf="getFactureForDevis(d.id)"
+                        (click)="viewFactureForDevis(d)" class="add-facture-btn">
+                        <mat-icon>visibility</mat-icon> Voir Facture
+                      </button>
+                      <button type="button" mat-icon-button *ngIf="d.statut !== 'annule' && dossier.statut === 'ouvert'"
+                        (click)="annulerDevis(d)" [disabled]="actionLoading"
+                        title="Annuler le devis" class="cancel-devis-btn">
+                        <mat-icon>cancel</mat-icon>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+                <tr *ngIf="d.fichier" class="fichier-row" [class.devis-annule-row]="d.statut === 'annule'">
+                  <td [attr.colspan]="6" class="fichier-cell">
+                    <a [href]="d.fichier.web_view_link" target="_blank" rel="noopener" class="fichier-link">📎 {{ d.fichier.name }}</a>
+                  </td>
+                </tr>
+              </ng-container>
             </tbody>
           </table>
           <!-- Inline approval form -->
@@ -219,11 +303,39 @@ import { ConfirmCancelDevisDialogComponent } from './confirm-cancel-devis-dialog
           <app-facture-form *ngIf="showFactureForm" [dt]="dt" [immat]="immat" [numero]="numero"
             [devisList]="dossier.devis || []"
             [preselectedDevisId]="preselectedDevisId"
+            [devisLabel]="factureDevisLabel"
+            [editFacture]="editingFacture"
             [inheritedDescriptionItems]="getDevisDescriptionItems()"
             [inheritedDescriptionTravaux]="getDevisDescriptionTravaux()"
+            [estSinistre]="dossier.est_sinistre || false"
+            [franchiseApplicable]="dossier.franchise_applicable || false"
+            [montantFranchise]="montantFranchise"
             (factureCreated)="onFactureCreated($event)" (cancelled)="onFactureCancelled()"></app-facture-form>
-          <p class="empty-section" *ngIf="!dossier.factures?.length && !showFactureForm">Aucune facture enregistrée.</p>
-          <table class="factures-table" *ngIf="dossier.factures?.length">
+
+          <!-- Read-only facture detail view -->
+          <div class="facture-detail-view" *ngIf="viewingFacture">
+            <mat-card>
+              <mat-card-header>
+                <mat-card-title>Facture — {{ viewingFacture.fournisseur.nom }}</mat-card-title>
+              </mat-card-header>
+              <mat-card-content>
+                <p><strong>Date :</strong> {{ viewingFacture.date_facture | date:'dd/MM/yyyy' }}</p>
+                <p><strong>Classification :</strong> {{ classificationLabel(viewingFacture.classification) }}</p>
+                <p *ngIf="viewingFacture.description"><strong>Description :</strong> {{ viewingFacture.description }}</p>
+                <p><strong>Montant total :</strong> {{ viewingFacture.montant_total | number:'1.2-2' }} €</p>
+                <p><strong>Montant CRF :</strong> {{ viewingFacture.montant_crf | number:'1.2-2' }} €</p>
+                <p *ngIf="viewingFacture.fichier"><strong>Fichier :</strong> <a [href]="viewingFacture.fichier.web_view_link" target="_blank" rel="noopener" class="fichier-link">📎 {{ viewingFacture.fichier.name }}</a></p>
+                <div class="form-actions" style="margin-top:12px;">
+                  <button mat-button type="button" (click)="viewingFacture = null">Fermer</button>
+                  <button mat-raised-button color="primary" type="button" (click)="startEditFacture(viewingFacture)" *ngIf="dossier.statut === 'ouvert'">
+                    <mat-icon>edit</mat-icon> Modifier
+                  </button>
+                </div>
+              </mat-card-content>
+            </mat-card>
+          </div>
+          <p class="empty-section" *ngIf="!dossier.factures.length && !showFactureForm">Aucune facture enregistrée.</p>
+          <table class="factures-table" *ngIf="dossier.factures.length">
             <thead>
               <tr>
                 <th>Date</th>
@@ -231,18 +343,23 @@ import { ConfirmCancelDevisDialogComponent } from './confirm-cancel-devis-dialog
                 <th>Classification</th>
                 <th class="col-right">Total</th>
                 <th class="col-right">CRF</th>
-                <th>Fichier</th>
               </tr>
             </thead>
             <tbody>
-              <tr *ngFor="let f of dossier.factures">
-                <td>{{ f.date_facture | date:'dd/MM/yyyy' }}</td>
-                <td>{{ f.fournisseur?.nom || f.id }}</td>
-                <td class="item-classification">{{ classificationLabel(f.classification) }}</td>
-                <td class="col-right">{{ f.montant_total | number:'1.2-2' }} €</td>
-                <td class="col-right item-montant-crf">CRF: {{ f.montant_crf | number:'1.2-2' }} €</td>
-                <td><a *ngIf="f.fichier" [href]="f.fichier.web_view_link" target="_blank" rel="noopener" class="fichier-link">📎 {{ f.fichier.name }}</a></td>
-              </tr>
+              <ng-container *ngFor="let f of dossier.factures">
+                <tr>
+                  <td>{{ f.date_facture | date:'dd/MM/yyyy' }}</td>
+                  <td>{{ f.fournisseur?.nom || f.id }}</td>
+                  <td class="item-classification">{{ classificationLabel(f.classification) }}</td>
+                  <td class="col-right">{{ f.montant_total | number:'1.2-2' }} €</td>
+                  <td class="col-right item-montant-crf">CRF: {{ f.montant_crf | number:'1.2-2' }} €</td>
+                </tr>
+                <tr *ngIf="f.fichier" class="fichier-row">
+                  <td [attr.colspan]="5" class="fichier-cell">
+                    <a [href]="f.fichier.web_view_link" target="_blank" rel="noopener" class="fichier-link">📎 {{ f.fichier.name }}</a>
+                  </td>
+                </tr>
+              </ng-container>
             </tbody>
           </table>
           <mat-divider></mat-divider>
@@ -252,9 +369,11 @@ import { ConfirmCancelDevisDialogComponent } from './confirm-cancel-devis-dialog
             <div class="timeline-entry" *ngFor="let entry of historique">
               <mat-icon [ngClass]="'timeline-icon timeline-icon-' + entry.action"
                 >{{ actionIcon(entry.action) }}</mat-icon>
-              <div class="timeline-content">
-                <span class="timeline-date">{{ entry.date | date:'dd/MM/yyyy HH:mm' }}</span>
+              <div class="timeline-content-compact">
+                <span class="timeline-date">{{ entry.date | date:'dd/MM/yyyy HH:mm':'Europe/Paris' }}</span>
+                <span class="timeline-separator">·</span>
                 <span class="timeline-details">{{ entry.details }}</span>
+                <span class="timeline-separator">·</span>
                 <span class="timeline-auteur">par {{ entry.auteur }}</span>
               </div>
             </div>
@@ -271,7 +390,7 @@ import { ConfirmCancelDevisDialogComponent } from './confirm-cancel-devis-dialog
     </div>
   `,
   styles: [`
-    .detail-header { margin-bottom: 12px; }
+    .detail-header { margin-bottom: 12px; display: flex; align-items: center; gap: 4px; }
     .dossier-header-row { margin-bottom: 8px; }
     .dossier-header-inline { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
     .header-separator { color: rgba(0,0,0,0.38); }
@@ -285,6 +404,10 @@ import { ConfirmCancelDevisDialogComponent } from './confirm-cancel-devis-dialog
     .description-list li { margin-bottom: 4px; }
     .commentaire-block { margin: 8px 0 16px; padding: 8px 12px; background: #f5f5f5; border-radius: 4px; font-style: italic; }
     .action-buttons { display: flex; gap: 12px; margin: 16px 0; flex-wrap: wrap; }
+    .action-buttons-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 16px 0 8px; flex-wrap: wrap; }
+    .action-buttons-left { display: flex; gap: 12px; flex-wrap: wrap; }
+    .action-buttons-right { display: flex; gap: 12px; flex-wrap: wrap; }
+    .action-btn-fixed { min-width: 260px; }
     .empty-section { color: rgba(0,0,0,0.54); font-style: italic; }
     .loading-container { display: flex; align-items: center; gap: 12px; padding: 24px 0; }
     h4 { margin: 16px 0 8px; font-weight: 500; }
@@ -306,6 +429,8 @@ import { ConfirmCancelDevisDialogComponent } from './confirm-cancel-devis-dialog
     .devis-statut-annule { background: #eeeeee; color: #616161; }
     .fichier-link { color: #1565c0; text-decoration: none; font-size: 13px; white-space: nowrap; }
     .fichier-link:hover { text-decoration: underline; }
+    .fichier-row td { border-bottom: 1px solid rgba(0,0,0,0.08); padding: 0 12px 8px; }
+    .fichier-cell { font-size: 13px; }
 
     .approval-btn { }
     .add-facture-btn { font-size: 12px; }
@@ -315,9 +440,9 @@ import { ConfirmCancelDevisDialogComponent } from './confirm-cancel-devis-dialog
     .cc-checkboxes { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; width: 100%; padding: 4px 0; }
     .cc-label { font-size: 13px; font-weight: 500; color: rgba(0,0,0,0.6); }
     .timeline { margin: 8px 0 16px; }
-    .timeline-entry { display: flex; gap: 12px; align-items: flex-start; padding: 8px 0; border-left: 2px solid rgba(0,0,0,0.12); margin-left: 12px; padding-left: 16px; position: relative; }
-    .timeline-entry::before { content: ''; position: absolute; left: -5px; top: 12px; width: 8px; height: 8px; border-radius: 50%; background: #bdbdbd; }
-    .timeline-icon { font-size: 20px; width: 20px; height: 20px; flex-shrink: 0; }
+    .timeline-entry { display: flex; gap: 8px; align-items: center; padding: 4px 0; border-left: 2px solid rgba(0,0,0,0.12); margin-left: 12px; padding-left: 16px; position: relative; }
+    .timeline-entry::before { content: ''; position: absolute; left: -5px; top: 50%; transform: translateY(-50%); width: 8px; height: 8px; border-radius: 50%; background: #bdbdbd; }
+    .timeline-icon { font-size: 18px; width: 18px; height: 18px; flex-shrink: 0; }
     .timeline-icon-creation { color: #2e7d32; }
     .timeline-icon-cloture { color: #757575; }
     .timeline-icon-reouverture { color: #1565c0; }
@@ -330,10 +455,29 @@ import { ConfirmCancelDevisDialogComponent } from './confirm-cancel-devis-dialog
     .timeline-icon-devis_refuse, .timeline-icon-devis_annule { color: #c62828; }
     .timeline-icon-facture_ajoutee, .timeline-icon-facture_modifiee { color: #1565c0; }
     .timeline-icon-modification { color: #1565c0; }
-    .timeline-content { display: flex; flex-direction: column; gap: 2px; }
-    .timeline-date { font-size: 12px; color: rgba(0,0,0,0.54); }
-    .timeline-details { font-size: 14px; }
-    .timeline-auteur { font-size: 12px; color: rgba(0,0,0,0.54); }
+    .timeline-content-compact { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 13px; }
+    .timeline-date { color: rgba(0,0,0,0.54); white-space: nowrap; }
+    .timeline-separator { color: rgba(0,0,0,0.3); }
+    .timeline-details { font-weight: 500; }
+    .timeline-auteur { color: rgba(0,0,0,0.54); }
+    .col-numero { white-space: nowrap; font-weight: 500; }
+    .facture-detail-view { margin: 12px 0; }
+    .facture-detail-view p { margin: 4px 0; }
+    .form-actions { display: flex; gap: 8px; justify-content: flex-end; }
+    .edit-form { padding: 12px 0; }
+    .edit-form mat-form-field { width: 100%; margin-bottom: 8px; }
+    .description-item-row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+    .description-item-row mat-form-field { flex: 1; }
+    .sinistre-section { display: flex; flex-direction: column; gap: 12px; padding: 8px 0; }
+    .toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+    .toggle-label { font-size: 14px; font-weight: 500; }
+    .toggle-label-group { display: flex; flex-direction: column; }
+    .toggle-hint { font-size: 12px; color: #666; font-style: italic; }
+    .franchise-info { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #fff3e0; border-radius: 4px; color: #e65100; font-weight: 500; font-size: 14px; }
+    .franchise-info mat-icon { font-size: 20px; width: 20px; height: 20px; }
+    .sinistre-info { display: flex; align-items: center; gap: 8px; padding: 8px 0; color: #e65100; font-weight: 500; }
+    .sinistre-icon { font-size: 20px; width: 20px; height: 20px; }
+    .edit-actions { display: flex; gap: 8px; padding: 8px 0; }
   `],
 })
 export class DossierDetailComponent implements OnInit, OnChanges {
@@ -348,6 +492,7 @@ export class DossierDetailComponent implements OnInit, OnChanges {
   private readonly snackBar = inject(MatSnackBar);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly dialog = inject(MatDialog);
+  private readonly configService = inject(ConfigService);
 
   @ViewChild(MatAutocompleteTrigger) valideurAutoTrigger!: MatAutocompleteTrigger;
 
@@ -365,6 +510,12 @@ export class DossierDetailComponent implements OnInit, OnChanges {
   historique: AuditEntry[] = [];
   historiqueLoading = false;
   preselectedDevisId: string | null = null;
+  factureDevisLabel: string | null = null;
+  editingFacture: Facture | null = null;
+  viewingFacture: Facture | null = null;
+  montantFranchise = 350;
+  editingDossier = false;
+  editForm: { titre: string; descriptionItems: string[]; commentaire: string; est_sinistre: boolean; franchise_applicable: boolean } | null = null;
 
   // Valideur selector
   valideurSearchControl = new FormControl('');
@@ -380,6 +531,11 @@ export class DossierDetailComponent implements OnInit, OnChanges {
     this.loadHistorique();
     this.loadValideurs();
     this.loadContactsCC();
+    this.configService.getConfig().subscribe({
+      next: (config) => {
+        this.montantFranchise = config.montant_franchise ?? 350;
+      },
+    });
     this.filteredValideurs$ = this.valideurSearchControl.valueChanges.pipe(
       startWith(''),
       map(value => {
@@ -427,11 +583,22 @@ export class DossierDetailComponent implements OnInit, OnChanges {
     return icons[action] || 'info';
   }
 
+  refreshDossier(): void {
+    this.loadDossier();
+    this.loadHistorique();
+  }
+
   loadDossier(): void {
     if (!this.dt || !this.immat || !this.numero) return;
     this.loading = true;
     this.repairService.getDossier(this.dt, this.immat, this.numero).subscribe({
-      next: (d) => { this.dossier = d; this.loading = false; this.cdr.detectChanges(); },
+      next: (d) => {
+        this.dossier = d;
+        this.loading = false;
+        // Use setTimeout to avoid ExpressionChangedAfterItHasBeenCheckedError
+        // when loadDossier is called from within a change detection cycle
+        setTimeout(() => this.cdr.detectChanges());
+      },
       error: () => {
         this.snackBar.open('Erreur lors du chargement du dossier', 'Fermer', { duration: 5000 });
         this.loading = false;
@@ -511,6 +678,8 @@ export class DossierDetailComponent implements OnInit, OnChanges {
   onFactureCreated(_facture: FactureCreateResponse): void {
     this.showFactureForm = false;
     this.preselectedDevisId = null;
+    this.factureDevisLabel = null;
+    this.editingFacture = null;
     this.loadDossier();
     this.loadHistorique();
   }
@@ -518,12 +687,105 @@ export class DossierDetailComponent implements OnInit, OnChanges {
   onFactureCancelled(): void {
     this.showFactureForm = false;
     this.preselectedDevisId = null;
+    this.factureDevisLabel = null;
+    this.editingFacture = null;
   }
 
   createFactureForDevis(devis: Devis): void {
     this.preselectedDevisId = String(devis.id);
+    this.factureDevisLabel = `Devis ${this.padId(devis.id)}`;
+    this.editingFacture = null;
+    this.viewingFacture = null;
     this.showFactureForm = true;
   }
+
+  getFactureForDevis(devisId: string): Facture | undefined {
+    return this.dossier?.factures?.find(f => f.devis_id === devisId);
+  }
+
+  viewFactureForDevis(devis: Devis): void {
+    const facture = this.getFactureForDevis(devis.id);
+    if (facture) {
+      this.viewingFacture = facture;
+      this.showFactureForm = false;
+    }
+  }
+
+  startEditFacture(facture: Facture): void {
+    this.editingFacture = facture;
+    this.viewingFacture = null;
+    this.preselectedDevisId = facture.devis_id || null;
+    this.factureDevisLabel = facture.devis_id ? `Devis ${this.padId(facture.devis_id)}` : null;
+    this.showFactureForm = true;
+  }
+
+  padId(id: string): string {
+    return id.padStart(2, '0');
+  }
+
+  startEditDossier(): void {
+    if (!this.dossier) return;
+    this.editForm = {
+      titre: this.dossier.titre || '',
+      descriptionItems: this.dossier.description.length ? [...this.dossier.description] : [''],
+      commentaire: this.dossier.commentaire || '',
+      est_sinistre: !!this.dossier.est_sinistre,
+      franchise_applicable: !!this.dossier.franchise_applicable,
+    };
+    this.editingDossier = true;
+  }
+
+  cancelEditDossier(): void {
+    this.editingDossier = false;
+    this.editForm = null;
+  }
+
+  addEditDescriptionItem(): void {
+    if (this.editForm) this.editForm.descriptionItems.push('');
+  }
+
+  removeEditDescriptionItem(index: number): void {
+    if (this.editForm && this.editForm.descriptionItems.length > 1) {
+      this.editForm.descriptionItems.splice(index, 1);
+    }
+  }
+
+  saveEditDossier(): void {
+    if (!this.dossier || !this.editForm) return;
+    const items = this.editForm.descriptionItems.map(i => i.trim()).filter(i => i.length > 0);
+    if (items.length === 0) {
+      this.snackBar.open('Au moins un élément de description est requis', 'Fermer', { duration: 3000 });
+      return;
+    }
+    this.actionLoading = true;
+    const body: any = {
+      titre: this.editForm.titre.trim() || null,
+      description: items,
+      commentaire: this.editForm.commentaire.trim() || null,
+      est_sinistre: this.editForm.est_sinistre,
+      franchise_applicable: this.editForm.est_sinistre && this.editForm.franchise_applicable,
+    };
+    this.repairService.updateDossier(this.dt, this.immat, this.dossier.numero, body).subscribe({
+      next: (d) => {
+        this.dossier = d;
+        this.actionLoading = false;
+        this.editingDossier = false;
+        this.editForm = null;
+        this.snackBar.open('Dossier mis à jour', 'Fermer', { duration: 3000 });
+        this.cdr.detectChanges();
+        this.loadHistorique();
+      },
+      error: () => {
+        this.actionLoading = false;
+        this.snackBar.open('Erreur lors de la mise à jour', 'Fermer', { duration: 5000 });
+        this.cdr.detectChanges();
+      },
+    });
+  }
+
+  trackByIndex(index: number): number { return index; }
+
+
 
   getDevisDescriptionItems(): string[] {
     if (!this.preselectedDevisId || !this.dossier) return [];
@@ -689,6 +951,17 @@ export class DossierDetailComponent implements OnInit, OnChanges {
 
   hasPendingDevis(): boolean {
     return !!this.dossier?.devis?.some(d => d.statut === 'en_attente');
+  }
+
+  hasResendableDevis(): boolean {
+    return !!this.dossier?.devis?.some(d => d.statut === 'envoye' || d.statut === 'refuse');
+  }
+
+  bulkButtonLabel(): string {
+    if (this.hasPendingDevis()) {
+      return 'Envoyer le dossier pour approbation';
+    }
+    return 'Renvoyer le dossier pour approbation';
   }
 
   openBulkApprovalForm(): void {

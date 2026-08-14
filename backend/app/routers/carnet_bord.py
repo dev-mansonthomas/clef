@@ -10,8 +10,8 @@ from app.models.carnet_bord import (
 )
 from app.auth.models import User
 from app.auth.dependencies import require_authenticated_user
-from app.services.valkey_dependencies import get_valkey_service
-from app.services.valkey_service import ValkeyService
+from app.services.redis_dependencies import get_redis_service
+from app.services.redis_service import RedisService
 
 
 router = APIRouter(
@@ -24,7 +24,7 @@ router = APIRouter(
 async def enregistrer_prise(
     prise: PriseVehicule,
     current_user: User = Depends(require_authenticated_user),
-    valkey: ValkeyService = Depends(get_valkey_service)
+    redis_store: RedisService = Depends(get_redis_service)
 ) -> CarnetBordResponse:
     """
     Enregistrer une prise de véhicule.
@@ -32,7 +32,7 @@ async def enregistrer_prise(
     Args:
         prise: Données du formulaire de prise
         current_user: Utilisateur authentifié
-        valkey: Service Valkey
+        redis_store: Service Redis
 
     Returns:
         Confirmation de l'enregistrement
@@ -42,8 +42,8 @@ async def enregistrer_prise(
         400: Véhicule déjà pris
         500: Erreur lors de l'enregistrement
     """
-    # Get vehicle data from Valkey
-    vehicule = await valkey.get_vehicle_by_nom_synthetique(prise.vehicule_id)
+    # Get vehicle data from Redis
+    vehicule = await redis_store.get_vehicle_by_nom_synthetique(prise.vehicule_id)
 
     if not vehicule:
         raise HTTPException(
@@ -52,7 +52,7 @@ async def enregistrer_prise(
         )
 
     # Check if vehicle is already taken
-    derniere_prise = await valkey.get_derniere_prise(vehicule.immat)
+    derniere_prise = await redis_store.get_derniere_prise(vehicule.immat)
     if derniere_prise:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -60,8 +60,8 @@ async def enregistrer_prise(
         )
 
     try:
-        # Register prise in Valkey
-        timestamp = await valkey.enregistrer_prise(
+        # Register prise in Redis
+        timestamp = await redis_store.enregistrer_prise(
             immat=vehicule.immat,
             benevole_nom=prise.benevole_nom,
             benevole_prenom=prise.benevole_prenom,
@@ -89,7 +89,7 @@ async def enregistrer_prise(
 async def enregistrer_retour(
     retour: RetourVehicule,
     current_user: User = Depends(require_authenticated_user),
-    valkey: ValkeyService = Depends(get_valkey_service)
+    redis_store: RedisService = Depends(get_redis_service)
 ) -> CarnetBordResponse:
     """
     Enregistrer un retour de véhicule.
@@ -97,7 +97,7 @@ async def enregistrer_retour(
     Args:
         retour: Données du formulaire de retour
         current_user: Utilisateur authentifié
-        valkey: Service Valkey
+        redis_store: Service Redis
 
     Returns:
         Confirmation de l'enregistrement
@@ -107,8 +107,8 @@ async def enregistrer_retour(
         400: Véhicule non pris
         500: Erreur lors de l'enregistrement
     """
-    # Get vehicle data from Valkey
-    vehicule = await valkey.get_vehicle_by_nom_synthetique(retour.vehicule_id)
+    # Get vehicle data from Redis
+    vehicule = await redis_store.get_vehicle_by_nom_synthetique(retour.vehicule_id)
 
     if not vehicule:
         raise HTTPException(
@@ -117,7 +117,7 @@ async def enregistrer_retour(
         )
 
     # Check if vehicle is currently taken
-    derniere_prise = await valkey.get_derniere_prise(vehicule.immat)
+    derniere_prise = await redis_store.get_derniere_prise(vehicule.immat)
     if not derniere_prise:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -125,8 +125,8 @@ async def enregistrer_retour(
         )
 
     try:
-        # Register retour in Valkey
-        timestamp = await valkey.enregistrer_retour(
+        # Register retour in Redis
+        timestamp = await redis_store.enregistrer_retour(
             immat=vehicule.immat,
             benevole_nom=retour.benevole_nom,
             benevole_prenom=retour.benevole_prenom,
@@ -159,7 +159,7 @@ async def enregistrer_retour(
 async def get_derniere_prise(
     vehicule_id: str,
     current_user: User = Depends(require_authenticated_user),
-    valkey: ValkeyService = Depends(get_valkey_service)
+    redis_store: RedisService = Depends(get_redis_service)
 ) -> Optional[DernierePrise]:
     """
     Récupérer la dernière prise d'un véhicule pour comparaison.
@@ -167,7 +167,7 @@ async def get_derniere_prise(
     Args:
         vehicule_id: Nom synthétique du véhicule
         current_user: Utilisateur authentifié
-        valkey: Service Valkey
+        redis_store: Service Redis
 
     Returns:
         Dernière prise ou None si aucune prise trouvée
@@ -175,8 +175,8 @@ async def get_derniere_prise(
     Raises:
         404: Véhicule non trouvé
     """
-    # Get vehicle from Valkey
-    vehicule = await valkey.get_vehicle_by_nom_synthetique(vehicule_id)
+    # Get vehicle from Redis
+    vehicule = await redis_store.get_vehicle_by_nom_synthetique(vehicule_id)
 
     if not vehicule:
         raise HTTPException(
@@ -184,8 +184,8 @@ async def get_derniere_prise(
             detail=f"Véhicule '{vehicule_id}' non trouvé"
         )
 
-    # Get last prise from Valkey
-    derniere_prise = await valkey.get_derniere_prise(vehicule.immat)
+    # Get last prise from Redis
+    derniere_prise = await redis_store.get_derniere_prise(vehicule.immat)
 
     if derniere_prise:
         return DernierePrise(

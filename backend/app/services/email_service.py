@@ -19,6 +19,10 @@ class EmailService:
         sender_email: str,
         dossier_description: Optional[List[str]] = None,
         dossier_commentaire: Optional[str] = None,
+        est_sinistre: bool = False,
+        franchise_applicable: bool = False,
+        montant_franchise: float = 0.0,
+        total_devis: float = 0.0,
     ) -> Dict[str, Any]:
         """
         Send an HTML email with devis details and approve/reject links.
@@ -96,6 +100,7 @@ CLEF - Gestion de flotte Croix-Rouge"""
 <tr><td style="padding: 10px; border: 1px solid #ddd; background: #f5f5f5;"><strong>Date du devis</strong></td>
     <td style="padding: 10px; border: 1px solid #ddd;">{date_devis}</td></tr>
 </table>
+{self._build_cost_html(est_sinistre, franchise_applicable, montant_franchise, total_devis)}
 {travaux_html}
 {commentaire_html}
 {drive_link}
@@ -131,6 +136,10 @@ CLEF - Gestion de flotte Croix-Rouge"""
         sender_email: str,
         dossier_description: Optional[List[str]] = None,
         dossier_commentaire: Optional[str] = None,
+        est_sinistre: bool = False,
+        franchise_applicable: bool = False,
+        montant_franchise: float = 0.0,
+        total_devis: float = 0.0,
     ) -> Dict[str, Any]:
         """
         Send ONE summary HTML email with all devis info and a single approval link.
@@ -221,6 +230,7 @@ CLEF - Gestion de flotte Croix-Rouge"""
 </tr>
 {rows_html}
 </table>
+{self._build_cost_html(est_sinistre, franchise_applicable, montant_franchise, total_devis)}
 {travaux_html}
 {commentaire_html}
 <p style="margin: 24px 0;">
@@ -244,6 +254,44 @@ CLEF - Gestion de flotte Croix-Rouge"""
 
         logger.info(f"Bulk approval email sent to {valideur_email} for {nb} devis in dossier {numero_dossier}")
         return result
+
+    def _build_cost_html(
+        self,
+        est_sinistre: bool,
+        franchise_applicable: bool,
+        montant_franchise: float,
+        total_devis: float,
+    ) -> str:
+        """Build HTML section showing cost info for approval emails."""
+        if total_devis <= 0:
+            return ""
+
+        if est_sinistre:
+            cout_crf = montant_franchise if franchise_applicable else 0
+            sinistre_label = "Sinistre — Responsable (franchise à payer)" if franchise_applicable else "Sinistre — Non Responsable"
+            html = f"""
+<div style="display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 600; color: #e65100; margin: 16px 0 8px;">
+  ⚠️ {sinistre_label}
+</div>
+<table style="border-collapse: collapse; margin: 0 0 16px; width: 100%;">
+<tr>
+  <td colspan="2" style="padding: 16px; background: #e8f5e9; border: 2px solid #2e7d32; border-radius: 8px; text-align: center;">
+    <div style="font-size: 13px; color: #2e7d32; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px;">Coût pour la Croix-Rouge</div>
+    <div style="font-size: 28px; font-weight: 700; color: #2e7d32; margin: 4px 0;">{cout_crf:.2f} €</div>
+  </td>
+</tr>
+<tr>
+  <td style="padding: 8px 10px; color: #666; font-size: 13px;">Coût total des travaux</td>
+  <td style="padding: 8px 10px; color: #666; font-size: 13px; text-align: right;">{total_devis:.2f} €</td>
+</tr>
+</table>"""
+        else:
+            html = f"""
+<table style="border-collapse: collapse; margin: 10px 0; width: 100%;">
+<tr><td style="padding: 10px; border: 1px solid #ddd; background: #f5f5f5;"><strong>Coût des travaux</strong></td>
+    <td style="padding: 10px; border: 1px solid #ddd; font-weight: bold;">{total_devis:.2f} €</td></tr>
+</table>"""
+        return html
 
 
 # Global instance

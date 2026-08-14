@@ -1,23 +1,23 @@
-"""FastAPI dependencies for ValkeyService."""
+"""FastAPI dependencies for RedisService."""
 from typing import Optional
 from fastapi import Depends
 from app.auth.models import User
 from app.auth.dependencies import require_authenticated_user
 from app.cache import get_cache
-from app.services.valkey_service import ValkeyService
+from app.services.redis_service import RedisService
 
 
-async def get_valkey_service(
+async def get_redis_service(
     current_user: User = Depends(require_authenticated_user)
-) -> ValkeyService:
+) -> RedisService:
     """
-    Get ValkeyService instance for the current user's DT.
+    Get RedisService instance for the current user's DT.
     
     Args:
         current_user: Authenticated user with DT information
         
     Returns:
-        ValkeyService instance configured for user's DT
+        RedisService instance configured for user's DT
         
     Raises:
         RuntimeError: If Redis connection is not available
@@ -31,20 +31,20 @@ async def get_valkey_service(
     if not cache.client:
         raise RuntimeError("Redis client not available")
     
-    return ValkeyService(redis_client=cache.client, dt=current_user.dt)
+    return RedisService(redis_client=cache.client, dt=current_user.dt)
 
 
-async def get_valkey_service_optional(
+async def get_redis_service_optional(
     current_user: Optional[User] = None
-) -> Optional[ValkeyService]:
+) -> Optional[RedisService]:
     """
-    Get ValkeyService instance if user is authenticated.
+    Get RedisService instance if user is authenticated.
     
     Args:
         current_user: Optional authenticated user
         
     Returns:
-        ValkeyService instance or None if user not authenticated
+        RedisService instance or None if user not authenticated
     """
     if not current_user:
         return None
@@ -58,5 +58,5 @@ async def get_valkey_service_optional(
     if not cache.client:
         return None
     
-    return ValkeyService(redis_client=cache.client, dt=current_user.dt)
+    return RedisService(redis_client=cache.client, dt=current_user.dt)
 

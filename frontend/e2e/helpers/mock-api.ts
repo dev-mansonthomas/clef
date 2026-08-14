@@ -65,7 +65,11 @@ export async function setupApiMocks(page: Page) {
     });
   });
 
-  await page.route('**/api/calendar/reservations', async (route) => {
+  // ⚠️ La route réelle porte le segment `{dt}` : `/api/calendar/{dt}/reservations`
+  // (calendar.service.ts:36). Avec `**/api/calendar/reservations`, le mock ne
+  // correspondait jamais et le calendrier restait vide — même classe de bug que
+  // pour l'import de véhicules.
+  await page.route('**/api/calendar/*/reservations**', async (route) => {
     if (route.request().method() === 'POST') {
       await route.fulfill({
         status: 201,
@@ -79,13 +83,16 @@ export async function setupApiMocks(page: Page) {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({ reservations: mockReservations }),
+        body: JSON.stringify({ count: mockReservations.length, reservations: mockReservations }),
       });
     }
   });
 
-  // Mock carnet de bord endpoints
-  await page.route('**/api/carnet-bord/prise', async (route) => {
+  // Mock carnet de bord endpoints.
+  // ⚠️ Le préfixe réel est `/api/carnet-de-bord` — avec le « de » — côté backend
+  // (routers/carnet_bord.py:18) comme côté service (carnet-bord.service.ts:16).
+  // Les motifs `**/api/carnet-bord/*` ne correspondaient donc jamais.
+  await page.route('**/api/carnet-de-bord/prise', async (route) => {
     await route.fulfill({
       status: 201,
       contentType: 'application/json',
@@ -96,7 +103,7 @@ export async function setupApiMocks(page: Page) {
     });
   });
 
-  await page.route('**/api/carnet-bord/retour', async (route) => {
+  await page.route('**/api/carnet-de-bord/retour', async (route) => {
     await route.fulfill({
       status: 201,
       contentType: 'application/json',
@@ -122,8 +129,13 @@ export async function setupApiMocks(page: Page) {
     });
   });
 
-  // Mock vehicle import endpoint
-  await page.route('**/api/vehicles/import', async (route) => {
+  // Mock vehicle import endpoint.
+  // ⚠️ La route réelle est `/api/{dt}/import/vehicles`
+  // (vehicle-import.service.ts:122), et non `/api/vehicles/import`. Avec l'ancien
+  // motif, le mock ne correspondait jamais : la requête partait vers le proxy du
+  // serveur de dev, échouait en `ENOTFOUND backend`, et l'app affichait
+  // « Erreur lors de l'import » — ce que le test prenait pour un succès manqué.
+  await page.route('**/api/*/import/vehicles', async (route) => {
     if (route.request().method() === 'POST') {
       await route.fulfill({
         status: 200,
@@ -334,6 +346,36 @@ export async function setupApiMocks(page: Page) {
           montant_crf: 920.00,
           devis_id: 'd-001',
           fichier: { file_id: 'mock-file-facture-1', name: 'Facture 01 - Garage Martin.pdf', web_view_link: 'https://drive.google.com/file/d/mock-file-facture-1/view' },
+          cree_par: 'test@croix-rouge.fr',
+          cree_le: '2026-03-20T15:00:00Z'
+        }),
+      });
+    } else {
+      await route.fallback();
+    }
+  });
+
+  // Single facture endpoint (PATCH for edit)
+  await page.route('**/api/*/vehicles/*/dossiers-reparation/*/factures/*', async (route) => {
+    const url = route.request().url();
+    // Skip sub-resources like upload
+    if (url.includes('/upload')) {
+      return route.fallback();
+    }
+    if (route.request().method() === 'PATCH') {
+      const body = JSON.parse(route.request().postData() || '{}');
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          id: 'fac-001',
+          date_facture: body.date_facture || '2026-03-20',
+          fournisseur: { id: body.fournisseur_id || 'f-001', nom: body.fournisseur_nom || 'Garage Martin' },
+          classification: body.classification || 'entretien_courant',
+          description: body.description_travaux || 'Remplacement plaquettes et disques avant',
+          montant_total: body.montant_total || 920.00,
+          montant_crf: body.montant_crf || 920.00,
+          devis_id: body.devis_id || 'd-001',
           cree_par: 'test@croix-rouge.fr',
           cree_le: '2026-03-20T15:00:00Z'
         }),

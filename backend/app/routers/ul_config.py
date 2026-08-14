@@ -9,8 +9,8 @@ from pydantic import BaseModel
 
 from app.auth.dependencies import require_authenticated_user
 from app.auth.models import User
-from app.services.valkey_dependencies import get_valkey_service
-from app.services.valkey_service import ValkeyService
+from app.services.redis_dependencies import get_redis_service
+from app.services.redis_service import RedisService
 
 logger = logging.getLogger(__name__)
 
@@ -110,10 +110,10 @@ def _ensure_ul_access(current_user: User, ul_id: str, ul_data: dict[str, Any]) -
 async def get_ul_config(
     ul_id: str,
     current_user: User = Depends(require_authenticated_user),
-    valkey: ValkeyService = Depends(get_valkey_service),
+    redis_store: RedisService = Depends(get_redis_service),
 ) -> dict[str, Any]:
     """Récupère la configuration d'une UL."""
-    ul_data = await valkey.redis.json().get(f"{valkey.dt}:unite_locale:{ul_id}")
+    ul_data = await redis_store.redis.json().get(f"{redis_store.dt}:unite_locale:{ul_id}")
     if not ul_data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -135,10 +135,10 @@ async def update_ul_config(
     ul_id: str,
     config: ULConfig,
     current_user: User = Depends(require_authenticated_user),
-    valkey: ValkeyService = Depends(get_valkey_service),
+    redis_store: RedisService = Depends(get_redis_service),
 ) -> dict[str, Any]:
     """Met à jour la configuration d'une UL."""
-    ul_data = await valkey.redis.json().get(f"{valkey.dt}:unite_locale:{ul_id}")
+    ul_data = await redis_store.redis.json().get(f"{redis_store.dt}:unite_locale:{ul_id}")
     if not ul_data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

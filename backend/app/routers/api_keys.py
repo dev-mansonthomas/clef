@@ -5,7 +5,7 @@ from typing import Annotated, List, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
-from app.services.valkey_service import ValkeyService
+from app.services.redis_service import RedisService
 from app.auth.models import User
 from app.auth.dependencies import require_dt_manager
 from app.cache import get_cache
@@ -33,8 +33,8 @@ class ApiKeyResponse(BaseModel):
     last_used: str | None
 
 
-async def get_valkey_for_dt(dt: str) -> ValkeyService:
-    """Get ValkeyService instance for a specific DT."""
+async def get_redis_for_dt(dt: str) -> RedisService:
+    """Get RedisService instance for a specific DT."""
     cache = get_cache()
     
     if not cache._connected:
@@ -46,7 +46,7 @@ async def get_valkey_for_dt(dt: str) -> ValkeyService:
             detail="Database connection not available"
         )
     
-    return ValkeyService(redis_client=cache.client, dt=dt)
+    return RedisService(redis_client=cache.client, dt=dt)
 
 
 # ========== DT-level API Keys ==========
@@ -67,8 +67,8 @@ async def list_api_keys_dt(
     Returns:
         List of API keys with masked key values
     """
-    valkey = await get_valkey_for_dt(dt)
-    api_keys = await valkey.list_api_keys_dt(mask_keys=True)
+    redis_store = await get_redis_for_dt(dt)
+    api_keys = await redis_store.list_api_keys_dt(mask_keys=True)
     return [ApiKeyResponse(**key) for key in api_keys]
 
 
@@ -90,14 +90,14 @@ async def create_api_key_dt(
     Returns:
         Created API key with full key value (only shown once)
     """
-    valkey = await get_valkey_for_dt(dt)
+    redis_store = await get_redis_for_dt(dt)
 
     try:
         # Auto-generate name based on key type and environment
         env = os.getenv("ENVIRONMENT", "DEV")
         key_name = f"{api_key_data.key_type}-{env}"
 
-        api_key = await valkey.generate_api_key_dt(
+        api_key = await redis_store.generate_api_key_dt(
             name=key_name,
             created_by=current_user.email
         )
@@ -126,9 +126,9 @@ async def delete_api_key_dt(
         dt: DT identifier
         key_id: ID of the API key to delete
     """
-    valkey = await get_valkey_for_dt(dt)
+    redis_store = await get_redis_for_dt(dt)
     
-    success = await valkey.delete_api_key_dt(key_id)
+    success = await redis_store.delete_api_key_dt(key_id)
     if not success:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -158,8 +158,8 @@ async def list_api_keys_ul(
     Returns:
         List of API keys with masked key values
     """
-    valkey = await get_valkey_for_dt(dt)
-    api_keys = await valkey.list_api_keys_ul(ul_id, mask_keys=True)
+    redis_store = await get_redis_for_dt(dt)
+    api_keys = await redis_store.list_api_keys_ul(ul_id, mask_keys=True)
     return [ApiKeyResponse(**key) for key in api_keys]
 
 
@@ -183,14 +183,14 @@ async def create_api_key_ul(
     Returns:
         Created API key with full key value (only shown once)
     """
-    valkey = await get_valkey_for_dt(dt)
+    redis_store = await get_redis_for_dt(dt)
 
     try:
         # Auto-generate name based on key type and environment
         env = os.getenv("ENVIRONMENT", "DEV")
         key_name = f"{api_key_data.key_type}-{env}"
 
-        api_key = await valkey.generate_api_key_ul(
+        api_key = await redis_store.generate_api_key_ul(
             ul_id=ul_id,
             name=key_name,
             created_by=current_user.email
@@ -227,9 +227,9 @@ async def delete_api_key_ul(
         ul_id: UL identifier
         key_id: ID of the API key to delete
     """
-    valkey = await get_valkey_for_dt(dt)
+    redis_store = await get_redis_for_dt(dt)
 
-    success = await valkey.delete_api_key_ul(ul_id, key_id)
+    success = await redis_store.delete_api_key_ul(ul_id, key_id)
     if not success:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

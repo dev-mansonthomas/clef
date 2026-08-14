@@ -1,40 +1,55 @@
+# Versions mesurées vertes ensemble sur CPython 3.14.6 contre redis:8.10
+# le 2026-08-13 (369 tests, 0 échec). Voir docs/specs/ci-verte-redis-8.md.
+
 # FastAPI and server
-fastapi==0.115.0
-uvicorn[standard]==0.32.0
-pydantic==2.9.2
-pydantic-settings==2.6.0
-email-validator==2.2.0
+fastapi==0.141.1
+uvicorn[standard]==0.52.3
+pydantic==2.13.4
+pydantic-settings==2.15.0
+email-validator==2.3.0
 
 # Redis client (with async support)
+# Volontairement laissé en 5.2.0 : fonctionne inchangé contre Redis 8.10, et la
+# montée en 7.x n'a pas été mesurée (décision D-D de la spec).
 redis==5.2.0
 
 # Google APIs
-google-api-python-client==2.154.0
-google-auth==2.36.0
+google-api-python-client==2.198.0
+google-auth==2.56.3
 google-auth-httplib2==0.2.0
-google-auth-oauthlib==1.2.1
-google-cloud-kms==2.21.0
+google-auth-oauthlib==1.4.0
+# google-cloud-kms < 3 entraîne protobuf 4.x, incompatible avec Python 3.14 :
+# "TypeError: Metaclasses with custom tp_new are not supported" à l'import de
+# google.cloud.kms → 25 erreurs de collecte. Ne pas redescendre sous 3.x.
+google-cloud-kms==3.16.0
 
 # Google OAuth authentication
-authlib==1.3.2
-PyJWT==2.9.0
+authlib==1.7.2
+PyJWT==2.13.0
 
 # Utilities
-python-dotenv==1.0.1
-python-multipart==0.0.12
+python-dotenv==1.2.2
+python-multipart==0.0.32
 
 # Image processing
-Pillow==11.0.0
+# Pillow < 12 n'a pas de wheel cp314 : l'install tente un build source et échoue
+# sur les en-têtes libjpeg absentes. Ne pas redescendre sous 12.x.
+Pillow==12.3.0
 
 # Scheduler
-APScheduler==3.10.4
+APScheduler==3.11.3
 
 # iCalendar generation
-icalendar==6.1.0
+icalendar==7.2.2
 
 # Testing
-pytest==8.3.4
-pytest-asyncio==0.24.0
-fakeredis==2.26.2
-httpx==0.27.2
-
+pytest==9.1.1
+pytest-asyncio==1.4.0
+# extra [json] requis : le code utilise JSON.SET/JSON.GET (RedisJSON).
+# Sans jsonpath-ng, fakeredis répond "unknown command `json.set`" → 56 tests en échec.
+fakeredis[json]==2.37.0
+httpx==0.28.1
+# Requis par tests/test_ci_workflow.py, qui relit .github/workflows/ci.yml.
+# Arrivait jusqu'ici en transitif (uvicorn[standard]) : épinglé explicitement pour
+# que ces assertions ne deviennent pas silencieusement inertes.
+PyYAML==6.0.3

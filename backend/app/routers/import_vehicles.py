@@ -16,11 +16,11 @@ from app.models.import_models import (
     ColumnMapping,
     ImportError
 )
-from app.models.valkey_models import VehicleData
+from app.models.redis_models import VehicleData
 from app.auth.models import User
 from app.auth.dependencies import require_authenticated_user
-from app.services.valkey_dependencies import get_valkey_service
-from app.services.valkey_service import ValkeyService
+from app.services.redis_dependencies import get_redis_service
+from app.services.redis_service import RedisService
 
 logger = logging.getLogger(__name__)
 
@@ -257,7 +257,7 @@ async def import_csv(
     file: UploadFile = File(...),
     config_json: str = Form(..., description="JSON string of ImportConfig"),
     current_user: User = Depends(require_authenticated_user),
-    valkey_service: ValkeyService = Depends(get_valkey_service)
+    redis_service: RedisService = Depends(get_redis_service)
 ) -> ImportResult:
     """
     Import vehicles from CSV with provided column mapping.
@@ -267,7 +267,7 @@ async def import_csv(
         file: CSV file to import
         config: Import configuration with column mappings
         current_user: Authenticated user
-        valkey_service: Valkey service instance
+        redis_service: Redis service instance
 
     Returns:
         Import result with statistics and errors
@@ -455,7 +455,7 @@ async def import_csv(
                 vehicle_dict["suivi_mode"] = values.get("suivi_mode", "prise")
 
             # Check if vehicle already exists
-            existing = await valkey_service.get_vehicle(immat)
+            existing = await redis_service.get_vehicle(immat)
 
             # Create VehicleData object
             try:
@@ -468,8 +468,8 @@ async def import_csv(
                 ))
                 continue
 
-            # Save to Valkey
-            success = await valkey_service.set_vehicle(vehicle_data)
+            # Save to Redis
+            success = await redis_service.set_vehicle(vehicle_data)
 
             if success:
                 if existing:

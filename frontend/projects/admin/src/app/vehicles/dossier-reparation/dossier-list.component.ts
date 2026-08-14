@@ -47,9 +47,9 @@ import { DossierReparation } from '../../models/repair.model';
           <p class="dossier-description">{{ truncateDescription(d.description, 80) }}</p>
           <div class="dossier-meta">
             <span class="statut-badge" [ngClass]="'statut-' + d.statut">{{ statutLabel(d.statut) }}</span>
-            <span class="counts" *ngIf="d.devis?.length || d.factures?.length">
-              <span *ngIf="d.devis?.length"><mat-icon class="small-icon">request_quote</mat-icon> {{ d.devis.length }} devis</span>
-              <span *ngIf="d.factures?.length"><mat-icon class="small-icon">receipt</mat-icon> {{ d.factures.length }} factures</span>
+            <span class="counts" *ngIf="d.devis.length || d.factures.length">
+              <span *ngIf="d.devis.length"><mat-icon class="small-icon">request_quote</mat-icon> {{ d.devis.length }} devis</span>
+              <span *ngIf="d.factures.length"><mat-icon class="small-icon">receipt</mat-icon> {{ d.factures.length }} factures</span>
             </span>
           </div>
         </mat-card-content>

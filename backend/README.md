@@ -17,9 +17,9 @@ backend/
 │   │   ├── routes.py         # /auth/* endpoints
 │   │   └── service.py        # Auth service (token management)
 │   ├── admin/                # Super admin routes
-│   ├── cache/                # Redis/Valkey cache layer
+│   ├── cache/                # Redis cache layer
 │   ├── models/               # Pydantic models
-│   │   ├── valkey_models.py  # VehicleData, BenevoleData, DTConfiguration, etc.
+│   │   ├── redis_models.py   # VehicleData, BenevoleData, DTConfiguration, etc.
 │   │   ├── vehicle.py        # Vehicle API response models
 │   │   ├── reservation.py    # Reservation models
 │   │   ├── calendar.py       # Calendar models
@@ -44,7 +44,7 @@ backend/
 │   │   ├── unites_locales.py # /api/unites-locales/* — UL listing
 │   │   └── upload.py         # /api/upload/* — File uploads
 │   ├── services/             # Business logic
-│   │   ├── valkey_service.py          # Multi-tenant Valkey (JSON.SET/GET)
+│   │   ├── redis_service.py           # Multi-tenant Redis (JSON.SET/GET)
 │   │   ├── vehicle_service.py         # Vehicle enrichment & status
 │   │   ├── vehicle_document_service.py # Google Drive document management
 │   │   ├── vehicle_photo_service.py   # Vehicle photos (prise/retour)
@@ -70,7 +70,7 @@ backend/
 - **Auth**: `/auth/*` — Google OAuth 2.0 SSO, DT Manager authorization
 - **Vehicles**: `/api/vehicles/*` — CRUD, Drive documents, photos
 - **Reservations**: `/api/reservations/*` — Calendar-backed reservations
-- **Sync**: `/api/sync/*` — Google Apps Script ↔ Valkey sync (API Key auth)
+- **Sync**: `/api/sync/*` — Google Apps Script ↔ Redis sync (API Key auth)
 - **Config**: `/api/config/*` — DT configuration, Drive folder management
 - **Alerts**: `/api/alerts/*` — Email alerts for CT/assurance deadlines
 
@@ -81,10 +81,10 @@ API documentation is auto-generated at:
 
 ## Data Storage
 
-- **Valkey 8** (Redis-compatible) as primary database
+- **Redis 8.10** as primary database
 - Multi-tenant with DT prefix: `DTXX:vehicules:*`, `DTXX:benevoles:*`, etc.
 - JSON module for native JSON operations (`JSON.SET`, `JSON.GET`)
-- No SQL database — Valkey is the single source of truth
+- No SQL database — Redis is the single source of truth
 
 ## Google APIs Integration
 
@@ -95,7 +95,7 @@ API documentation is auto-generated at:
 | Gmail | — | Alert emails (CT expiring, insurance) |
 | Sheets | — | Read-only referential (via Google Apps Script sync) |
 
-Auth: DT Manager's OAuth tokens, encrypted via Cloud KMS, stored in Valkey.
+Auth: DT Manager's OAuth tokens, encrypted via Cloud KMS, stored in Redis.
 
 ## Dev Setup
 
@@ -107,7 +107,7 @@ docker compose up
 cd backend
 pip install -e ".[dev]"
 uvicorn app.main:app --reload
-# Requires Valkey running on localhost:6379
+# Requires Redis 8.10 running on localhost:6379
 ```
 
 ## Testing
@@ -122,6 +122,6 @@ cd backend && python -m pytest tests/ -x -q
 | --- | --- |
 | GOOGLE_CLIENT_ID | Google OAuth client ID |
 | GOOGLE_CLIENT_SECRET | Google OAuth client secret |
-| REDIS_URL | Valkey/Redis connection URL |
+| REDIS_URL | Redis connection URL |
 | USE_MOCKS | Enable mock services for dev/testing |
 | SESSION_SECRET_KEY | Secret key for session encryption |

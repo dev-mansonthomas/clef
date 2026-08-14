@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 class ColumnMapping(BaseModel):
     """Mapping between CSV column index and target field."""
     csv_column: int = Field(..., description="Index of the CSV column (0-based)")
-    target_field: str = Field(..., description="Target Valkey field name or 'skip'")
+    target_field: str = Field(..., description="Target Redis field name or 'skip'")
     
     class Config:
         json_schema_extra = {

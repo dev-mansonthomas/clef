@@ -1,21 +1,22 @@
 services:
-  # Valkey 8 Bundle - iso Google Cloud Memorystore for Valkey 8 (JSON, Search, etc.)
-  valkey:
-    image: valkey/valkey-bundle:8
-    container_name: clef-valkey
+  # Redis 8.10 - l'image officielle embarque RedisJSON, Search, TimeSeries et Bloom.
+  # Le module JSON est une dépendance dure de ValkeyService (JSON.SET / JSON.GET).
+  redis:
+    image: redis:8.10
+    container_name: clef-redis
     ports:
       - "6379:6379"
     volumes:
-      - valkey-data:/data
+      - redis-data:/data
     healthcheck:
-      test: ["CMD", "valkey-cli", "ping"]
+      test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 3s
       retries: 5
     networks:
       - clef-network
 
-  # Backend - FastAPI with Python 3.13
+  # Backend - FastAPI with Python 3.14
   backend:
     build:
       context: ./backend
@@ -31,12 +32,22 @@ services:
       - ./backend/.env
     environment:
       - PYTHONUNBUFFERED=1
-      - REDIS_HOST=valkey
+      - REDIS_HOST=redis
       - REDIS_PORT=6379
-      - REDIS_URL=redis://valkey:6379/0
+      - REDIS_URL=redis://redis:6379/0
       - ENV=dev
+      # Mode mock par défaut : cette VM de développement ne détient aucune
+      # credential Google sortante, et sans mocks le backend échoue au démarrage sur
+      # `/credentials/clef-backend-dev-key.json` (constat H11 de docs/TODO.md).
+      # Surchargeable depuis le shell : `USE_MOCKS=false docker compose up`.
+      #
+      # Sûr depuis la pose du garde-fou S1 : `assert_mocks_not_in_production()`
+      # (app/mocks/service_factory.py) refuse l'import de l'app si `USE_MOCKS=true`
+      # avec `ENVIRONMENT`/`ENV` en production. Ce fichier ne sert de toute façon
+      # qu'au développement local — la production passe par Cloud Run.
+      - USE_MOCKS=${USE_MOCKS:-true}
     depends_on:
-      valkey:
+      redis:
         condition: service_healthy
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     healthcheck:
@@ -96,7 +107,7 @@ networks:
     driver: bridge
 
 volumes:
-  valkey-data:
+  redis-data:
   backend-cache:
   frontend-cache:
   frontend-form-cache:

@@ -18,7 +18,7 @@ class DTTokenService:
         self.kms = kms_service
     
     def _get_token_key(self, dt_id: str) -> str:
-        """Build Valkey key for DT tokens."""
+        """Build Redis key for DT tokens."""
         return f"{dt_id}:oauth:dt_manager_tokens"
     
     async def store_tokens(

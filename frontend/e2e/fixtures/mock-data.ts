@@ -1,6 +1,13 @@
 /**
  * Mock data for E2E tests
  * Matches the backend mock data structure
+ *
+ * ⚠️ `status_ct`, `status_pollution` et `status_disponibilite` sont des **objets**
+ * `{ value, color }` — c'est ce que renvoie l'API et ce que lit le gabarit
+ * (`vehicle-list.component.html:80,106` → `vehicle.status_ct.color`). Ils étaient
+ * ici de simples chaînes : `.color` valait donc `undefined`, la classe rendue était
+ * `status-undefined`, et le test des couleurs de statut échouait sans que la cause
+ * soit visible.
  */
 
 export const mockVehicles = [
@@ -25,9 +32,9 @@ export const mockVehicles = [
     assurance_2026: 'OK',
     numero_serie_baus: 'BAUS001',
     couleur_calendrier: '#FF5733',
-    status_ct: 'green',
-    status_pollution: 'green',
-    status_disponibilite: 'green'
+    status_ct: { value: '2026-06-15', color: 'green' },
+    status_pollution: { value: '2026-06-15', color: 'green' },
+    status_disponibilite: { value: 'Dispo', color: 'green' }
   },
   {
     dt_ul: 'UL Paris 15',
@@ -50,9 +57,9 @@ export const mockVehicles = [
     assurance_2026: 'OK',
     numero_serie_baus: 'BAUS002',
     couleur_calendrier: '#33C3FF',
-    status_ct: 'orange',
-    status_pollution: 'orange',
-    status_disponibilite: 'green'
+    status_ct: { value: '2026-03-20', color: 'orange' },
+    status_pollution: { value: '2026-03-20', color: 'orange' },
+    status_disponibilite: { value: 'Dispo', color: 'green' }
   }
 ];
 
@@ -66,20 +73,48 @@ export const mockUser = {
   type_perimetre: 'UL'
 };
 
+/**
+ * Réservations au **contrat réel** de l'API Redis
+ * (`RedisReservationCreate`, backend/app/models/reservation.py:33-41 et
+ * projects/form/src/app/models/reservation.model.ts:5-14) :
+ * `vehicule_immat`, `chauffeur_nivol`, `chauffeur_nom` (nom complet), `mission`,
+ * `debut`, `fin`.
+ *
+ * ⚠️ Ce mock portait auparavant `vehicule_id`, `indicatif`, `chauffeur_prenom`,
+ * `date_debut`, `date_fin` — le modèle de l'ancienne API Google Calendar. Le
+ * composant calendrier lit `reservation.vehicule_immat` et `reservation.debut`
+ * (calendar-view.component.ts:150-152) : aucun événement ne pouvait donc
+ * s'afficher. C'est l'illustration concrète du constat H8 de docs/TODO.md — deux
+ * modèles de réservation coexistent dans le dépôt.
+ *
+ * ⚠️ Les horaires sont **calés sur 09 h–12 h locales**, pas sur `Date.now() + 24 h`.
+ * Le calendrier n'affiche que la plage `slotMinTime: '06:00:00'` →
+ * `slotMaxTime: '22:00:00'` (calendar-view.component.ts:57-58) : une réservation
+ * placée « dans 24 h » tombait hors plage — donc invisible — dès que la suite
+ * tournait avant 6 h ou après 22 h. Le test était vert le jour et rouge le soir.
+ */
+const tomorrowAt = (hours: number): string => {
+  const date = new Date();
+  date.setDate(date.getDate() + 1);
+  date.setHours(hours, 0, 0, 0);
+  return date.toISOString();
+};
+
 export const mockReservations = [
   {
     id: 'res-1',
-    vehicule_id: 'VL75-01-KANGOO',
-    indicatif: 'VL75-01',
-    chauffeur_nom: 'Dupont',
-    chauffeur_prenom: 'Jean',
+    vehicule_immat: 'AB-123-CD',
+    chauffeur_nivol: '00123456A',
+    chauffeur_nom: 'Jean Dupont',
     mission: 'Mission Secours',
-    date_debut: new Date(Date.now() + 86400000).toISOString(), // Tomorrow
-    date_fin: new Date(Date.now() + 90000000).toISOString(),
+    debut: tomorrowAt(9),  // demain 09 h locale, dans la plage affichée
+    fin: tomorrowAt(12),
+    lieu_depart: 'Garage UL Paris 15',
     commentaire: 'Transport matériel',
-    couleur: '#FF5733'
+    created_by: 'test@croix-rouge.fr',
+    created_at: new Date().toISOString()
   }
-];
+]
 
 export const mockDossiers = [
   {
@@ -89,6 +124,8 @@ export const mockDossiers = [
     titre: 'Freins avant usés',
     description: ['Réparation freins avant', 'Plaquettes et disques usés'],
     statut: 'ouvert',
+    est_sinistre: false,
+    franchise_applicable: false,
     cree_par: 'test@croix-rouge.fr',
     cree_le: '2026-03-15T10:30:00Z',
     devis: [
@@ -211,5 +248,8 @@ export const mockApprobationData = {
   valideur_email: 'test@croix-rouge.fr',
   status: 'pending',
   created_at: '2026-03-16T12:00:00Z',
-  expires_at: '2026-03-23T12:00:00Z'
+  expires_at: '2026-03-23T12:00:00Z',
+  est_sinistre: false,
+  franchise_applicable: false,
+  montant_franchise: 350
 };

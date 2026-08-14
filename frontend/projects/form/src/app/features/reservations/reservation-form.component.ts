@@ -17,7 +17,7 @@ import { ReservationService } from '../../services/reservation.service';
 import { VehicleService } from '../../services/vehicle.service';
 import { AuthService } from '../../services/auth.service';
 import { Vehicle } from '../../models/vehicle.model';
-import { Benevole, ValkeyReservationCreate } from '../../models/reservation.model';
+import { Benevole, RedisReservationCreate } from '../../models/reservation.model';
 import { Observable, startWith, map } from 'rxjs';
 
 /**
@@ -182,7 +182,7 @@ export class ReservationFormComponent implements OnInit {
     const dt = 'DT75';
 
     const formValue = this.reservationForm.value;
-    const reservationData: ValkeyReservationCreate = {
+    const reservationData: RedisReservationCreate = {
       vehicule_immat: formValue.vehicule_immat,
       chauffeur_nivol: formValue.chauffeur_nivol,
       chauffeur_nom: formValue.chauffeur_nom,

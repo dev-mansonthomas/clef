@@ -98,7 +98,9 @@ echo -n "thomas.manson@croix-rouge.fr" | gcloud secrets create EMAIL_GESTIONNAIR
   --replication-policy="automatic" \
   --project=$PROJECT_ID
 
-echo -n "Magalie.WERNER@s2hgroup.com" | gcloud secrets create EMAIL_DESTINATAIRE_ALERTES \
+# ⚠️ Donnée personnelle d'un contact externe : ne pas inscrire l'adresse réelle
+# dans ce document. La lire depuis $EMAIL_DESTINATAIRE_ALERTES (défini dans .env).
+echo -n "$EMAIL_DESTINATAIRE_ALERTES" | gcloud secrets create EMAIL_DESTINATAIRE_ALERTES \
   --data-file=- \
   --replication-policy="automatic" \
   --project=$PROJECT_ID

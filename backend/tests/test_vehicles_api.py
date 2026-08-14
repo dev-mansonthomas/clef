@@ -28,13 +28,13 @@ with open(_mock_data_path) as _f:
 for _v in MOCK_VEHICLES:
     _v["dt"] = "DT75"
 
-# Build a mock ValkeyService that returns only the 4 mock vehicles
-from app.models.valkey_models import VehicleData as _VehicleData
+# Build a mock RedisService that returns only the 4 mock vehicles
+from app.models.redis_models import VehicleData as _VehicleData
 _MOCK_VEHICLE_DATA = {v["immat"]: _VehicleData(**v) for v in MOCK_VEHICLES}
 
 
-class _MockValkeyService:
-    """Mock ValkeyService that returns only the 4 test vehicles."""
+class _MockRedisService:
+    """Mock RedisService that returns only the 4 test vehicles."""
     async def list_vehicles(self):
         return list(_MOCK_VEHICLE_DATA.keys())
 
@@ -49,19 +49,19 @@ class _MockValkeyService:
         return None
 
 
-def _override_valkey():
-    return _MockValkeyService()
+def _override_redis():
+    return _MockRedisService()
 
 
-from app.routers.vehicles import get_valkey_service
+from app.routers.vehicles import get_redis_service
 
 
 @pytest.fixture(autouse=True)
-def _mock_valkey_dependency():
-    """Override ValkeyService dependency for all tests in this module."""
-    app.dependency_overrides[get_valkey_service] = _override_valkey
+def _mock_redis_dependency():
+    """Override RedisService dependency for all tests in this module."""
+    app.dependency_overrides[get_redis_service] = _override_redis
     yield
-    app.dependency_overrides.pop(get_valkey_service, None)
+    app.dependency_overrides.pop(get_redis_service, None)
 
 
 client = TestClient(app)
@@ -228,7 +228,7 @@ class TestVehicleDriveDocumentsEndpoints:
     @pytest.mark.asyncio
     async def test_get_vehicle_drive_documents_success(self):
         mock_vehicle = MagicMock()
-        mock_valkey = MagicMock()
+        mock_redis = MagicMock()
         mock_user = MagicMock()
 
         with patch(
@@ -263,7 +263,7 @@ class TestVehicleDriveDocumentsEndpoints:
             result = await get_vehicle_drive_documents(
                 "VSAV-PARIS15-01",
                 current_user=mock_user,
-                valkey_service=mock_valkey,
+                redis_service=mock_redis,
             )
 
         assert result["configured"] is True
@@ -272,7 +272,7 @@ class TestVehicleDriveDocumentsEndpoints:
     @pytest.mark.asyncio
     async def test_select_vehicle_drive_document_success(self):
         mock_vehicle = MagicMock()
-        mock_valkey = MagicMock()
+        mock_redis = MagicMock()
         mock_user = MagicMock()
 
         with patch(
@@ -299,7 +299,7 @@ class TestVehicleDriveDocumentsEndpoints:
                 VehicleDocumentType.CARTE_TOTAL,
                 VehicleDocumentSelectRequest(file_id="file-total-1"),
                 current_user=mock_user,
-                valkey_service=mock_valkey,
+                redis_service=mock_redis,
             )
 
         assert result["current_file"]["file_id"] == "file-total-1"
@@ -398,7 +398,7 @@ class TestVehicleUppercaseFields:
 
     def test_vehicle_data_model_uppercase(self):
         """Test that VehicleData model forces uppercase on immat and indicatif."""
-        from app.models.valkey_models import VehicleData
+        from app.models.redis_models import VehicleData
 
         # Create vehicle data with lowercase immat and indicatif
         vehicle_data = VehicleData(

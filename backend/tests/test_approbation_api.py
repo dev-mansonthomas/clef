@@ -13,7 +13,7 @@ import fakeredis.aioredis
 from fastapi.testclient import TestClient
 from app.main import app
 from app.auth import routes as auth_routes
-from app.services.valkey_dependencies import get_valkey_service
+from app.services.redis_dependencies import get_redis_service
 
 _mock_data_path = os.path.join(os.path.dirname(__file__), "..", "app", "mocks", "data", "vehicules.json")
 with open(_mock_data_path) as _f:
@@ -21,7 +21,7 @@ with open(_mock_data_path) as _f:
 for _v in MOCK_VEHICLES:
     _v["dt"] = "DT75"
 
-from app.models.valkey_models import VehicleData as _VehicleData
+from app.models.redis_models import VehicleData as _VehicleData
 _MOCK_VEHICLE_DATA = {v["immat"]: _VehicleData(**v) for v in MOCK_VEHICLES}
 
 _dossier_store: dict = {}
@@ -33,7 +33,7 @@ _devis_counters: dict = {}
 _fake_redis = None
 
 
-class _MockValkeyService:
+class _MockRedisService:
     dt = "DT75"
 
     @property
@@ -49,7 +49,7 @@ class _MockValkeyService:
     def _key(self, *parts):
         return f"{self.dt}:{':'.join(parts)}"
 
-    async def create_dossier_reparation(self, immat, description, cree_par, commentaire=None, titre=None):
+    async def create_dossier_reparation(self, immat, description, cree_par, commentaire=None, titre=None, est_sinistre=False, franchise_applicable=False):
         from datetime import datetime
         from app.models.repair_models import DossierReparation, HistoriqueEntry, ActionHistorique
         _dossier_counters[immat] = _dossier_counters.get(immat, 0) + 1
@@ -60,6 +60,7 @@ class _MockValkeyService:
         dossier = DossierReparation(
             numero=numero, immat=immat, dt=self.dt,
             titre=titre, description=description, commentaire=commentaire,
+            est_sinistre=est_sinistre, franchise_applicable=franchise_applicable,
             cree_par=cree_par, cree_le=datetime.utcnow(),
         )
         key = self._key("vehicules", immat, "travaux", numero)
@@ -143,8 +144,8 @@ class _MockValkeyService:
 
 
 
-def _override_valkey():
-    return _MockValkeyService()
+def _override_redis():
+    return _MockRedisService()
 
 
 def _make_fake_cache():
@@ -155,21 +156,21 @@ def _make_fake_cache():
 
 
 @pytest.fixture(autouse=True)
-def _mock_valkey_and_cleanup():
+def _mock_redis_and_cleanup():
     global _fake_redis
     _fake_redis = fakeredis.aioredis.FakeRedis()
-    app.dependency_overrides[get_valkey_service] = _override_valkey
+    app.dependency_overrides[get_redis_service] = _override_redis
     fake_cache = _make_fake_cache()
-    mock_valkey = _MockValkeyService()
+    mock_redis = _MockRedisService()
 
-    # Patch ValkeyService constructor in approbation router to return our mock
-    def _mock_valkey_constructor(**kwargs):
-        return mock_valkey
+    # Patch RedisService constructor in approbation router to return our mock
+    def _mock_redis_constructor(**kwargs):
+        return mock_redis
 
     with patch("app.routers.approbation.get_cache", return_value=fake_cache), \
-         patch("app.routers.approbation.ValkeyService", side_effect=_mock_valkey_constructor):
+         patch("app.routers.approbation.RedisService", side_effect=_mock_redis_constructor):
         yield
-    app.dependency_overrides.pop(get_valkey_service, None)
+    app.dependency_overrides.pop(get_redis_service, None)
     _dossier_store.clear()
     _dossier_index.clear()
     _dossier_counters.clear()

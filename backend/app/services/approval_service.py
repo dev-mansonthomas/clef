@@ -1,4 +1,4 @@
-"""Service for managing devis approval tokens stored in Valkey."""
+"""Service for managing devis approval tokens stored in Redis."""
 import logging
 import uuid
 from datetime import datetime, timedelta
@@ -28,7 +28,7 @@ class ApprovalService:
         devis_id: str,
         valideur_email: str,
     ) -> Dict[str, Any]:
-        """Create a new approval token and store in Valkey with 7-day TTL."""
+        """Create a new approval token and store in Redis with 7-day TTL."""
         token = str(uuid.uuid4())
         now = datetime.utcnow()
         expires_at = now + timedelta(days=APPROVAL_TTL_DAYS)
@@ -80,7 +80,7 @@ class ApprovalService:
         return token_data
 
     async def invalidate_token(self, token: str) -> bool:
-        """Invalidate an existing approval token by deleting its Valkey key."""
+        """Invalidate an existing approval token by deleting its Redis key."""
         key = self._token_key(token)
         deleted = await self.redis.delete(key)
         if deleted:
@@ -88,7 +88,7 @@ class ApprovalService:
         return bool(deleted)
 
     async def get_approval_data(self, token: str) -> Optional[Dict[str, Any]]:
-        """Retrieve approval token data from Valkey."""
+        """Retrieve approval token data from Redis."""
         key = self._token_key(token)
         raw = await self.redis.get(key)
         if not raw:

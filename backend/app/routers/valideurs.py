@@ -12,8 +12,8 @@ from app.models.repair_models import (
 )
 from app.auth.models import User
 from app.auth.dependencies import require_authenticated_user
-from app.services.valkey_service import ValkeyService
-from app.services.valkey_dependencies import get_valkey_service
+from app.services.redis_service import RedisService
+from app.services.redis_dependencies import get_redis_service
 
 router = APIRouter(
     prefix="/api/{dt}/valideurs",
@@ -25,10 +25,10 @@ router = APIRouter(
 async def list_valideurs(
     dt: str,
     current_user: User = Depends(require_authenticated_user),
-    valkey_service: ValkeyService = Depends(get_valkey_service),
+    redis_service: RedisService = Depends(get_redis_service),
 ) -> ValideurListResponse:
     """List all valideurs for this DT."""
-    valideurs = await valkey_service.list_valideurs()
+    valideurs = await redis_service.list_valideurs()
     return ValideurListResponse(count=len(valideurs), valideurs=valideurs)
 
 
@@ -37,7 +37,7 @@ async def create_valideur(
     dt: str,
     body: ValideurCreate,
     current_user: User = Depends(require_authenticated_user),
-    valkey_service: ValkeyService = Depends(get_valkey_service),
+    redis_service: RedisService = Depends(get_redis_service),
 ) -> Valideur:
     """Add a new valideur. Only Gestionnaire DT can create valideurs."""
     if current_user.role != "Gestionnaire DT":
@@ -58,7 +58,7 @@ async def create_valideur(
         cree_le=datetime.utcnow(),
     )
 
-    success = await valkey_service.set_valideur(valideur)
+    success = await redis_service.set_valideur(valideur)
     if not success:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -73,7 +73,7 @@ async def update_valideur(
     valideur_id: str,
     body: ValideurUpdate,
     current_user: User = Depends(require_authenticated_user),
-    valkey_service: ValkeyService = Depends(get_valkey_service),
+    redis_service: RedisService = Depends(get_redis_service),
 ) -> Valideur:
     """Update a valideur. Only Gestionnaire DT can update valideurs."""
     if current_user.role != "Gestionnaire DT":
@@ -82,7 +82,7 @@ async def update_valideur(
             detail="Only Gestionnaire DT can manage valideurs",
         )
 
-    valideur = await valkey_service.get_valideur(valideur_id)
+    valideur = await redis_service.get_valideur(valideur_id)
     if not valideur:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -94,7 +94,7 @@ async def update_valideur(
     for field, value in update_data.items():
         setattr(valideur, field, value)
 
-    success = await valkey_service.set_valideur(valideur)
+    success = await redis_service.set_valideur(valideur)
     if not success:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

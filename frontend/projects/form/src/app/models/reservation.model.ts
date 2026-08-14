@@ -1,8 +1,8 @@
 /**
- * Reservation models for Valkey-based reservations
+ * Reservation models for Redis-based reservations
  */
 
-export interface ValkeyReservationCreate {
+export interface RedisReservationCreate {
   vehicule_immat: string;
   chauffeur_nivol: string;
   chauffeur_nom: string;
@@ -13,15 +13,15 @@ export interface ValkeyReservationCreate {
   commentaire?: string;
 }
 
-export interface ValkeyReservation extends ValkeyReservationCreate {
+export interface RedisReservation extends RedisReservationCreate {
   id: string;
   created_by: string;
   created_at: string; // ISO 8601 datetime string
 }
 
-export interface ValkeyReservationListResponse {
+export interface RedisReservationListResponse {
   count: number;
-  reservations: ValkeyReservation[];
+  reservations: RedisReservation[];
 }
 
 export interface Benevole {

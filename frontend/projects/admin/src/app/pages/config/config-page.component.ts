@@ -74,7 +74,8 @@ export class ConfigPageComponent implements OnInit, OnDestroy {
   private initForm(): void {
     this.configForm = this.fb.group({
       drive_folder_url: ['', [this.driveFolderValidator]],
-      email_destinataire_alertes: ['', [Validators.required, Validators.email]]
+      email_destinataire_alertes: ['', [Validators.required, Validators.email]],
+      montant_franchise: [350, [Validators.min(0)]]
     });
   }
 
@@ -96,7 +97,8 @@ export class ConfigPageComponent implements OnInit, OnDestroy {
       next: (config: ConfigResponse) => {
         this.configForm.patchValue({
           drive_folder_url: config.drive_folder_url || config.drive_folder_id,
-          email_destinataire_alertes: config.email_destinataire_alertes
+          email_destinataire_alertes: config.email_destinataire_alertes,
+          montant_franchise: config.montant_franchise ?? 350
         });
         this.emailGestionnaireDT.set(config.email_gestionnaire_dt);
         this.applyDriveSyncState(config);
