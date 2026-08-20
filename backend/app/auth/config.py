@@ -51,6 +51,16 @@ class AuthSettings(BaseSettings):
     # Mock mode
     use_mocks: bool = os.getenv("USE_MOCKS", "false").lower() == "true"
 
+    # Délégation par défaut.
+    #
+    # ⚠️ Couture du multi-DT (décision D2). L'authentification ne connaît pas la
+    # délégation de l'utilisateur *avant* de l'avoir cherché dans le référentiel :
+    # elle interroge donc celle-ci. Une seule délégation existe aujourd'hui (DT75).
+    # Le jour où une deuxième arrive, c'est ici qu'il faudra un index global
+    # email → DT, et non un défaut. Ce champ existe pour que ce point unique soit
+    # nommé et cherchable, plutôt que dispersé en littéraux "DT75".
+    default_dt: str = os.getenv("DEFAULT_DT", "DT75")
+
     # Allowed frontend URLs for redirect (comma-separated)
     allowed_frontend_urls: list[str] = os.getenv(
         "ALLOWED_FRONTEND_URLS",

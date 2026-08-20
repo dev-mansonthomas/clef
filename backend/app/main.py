@@ -31,6 +31,7 @@ from app.routers import ical
 from app.routers import import_vehicles
 from app.routers import api_keys
 from app.routers import benevoles
+from app.routers.benevoles import directory_router as benevoles_directory_router
 from app.routers import stats
 from app.routers import fournisseurs
 from app.routers import valideurs
@@ -181,6 +182,7 @@ app.include_router(ical.router)
 app.include_router(import_vehicles.router)
 app.include_router(api_keys.router)
 app.include_router(benevoles.router)
+app.include_router(benevoles_directory_router)
 app.include_router(stats.router)
 app.include_router(dossiers_reparation.router)
 app.include_router(depenses.router)
@@ -225,43 +227,14 @@ async def test_endpoint():
         "using_mocks": use_mocks()
     }
 
-
-@app.get("/api/benevoles")
-async def get_benevoles():
-    """Get all volunteers from the referential"""
-    sheets_service = get_sheets_service()
-    benevoles = sheets_service.get_benevoles()
-    return {
-        "count": len(benevoles),
-        "benevoles": benevoles,
-        "using_mocks": use_mocks()
-    }
-
-
-@app.get("/api/benevoles/{email}")
-async def get_benevole(email: str):
-    """Get a specific volunteer by email"""
-    sheets_service = get_sheets_service()
-    benevole = sheets_service.get_benevole_by_email(email)
-    if benevole is None:
-        return {
-            "error": "Volunteer not found",
-            "email": email
-        }
-    return {
-        "benevole": benevole,
-        "using_mocks": use_mocks()
-    }
-
-
-@app.get("/api/responsables")
-async def get_responsables():
-    """Get all managers from the referential"""
-    sheets_service = get_sheets_service()
-    responsables = sheets_service.get_responsables()
-    return {
-        "count": len(responsables),
-        "responsables": responsables,
-        "using_mocks": use_mocks()
-    }
-
+# Les routes /api/benevoles, /api/benevoles/{email} et /api/responsables vivaient ici,
+# déclarées en ligne — donc sans aucun guard, ce fichier n'ayant pas de `Depends`.
+# L'annuaire des bénévoles était public : nom, prénom, email et UL servis à quiconque
+# (constat C1, RGPD). Elles lisaient en outre Google Sheets en direct.
+#
+# `/api/benevoles` est désormais servie par `routers/benevoles.directory_router` :
+# authentifiée, cadrée sur la délégation de la session, et lue dans Redis.
+# Les deux autres n'avaient aucun appelant et ont été supprimées.
+#
+# ⚠️ Ne pas déclarer de route ici : sans `Depends`, elle serait publique par
+# construction. Passer par un router avec un guard.

@@ -1,11 +1,11 @@
 """Bénévoles management API endpoints for DT administration."""
 import logging
-from typing import List, Dict, Any, Optional
+from typing import Annotated, List, Dict, Any, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, EmailStr, Field
 
 from app.auth.models import User
-from app.auth.dependencies import require_dt_manager
+from app.auth.dependencies import require_authenticated_user, require_dt_manager
 from app.services.redis_dependencies import get_redis_service
 from app.services.redis_service import RedisService
 from app.models.redis_models import BenevoleData, ResponsableData
@@ -14,6 +14,17 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/api/{dt}",
+    tags=["benevoles"]
+)
+
+#: Annuaire sans segment `{dt}` dans l'URL : la délégation vient de la session.
+#:
+#: Ce router existe pour remplacer les routes que `main.py` déclarait en ligne — donc
+#: sans aucun guard, l'annuaire des bénévoles étant public (constat C1). Les chemins
+#: sont conservés à l'identique pour ne pas casser les sélecteurs de chauffeur des
+#: deux applications.
+directory_router = APIRouter(
+    prefix="/api",
     tags=["benevoles"]
 )
 
@@ -229,3 +240,45 @@ async def update_benevole_role(
         nivol=benevole_data.nivol
     )
 
+
+
+@directory_router.get("/benevoles", response_model=BenevoleListResponse)
+async def list_benevoles_directory(
+    current_user: Annotated[User, Depends(require_authenticated_user)],
+    redis_store: Annotated[RedisService, Depends(get_redis_service)],
+) -> BenevoleListResponse:
+    """
+    Annuaire des bénévoles de la délégation de l'appelant.
+
+    **Accès** : tout utilisateur authentifié. C'est délibéré et nécessaire : le
+    formulaire de réservation de l'app terrain, utilisé par les bénévoles eux-mêmes,
+    a besoin de ce sélecteur de chauffeur. Le restreindre aux gestionnaires casserait
+    ce parcours.
+
+    **Périmètre** : `current_user.dt`, jamais un paramètre d'URL. C'est ce qui met
+    cette route hors d'atteinte de la classe de faille C3.
+
+    Remplace la route homonyme que `main.py` déclarait sans guard (constat C1) et qui
+    lisait Google Sheets en direct. La source est désormais Redis.
+
+    Note sur l'ordre des dépendances : l'autorisation est déclarée **avant**
+    l'acquisition du datastore, contrairement aux routes de `config.py` (constat M26).
+    """
+    nivols = await redis_store.list_benevoles()
+
+    benevoles: List[BenevoleResponse] = []
+    for nivol in nivols:
+        data = await redis_store.get_benevole(nivol)
+        if data:
+            benevoles.append(BenevoleResponse(
+                email=data.email or "",
+                nom=data.nom,
+                prenom=data.prenom,
+                ul=data.ul,
+                role=data.role,
+                nivol=data.nivol,
+            ))
+
+    benevoles.sort(key=lambda b: (b.nom.lower(), b.prenom.lower()))
+
+    return BenevoleListResponse(count=len(benevoles), benevoles=benevoles)

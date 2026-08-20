@@ -228,60 +228,32 @@ class TestAuthDependencies:
 class TestAuthService:
     """Test authentication service."""
 
-    def test_user_role_determination_dt_manager(self):
-        """Test role determination for DT manager."""
+    # Les trois tests de détermination de rôle (Gestionnaire DT, Responsable UL,
+    # Bénévole) vivent désormais dans **tests/test_auth_redis.py** : depuis la tâche
+    # N2, le référentiel est lu dans Redis et non plus dans Google Sheets, et
+    # `get_user_from_token` est asynchrone et prend le `RedisService` en paramètre.
+    # Les y avoir déplacés évite de maintenir deux jeux d'assertions sur les mêmes
+    # règles, dont un contre une source de données abandonnée.
+
+    def test_role_predicates(self):
+        """Les prédicats de rôle ne dépendent d'aucune source de données."""
         from app.auth.service import AuthService
-        from app.auth.models import TokenData
+        from app.auth.models import User
 
         service = AuthService()
-        token_data = TokenData(
-            email="thomas.manson@croix-rouge.fr",
-            given_name="Thomas",
-            family_name="Manson",
-            sub="test-sub"
-        )
 
-        user = service.get_user_from_token(token_data)
-        assert user.role == "Gestionnaire DT"
-        assert user.ul == "DT Paris"
-        assert service.is_dt_manager(user)
-        assert service.is_ul_responsible(user)
+        def user(role: str) -> User:
+            return User(
+                email="x@croix-rouge.fr", nom="N", prenom="P", dt="DT75",
+                ul="UL Paris 15", role=role, perimetre="UL Paris 15",
+                type_perimetre="UL",
+            )
 
-    def test_user_role_determination_ul_responsible(self):
-        """Test role determination for UL responsible."""
-        from app.auth.service import AuthService
-        from app.auth.models import TokenData
-
-        service = AuthService()
-        token_data = TokenData(
-            email="claire.rousseau@croix-rouge.fr",
-            given_name="Claire",
-            family_name="Rousseau",
-            sub="test-sub"
-        )
-
-        user = service.get_user_from_token(token_data)
-        assert user.role == "Responsable UL"
-        assert user.perimetre == "UL Paris 15"
-        assert not service.is_dt_manager(user)
-        assert service.is_ul_responsible(user)
-
-    def test_user_role_determination_benevole(self):
-        """Test role determination for regular volunteer."""
-        from app.auth.service import AuthService
-        from app.auth.models import TokenData
-
-        service = AuthService()
-        token_data = TokenData(
-            email="jean.dupont@croix-rouge.fr",
-            given_name="Jean",
-            family_name="Dupont",
-            sub="test-sub"
-        )
-
-        user = service.get_user_from_token(token_data)
-        assert user.role == "Bénévole"
-        assert user.ul == "UL Paris 15"
-        assert not service.is_dt_manager(user)
-        assert not service.is_ul_responsible(user)
-
+        assert service.is_dt_manager(user("Gestionnaire DT"))
+        assert not service.is_dt_manager(user("Responsable UL"))
+        # Un Gestionnaire DT est aussi responsable d'UL : le périmètre DT englobe.
+        assert service.is_ul_responsible(user("Gestionnaire DT"))
+        assert service.is_ul_responsible(user("Responsable UL"))
+        assert not service.is_ul_responsible(user("Bénévole"))
+        assert service.is_authenticated(user("Bénévole"))
+        assert not service.is_authenticated(None)

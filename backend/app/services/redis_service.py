@@ -354,6 +354,16 @@ class RedisService:
 
     # ========== Bénévoles ==========
 
+    @staticmethod
+    def _normalize_email(email: str) -> str:
+        """Normalise un email pour l'indexation : minuscules, sans espaces.
+
+        Le fournisseur d'identité peut renvoyer une casse différente de celle saisie
+        dans le référentiel. Un utilisateur légitime non reconnu serait silencieusement
+        ramené à « Bénévole » sans périmètre (constat M31).
+        """
+        return email.strip().lower()
+
     async def get_benevole(self, nivol: str) -> Optional[BenevoleData]:
         """Get bénévole by NIVOL."""
         data = await self.redis.json().get(self._key("benevoles", nivol))
@@ -361,9 +371,35 @@ class RedisService:
             return None
         return BenevoleData(**data)
 
+    async def get_benevole_by_email(self, email: str) -> Optional[BenevoleData]:
+        """Get bénévole by email address, via l'index `benevoles:by_email`.
+
+        Utilisé par l'authentification, qui n'identifie l'utilisateur que par l'email
+        porté par son jeton. Deux lectures à coût constant — pas de parcours de
+        l'index de la délégation, ce chemin étant traversé à chaque requête.
+
+        Args:
+            email: Email address, insensible à la casse
+
+        Returns:
+            Le bénévole, ou None si l'email n'est pas connu de cette délégation
+        """
+        if not email:
+            return None
+
+        nivol = await self.redis.get(
+            self._key("benevoles", "by_email", self._normalize_email(email))
+        )
+        if not nivol:
+            return None
+        return await self.get_benevole(nivol)
+
     async def set_benevole(self, benevole: BenevoleData) -> bool:
         """Set bénévole data and add to indices."""
         try:
+            # Lu avant l'écriture : sert à purger l'index email si l'adresse change.
+            previous = await self.get_benevole(benevole.nivol)
+
             key = self._key("benevoles", benevole.nivol)
             await self.redis.json().set(key, "$", benevole.model_dump(mode="json"))
 
@@ -377,10 +413,71 @@ class RedisService:
                     benevole.nivol
                 )
 
+            # Index email → NIVOL, consommé par l'authentification.
+            # `previous` sert à purger l'entrée devenue obsolète quand l'email change :
+            # sans cela, l'ancienne adresse continuerait d'identifier ce bénévole, donc
+            # d'ouvrir une session à son nom.
+            if previous and previous.email:
+                previous_key = self._key(
+                    "benevoles", "by_email", self._normalize_email(previous.email)
+                )
+                if not benevole.email or self._normalize_email(
+                    previous.email
+                ) != self._normalize_email(benevole.email):
+                    await self.redis.delete(previous_key)
+
+            if benevole.email:
+                await self.redis.set(
+                    self._key(
+                        "benevoles", "by_email", self._normalize_email(benevole.email)
+                    ),
+                    benevole.nivol
+                )
+
             return True
         except Exception as e:
             logger.error(f"Error setting benevole {benevole.nivol} for {self.dt}: {e}")
             return False
+
+    async def backfill_benevole_email_index(self) -> Dict[str, int]:
+        """Reconstruit l'index `benevoles:by_email` pour cette délégation.
+
+        Nécessaire pour les bénévoles écrits **avant** l'existence de cet index :
+        l'authentification s'appuie dessus (tâche N2), donc un bénévole non indexé
+        serait introuvable et ramené à « Bénévole » sans périmètre — le symptôme même
+        du constat M31.
+
+        Idempotent : réécrit les entrées existantes à l'identique.
+
+        Returns:
+            Compteurs : `total` parcourus, `indexed` indexés, `without_email` ignorés
+            faute d'adresse, `missing` documents absents malgré leur présence à l'index.
+        """
+        counters = {"total": 0, "indexed": 0, "without_email": 0, "missing": 0}
+
+        for nivol in await self.list_benevoles():
+            counters["total"] += 1
+            benevole = await self.get_benevole(nivol)
+            if not benevole:
+                counters["missing"] += 1
+                logger.warning(
+                    "NIVOL %s présent à l'index de %s mais sans document",
+                    nivol, self.dt
+                )
+                continue
+            if not benevole.email:
+                counters["without_email"] += 1
+                continue
+            await self.redis.set(
+                self._key(
+                    "benevoles", "by_email", self._normalize_email(benevole.email)
+                ),
+                nivol
+            )
+            counters["indexed"] += 1
+
+        logger.info("Backfill index email %s : %s", self.dt, counters)
+        return counters
 
     async def list_benevoles(self, ul: Optional[str] = None) -> List[str]:
         """
@@ -415,6 +512,15 @@ class RedisService:
                 await self.redis.srem(
                     self._key("benevoles", "by_ul", benevole.ul),
                     nivol
+                )
+
+            # Remove from email index — sinon l'adresse d'un bénévole supprimé
+            # continuerait d'ouvrir une session à son nom.
+            if benevole and benevole.email:
+                await self.redis.delete(
+                    self._key(
+                        "benevoles", "by_email", self._normalize_email(benevole.email)
+                    )
                 )
 
             return True

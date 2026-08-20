@@ -60,6 +60,65 @@ def pytest_runtest_setup(item):
         )
 
 
+# ---------------------------------------------------------------------------
+# Repli sur fakeredis quand aucun serveur n'est joignable
+# ---------------------------------------------------------------------------
+# Depuis la tâche N2, l'authentification lit le référentiel des bénévoles dans Redis.
+# Tout test qui s'authentifie en dépend donc — soit l'essentiel de la suite. Sans
+# serveur, on obtiendrait 87 échecs là où il n'y a aucun défaut de code.
+#
+# Plutôt que de marquer ces tests `integration` et d'en ignorer la majorité, on
+# substitue un fakeredis au client du cache, en remplaçant `cache.connect()`. Le code
+# de production n'est pas touché : sa logique de reconnexion (dependencies.py) appelle
+# `connect()` et obtient un client neuf, lié à la boucle d'événements courante — ce
+# qui règle du même coup les « Event loop is closed » entre TestClient successifs.
+
+async def _seed_referentiel(client) -> None:
+    """Peuple le référentiel comme le fait le démarrage de l'app.
+
+    Reproduit le préchargement de `app/main.py` : sans bénévoles en base, la
+    résolution des rôles échoue et tous les tests authentifiés reçoivent un 401.
+    """
+    from app.mocks.service_factory import get_sheets_service
+    from app.models.redis_models import BenevoleData
+    from app.services.redis_service import RedisService
+
+    store = RedisService(redis_client=client, dt="DT75")
+    for raw in get_sheets_service().get_benevoles():
+        raw = dict(raw)
+        raw.setdefault("nivol", raw.get("email", "unknown"))
+        raw.setdefault("dt", "DT75")
+        try:
+            await store.set_benevole(BenevoleData(**raw))
+        except Exception:
+            # Une ligne de référentiel malformée ne doit pas faire tomber la suite.
+            continue
+
+
+@pytest.fixture(autouse=True)
+def redis_backend(monkeypatch):
+    """Garantit un datastore utilisable, réel ou simulé."""
+    if _redis_reachable():
+        yield
+        return
+
+    import fakeredis.aioredis
+
+    from app.cache import get_cache
+
+    cache = get_cache()
+
+    async def _connect_fake():
+        cache.client = fakeredis.aioredis.FakeRedis(decode_responses=True)
+        cache._connected = True
+        await _seed_referentiel(cache.client)
+
+    monkeypatch.setattr(cache, "connect", _connect_fake)
+    cache.client = None
+    cache._connected = False
+    yield
+
+
 @pytest.fixture(autouse=True)
 def reset_cache_after_test():
     """Reset the global cache singleton after each test to prevent event loop leaks.

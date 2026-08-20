@@ -1,18 +1,56 @@
 """
 FastAPI dependencies for authentication and authorization.
 """
+import logging
 from typing import Optional
+
 from fastapi import Depends, HTTPException, status, Cookie
+
 from .models import User, TokenData
 from .service import AuthService
 from .config import auth_settings
 from .google_oauth import GoogleOAuthService
 from .mock_instance import okta_mock
 
+logger = logging.getLogger(__name__)
 
 # Global instances
 auth_service = AuthService()
 google_oauth = GoogleOAuthService()
+
+
+async def _referentiel_store():
+    """Construit le `RedisService` de la délégation pour la résolution des rôles.
+
+    Importé tardivement pour éviter un cycle : `app.services.redis_service` importe
+    des modèles qui, en bout de chaîne, atteignent le paquet d'authentification.
+    """
+    from app.cache import get_cache
+    from app.services.redis_service import RedisService
+
+    cache = get_cache()
+
+    # Le cache est un singleton de processus, et sa connexion est liée à la boucle
+    # d'événements qui l'a ouverte. Si cette boucle a disparu — bascule Redis,
+    # maintenance Memorystore, ou plusieurs TestClient dans un même test — le client
+    # survit mais toute commande lève « Event loop is closed ». L'authentification
+    # dépendant maintenant du datastore, un client mort la bloquerait définitivement.
+    # On sonde donc, et on rouvre au besoin.
+    #
+    # Coût : un aller-retour PING par requête authentifiée. À comparer à ce que ce
+    # chemin faisait avant N2 — un appel HTTP complet à l'API Google Sheets.
+    try:
+        if not cache._connected or cache.client is None:
+            await cache.connect()
+        else:
+            await cache.client.ping()
+    except Exception as exc:
+        logger.info("Connexion Redis inutilisable (%s), réouverture", exc)
+        cache.client = None
+        cache._connected = False
+        await cache.connect()
+
+    return RedisService(redis_client=cache.client, dt=auth_settings.default_dt)
 
 
 async def get_current_user(
@@ -53,11 +91,18 @@ async def get_current_user(
             sub=token_claims["sub"]
         )
 
-        # Get user with role information
-        user = auth_service.get_user_from_token(token_data)
+        # Get user with role information. Le référentiel vit dans Redis (N2).
+        redis_store = await _referentiel_store()
+        user = await auth_service.get_user_from_token(token_data, redis_store)
         return user
 
-    except Exception:
+    except Exception as exc:
+        # Journaliser avant d'abandonner. Ce `except` muet est le constat M2 : c'est
+        # lui qui a masqué pendant des mois le bug de fuseau horaire, puis M31. Une
+        # authentification qui échoue en silence est indiagnosticable.
+        logger.warning(
+            "Authentification refusée : %s: %s", type(exc).__name__, exc
+        )
         return None
 
 

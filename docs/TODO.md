@@ -10,7 +10,7 @@
 
 ## 🔴 Critique
 
-### C1 — Données personnelles de bénévoles exposées sans authentification
+### ~~C1~~ — ✅ **RÉSOLU le 2026-08-20** — Données personnelles de bénévoles exposées sans authentification
 
 `backend/app/main.py` ne contient **aucun `Depends`** (vérifié : `grep -c Depends
 app/main.py` → `0`) et l'app n'a pas de dépendance globale. Trois routes y exposent
@@ -37,6 +37,33 @@ divulgue `service_account_email`.
 
 **Action :** déplacer ces routes dans un router avec `require_authenticated_user`,
 ou les supprimer si elles ne servaient qu'au débogage.
+
+> ✅ **Fait, et les deux à la fois.**
+>
+> - `/api/benevoles` est **conservée** : les formulaires de réservation des deux
+>   applications s'en servent pour leur sélecteur de chauffeur
+>   (`form/.../reservation-form.component.ts:113`,
+>   `admin/.../reservation-form.component.ts:83`). Elle est désormais servie par
+>   `routers/benevoles.directory_router` : `require_authenticated_user`, périmètre pris
+>   sur `current_user.dt` — **jamais** sur un paramètre d'URL, ce qui la met hors
+>   d'atteinte de la classe C3 — et lecture dans Redis, plus dans Sheets.
+>   Chemin et forme de réponse inchangés : aucune modification frontend.
+> - `/api/benevoles/{email}` et `/api/responsables` sont **supprimées** : aucun
+>   appelant, ni frontend ni Apps Script. La surface la plus sûre est celle qui
+>   n'existe pas.
+>
+> Politique d'accès arbitrée par le propriétaire : **tout utilisateur authentifié de la
+> délégation**, email inclus. Restreindre aux gestionnaires casserait le parcours de
+> réservation du bénévole terrain.
+>
+> Vérifié en exécution sur la stack locale :
+> ```
+> GET /api/benevoles           → 401     (sans cookie)
+> GET /api/benevoles/{email}   → 404
+> GET /api/responsables        → 404
+> ```
+> `GET /api/alerts/status` (`routers/alerts.py:48`) reste **non authentifié** : hors
+> périmètre de ce correctif, toujours ouvert.
 
 ### C2 — La prise de véhicule échoue systématiquement en 422
 
@@ -208,7 +235,7 @@ réservation créée depuis l'admin n'apparaît donc pas dans le calendrier admi
 | # | Constat | Emplacement |
 |---|---|---|
 | M1 | **Le champ « Montant de la franchise » est décoratif.** Stocké (`valkey_models.py:34`) et consommé (`dossiers_reparation.py:423,540`, `approbation.py:101`), mais absent de `ConfigUpdate` **et** de `ConfigResponse` → ni écrit ni relu, figé à 350 € | `backend/app/models/config.py` |
-| M2 | **Toute exception d'authentification est avalée** en 401 muet, sans log — c'est ce qui a masqué le bug de fuseau pendant des mois | `auth/dependencies.py:60-61` |
+| M2 | ✅ **Traité 2026-08-20.** L'exception est désormais journalisée (`WARNING`, avec type et message) avant le 401. C'est ce log qui a immédiatement révélé la cause de F20 (`Event loop is closed`) pendant le chantier N2. Le 401 reste muet **côté client**, ce qui est correct : on ne renseigne pas un attaquant | `auth/dependencies.py` |
 | M3 | **Identité bénévole factice** dans le carnet de bord : entrées mal attribuées | `prise-form.component.ts:178-179`, `retour-form.component.ts:147-152` |
 | ~~M4~~ | ✅ **RÉSOLU 2026-08-13.** Les 2 specs Jasmine portées vers Vitest ; les 2 `app.spec.ts` scaffold (`Hello, admin`/`Hello, form`) réécrits sur le contrat réel. 22 tests passent. ⚠️ La couverture reste mince : 6 fichiers pour ~100 composants | `frontend/projects/**/*.spec.ts` |
 | ~~M5~~ | ✅ **RÉSOLU 2026-08-13.** Deux nouveaux jobs : `frontend-test` (matrice admin/form) et `e2e`. Tous deux dans le `needs:` de `deploy-dev` | `.github/workflows/ci.yml` |
@@ -685,7 +712,7 @@ lecture du code**, avec les lignes citées.
 
 ## 🔴 Critique
 
-### M31 — `get_benevole_by_email()` n'existe que sur le mock : en mode réel, tout le monde devient « Bénévole » sans périmètre
+### ~~M31~~ — ✅ **RÉSOLU le 2026-08-20** — `get_benevole_by_email()` n'existe que sur le mock
 
 Deuxième instance de la famille de bugs relevée en **M16** (`calendar_service.get_events()`),
 et celle-ci est sur le **chemin d'authentification**.
@@ -724,6 +751,31 @@ le fait déjà) au lieu de Google Sheets. Cela supprime d'un coup : ce bug, la l
 Sheets sur chaque requête d'authentification, et la dépendance du contrôle d'accès à un
 tableur en direct. À faire **avant** que le mode réel serve à quoi que ce soit.
 
+> ✅ **Fait — N2 est livrée.** `auth/service.py` ne référence plus le service Sheets
+> (test structurel à l'appui). `get_user_from_token` est devenue asynchrone et prend le
+> `RedisService` en paramètre : pas d'état caché, et l'appelant contrôle le périmètre.
+>
+> **Index email → NIVOL.** L'authentification identifie par email, les bénévoles sont
+> stockés par NIVOL. Un index `{dt}:benevoles:by_email:{email}` (deux lectures à coût
+> constant) évite de parcourir toute la délégation à chaque requête. Il est maintenu par
+> `set_benevole`/`delete_benevole`, purge l'entrée obsolète quand une adresse change —
+> sans quoi l'ancienne continuerait d'ouvrir une session — et normalise la casse.
+>
+> **Backfill obligatoire** avant la première connexion :
+> `python backend/scripts/backfill_benevole_email_index.py [--dt DT75] [--dry-run]`.
+> Les bénévoles écrits avant l'index seraient sinon introuvables — soit le symptôme de
+> M31 réintroduit par la porte des données.
+>
+> **Plus de dégradation silencieuse.** Une panne du datastore **remonte** au lieu de
+> produire un utilisateur sans périmètre, et un email absent du référentiel est
+> journalisé en `WARNING`. Vérifié : contre une base vide, l'endpoint répond 403 et le
+> log dit `Email authentifié absent du référentiel DT75 : aucun périmètre accordé`.
+>
+> ⚠️ **Conséquence à connaître : l'authentification dépend maintenant de Redis.** Si le
+> datastore est injoignable, personne ne se connecte — sauf `EMAIL_GESTIONNAIRE_DT`,
+> dont le chemin ne consulte aucun référentiel. C'est un couplage assumé : le contrôle
+> d'accès dépendait auparavant de l'API Google Sheets, moins disponible encore.
+
 ## 🟠 Haute
 
 ### H13 — Les trois URL de feuilles de la configuration DT sont entièrement inertes
@@ -756,3 +808,51 @@ moins consommé en aval, ici rien ne l'est.
 La première voie est plus cohérente avec le multi-DT (**D2**) : chaque délégation a ses
 propres feuilles. Mais si **N2** est fait d'abord, l'authentification n'a plus besoin de
 Sheets du tout, et la question se réduit à l'import de véhicules.
+
+---
+
+# Constats du 2026-08-20 — audit de parité mock / réel
+
+En corrigeant M31, j'ai cherché ses frères et sœurs de façon systématique : comparer
+chaque méthode **appelée** sur un service fourni par `app/mocks/service_factory.py` aux
+méthodes réellement **définies** sur l'implémentation réelle. C'est désormais un test —
+`tests/test_mock_parity.py` — avec la dette existante en liste explicite : toute
+**nouvelle** occurrence fait échouer la suite.
+
+⚠️ Mon premier audit, écrit en shell, n'a rien trouvé — alors que M16 était sous son
+nez. Réécrit en Python et confronté à M16 comme témoin, il a remonté 17 signalements,
+dont 13 étaient des faux positifs de ma table de correspondance (les trois fichiers
+`drive*.py`). **Un audit dont on ne peut pas justifier le silence ne vaut rien.**
+
+## 🟠 Haute
+
+### M32 — Trois appels de plus vers des méthodes inexistantes, tous sur le chemin réel
+
+Même famille que **M16** et **M31**. Chacun lève `AttributeError` en `USE_MOCKS=false`.
+
+| Appel | Emplacement | Réalité |
+|---|---|---|
+| `sheets_service.get_vehicule_by_indicatif()` | `routers/reservations.py:56` | n'existe **que sur le mock** ; le service réel expose `get_vehicule_by_nom_synthetique` |
+| `calendar_service.get_calendar_id()` | `routers/calendar.py:34` | n'existe **nulle part** |
+| `calendar_service._get_calendar_name()` | `routers/calendar.py:41` | n'existe **nulle part** |
+| `calendar_service.get_events()` | `routers/ical.py:136,202` | n'existe **nulle part** ; le service réel expose `list_events` (= M16) |
+
+Conséquence : en mode réel, la **création et la configuration de calendrier**
+(`routers/calendar.py`) et les **flux iCal** (`routers/ical.py`) échouent, et la
+création de réservation par l'API legacy (`routers/reservations.py`) aussi. Aucun test
+ne pouvait le voir : ils tournent tous en `USE_MOCKS=true`.
+
+**Action :** aligner les appels sur les signatures réelles, puis retirer les entrées
+correspondantes de `KNOWN_DEBT` dans `tests/test_mock_parity.py` — le test refuse une
+dette obsolète, il échouera donc si on oublie.
+
+⚠️ `routers/calendar.py` appelle **deux** méthodes qui n'existent nulle part : ce
+fichier n'a très probablement jamais été exécuté en mode réel. À traiter avec **H8**
+(deux modèles de réservation coexistent) plutôt qu'isolément.
+
+## ⚪ Faible
+
+| # | Constat |
+|---|---|
+| F23 | **L'authentification fait un `PING` Redis par requête authentifiée.** Ajouté avec N2 pour détecter un client lié à une boucle d'événements morte (bascule Redis, maintenance Memorystore, plusieurs `TestClient` dans un même test) — sans quoi l'authentification resterait bloquée définitivement. Un aller-retour local, à comparer à l'appel HTTP complet vers l'API Sheets que ce chemin faisait avant. Mieux à terme : une reconnexion-et-réessai dans `RedisCache` lui-même, sans sonde préalable. |
+| F24 | **La suite se replie sur `fakeredis` quand aucun serveur n'est joignable** (`tests/conftest.py`), en remplaçant `cache.connect()`. Nécessaire depuis que l'authentification dépend du datastore : sans repli, 87 tests échouaient faute d'environnement, pas de code. Conséquence à connaître : `pytest` sans serveur n'exerce pas le vrai client Redis — c'est le rôle des 17 tests marqués `integration`. |

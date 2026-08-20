@@ -66,7 +66,13 @@ Conséquences concrètes de cet oubli :
 3. **La sync est inutile pour ce qui compte le plus.** Le travail de Wave 11 n'a pas
    atteint le chemin le plus sensible.
 
-**Action :** migrer `auth/service.py` pour lire les bénévoles depuis Redis
+**Action :** ✅ **faite le 2026-08-20** (tâche N2). `auth/service.py` lit les bénévoles
+dans Redis via un index `benevoles:by_email`, et ne référence plus le service Sheets.
+Le contrôle d'accès ne dépend donc plus d'un tableur en direct, et la latence de l'API
+Sheets a disparu du chemin d'authentification. Détails et backfill obligatoire dans
+`docs/TODO.md` (M31). Énoncé d'origine conservé ci-dessous :
+
+migrer `auth/service.py` pour lire les bénévoles depuis Redis
 (`redis_store.get_benevole`), comme le fait déjà `routers/benevoles.py`. C'est le geste
 qui termine Wave 11. Voir `docs/TODO.md`.
 
