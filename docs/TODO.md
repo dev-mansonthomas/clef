@@ -856,3 +856,63 @@ fichier n'a très probablement jamais été exécuté en mode réel. À traiter 
 |---|---|
 | F23 | **L'authentification fait un `PING` Redis par requête authentifiée.** Ajouté avec N2 pour détecter un client lié à une boucle d'événements morte (bascule Redis, maintenance Memorystore, plusieurs `TestClient` dans un même test) — sans quoi l'authentification resterait bloquée définitivement. Un aller-retour local, à comparer à l'appel HTTP complet vers l'API Sheets que ce chemin faisait avant. Mieux à terme : une reconnexion-et-réessai dans `RedisCache` lui-même, sans sonde préalable. |
 | F24 | **La suite se replie sur `fakeredis` quand aucun serveur n'est joignable** (`tests/conftest.py`), en remplaçant `cache.connect()`. Nécessaire depuis que l'authentification dépend du datastore : sans repli, 87 tests échouaient faute d'environnement, pas de code. Conséquence à connaître : `pytest` sans serveur n'exerce pas le vrai client Redis — c'est le rôle des 17 tests marqués `integration`. |
+
+---
+
+# Chantier du 2026-08-21 — référentiel bénévoles : identité vs organisation
+
+Les six fragilités relevées le 2026-08-20 sur l'import bénévole sont **traitées**, ainsi
+que **C3**. Spécification : `docs/specs/synchronisation-referentiel-benevoles.md`.
+Décision de conception : [ADR 0007](adr/0007-partage-de-propriete-feuille-clef.md).
+
+| # | Constat | Traitement |
+|---|---|---|
+| 1 | Les en-têtes de la feuille étaient un contrat d'API implicite | ✅ Alias explicites sur `Nivol`, `Nom`, `Prénom`, `UL`, `Téléphone`, `Email` ; `Prénom Nom` ignorée ; colonne absente → erreur **qui la nomme** |
+| 2 | Contradiction sur `nivol` entre les deux chemins d'écriture | ✅ Tranchée : la feuille porte `Nivol`, clé primaire. Le préchargement Sheets de `main.py` est **retiré** ; la synchronisation est le seul pont (ADR 0002). Reste un amorçage gardé par `use_mocks()` pour le développement local |
+| 3 | Tout ou rien : une ligne fautive rejetait le lot en 422 | ✅ Validation **ligne à ligne**, erreurs situées au numéro de ligne de la feuille, réponse 200 même partielle |
+| 4 | La synchronisation ne supprimait jamais rien | ✅ Réconciliation : absent du lot → `statut="inactif"`. Jamais de suppression — l'historique référence le bénévole |
+| 5 | `statut` était jeté | ✅ `statut` devient un champ de premier plan, **propriété de CLEF**, et l'authentification le respecte (401 si inactif) |
+| 6 | La synchronisation écrasait les rôles saisis dans CLEF | ✅ Deux points d'entrée disjoints : `upsert_benevole_identite` n'accepte aucun champ d'organisation, `set_benevole_organisation` aucun champ d'identité |
+| C3 | Clé de synchronisation globale unique | ✅ `validate_api_key` sur le `{dt}` de l'URL, sur les **six** endpoints de `sync.py`. `SYNC_API_KEY` n'existe plus |
+
+## Ce que le chantier a corrigé en plus
+
+- **Le modèle de rôles.** `role` à valeur unique → `responsable_ul: bool` +
+  `fonctions_dt: list[str]`. Un bénévole peut être responsable de son UL **et** porter
+  une fonction DT. Le rôle applicatif n'est plus stocké : il est **dérivé**.
+- **Bug préexistant sur `by_ul`.** `set_benevole` ne faisait qu'un `sadd` sur la
+  nouvelle UL : un changement d'UL laissait une entrée fantôme dans l'ancienne, et
+  `list_benevoles(ul=...)` renvoyait un bénévole qui n'y était plus. Corrigé.
+- **Le `PATCH` écrivait l'UL.** Nommer un responsable d'UL déplaçait le bénévole — une
+  valeur que la synchronisation suivante rétablissait de toute façon. Retiré.
+- **Le `PATCH` parcourait toute la délégation** pour retrouver un bénévole par email.
+  Passe par l'index `by_email`, à coût constant.
+- **Le téléphone** est importé et exposé dans l'annuaire, sur arbitrage du propriétaire.
+
+## ⚠️ Ordre de déploiement — contraignant
+
+```sh
+# 1. AVANT de déployer le nouveau code
+python backend/scripts/migrate_benevole_role_to_organisation.py --dry-run
+python backend/scripts/migrate_benevole_role_to_organisation.py
+
+# 2. Puis déployer.
+```
+
+Le nouveau code lit `responsable_ul` et `fonctions_dt`. Sur un document non migré,
+Pydantic leur donne `False` et `[]` : **tous les responsables perdraient leurs droits**
+jusqu'au passage de la migration. Le dry-run sur le Redis local rapportait
+`1 responsable_ul, 1 responsable_dt, 4 sans rôle`.
+
+Une **clé API de délégation** doit également exister avant la première synchronisation
+(écran de configuration, `generate_api_key_dt`) : l'ancienne variable d'environnement
+globale n'est plus lue.
+
+## Reste ouvert
+
+| # | Constat |
+|---|---|
+| N4 | **L'écran d'administration ne permet pas encore de saisir les `fonctions_dt`.** L'API (`PATCH /api/{dt}/benevoles/{email}`) et le stockage existent ; `dt-admin.component.ts` a été adapté au nouveau modèle mais ne gère que `responsable_ul`. Sans cet écran, la moitié CLEF du modèle n'est saisissable qu'à la main. Spec d'UI à écrire |
+| N5 | **Pas de référentiel fermé des fonctions DT.** `fonctions_dt` est une liste de chaînes libres. Un référentiel — et une liste déroulante — sont un chantier produit distinct |
+| N6 | **Purge RGPD des bénévoles inactifs.** La décision retenue est « désactiver, ne jamais supprimer ». Une purge planifiée après délai de conservation reste à spécifier |
+| M33 | **Le référentiel legacy `responsables`** (`set_responsable`, `ResponsableData`, endpoints de `sync.py`) coexiste toujours avec les bénévoles. Son retrait est un chantier de nettoyage à part |

@@ -1,6 +1,6 @@
 """Bénévoles management API endpoints for DT administration."""
 import logging
-from typing import Annotated, List, Dict, Any, Optional
+from typing import Annotated, List, Dict, Any, Literal, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, EmailStr, Field
 
@@ -30,13 +30,24 @@ directory_router = APIRouter(
 
 
 class BenevoleResponse(BaseModel):
-    """Response model for a bénévole."""
+    """Response model for a bénévole.
+
+    `role` a disparu, remplacé par l'organisation détenue par CLEF :
+    `responsable_ul` et `fonctions_dt`. Voir
+    `docs/specs/synchronisation-referentiel-benevoles.md`.
+
+    Les modèles TypeScript du frontend n'ont ni `telephone` ni ces deux champs :
+    TypeScript ignore les propriétés supplémentaires, donc les sélecteurs de chauffeur
+    continuent de fonctionner sans modification.
+    """
     email: str
     nom: str
     prenom: str
     ul: Optional[str] = None
-    role: Optional[str] = None
+    telephone: Optional[str] = None
     nivol: Optional[str] = None
+    responsable_ul: bool = False
+    fonctions_dt: List[str] = Field(default_factory=list)
 
 
 class BenevoleListResponse(BaseModel):
@@ -45,10 +56,25 @@ class BenevoleListResponse(BaseModel):
     benevoles: List[BenevoleResponse]
 
 
-class BenevoleRoleUpdate(BaseModel):
-    """Request model for updating a bénévole's role."""
-    role: Optional[str] = Field(None, description="New role: 'responsable_dt', 'responsable_ul', or null for regular bénévole")
-    ul: Optional[str] = Field(None, description="UL for responsable_ul role")
+class BenevoleOrganisationUpdate(BaseModel):
+    """Mise à jour partielle de l'organisation d'un bénévole.
+
+    Ne porte **que** des champs détenus par CLEF. L'identité (nom, prénom, UL, email,
+    téléphone) vient de la feuille et n'est pas modifiable ici : les champs
+    supplémentaires sont ignorés par Pydantic, donc une tentative reste sans effet
+    plutôt que d'être acceptée puis écrasée à la synchronisation suivante.
+
+    Un champ à `None` signifie « ne pas modifier ».
+    """
+    responsable_ul: Optional[bool] = Field(
+        None, description="Responsable de son unité locale"
+    )
+    fonctions_dt: Optional[List[str]] = Field(
+        None, description="Fonctions exercées au niveau de la DT"
+    )
+    statut: Optional[Literal["actif", "inactif"]] = Field(
+        None, description="`inactif` révoque l'accès sans effacer l'historique"
+    )
 
 
 @router.get("/benevoles", response_model=BenevoleListResponse)
@@ -129,117 +155,70 @@ async def list_benevoles(
 
 
 @router.patch("/benevoles/{email}", response_model=BenevoleResponse)
-async def update_benevole_role(
+async def update_benevole_organisation(
     dt: str,
     email: str,
-    role_update: BenevoleRoleUpdate,
-    current_user: User = Depends(require_dt_manager),
-    redis_store: RedisService = Depends(get_redis_service)
+    update: "BenevoleOrganisationUpdate",
+    current_user: Annotated[User, Depends(require_dt_manager)],
+    redis_store: Annotated[RedisService, Depends(get_redis_service)],
 ) -> BenevoleResponse:
     """
-    Update a bénévole's role.
-    
-    **Access**: DT manager only
-    
-    Args:
-        dt: DT identifier
-        email: Bénévole email
-        role_update: New role information
-        current_user: Current authenticated user (must be DT manager)
-        redis_store: Redis service
-        
-    Returns:
-        Updated bénévole information
+    Met à jour l'**organisation** d'un bénévole : responsabilité d'UL, fonctions DT,
+    statut.
+
+    **Accès** : gestionnaire DT.
+
+    Cette route ne peut pas toucher à l'identité — nom, prénom, UL, email, téléphone
+    appartiennent à la feuille « CLEF Benevoles » et sont réécrits à chaque
+    synchronisation. L'endpoint précédent écrivait l'UL en nommant un responsable : la
+    valeur était de toute façon rétablie à la synchronisation suivante, en laissant
+    entre-temps un état incohérent.
+
+    Mise à jour **partielle** : un champ absent du corps n'est pas modifié.
+
+    Voir `docs/specs/synchronisation-referentiel-benevoles.md`.
     """
-    # Verify DT matches user's DT
+    # Le `{dt}` de l'URL n'est pas la source du périmètre — `get_redis_service` le
+    # prend sur `current_user.dt` — mais un écart signale une requête mal formée.
     if current_user.dt != dt:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied to this DT"
         )
-    
-    # Validate role value
-    valid_roles = ["responsable_dt", "responsable_ul", None]
-    if role_update.role not in valid_roles:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid role. Must be one of: {valid_roles}"
-        )
 
-    # If setting responsable_ul, UL must be provided
-    if role_update.role == "responsable_ul" and not role_update.ul:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="UL must be specified for Responsable UL role"
-        )
-
-    # Find the benevole by email
-    benevole_data = None
-    benevole_nivols = await redis_store.list_benevoles()
-    for nivol in benevole_nivols:
-        b = await redis_store.get_benevole(nivol)
-        if b and b.email and b.email.lower() == email.lower():
-            benevole_data = b
-            break
-
-    if not benevole_data:
+    # Recherche par l'index email : à coût constant, là où l'implémentation précédente
+    # parcourait tous les bénévoles de la délégation et désérialisait chaque document.
+    benevole = await redis_store.get_benevole_by_email(email)
+    if not benevole:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Bénévole not found"
         )
 
-    # Validate business rule: benevole from UL X cannot be responsable_ul of UL Y
-    if role_update.role == "responsable_ul" and role_update.ul:
-        if benevole_data.ul and benevole_data.ul != role_update.ul:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Bénévole from {benevole_data.ul} cannot be responsable_ul of {role_update.ul}"
-            )
-
-    # Update the role
-    benevole_data.role = role_update.role
-
-    # Update UL if provided for responsable_ul
-    if role_update.role == "responsable_ul" and role_update.ul:
-        benevole_data.ul = role_update.ul
-
-    # Save updated benevole
-    await redis_store.set_benevole(benevole_data)
-
-    # For backward compatibility: also update responsables table if it still exists
-    # (This can be removed after migration is complete)
-    try:
-        if role_update.role in ["responsable_dt", "responsable_ul"]:
-            # Map new role to old role format for backward compatibility
-            old_role = "Gestionnaire DT" if role_update.role == "responsable_dt" else "Responsable UL"
-            responsable_data = ResponsableData(
-                email=benevole_data.email or email,
-                dt=dt,
-                nom=benevole_data.nom,
-                prenom=benevole_data.prenom,
-                role=old_role,
-                perimetre=role_update.ul if role_update.role == "responsable_ul" else f"DT {dt}",
-                type_perimetre="UL" if role_update.role == "responsable_ul" else "DT",
-                ul=role_update.ul if role_update.role == "responsable_ul" else None
-            )
-            await redis_store.set_responsable(responsable_data)
-        else:
-            # If demoting, remove from responsables if exists
-            existing_resp = await redis_store.get_responsable(email)
-            if existing_resp:
-                await redis_store.delete_responsable(email)
-    except Exception as e:
-        logger.warning(f"Could not update responsables table (may have been removed): {e}")
-
-    return BenevoleResponse(
-        email=benevole_data.email or email,
-        nom=benevole_data.nom,
-        prenom=benevole_data.prenom,
-        ul=benevole_data.ul,
-        role=benevole_data.role,
-        nivol=benevole_data.nivol
+    updated = await redis_store.set_benevole_organisation(
+        benevole.nivol,
+        responsable_ul=update.responsable_ul,
+        fonctions_dt=update.fonctions_dt,
+        statut=update.statut,
     )
 
+    logger.info(
+        "Organisation du bénévole %s mise à jour par %s : responsable_ul=%s, "
+        "fonctions_dt=%s, statut=%s",
+        updated.nivol, current_user.email, updated.responsable_ul,
+        updated.fonctions_dt, updated.statut,
+    )
+
+    return BenevoleResponse(
+        email=updated.email or email,
+        nom=updated.nom,
+        prenom=updated.prenom,
+        ul=updated.ul,
+        telephone=updated.telephone,
+        nivol=updated.nivol,
+        responsable_ul=updated.responsable_ul,
+        fonctions_dt=updated.fonctions_dt,
+    )
 
 
 @directory_router.get("/benevoles", response_model=BenevoleListResponse)
@@ -269,14 +248,19 @@ async def list_benevoles_directory(
     benevoles: List[BenevoleResponse] = []
     for nivol in nivols:
         data = await redis_store.get_benevole(nivol)
-        if data:
+        # Les bénévoles désactivés sont exclus : les laisser proposés dans un sélecteur
+        # de chauffeur conduirait à attribuer une réservation à quelqu'un qui a quitté
+        # le département.
+        if data and data.statut == "actif":
             benevoles.append(BenevoleResponse(
                 email=data.email or "",
                 nom=data.nom,
                 prenom=data.prenom,
                 ul=data.ul,
-                role=data.role,
+                telephone=data.telephone,
                 nivol=data.nivol,
+                responsable_ul=data.responsable_ul,
+                fonctions_dt=data.fonctions_dt,
             ))
 
     benevoles.sort(key=lambda b: (b.nom.lower(), b.prenom.lower()))

@@ -163,9 +163,10 @@ export class DtAdminComponent implements OnInit {
 
     const dt = this.currentUserDT();
 
-    this.benevoleService.updateBenevoleRole(dt, benevole.email, {
-      role: 'responsable_ul',
-      ul: benevole.ul
+    // L'UL n'est plus transmise : elle appartient à la feuille de référentiel et
+    // serait réécrite à la synchronisation suivante.
+    this.benevoleService.updateBenevoleOrganisation(dt, benevole.email, {
+      responsable_ul: true
     }).subscribe({
       next: () => {
         this.snackBar.open('Rôle mis à jour: Responsable UL', 'Fermer', {
@@ -188,9 +189,8 @@ export class DtAdminComponent implements OnInit {
   removeRole(benevole: Benevole): void {
     const dt = this.currentUserDT();
     
-    this.benevoleService.updateBenevoleRole(dt, benevole.email, {
-      role: null,
-      ul: null
+    this.benevoleService.updateBenevoleOrganisation(dt, benevole.email, {
+      responsable_ul: false
     }).subscribe({
       next: () => {
         this.snackBar.open('Rôle retiré (Bénévole)', 'Fermer', {
@@ -212,23 +212,25 @@ export class DtAdminComponent implements OnInit {
    * DT Paris volunteers and responsable_dt cannot be modified here
    */
   canModifyBenevole(benevole: Benevole): boolean {
-    return benevole.ul !== 'DT Paris' && benevole.role !== 'responsable_dt';
+    // Un bénévole porteur d'une fonction DT ne se gère pas depuis cet écran : sa
+    // responsabilité dépasse l'unité locale.
+    return benevole.ul !== 'DT Paris' && benevole.fonctions_dt.length === 0;
   }
 
   /**
    * Get display text for role
    */
-  getRoleDisplay(role: string | null): string {
-    if (!role || role === 'Bénévole') {
-      return 'Bénévole';
-    }
-    if (role === 'Gestionnaire DT' || role === 'responsable_dt') {
+  getRoleDisplay(benevole: Benevole): string {
+    // Le rôle n'est plus stocké : il se dérive de l'organisation, dans le même ordre
+    // que le backend (app/auth/service.py) — une fonction DT l'emporte sur la
+    // responsabilité d'UL, la personne pouvant être les deux.
+    if (benevole.fonctions_dt.length > 0) {
       return 'Resp. DT';
     }
-    if (role === 'Responsable UL' || role === 'responsable_ul') {
+    if (benevole.responsable_ul) {
       return 'Resp. UL';
     }
-    return role;
+    return 'Bénévole';
   }
 
   // ========== UL Management Methods ==========

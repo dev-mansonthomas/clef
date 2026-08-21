@@ -88,6 +88,14 @@ async def _seed_referentiel(client) -> None:
         raw = dict(raw)
         raw.setdefault("nivol", raw.get("email", "unknown"))
         raw.setdefault("dt", "DT75")
+        # Le mock Sheets porte encore l'ancien champ `role`. Le traduire vers le
+        # modèle actuel — `responsable_ul` + `fonctions_dt` — sinon tous les
+        # utilisateurs de test deviennent de simples bénévoles et les tests de rôle
+        # échouent pour une raison sans rapport avec ce qu'ils vérifient.
+        legacy_role = raw.pop("role", None)
+        raw["responsable_ul"] = legacy_role == "responsable_ul"
+        raw["fonctions_dt"] = ["Gestionnaire DT"] if legacy_role == "responsable_dt" else []
+        raw.pop("statut", None)  # « Actif » côté feuille ; CLEF possède ce champ
         try:
             await store.set_benevole(BenevoleData(**raw))
         except Exception:

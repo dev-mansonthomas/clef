@@ -53,6 +53,51 @@ assert_mocks_not_in_production()
 cache = get_cache()
 
 
+async def _bootstrap_referentiel_mock(redis_store: RedisService) -> None:
+    """Peuple le référentiel depuis le mock Sheets — **développement uniquement**.
+
+    Sans utilisateurs en base, personne ne peut se connecter en local : depuis la tâche
+    N2 l'authentification lit le référentiel Redis. Cet amorçage remplace le
+    préchargement de production retiré, et n'est appelé que si `use_mocks()`.
+
+    Le mock porte encore l'ancien champ `role`, que `BenevoleData` ignore désormais :
+    il est traduit ici vers `responsable_ul` / `fonctions_dt`. Sans cette traduction,
+    tous les comptes de développement seraient de simples bénévoles et l'écran
+    d'administration DT deviendrait inaccessible en local, sans cause visible.
+    """
+    from app.models.redis_models import BenevoleData
+
+    try:
+        raw_benevoles = get_sheets_service().get_benevoles()
+    except Exception as e:
+        logger.warning("Amorçage du référentiel impossible : %s", e)
+        return
+
+    seeded = 0
+    for raw in raw_benevoles:
+        raw = dict(raw)
+        raw.setdefault("nivol", raw.get("email", "unknown"))
+        raw.setdefault("dt", redis_store.dt)
+        legacy_role = raw.pop("role", None)
+        raw["responsable_ul"] = legacy_role == "responsable_ul"
+        raw["fonctions_dt"] = (
+            ["Gestionnaire DT"] if legacy_role == "responsable_dt" else []
+        )
+        raw.pop("statut", None)  # « Actif » côté feuille ; CLEF possède ce champ
+        try:
+            await redis_store.set_benevole(BenevoleData(**raw))
+            seeded += 1
+        except Exception as e:
+            logger.warning("Bénévole d'amorçage ignoré (%s) : %s", raw.get("nivol"), e)
+
+    logger.warning(
+        "USE_MOCKS=true — référentiel amorcé avec %d bénévole(s) fictifs. "
+        "Ce n'est pas un chemin de production : la synchronisation Apps Script est "
+        "la seule source réelle.",
+        seeded,
+    )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Cycle de vie de l'application : connexion Redis, préchargement, scheduler.
@@ -94,37 +139,16 @@ async def lifespan(app: FastAPI):
         await init_data_async(cache.client)
         logger.info("DT and UL initialization complete")
 
-        # Preload référentiels from Google Sheets (optional - continue if not configured)
-        try:
-            sheets_service = get_sheets_service()
-
-            # Preload bénévoles into Redis with DT prefix
-            benevoles = sheets_service.get_benevoles()
-            from app.models.redis_models import BenevoleData
-            for benevole_dict in benevoles:
-                # Map email to nivol if nivol not present (temporary compatibility)
-                if "nivol" not in benevole_dict:
-                    benevole_dict["nivol"] = benevole_dict.get("email", "unknown")
-                # Ensure dt field is present
-                if "dt" not in benevole_dict:
-                    benevole_dict["dt"] = "DT75"
-                benevole = BenevoleData(**benevole_dict)
-                await redis_store.set_benevole(benevole)
-            logger.info(f"Preloaded {len(benevoles)} bénévoles into Redis with DT prefix")
-
-            # Preload responsables into Redis with DT prefix
-            responsables = sheets_service.get_responsables()
-            from app.models.redis_models import ResponsableData
-            for responsable_dict in responsables:
-                # Ensure dt field is present
-                if "dt" not in responsable_dict:
-                    responsable_dict["dt"] = "DT75"
-                responsable = ResponsableData(**responsable_dict)
-                await redis_store.set_responsable(responsable)
-            logger.info(f"Preloaded {len(responsables)} responsables into Redis with DT prefix")
-        except Exception as e:
-            logger.warning(f"Could not preload référentiels from Google Sheets: {e}")
-            logger.warning("Application will continue without preloaded référentiels")
+        # Le préchargement du référentiel depuis Google Sheets a été **retiré** : il
+        # constituait un second chemin d'écriture, avec un contrat différent de celui
+        # de la synchronisation (repli `email → nivol` qui stockait un bénévole sous
+        # son email en guise de clé primaire). Deux chemins, deux contrats, la même
+        # donnée. Conformément à l'ADR 0002, la synchronisation Apps Script
+        # (`POST /api/sync/{dt}/benevoles`) est le **seul** pont depuis Sheets.
+        #
+        # Reste une commodité de développement, explicitement gardée.
+        if use_mocks():
+            await _bootstrap_referentiel_mock(redis_store)
 
         # Start scheduler for alerts
         start_scheduler()

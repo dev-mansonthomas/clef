@@ -48,7 +48,10 @@ def _token(email: str) -> TokenData:
     )
 
 
-async def _store_benevole(store: RedisService, email: str, role, ul="UL Paris 15"):
+async def _store_benevole(
+    store: RedisService, email: str, *, responsable_ul=False, fonctions_dt=None,
+    ul="UL Paris 15", statut="actif",
+):
     await store.set_benevole(
         BenevoleData(
             nivol=f"NIVOL-{abs(hash(email)) % 100000}",
@@ -57,7 +60,9 @@ async def _store_benevole(store: RedisService, email: str, role, ul="UL Paris 15
             nom="Nom",
             prenom="Prénom",
             email=email,
-            role=role,
+            statut=statut,
+            responsable_ul=responsable_ul,
+            fonctions_dt=fonctions_dt or [],
         )
     )
 
@@ -84,7 +89,7 @@ async def test_benevole_comes_from_redis_not_from_sheets(service, store):
     C'est la preuve que la source a bien changé : cette adresse n'existe nulle part
     dans `app/mocks/google_sheets_mock.py`.
     """
-    await _store_benevole(store, "sylvie.moreau@croix-rouge.fr", role=None)
+    await _store_benevole(store, "sylvie.moreau@croix-rouge.fr")
 
     user = await service.get_user_from_token(
         _token("sylvie.moreau@croix-rouge.fr"), store
@@ -97,7 +102,7 @@ async def test_benevole_comes_from_redis_not_from_sheets(service, store):
 
 @pytest.mark.asyncio
 async def test_responsable_ul_role_is_mapped(service, store):
-    await _store_benevole(store, "claire.rousseau@croix-rouge.fr", role="responsable_ul")
+    await _store_benevole(store, "claire.rousseau@croix-rouge.fr", responsable_ul=True)
 
     user = await service.get_user_from_token(
         _token("claire.rousseau@croix-rouge.fr"), store
@@ -110,7 +115,9 @@ async def test_responsable_ul_role_is_mapped(service, store):
 
 @pytest.mark.asyncio
 async def test_responsable_dt_role_is_mapped(service, store):
-    await _store_benevole(store, "autre.gestionnaire@croix-rouge.fr", role="responsable_dt")
+    await _store_benevole(
+        store, "autre.gestionnaire@croix-rouge.fr", fonctions_dt=["Référent flotte"]
+    )
 
     user = await service.get_user_from_token(
         _token("autre.gestionnaire@croix-rouge.fr"), store
@@ -123,7 +130,9 @@ async def test_responsable_dt_role_is_mapped(service, store):
 @pytest.mark.asyncio
 async def test_email_case_does_not_prevent_recognition(service, store):
     """Le jeton peut porter une casse différente du référentiel."""
-    await _store_benevole(store, "Claire.ROUSSEAU@croix-rouge.fr", role="responsable_ul")
+    await _store_benevole(
+        store, "Claire.ROUSSEAU@croix-rouge.fr", responsable_ul=True
+    )
 
     user = await service.get_user_from_token(
         _token("claire.rousseau@croix-rouge.fr"), store
@@ -183,3 +192,86 @@ def test_auth_service_no_longer_depends_on_google_sheets():
 
     assert "get_sheets_service" not in source
     assert "sheets_service" not in source
+
+
+# ---------------------------------------------------------------------------
+# Rôle dérivé et révocation — AC-9 et AC-11
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_inactive_benevole_cannot_authenticate(service, store):
+    """AC-9 — `statut="inactif"` révoque l'accès.
+
+    C'est le pendant indispensable de la réconciliation : sans ce contrôle, désactiver
+    un bénévole absent du référentiel ne lui retirerait rien. Le refus est signalé par
+    une exception, que `get_current_user` transforme en 401 après l'avoir journalisée.
+    """
+    await _store_benevole(
+        store, "parti@croix-rouge.fr", responsable_ul=True, statut="inactif"
+    )
+
+    with pytest.raises(PermissionError):
+        await service.get_user_from_token(_token("parti@croix-rouge.fr"), store)
+
+
+@pytest.mark.asyncio
+async def test_dt_function_wins_over_ul_responsibility(service, store):
+    """AC-11 — une fonction DT l'emporte sur la responsabilité d'UL.
+
+    Le cas que l'ancien champ `role` ne pouvait pas représenter : la personne est les
+    deux à la fois, et son périmètre effectif est le plus large.
+    """
+    await _store_benevole(
+        store, "cumul@croix-rouge.fr",
+        responsable_ul=True, fonctions_dt=["Référent flotte"],
+    )
+
+    user = await service.get_user_from_token(_token("cumul@croix-rouge.fr"), store)
+
+    assert user.role == "Gestionnaire DT"
+    assert user.type_perimetre == "DT"
+
+
+@pytest.mark.asyncio
+async def test_responsable_ul_perimeter_is_their_ul(service, store):
+    """AC-11 — sans fonction DT, le périmètre est l'UL du bénévole."""
+    await _store_benevole(
+        store, "resp@croix-rouge.fr", responsable_ul=True, ul="UL Paris 20"
+    )
+
+    user = await service.get_user_from_token(_token("resp@croix-rouge.fr"), store)
+
+    assert user.role == "Responsable UL"
+    assert user.perimetre == "UL Paris 20"
+    assert user.type_perimetre == "UL"
+
+
+@pytest.mark.asyncio
+async def test_plain_benevole_has_no_special_role(service, store):
+    await _store_benevole(store, "simple@croix-rouge.fr")
+
+    user = await service.get_user_from_token(_token("simple@croix-rouge.fr"), store)
+
+    assert user.role == "Bénévole"
+    assert user.ul == "UL Paris 15"
+
+
+@pytest.mark.asyncio
+async def test_dt_manager_by_email_bypasses_the_referentiel_even_if_inactive(
+    service, store
+):
+    """`EMAIL_GESTIONNAIRE_DT` reste reconnu sans consulter le référentiel.
+
+    Ce chemin est le filet de sécurité : il permet d'entrer dans CLEF même si le
+    référentiel est vide ou en panne. Le documenter par un test, pour que personne ne
+    le « corrige » en le faisant dépendre du statut.
+    """
+    await _store_benevole(
+        store, "thomas.manson@croix-rouge.fr", statut="inactif"
+    )
+
+    user = await service.get_user_from_token(
+        _token("thomas.manson@croix-rouge.fr"), store
+    )
+
+    assert user.role == "Gestionnaire DT"

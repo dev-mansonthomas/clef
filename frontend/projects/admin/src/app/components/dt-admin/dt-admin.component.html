@@ -179,7 +179,7 @@
                     <span class="benevole-email">{{ benevole.email }}</span>
                   </div>
                   <div class="benevole-role">
-                    <span class="role-badge">{{ getRoleDisplay(benevole.role) }}</span>
+                    <span class="role-badge">{{ getRoleDisplay(benevole) }}</span>
                     @if (canModifyBenevole(benevole)) {
                       <button
                         mat-icon-button
@@ -200,7 +200,7 @@
                         <button
                           mat-menu-item
                           (click)="removeRole(benevole)"
-                          [disabled]="!benevole.role || benevole.role === 'Bénévole'"
+                          [disabled]="!benevole.responsable_ul && benevole.fonctions_dt.length === 0"
                         >
                           <mat-icon>person</mat-icon>
                           <span>Retirer le rôle</span>

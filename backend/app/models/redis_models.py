@@ -1,5 +1,5 @@
 """Pydantic models for Redis data structures."""
-from typing import Optional, List, Dict, Any
+from typing import Literal, Optional, List, Dict, Any
 from datetime import datetime
 from pydantic import BaseModel, Field, ConfigDict, field_validator
 
@@ -124,25 +124,61 @@ class VehicleData(BaseModel):
 
 
 class BenevoleData(BaseModel):
-    """Bénévole data stored in Redis."""
-    nivol: str = Field(..., description="NIVOL identifier")
+    """Bénévole stocké dans Redis.
+
+    Deux moitiés, deux propriétaires — voir
+    `docs/specs/synchronisation-referentiel-benevoles.md` :
+
+    - **Identité**, propriété de la feuille « CLEF Benevoles » : `nivol`, `nom`,
+      `prenom`, `ul`, `email`, `telephone`. Écrasée à chaque synchronisation.
+    - **Organisation**, propriété de CLEF : `statut`, `responsable_ul`,
+      `fonctions_dt`. **Préservée** par la synchronisation.
+
+    Le champ `role` à valeur unique a été retiré : il ne pouvait pas exprimer qu'un
+    bénévole est responsable de son UL *et* porteur d'une fonction à la DT. Le rôle
+    applicatif n'est plus stocké, il est dérivé (`app/auth/service.py`).
+    """
+
+    # --- Identité : propriété de la feuille -------------------------------------
+    nivol: str = Field(..., description="NIVOL identifier — clé primaire")
     dt: str = Field(..., description="DT identifier")
+    # Volontairement optionnel malgré la règle « un bénévole a toujours une UL » :
+    # cette règle est imposée à l'écriture (erreur de ligne à la synchronisation), pas
+    # à la lecture. `get_benevole` est sur le chemin d'authentification — un document
+    # hérité sans UL doit se lire, sinon le problème de donnée devient un refus
+    # d'authentification sans diagnostic.
     ul: Optional[str] = Field(None, description="UL identifier")
     nom: str = Field(..., description="Last name")
     prenom: str = Field(..., description="First name")
     email: Optional[str] = Field(None, description="Email address")
-    role: Optional[str] = Field(None, description="Role: 'responsable_ul', 'responsable_dt', or null for regular benevole")
+    telephone: Optional[str] = Field(None, description="Phone number")
+
+    # --- Organisation : propriété de CLEF ---------------------------------------
+    statut: Literal["actif", "inactif"] = Field(
+        "actif",
+        description="`inactif` révoque l'accès sans effacer l'historique"
+    )
+    responsable_ul: bool = Field(
+        False, description="Responsable de son unité locale"
+    )
+    fonctions_dt: List[str] = Field(
+        default_factory=list,
+        description="Fonctions exercées au niveau de la DT (libellés libres)"
+    )
 
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
-                "nivol": "123456",
+                "nivol": "00123456A",
                 "dt": "DT75",
-                "ul": "81",
+                "ul": "UL Paris 15",
                 "nom": "Dupont",
                 "prenom": "Jean",
                 "email": "jean.dupont@croix-rouge.fr",
-                "role": "Bénévole"
+                "telephone": "+33 6 12 34 56 78",
+                "statut": "actif",
+                "responsable_ul": True,
+                "fonctions_dt": ["Référent flotte"]
             }
         }
     )

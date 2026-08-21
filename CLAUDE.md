@@ -250,6 +250,12 @@ Les **deux** racines Terraform échouent à `validate` (`backend/terraform/` et
   Après un déploiement, lancer **une fois**
   `python backend/scripts/backfill_benevole_email_index.py` : les bénévoles écrits
   avant l'index seraient sinon introuvables, donc ramenés à « Bénévole » sans périmètre.
+- **Référentiel bénévoles : deux propriétaires.** La feuille « CLEF Benevoles » possède
+  l'identité (`nivol`, `nom`, `prenom`, `ul`, `email`, `telephone`) ; CLEF possède
+  l'organisation (`statut`, `responsable_ul`, `fonctions_dt`). Deux points d'entrée
+  disjoints — `upsert_benevole_identite` et `set_benevole_organisation` — rendent
+  l'écrasement de l'un par l'autre structurellement impossible. Le rôle applicatif
+  n'est **pas stocké** : il est dérivé (`app/auth/service.py`). Voir ADR 0007.
 - **Parité mock / réel** : `tests/test_mock_parity.py` compare les méthodes appelées sur
   les services fournis par `service_factory` à celles réellement définies. Quatre dettes
   connues y sont listées (M16, M32) ; toute **nouvelle** occurrence fait échouer la

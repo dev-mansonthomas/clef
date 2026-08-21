@@ -73,6 +73,35 @@ Dans la Google Spreadsheet, créer un nouvel onglet nommé **TECHLOG** avec les 
 - Source de l'événement : **Temporel**
 - Type de déclencheur temporel : **Minuteur**
 - Intervalle : **Toutes les heures**
+- ⚠️ **Classeur d'installation : « CLEF Benevoles »**, onglet **« Bénévoles »**
+
+##### Ce que la synchronisation des bénévoles écrit — et n'écrit pas
+
+Le référentiel bénévoles a un partage de propriété strict
+(`docs/specs/synchronisation-referentiel-benevoles.md`) :
+
+| Donnée | Propriétaire | Conséquence |
+|---|---|---|
+| Nivol, Nom, Prénom, UL, Téléphone, Email | **la feuille** | écrasés à chaque passage |
+| statut, responsabilité d'UL, fonctions DT | **CLEF** | jamais touchés par la synchronisation |
+
+Ajouter une colonne « rôle » ou « statut » à la feuille est donc sans effet : ces
+informations se saisissent dans CLEF, et la synchronisation les préserve.
+
+**Les en-têtes de colonnes sont le contrat d'API.** Les clés envoyées sont les
+libellés lus en première ligne : `Nivol`, `Nom`, `Prénom`, `UL`, `Téléphone`, `Email`.
+Renommer une colonne casse la synchronisation — le backend répond en nommant la
+colonne manquante. La colonne `Prénom Nom` est ignorée.
+
+**Le lot est un instantané complet du département.** C'est ce qui permet à CLEF de
+désactiver les bénévoles qui n'y figurent plus, donc de leur **retirer l'accès**.
+Ne jamais synchroniser depuis une feuille filtrée ou tronquée. CLEF refuse de
+désactiver plus de 20 % des bénévoles actifs en une passe et abandonne alors la
+réconciliation en le journalisant — c'est un filet de sécurité, pas une autorisation.
+
+**Lire le TECHLOG.** Le script y journalise le détail : créés, mis à jour, réactivés,
+désactivés, et les dix premières lignes en erreur. Une synchronisation partielle n'est
+plus rapportée comme un succès.
 
 #### Trigger 4 : Menu au chargement
 - Fonction : `onOpen`

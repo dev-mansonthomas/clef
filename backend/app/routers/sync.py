@@ -1,15 +1,20 @@
 """Sync API endpoints for Google Apps Script integration."""
 import os
 import logging
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple
 from fastapi import APIRouter, Header, HTTPException, status, Depends
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError, field_validator
 
-from app.services.redis_service import RedisService
+from app.services.redis_service import BenevoleIdentite, RedisService
 from app.models.redis_models import VehicleData, ResponsableData, BenevoleData, ResponsableVehiculeData
 from app.cache import get_cache
 
 logger = logging.getLogger(__name__)
+
+#: Proportion maximale de bénévoles actifs qu'une seule synchronisation peut
+#: désactiver. Au-delà, la réconciliation est abandonnée : un onglet tronqué ou
+#: filtré produirait sinon une révocation massive d'accès légitimes.
+SYNC_MAX_DEACTIVATION_RATIO = float(os.getenv("SYNC_MAX_DEACTIVATION_RATIO", "0.2"))
 
 router = APIRouter(
     prefix="/api/sync",
@@ -17,14 +22,127 @@ router = APIRouter(
 )
 
 
-class BenevoleSync(BaseModel):
-    """Bénévole data for sync from Apps Script."""
-    nivol: str = Field(..., description="NIVOL identifier")
-    nom: str = Field(..., description="Last name")
-    prenom: str = Field(..., description="First name")
-    email: str | None = Field(None, description="Email address")
-    ul: str | None = Field(None, description="UL identifier")
-    role: str | None = Field(None, description="Role")
+#: Colonnes de l'onglet « Bénévoles » sans lesquelles une ligne est inexploitable.
+#: Déclarées explicitement — et non déduites du modèle — pour que le contrôle
+#: « colonne absente de toutes les lignes » puisse **nommer** la colonne manquante,
+#: plutôt que produire N erreurs de ligne identiques et illisibles.
+MANDATORY_COLUMNS: Tuple[str, ...] = ("Nivol", "Nom", "Prénom", "UL")
+
+
+class BenevoleReferentielRow(BaseModel):
+    """Une ligne de l'onglet « Bénévoles » du classeur « CLEF Benevoles ».
+
+    Les alias sont les **libellés de colonnes de la feuille** : l'Apps Script envoie
+    des objets dont les clés sont les en-têtes. C'était jusqu'ici un contrat implicite
+    — le modèle attendait des noms anglais en minuscules, si bien qu'un `Nom`
+    majuscule faisait échouer la synchronisation entière.
+
+    La colonne `Prénom Nom` est une concaténation de commodité : Pydantic l'ignore,
+    comme tout champ supplémentaire.
+
+    Cette ligne ne porte que de l'**identité**. Le statut, la responsabilité d'UL et
+    les fonctions DT appartiennent à CLEF : ils ne peuvent structurellement pas être
+    écrasés par une synchronisation.
+    """
+    nivol: str = Field(..., alias="Nivol")
+    nom: str = Field(..., alias="Nom")
+    prenom: str = Field(..., alias="Prénom")
+    ul: str = Field(..., alias="UL")
+    telephone: str | None = Field(None, alias="Téléphone")
+    email: str | None = Field(None, alias="Email")
+
+    model_config = {"populate_by_name": True}
+
+    @field_validator("nivol", "nom", "prenom", "ul", mode="before")
+    @classmethod
+    def _required_not_blank(cls, v):
+        """Une cellule vide n'est pas une valeur : la feuille en contient.
+
+        Sans cela, `""` passerait la validation `str` et produirait un bénévole sans
+        clé primaire ou sans UL.
+        """
+        if v is None:
+            raise ValueError("valeur absente")
+        v = str(v).strip()
+        if not v:
+            raise ValueError("valeur vide")
+        return v
+
+    @field_validator("telephone", "email", mode="before")
+    @classmethod
+    def _optional_blank_is_none(cls, v):
+        if v is None:
+            return None
+        v = str(v).strip()
+        return v or None
+
+
+def parse_referentiel_rows(
+    rows: List[Dict[str, Any]]
+) -> Tuple[List[BenevoleIdentite], List[Dict[str, Any]]]:
+    """Valide les lignes **une par une** et renvoie (identités, erreurs).
+
+    C'est ce qui remplace le tout-ou-rien : le corps était typé
+    `List[BenevoleSync]`, donc validé par Pydantic *avant* d'entrer dans le handler —
+    une seule ligne malformée rejetait le lot entier en 422.
+
+    Les numéros de ligne rapportés sont ceux de la **feuille** : en-tête en ligne 1,
+    données à partir de la ligne 2, pour qu'une erreur soit retrouvable à l'œil.
+
+    En cas de NIVOL en doublon, la **dernière** occurrence gagne, et le doublon est
+    signalé : deux lignes pour une même personne est une anomalie de la feuille.
+
+    Returns:
+        `(identites, errors)` — `errors` porte `line`, `reason` et un extrait
+        `values` volontairement réduit, pour ne pas déverser de données personnelles
+        dans des journaux à audience plus large que la base.
+    """
+    identites: Dict[str, BenevoleIdentite] = {}
+    errors: List[Dict[str, Any]] = []
+
+    for index, row in enumerate(rows, start=2):
+        missing = [c for c in MANDATORY_COLUMNS if c not in row]
+        if missing:
+            errors.append({
+                "line": index,
+                "reason": f"Colonne(s) absente(s) : {', '.join(missing)}",
+                "values": {"Nivol": row.get("Nivol", "")},
+            })
+            continue
+
+        try:
+            parsed = BenevoleReferentielRow(**row)
+        except ValidationError as exc:
+            champs = ", ".join(
+                str(e["loc"][0]) if e["loc"] else "?" for e in exc.errors()
+            )
+            errors.append({
+                "line": index,
+                "reason": f"Champ(s) invalide(s) : {champs}",
+                "values": {"Nivol": str(row.get("Nivol", ""))},
+            })
+            continue
+
+        if parsed.nivol in identites:
+            errors.append({
+                "line": index,
+                "reason": (
+                    f"Doublon de NIVOL {parsed.nivol} : la dernière occurrence est "
+                    "conservée"
+                ),
+                "values": {"Nivol": parsed.nivol},
+            })
+
+        identites[parsed.nivol] = BenevoleIdentite(
+            nivol=parsed.nivol,
+            nom=parsed.nom,
+            prenom=parsed.prenom,
+            ul=parsed.ul,
+            email=parsed.email,
+            telephone=parsed.telephone,
+        )
+
+    return list(identites.values()), errors
 
 
 class ResponsableVehiculeSync(BaseModel):
@@ -44,26 +162,36 @@ class SyncResponse(BaseModel):
     message: str
 
 
-async def verify_api_key(x_api_key: str = Header(...)) -> None:
+async def verify_api_key(dt: str, x_api_key: str = Header(...)) -> None:
     """
-    Verify API key from header.
-    
+    Vérifie que la clé API appartient à **la délégation de l'URL**.
+
+    Correctif du constat **C3**. La garde précédente comparait la clé à un
+    `SYNC_API_KEY` global, sans aucun lien avec le `{dt}` demandé : son porteur
+    pouvait lire et **écraser** bénévoles, responsables et véhicules de *toutes* les
+    délégations. Une clé de synchronisation est un credential ; elle doit être cadrée.
+
+    `dt` est injecté depuis le paramètre de chemin par FastAPI, et
+    `RedisService.validate_api_key` ne cherche la clé que dans la configuration de
+    cette délégation — le cadrage est donc structurel, pas déclaratif.
+
+    Les clés sont créées par l'écran de configuration
+    (`RedisService.generate_api_key_dt`).
+
     Args:
-        x_api_key: API key from X-API-Key header
-        
+        dt: identifiant de délégation, issu du chemin
+        x_api_key: clé fournie dans l'en-tête `X-API-Key`
+
     Raises:
-        HTTPException: If API key is invalid
+        HTTPException: 401 si la clé est absente, inconnue, ou propre à une autre
+            délégation.
     """
-    expected = os.getenv("SYNC_API_KEY")
-    if not expected:
-        logger.error("SYNC_API_KEY not configured in environment")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="API key authentication not configured"
-        )
-    
-    if x_api_key != expected:
-        logger.warning(f"Invalid API key attempt")
+    redis_store = await get_redis_for_dt(dt)
+
+    if not await redis_store.validate_api_key(x_api_key):
+        # Ne pas distinguer « clé inconnue » de « clé d'une autre délégation » :
+        # ce serait renseigner un appelant illégitime.
+        logger.warning("Clé API refusée pour %s", dt)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid API key"
@@ -208,52 +336,89 @@ async def get_responsables_for_sync(
     return responsables
 
 
-@router.post("/{dt}/benevoles", response_model=SyncResponse)
+class BenevoleSyncResult(BaseModel):
+    """Résultat détaillé d'une synchronisation du référentiel bénévoles.
+
+    Renvoyé en 200 même en présence d'erreurs de ligne : un lot partiellement valide
+    est importé partiellement, et l'Apps Script journalise le détail dans l'onglet
+    TECHLOG — sans quoi une synchronisation à moitié réussie passerait pour un succès.
+    """
+    success: bool
+    created: int
+    updated: int
+    reactivated: int
+    deactivated: int
+    errors: List[Dict[str, Any]]
+    reconciliation_skipped: bool
+    reconciliation_skipped_reason: str | None = None
+
+
+@router.post("/{dt}/benevoles", response_model=BenevoleSyncResult)
 async def sync_benevoles(
     dt: str,
-    benevoles: List[BenevoleSync],
+    rows: List[Dict[str, Any]],
     _: None = Depends(verify_api_key)
-) -> SyncResponse:
+) -> BenevoleSyncResult:
     """
-    Sync bénévoles from Apps Script to Redis.
-    
+    Synchronise le référentiel bénévoles depuis « CLEF Benevoles » vers Redis.
+
+    Le lot est un **instantané complet** de la délégation : c'est ce qui autorise la
+    réconciliation. Deux propriétés, opposées mais également nécessaires :
+
+    - **Fusion** — la feuille écrase l'identité (nivol, nom, prénom, UL, téléphone,
+      email) et ne touche **jamais** à l'organisation détenue par CLEF (statut,
+      responsabilité d'UL, fonctions DT).
+    - **Réconciliation** — un bénévole absent du lot est passé à `inactif`, ce qui
+      révoque son accès sans effacer l'historique qui le référence.
+
+    Chaque ligne est validée **indépendamment** : une ligne fautive n'emporte pas le
+    lot. Voir `docs/specs/synchronisation-referentiel-benevoles.md`.
+
     Args:
-        dt: DT identifier (e.g., "DT75")
-        benevoles: List of bénévole data from spreadsheet
-        
+        dt: identifiant de délégation, qui cadre aussi la clé API acceptée
+        rows: lignes brutes de l'onglet, clés = libellés de colonnes
+
     Returns:
-        Sync response with count of processed records
+        Compteurs par opération et erreurs situées à la ligne
     """
     redis_store = await get_redis_for_dt(dt)
-    
-    processed = 0
-    for benevole_data in benevoles:
-        try:
-            # Create BenevoleData instance
-            benevole = BenevoleData(
-                nivol=benevole_data.nivol,
-                dt=dt,
-                nom=benevole_data.nom,
-                prenom=benevole_data.prenom,
-                email=benevole_data.email,
-                ul=benevole_data.ul,
-                role=benevole_data.role
-            )
-            
-            # Store in Redis
-            success = await redis_store.set_benevole(benevole)
-            if success:
-                processed += 1
-        except Exception as e:
-            logger.error(f"Error syncing benevole {benevole_data.nivol}: {e}")
-            continue
-    
-    logger.info(f"Sync API: Processed {processed}/{len(benevoles)} bénévoles for {dt}")
 
-    return SyncResponse(
+    identites, errors = parse_referentiel_rows(rows)
+
+    counts = {"created": 0, "updated": 0, "reactivated": 0}
+    for identite in identites:
+        try:
+            outcome = await redis_store.upsert_benevole_identite(identite)
+            counts[outcome] += 1
+        except Exception as e:
+            logger.error("Échec d'écriture du bénévole %s : %s", identite.nivol, e)
+            errors.append({
+                "line": None,
+                "reason": f"Écriture impossible : {e}",
+                "values": {"Nivol": identite.nivol},
+            })
+
+    reconciliation = await redis_store.deactivate_benevoles_absent_from(
+        {i.nivol for i in identites},
+        max_ratio=SYNC_MAX_DEACTIVATION_RATIO,
+    )
+
+    logger.info(
+        "Sync bénévoles %s : %d créés, %d mis à jour, %d réactivés, %d désactivés, "
+        "%d erreurs de ligne",
+        dt, counts["created"], counts["updated"], counts["reactivated"],
+        reconciliation["deactivated"], len(errors)
+    )
+
+    return BenevoleSyncResult(
         success=True,
-        count=processed,
-        message=f"Successfully synced {processed} bénévoles"
+        created=counts["created"],
+        updated=counts["updated"],
+        reactivated=counts["reactivated"],
+        deactivated=reconciliation["deactivated"],
+        errors=errors,
+        reconciliation_skipped=reconciliation["skipped"],
+        reconciliation_skipped_reason=reconciliation["reason"],
     )
 
 

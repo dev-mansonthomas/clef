@@ -39,18 +39,24 @@ async def store():
     service = RedisService(redis_client=client, dt="DT75")
     await service.set_benevole(BenevoleData(
         nivol="00111111A", dt="DT75", ul="UL Paris 15",
-        nom="Dupont", prenom="Jean", email="jean.dupont@croix-rouge.fr", role=None,
+        nom="Dupont", prenom="Jean", email="jean.dupont@croix-rouge.fr",
+        telephone="+33 6 11 22 33 44",
     ))
     await service.set_benevole(BenevoleData(
         nivol="00222222B", dt="DT75", ul="UL Paris 20",
         nom="Rousseau", prenom="Claire", email="claire.rousseau@croix-rouge.fr",
-        role="responsable_ul",
+        responsable_ul=True,
+    ))
+    # Bénévole désactivé : ne doit pas apparaître dans l'annuaire.
+    await service.set_benevole(BenevoleData(
+        nivol="00444444D", dt="DT75", ul="UL Paris 15",
+        nom="Parti", prenom="Ancien", email="parti@croix-rouge.fr", statut="inactif",
     ))
     # Bénévole d'une autre délégation : ne doit jamais apparaître.
     other = RedisService(redis_client=client, dt="DT92")
     await other.set_benevole(BenevoleData(
         nivol="00333333C", dt="DT92", ul="UL Nanterre",
-        nom="Etranger", prenom="Autre", email="autre@croix-rouge.fr", role=None,
+        nom="Etranger", prenom="Autre", email="autre@croix-rouge.fr",
     ))
     yield service
     await client.flushdb()
@@ -125,6 +131,7 @@ def test_response_shape_matches_what_the_frontends_consume(as_benevole):
     assert benevole["prenom"] == "Jean"
     assert benevole["ul"] == "UL Paris 15"
     assert benevole["email"] == "jean.dupont@croix-rouge.fr"
+    assert benevole["telephone"] == "+33 6 11 22 33 44"
 
 
 @pytest.mark.parametrize(
@@ -154,3 +161,41 @@ def test_main_declares_no_referential_route():
 
     for leaked in ('"/api/benevoles"', '"/api/benevoles/{email}"', '"/api/responsables"'):
         assert leaked not in source, f"Route de référentiel réapparue dans main.py : {leaked}"
+
+
+def test_directory_exposes_telephone(as_benevole):
+    """AC-13 — le téléphone est servi au même titre que l'email.
+
+    Arbitrage du propriétaire : tout utilisateur authentifié de la délégation y a
+    accès, pour pouvoir joindre le chauffeur d'une réservation.
+    """
+    body = as_benevole.get("/api/benevoles").json()
+    dupont = next(b for b in body["benevoles"] if b["nivol"] == "00111111A")
+
+    assert dupont["telephone"] == "+33 6 11 22 33 44"
+
+
+def test_directory_excludes_inactive_benevoles(as_benevole):
+    """Un bénévole désactivé disparaît de l'annuaire.
+
+    Cohérence avec AC-3 : la réconciliation révoque l'accès **et** retire la personne
+    des sélecteurs de chauffeur. La laisser proposée conduirait à des réservations
+    attribuées à quelqu'un qui a quitté le département.
+    """
+    body = as_benevole.get("/api/benevoles").json()
+
+    emails = {b["email"] for b in body["benevoles"]}
+    assert "parti@croix-rouge.fr" not in emails
+    assert body["count"] == 2
+
+
+def test_directory_reports_the_organisation(as_benevole):
+    """L'annuaire expose la responsabilité d'UL et les fonctions DT.
+
+    C'est ce que l'écran d'administration DT consommera à la place de l'ancien `role`.
+    """
+    body = as_benevole.get("/api/benevoles").json()
+    claire = next(b for b in body["benevoles"] if b["nivol"] == "00222222B")
+
+    assert claire["responsable_ul"] is True
+    assert claire["fonctions_dt"] == []

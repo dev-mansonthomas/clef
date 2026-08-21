@@ -1,5 +1,14 @@
 # Authentification & rôles — CLEF
 
+> ⚠️ **La section « Rôles et résolution » de ce document est périmée depuis le
+> 2026-08-21.** Elle décrit une résolution par lecture Google Sheets, puis par un champ
+> `role` à valeur unique. Depuis les tâches N2 et le chantier « référentiel bénévoles » :
+> le référentiel est lu dans **Redis** via l'index `benevoles:by_email`, et le rôle est
+> **dérivé** de `fonctions_dt` puis `responsable_ul` — un `statut` `inactif` refusant
+> l'accès. Voir `docs/specs/synchronisation-referentiel-benevoles.md` et
+> [ADR 0007](../adr/0007-partage-de-propriete-feuille-clef.md). Le reste du document
+> (flux OAuth, cookie, super admin) demeure exact.
+
 Spec agent-facing reconstruite à partir du code (pas de doc source antérieure).
 Portée : `backend/app/auth/*`, `backend/app/mocks/okta_mock.py`, garde-fous frontend admin.
 

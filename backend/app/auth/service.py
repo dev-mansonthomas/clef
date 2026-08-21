@@ -56,20 +56,35 @@ class AuthService:
                 type_perimetre="DT"
             )
 
-        # Le référentiel Redis porte les bénévoles ET les responsables, ces derniers
-        # étant distingués par leur champ `role` (migration Wave 11).
         benevole = await redis_store.get_benevole_by_email(email)
         if benevole:
-            user_role = "Bénévole"  # Default
-            perimetre = benevole.ul
-            type_perimetre = "UL"
+            # Révocation. Pendant indispensable de la réconciliation : sans ce
+            # contrôle, désactiver un bénévole absent du référentiel ne lui retirerait
+            # rien. Une exception, pas un utilisateur dégradé — l'appelant la
+            # transforme en 401 après l'avoir journalisée.
+            if benevole.statut != "actif":
+                logger.warning(
+                    "Authentification refusée : bénévole %s inactif dans %s (email=%s)",
+                    benevole.nivol, getattr(redis_store, "dt", "?"), email,
+                )
+                raise PermissionError(
+                    f"Bénévole {benevole.nivol} inactif : accès révoqué"
+                )
 
-            if benevole.role == "responsable_dt":
+            # Rôle **dérivé**, plus stocké. Une fonction à la DT l'emporte sur la
+            # responsabilité d'UL : la personne peut être les deux, et son périmètre
+            # effectif est alors le plus large. C'est exactement ce que l'ancien champ
+            # `role` à valeur unique ne pouvait pas exprimer.
+            if benevole.fonctions_dt:
                 user_role = "Gestionnaire DT"
                 perimetre = "DT Paris"
                 type_perimetre = "DT"
-            elif benevole.role == "responsable_ul":
+            elif benevole.responsable_ul:
                 user_role = "Responsable UL"
+                perimetre = benevole.ul
+                type_perimetre = "UL"
+            else:
+                user_role = "Bénévole"
                 perimetre = benevole.ul
                 type_perimetre = "UL"
 
