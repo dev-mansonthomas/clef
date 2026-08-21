@@ -103,10 +103,45 @@ async def _seed_referentiel(client) -> None:
             continue
 
 
+#: Le référentiel d'un Redis réel n'est peuplé qu'une fois par session : les écritures
+#: persistent, contrairement au fakeredis recréé à chaque connexion.
+_REAL_SEEDED = False
+
+
 @pytest.fixture(autouse=True)
 def redis_backend(monkeypatch):
-    """Garantit un datastore utilisable, réel ou simulé."""
+    """Garantit un datastore utilisable **et peuplé**, réel ou simulé.
+
+    Les deux moitiés comptent. Depuis la tâche N2, l'authentification résout les rôles
+    depuis le référentiel Redis : un datastore joignable mais **vide** fait échouer tout
+    test qui s'authentifie autrement qu'en `EMAIL_GESTIONNAIRE_DT`.
+
+    C'est précisément la configuration de la CI — service `redis:8.10` frais — et c'est
+    ce qui l'a fait échouer alors que la suite passait en local, où le référentiel avait
+    été peuplé par l'amorçage de la stack de développement. Le peuplement ne peut donc
+    pas dépendre de l'environnement.
+    """
+    global _REAL_SEEDED
+
     if _redis_reachable():
+        # Datastore réel : peupler une seule fois, les écritures persistant.
+        if not _REAL_SEEDED:
+            import asyncio
+
+            from app.cache import get_cache
+
+            async def _prepare():
+                cache = get_cache()
+                if not cache._connected or cache.client is None:
+                    await cache.connect()
+                await _seed_referentiel(cache.client)
+                # Laisser le cache dans l'état où les tests l'attendent : la connexion
+                # ouverte ici est liée à *cette* boucle, qui va disparaître.
+                cache.client = None
+                cache._connected = False
+
+            asyncio.run(_prepare())
+            _REAL_SEEDED = True
         yield
         return
 
