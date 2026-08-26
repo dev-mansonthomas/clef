@@ -176,6 +176,88 @@ tofu -chdir="$TF_DIR" plan -var-file="environments/${ENVIRONMENT}.tfvars" \
     -out="$PLAN_FILE" -input=false
 echo ""
 
+# ---------------------------------------------------------------------------
+# Garde-fou : ne jamais détruire une ressource qui n'appartient pas à CLEF
+# ---------------------------------------------------------------------------
+# Le projet GCP est PARTAGÉ avec une autre application entière. Une ressource
+# détruite ici et appartenant au voisin serait une panne chez quelqu'un d'autre,
+# causée par notre outillage.
+#
+# La règle : toute destruction d'une ressource PORTEUSE DE DONNÉES OU D'IDENTITÉ
+# doit viser un objet dont l'identifiant contient « clef ». Sinon, on refuse — sans
+# demander, sans proposer de forcer.
+#
+# Les `google_project_service` en sont exclus à dessein : leur identifiant est un nom
+# d'API (« compute.googleapis.com »), jamais préfixé, et leur destruction ne fait que
+# les sortir du state — `disable_on_destroy = false` garantit que l'API reste activée.
+# C'est vérifié séparément ci-dessous.
+verifier_destructions() {
+    local plan_texte
+    plan_texte=$(tofu -chdir="$TF_DIR" show -no-color "$PLAN_FILE")
+
+    # Types dont une destruction est irréversible ou porte une identité.
+    local sensibles='google_secret_manager_secret|google_storage_bucket|google_kms|google_service_account|google_artifact_registry|google_redis|google_memorystore|google_sql'
+
+    local suspectes
+    suspectes=$(printf '%s\n' "$plan_texte" | awk -v sensibles="$sensibles" '
+        /^  # .* will be destroyed/ {
+            adresse = $2
+            sensible = (adresse ~ sensibles)
+            bloc = ""
+            next
+        }
+        sensible && /^      - (id|name|secret_id|bucket|account_id|repository_id|email) +=/ {
+            # La valeur est la chaîne ENTRE GUILLEMETS. Surtout pas $NF : la ligne
+            # se termine par « -> null » sur une destruction, et on comparerait
+            # « null » au lieu de l identifiant — refusant alors tout apply légitime.
+            if (match($0, /"[^"]*"/)) bloc = bloc " " substr($0, RSTART + 1, RLENGTH - 2)
+        }
+        sensible && /^    }/ {
+            if (tolower(bloc) !~ /clef/) print adresse " ->" bloc
+            sensible = 0
+        }
+    ')
+
+    if [ -n "$suspectes" ]; then
+        echo "🛑 REFUS — le plan détruirait des ressources qui ne semblent pas appartenir à CLEF :"
+        echo ""
+        printf '%s\n' "$suspectes" | sed 's/^/       /'
+        echo ""
+        echo "    Le projet $PROJECT_ID est partagé avec une autre application."
+        echo "    Aucune ressource non préfixée 'clef' ne doit être détruite par cet outil."
+        echo "    Rien n'a été appliqué. Corriger la configuration, pas ce garde-fou."
+        exit 1
+    fi
+
+    # Les APIs sortant du state : vérifier qu'aucune ne serait désactivée.
+    local apis_desactivees
+    apis_desactivees=$(printf '%s\n' "$plan_texte" | awk '
+        /^  # google_project_service.* will be destroyed/ { addr = $2; vu = 1; next }
+        vu && /disable_on_destroy *= *true/ { print addr; vu = 0 }
+        vu && /^    }/ { vu = 0 }
+    ')
+    if [ -n "$apis_desactivees" ]; then
+        echo "🛑 REFUS — ces APIs seraient DÉSACTIVÉES sur un projet partagé :"
+        printf '%s\n' "$apis_desactivees" | sed 's/^/       /'
+        echo "    Poser 'disable_on_destroy = false' avant de continuer."
+        exit 1
+    fi
+
+    local nb
+    nb=$(printf '%s\n' "$plan_texte" | grep -c "will be destroyed" || true)
+    if [ "$nb" -gt 0 ]; then
+        echo "  ✅ $nb destruction(s) planifiée(s), toutes sur des ressources CLEF :"
+        printf '%s\n' "$plan_texte" | grep "will be destroyed" \
+            | sed 's/^  # /       /; s/ will be destroyed//'
+        echo ""
+    else
+        echo "  ✅ aucune destruction planifiée"
+        echo ""
+    fi
+}
+
+verifier_destructions
+
 if [ "$AUTO_APPROVE" = false ]; then
     echo "⚠️  Relisez le plan ci-dessus. Points d'attention :"
     echo "     • aucune 'google_service_account_key' ne doit être CRÉÉE (constat H6) ;"
@@ -225,9 +307,18 @@ echo "✅ Infrastructure « $ENVIRONMENT » en place."
 echo ""
 tofu -chdir="$TF_DIR" output
 echo ""
-echo "📌 Deux choses à faire avant le premier déploiement :"
-echo "   1. Partager les feuilles Google et les dossiers Drive avec l'adresse du"
-echo "      service account affichée ci-dessus (comme avec un utilisateur)."
-echo "   2. Renseigner les secrets ci-dessus s'il en manque."
+echo "📌 À faire avant le premier déploiement : renseigner les secrets ci-dessus"
+echo "   s'il en manque."
+echo ""
+echo "   ⚠️  NE PAS chercher à partager les feuilles Google ou les dossiers Drive"
+echo "       avec ce service account : le domaine @croix-rouge.fr interdit le"
+echo "       partage vers une adresse extérieure, et une adresse .gserviceaccount.com"
+echo "       en est une. C'est structurel, pas un réglage à trouver."
+echo ""
+echo "       C'est pour cela que les données circulent dans l'autre sens :"
+echo "         • bénévoles   : Apps Script POUSSE la feuille vers l'API (clé API) ;"
+echo "         • véhicules   : Apps Script tire depuis l'API vers la feuille ;"
+echo "         • Drive/Gmail : sous l'OAuth du gestionnaire DT, dont le refresh"
+echo "                         token est chiffré par KMS — pas sous ce compte."
 echo ""
 echo "   Puis : ./01-gcp-deploy.sh $ENVIRONMENT"

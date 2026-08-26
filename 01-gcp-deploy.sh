@@ -172,12 +172,20 @@ for secret in CLEF_GOOGLE_CLIENT_ID CLEF_GOOGLE_CLIENT_SECRET CLEF_QR_CODE_SALT;
 done
 [ "$FAILED" = false ] && echo "  ✅ secrets renseignés"
 
-# Les identifiants de feuilles sont lus par app/services/sheets_real.py. Absents,
-# l'app démarre mais l'authentification ne résout aucun rôle (constats M9/M10, M31).
+# Les identifiants de feuilles sont lus par app/services/sheets_real.py, qui
+# s'authentifie avec le SERVICE ACCOUNT — et ne peut donc pas les lire : le domaine
+# @croix-rouge.fr interdit tout partage vers une adresse extérieure, ce qu'est une
+# adresse .gserviceaccount.com. Les renseigner ne débloque rien ; les laisser vides
+# ne casse rien de plus.
+#
+# Le référentiel arrive dans Redis par Apps Script, pas par ce chemin. Trois routes
+# dépendent pourtant encore de sheets_real et prendront un 403 en production —
+# constat N13 de docs/TODO.md. On le dit ici, une fois, plutôt que de laisser croire
+# qu'une variable manquante en est la cause.
 for var in VEHICULES_SPREADSHEET_ID BENEVOLES_SPREADSHEET_ID RESPONSABLES_SPREADSHEET_ID; do
     if [ -z "${!var:-}" ]; then
-        echo "⚠️  $var vide dans $ENV_FILE."
-        echo "    Non bloquant, mais la synchronisation du référentiel ne fonctionnera pas."
+        echo "ℹ️  $var vide — sans effet : le service account ne peut de toute façon"
+        echo "    pas lire une feuille du domaine (voir constat N13)."
     fi
 done
 
