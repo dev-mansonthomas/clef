@@ -43,3 +43,20 @@ resource "google_storage_bucket" "redis_snapshots" {
 
   depends_on = [google_project_service.apis]
 }
+
+# Droit d'écriture sur CE bucket, et sur lui seul.
+#
+# ⚠️ Ce rôle était d'abord accordé au niveau **projet**, dans iam.tf. Le projet
+# `rcq-fr-dev` étant partagé avec une autre application entière, cela donnait au
+# backend CLEF le droit de lire, écrire et **supprimer** les objets de tous ses
+# buckets. Le besoin réel est ce seul bucket : la liaison est donc portée par la
+# ressource, pas par le projet.
+#
+# `objectAdmin` et non `objectCreator` : gcsfuse doit lister, lire, écrire et
+# remplacer `dump.rdb` — Redis écrit un fichier temporaire puis le renomme, ce qui
+# sur un stockage objet est un copier-supprimer.
+resource "google_storage_bucket_iam_member" "backend_snapshots" {
+  bucket = google_storage_bucket.redis_snapshots.name
+  role   = "roles/storage.objectAdmin"
+  member = "serviceAccount:${google_service_account.clef_backend.email}"
+}

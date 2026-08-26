@@ -28,9 +28,11 @@ resource "google_project_iam_member" "backend_roles" {
     # Déchiffrer les refresh tokens OAuth des gestionnaires DT (KMS).
     "roles/cloudkms.cryptoKeyEncrypterDecrypter",
     # Lire les secrets injectés dans Cloud Run.
+    #
+    # ⚠️ Reste au niveau projet, à dessein : `secretmanager.secretAccessor` ne donne
+    # accès qu'aux secrets sur lesquels une liaison existe, et secrets.tf en pose une
+    # par secret CLEF. C'est cette liaison par secret qui borne réellement la portée.
     "roles/secretmanager.secretAccessor",
-    # Écrire les instantanés Redis dans le bucket.
-    "roles/storage.objectAdmin",
   ])
 
   project = var.project_id

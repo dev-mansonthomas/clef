@@ -934,6 +934,28 @@ Décision de conception : [ADR 0008](adr/0008-redis-sidecar-cloud-run-instantane
 | **M11** — `JWT_SECRET_KEY` jamais transmis à Cloud Run | ✅ Le gabarit l'injecte |
 | **N1** — écrire `gcp-deploy.sh` | ✅ Deux scripts : `00-infra.sh` puis `01-gcp-deploy.sh`. Une commande chacun, préflight qui nomme ce qui manque, `shellcheck` muet |
 
+### Deux défauts attrapés avant le premier apply
+
+**`roles/storage.objectAdmin` était accordé au niveau projet.** Dans `rcq-fr-dev`,
+partagé avec une autre application entière, cela donnait au backend CLEF le droit de
+lire, écrire et **supprimer** les objets de tous les buckets du projet — dont ceux du
+voisin. Vu dans le plan du premier `00-infra.sh`, avant confirmation. La liaison est
+désormais portée par le bucket d'instantanés
+(`google_storage_bucket_iam_member`), pas par le projet.
+
+`roles/secretmanager.secretAccessor` reste au niveau projet, à dessein : il ne donne
+accès qu'aux secrets sur lesquels une liaison existe, et `secrets.tf` en pose une par
+secret CLEF. C'est la liaison par secret qui borne la portée.
+
+**Les liaisons IAM renommées auraient pu couper l'accès à KMS.** L'ancienne racine
+nommait la ressource `service_account_roles`, la nouvelle `backend_roles` : Terraform
+planifiait un destroy **et** un create de la liaison
+`roles/cloudkms.cryptoKeyEncrypterDecrypter`, sans dépendance entre les deux nœuds.
+Le create passant en premier aurait été un no-op, et le destroy suivant aurait retiré
+la liaison — le backend perdant la capacité de déchiffrer les refresh tokens OAuth des
+gestionnaires DT, sans erreur. Corrigé par un bloc `moved`, vérifié dans le plan réel
+(« has moved to », sans changement).
+
 ### Un défaut attrapé avant le premier déploiement
 
 Le gabarit Cloud Run déclarait l'ordre de démarrage par un champ `dependsOn` sur le
