@@ -99,10 +99,19 @@ Desktop.ini
 tfplan*
 *.tfstate
 *.tfstate.*
+# `*.tfvars` porte parfois des secrets — d'où la règle. Mais les fichiers
+# d'environnement de CLEF ne contiennent que project_id, environment et deux
+# régions : ils sont **nécessaires** à ./00-infra.sh, qui refuse de démarrer sans.
+# Sans cette exception, un clone frais ne pourrait pas provisionner.
+# (Même piège que la règle `*.csv`, qui avait avalé une fixture de test.)
 *.tfvars
 !*.tfvars.example
+!deploy/terraform/environments/*.tfvars
 .terraform/
-.terraform.lock.hcl
+# Le fichier de verrouillage des providers **doit** être versionné : c'est lui qui
+# garantit que tout le monde, et la machine de déploiement, résolvent la même
+# version de provider avec les mêmes empreintes.
+!.terraform.lock.hcl
 crash.log
 override.tf
 override.tf.json
@@ -172,3 +181,6 @@ Référentiel*.csv
 # Rapports des outils git de l'hôte (git-pr-merge, git-check)
 # ============================================
 debug/
+
+# Configuration de déploiement par environnement (non secrète, mais propre à un site)
+deploy/deploy.*.env
