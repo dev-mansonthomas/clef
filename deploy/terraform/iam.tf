@@ -37,3 +37,18 @@ resource "google_project_iam_member" "backend_roles" {
   role    = each.key
   member  = "serviceAccount:${google_service_account.clef_backend.email}"
 }
+
+# L'ancienne racine nommait cette ressource `service_account_roles`. Sans ce bloc,
+# Terraform verrait deux ressources distinctes et planifierait, pour le rôle commun
+# `roles/cloudkms.cryptoKeyEncrypterDecrypter`, un destroy ET un create — sans
+# dépendance entre les deux, donc dans un ordre arbitraire. Le create passant en
+# premier serait un no-op (le membre est déjà lié), et le destroy qui suit retirerait
+# la liaison : le backend perdrait l'accès à KMS, sans qu'aucune erreur ne le dise.
+#
+# `moved` fait reprendre les instances existantes sous la nouvelle adresse. Le rôle
+# `roles/compute.instanceAdmin.v1`, absent du `for_each`, est alors simplement détruit
+# — une seule opération, voulue : il n'a jamais servi (moindre privilège).
+moved {
+  from = google_project_iam_member.service_account_roles
+  to   = google_project_iam_member.backend_roles
+}
