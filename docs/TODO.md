@@ -975,6 +975,22 @@ Leçon générale : les fichiers d'infrastructure ne bénéficient d'aucun typag
 d'aucun compilateur. Un champ inconnu y est du silence, pas une erreur. Ils méritent
 des tests comme le reste.
 
+## Contraintes de l'environnement, découvertes par exécution
+
+Le premier `./00-infra.sh dev` a réellement tourné le 2026-08-27 : **12 ressources sur
+16 créées**, les 4 secrets en échec.
+
+**Une policy d'organisation `constraints/gcp.resourceLocations` interdit
+l'emplacement `global`** sur ce projet. `replication { auto {} }` place un secret
+dans `global` : les quatre créations ont été refusées. Corrigé par une réplication
+explicite en `europe-west1`, région dont le même apply a prouvé qu'elle est autorisée
+— bucket et registre y ont été créés.
+
+Le message d'erreur parle d'emplacement mais **ne nomme jamais `auto`** : rien dans
+l'erreur ne mène au champ fautif. À retenir pour toute ressource GCP ajoutée par la
+suite — vérifier son emplacement effectif avant de l'apply, `global` n'est pas une
+option ici.
+
 ## Faits établis sur l'existant
 
 - **De l'infrastructure était déployée** sur `rcq-fr-dev`, contrairement à ce que tout le

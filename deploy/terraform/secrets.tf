@@ -37,8 +37,22 @@ resource "google_secret_manager_secret" "clef" {
   secret_id = each.key
   project   = var.project_id
 
+  # ⚠️ Réplication **explicite**, et non `auto {}`.
+  #
+  # `auto {}` place le secret dans l'emplacement `global`, que la policy
+  # d'organisation `constraints/gcp.resourceLocations` interdit sur ce projet. Le
+  # premier apply a échoué là-dessus, avec un message qui parle d'emplacement sans
+  # jamais nommer `auto` — la cause n'est pas lisible dans l'erreur.
+  #
+  # Un seul réplica, dans la région du service : le secret n'est lu qu'au démarrage
+  # du conteneur, et ce conteneur est lui-même mono-région. Un second réplica
+  # n'ajouterait aucune disponibilité au chemin réel.
   replication {
-    auto {}
+    user_managed {
+      replicas {
+        location = var.region
+      }
+    }
   }
 
   labels = {

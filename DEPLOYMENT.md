@@ -80,6 +80,25 @@ keyring ne se déplace pas — Terraform l'adopte là où il est. L'écart est s
 conséquence : KMS n'est appelé qu'à l'ouverture de session. Il est porté par la
 variable `kms_region` de `deploy/terraform/variables.tf`.
 
+### Une policy d'organisation interdit `global`
+
+`constraints/gcp.resourceLocations` est appliquée sur ce projet par l'organisation :
+toute ressource créée dans l'emplacement `global` est refusée. Constaté au premier
+apply, sur les quatre secrets.
+
+Conséquence pratique : **ne jamais utiliser `replication { auto {} }`** pour un
+`google_secret_manager_secret`, qui place le secret dans `global`. La configuration
+déclare une réplication explicite en `europe-west1`. Le message d'erreur parle
+d'emplacement mais ne nomme jamais `auto` : la cause n'est pas lisible dans l'erreur.
+
+`europe-west1` est autorisée — le bucket et le registre y ont été créés sans
+difficulté au même apply. Pour lire la liste exacte :
+
+```sh
+gcloud resource-manager org-policies describe gcp.resourceLocations \
+  --project=rcq-fr-dev --effective
+```
+
 ### ⚠️ Le projet GCP est partagé
 
 `rcq-fr-dev` héberge **une autre application entière** (15 services Cloud Run :
@@ -289,6 +308,7 @@ dernier instantané, quelle que soit la révision.
 | Tout le monde est « Bénévole » sans UL | référentiel vide, ou identifiants de classeurs absents (M9/M10, M31) |
 | `tofu` : « permission denied » à l'extraction du provider | vous êtes dans la VM, sur le montage partagé. Pointer `TF_DATA_DIR` ailleurs — et de toute façon, pas d'`apply` dans la VM |
 | Redirection OAuth refusée | l'URL Cloud Run n'est pas dans les URI autorisés du client OAuth |
+| `Constraint constraints/gcp.resourceLocations violated ... in [global]` | une ressource est créée dans `global`, interdit par la policy d'organisation. Pour Secret Manager, c'est `replication { auto {} }` — le message ne nomme jamais `auto`. Utiliser une réplication explicite en `europe-west1` |
 
 ## Ce qui n'est pas fait
 
