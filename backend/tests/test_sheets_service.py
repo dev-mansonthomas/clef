@@ -120,25 +120,28 @@ class TestGoogleSheetsServiceReal:
     """Test real Google Sheets service implementation."""
 
     @patch.dict(os.environ, {"GOOGLE_APPLICATION_CREDENTIALS": "/path/to/creds.json", "USE_MOCKS": "false"})
-    @patch('app.services.sheets_real.service_account')
+    @patch('app.services.sheets_real.load_service_credentials')
     @patch('app.services.sheets_real.build')
-    def test_initialization(self, mock_build, mock_service_account):
+    def test_initialization(self, mock_build, mock_load_credentials):
         """Test service initialization with credentials."""
 
         from app.services.sheets_real import GoogleSheetsService
 
         mock_creds = Mock()
-        mock_service_account.Credentials.from_service_account_file.return_value = mock_creds
+        mock_load_credentials.return_value = mock_creds
 
         service = GoogleSheetsService()
 
-        mock_service_account.Credentials.from_service_account_file.assert_called_once()
+        # La provenance des credentials (fichier de clé ou identité attachée) est
+        # couverte par tests/test_google_credentials.py. Ici on vérifie seulement
+        # qu'elles sont transmises au client Google.
+        mock_load_credentials.assert_called_once()
         mock_build.assert_called_once_with('sheets', 'v4', credentials=mock_creds)
 
     @patch.dict(os.environ, {"GOOGLE_APPLICATION_CREDENTIALS": "/path/to/creds.json", "VEHICULES_SPREADSHEET_ID": "test-sheet-id", "USE_MOCKS": "false"})
-    @patch('app.services.sheets_real.service_account')
+    @patch('app.services.sheets_real.load_service_credentials')
     @patch('app.services.sheets_real.build')
-    def test_get_vehicles(self, mock_build, mock_service_account):
+    def test_get_vehicles(self, mock_build, mock_load_credentials):
         """Test getting vehicles from real API."""
 
         from app.services.sheets_real import GoogleSheetsService
@@ -163,10 +166,10 @@ class TestGoogleSheetsServiceReal:
         assert vehicles[0]['immat'] == 'AB-123-CD'
 
     @patch.dict(os.environ, {"GOOGLE_APPLICATION_CREDENTIALS": "/path/to/creds.json", "USE_MOCKS": "false"})
-    @patch('app.services.sheets_real.service_account')
+    @patch('app.services.sheets_real.load_service_credentials')
     @patch('app.services.sheets_real.build')
     @patch('app.services.sheets_real.time.sleep')
-    def test_retry_with_backoff_on_429(self, mock_sleep, mock_build, mock_service_account):
+    def test_retry_with_backoff_on_429(self, mock_sleep, mock_build, mock_load_credentials):
         """Test exponential backoff on 429 rate limit errors."""
 
         from app.services.sheets_real import GoogleSheetsService
@@ -196,9 +199,9 @@ class TestGoogleSheetsServiceReal:
         assert mock_sleep.call_args_list[1][0][0] == 2  # Second retry: 2^1 = 2s
 
     @patch('app.services.sheets_real.logger.warning')
-    @patch('app.services.sheets_real.service_account')
+    @patch('app.services.sheets_real.load_service_credentials')
     @patch('app.services.sheets_real.build')
-    def test_get_benevoles_without_sheet_id_warns(self, mock_build, mock_service_account, mock_warning):
+    def test_get_benevoles_without_sheet_id_warns(self, mock_build, mock_load_credentials, mock_warning):
         """Missing optional volunteer sheet should emit a warning log."""
         with patch.dict(os.environ, {
             "GOOGLE_APPLICATION_CREDENTIALS": "/path/to/creds.json",
@@ -214,9 +217,9 @@ class TestGoogleSheetsServiceReal:
         mock_warning.assert_called_once()
 
     @patch('app.services.sheets_real.logger.warning')
-    @patch('app.services.sheets_real.service_account')
+    @patch('app.services.sheets_real.load_service_credentials')
     @patch('app.services.sheets_real.build')
-    def test_get_responsables_without_sheet_id_warns(self, mock_build, mock_service_account, mock_warning):
+    def test_get_responsables_without_sheet_id_warns(self, mock_build, mock_load_credentials, mock_warning):
         """Missing optional manager sheet should emit a warning log."""
         with patch.dict(os.environ, {
             "GOOGLE_APPLICATION_CREDENTIALS": "/path/to/creds.json",
@@ -232,9 +235,9 @@ class TestGoogleSheetsServiceReal:
         mock_warning.assert_called_once()
 
     @patch.dict(os.environ, {"GOOGLE_APPLICATION_CREDENTIALS": "/path/to/creds.json", "USE_MOCKS": "false"})
-    @patch('app.services.sheets_real.service_account')
+    @patch('app.services.sheets_real.load_service_credentials')
     @patch('app.services.sheets_real.build')
-    def test_append_carnet_bord(self, mock_build, mock_service_account):
+    def test_append_carnet_bord(self, mock_build, mock_load_credentials):
         """Test appending to carnet de bord."""
 
         from app.services.sheets_real import GoogleSheetsService

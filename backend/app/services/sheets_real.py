@@ -8,6 +8,7 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
 from app.services.sheets import SheetsService
+from app.services.google_credentials import load_service_credentials
 
 logger = logging.getLogger(__name__)
 
@@ -26,21 +27,16 @@ class GoogleSheetsService(SheetsService):
         self.responsables_spreadsheet_id = os.getenv("RESPONSABLES_SPREADSHEET_ID")
     
     def _get_credentials(self):
-        """Get Google service account credentials."""
-        credentials_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
-        if not credentials_path:
-            raise ValueError("GOOGLE_APPLICATION_CREDENTIALS environment variable not set")
-        
-        scopes = [
+        """Credentials du service account : fichier de clé, ou identité attachée.
+
+        Délégué à `load_service_credentials` : sur Cloud Run, l'identité vient du
+        serveur de métadonnées et aucune clé n'est nécessaire (constat H6).
+        """
+        return load_service_credentials([
             'https://www.googleapis.com/auth/spreadsheets',
             'https://www.googleapis.com/auth/drive.readonly'
-        ]
-        
-        return service_account.Credentials.from_service_account_file(
-            credentials_path,
-            scopes=scopes
-        )
-    
+        ])
+
     def _retry_with_backoff(self, func, *args, max_retries=5, **kwargs):
         """
         Execute a function with exponential backoff on 429 errors.
