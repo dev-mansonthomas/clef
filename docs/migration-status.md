@@ -3,6 +3,14 @@
 Reconstruction menée le **2026-08-13** sur la branche `feat/sinistres-franchise`,
 à partir du **code, des tests et de l'historique git seuls**.
 
+> ⚠️ **Ce document est un instantané daté et n'est pas mis à jour** : c'est son
+> intérêt, il dit ce qui était su et ignoré le 2026-08-13. Trois de ses constats ont
+> depuis été traités — la suite de tests est verte, la CI garde le déploiement, et
+> Terraform a **une racine unique qui valide** (`deploy/terraform`, ADR 0008).
+> Les mentions de Valkey et de Memorystore ci-dessous sont historiques : le
+> datastore est Redis 8.10, en conteneur adjoint sur Cloud Run. Pour l'état
+> courant, lire `docs/TODO.md`, `CLAUDE.md` et `DEPLOYMENT.md`.
+
 ## 1. Ce qui a été récupéré (vérifié)
 
 | Élément | Méthode |

@@ -16,11 +16,14 @@ flowchart TB
 
     subgraph gcp["GCP — Cloud Run"]
         NG["clef-frontend<br/>nginx, une image<br/>/admin et /form"]
-        API["clef-api<br/>FastAPI + Uvicorn<br/>86 routes"]
+        subgraph inst["clef-api — une seule instance, 2 conteneurs"]
+            API["backend<br/>FastAPI + Uvicorn<br/>86 routes"]
+            VK[("redis 8.10<br/>localhost:6379<br/>modules JSON + Search")]
+        end
     end
 
     subgraph data["Données"]
-        VK[("Memorystore for Redis 8.10<br/>modules JSON + Search")]
+        GCS[("Cloud Storage<br/>instantanés RDB, 10 min")]
         KMS["Cloud KMS<br/>oauth-tokens-key"]
         SM["Secret Manager"]
     end
@@ -38,7 +41,8 @@ flowchart TB
     F --> NG
     V -->|"/api/approbation/{token}"| API
     GAS -->|"X-API-Key"| API
-    API --> VK
+    API -->|"localhost:6379"| VK
+    VK -.->|"RDB, 10 min<br/>GCS FUSE"| GCS
     API --> KMS
     API --> SM
     API --> SH & DR & GM & CAL
@@ -201,21 +205,30 @@ ne le dit pas et le *pourquoi* est perdu.
 
 ## 6. Topologie de déploiement
 
-| Élément | Réalité constatée |
+Tranchée le 2026-08-26 par
+[ADR 0008](../adr/0008-redis-sidecar-cloud-run-instantanes-gcs.md). Procédure
+opérationnelle dans `DEPLOYMENT.md`.
+
+| Élément | Réalité |
 |---|---|
-| Images | 2 en production : `clef-api` (backend) et `clef-frontend` (nginx servant `/admin` et `/form` depuis **une seule** image) |
-| Exécution | Cloud Run, région `europe-west1` (CI) |
-| Données | Memorystore for Redis, région `europe-west9` (`backend/terraform`) |
-| État Terraform | **local**, aucun backend distant déclaré |
-| Service Cloud Run | **déclaré nulle part en IaC** — créé impérativement par `gcloud run deploy` dans la CI |
+| Images | 2 : `clef-api` (backend) et `clef-frontend` (nginx servant `/admin` et `/form` depuis **une seule** image), construites par Cloud Build |
+| Exécution | Cloud Run, `europe-west1` |
+| Données | **conteneur `redis` adjoint au backend**, dans la même instance, sur `localhost:6379`. Pas de service managé |
+| Persistance | instantanés RDB vers un bucket Cloud Storage monté en FUSE. **RPO 10 min** |
+| Dimensionnement | `maxScale = 1` **obligatoire** : une instance = un Redis. Deux instances feraient diverger deux jeux de données, en silence |
+| Racine IaC | `deploy/terraform/`, state dans un bucket GCS versionné |
+| Descripteur Cloud Run | `deploy/cloudrun-api.yaml.tpl`, appliqué par `gcloud run services replace` — `gcloud run deploy` ne sait décrire ni plusieurs conteneurs ni un volume GCS |
+| Déclenchement | **manuel, depuis l'hôte** : `./00-infra.sh <env>` puis `./01-gcp-deploy.sh <env>`. La CI ne déploie plus |
 
-⚠️ **Deux arbres Terraform divergents et incompatibles** coexistent :
-`backend/terraform/` (récent : KMS + Memorystore Redis + IAM Compute, provider
-google 7.23.0, `europe-west9`) et `infra/` (antérieur : Cloud Run + Artifact
-Registry + Memorystore **Redis** legacy + Secret Manager, provider `~> 5.0`,
-`europe-west1`). Aucun des deux ne valide. Voir `docs/adr/0005-*.md` et
-`docs/TODO.md`.
+⚠️ **Rien n'est déployé à ce jour.** Les scripts sont écrits et vérifiés
+statiquement mais n'ont jamais tourné contre GCP (`docs/TODO.md` N7). Le projet
+`rcq-fr-dev` est en outre **partagé** avec une autre application : secrets
+préfixés `CLEF_`, APIs jamais désactivées à la destruction, liaisons IAM additives.
 
-Incohérence de région entre le calcul (`europe-west1`) et sa base de données
-(`europe-west9`) : latence et coût de sortie inter-région
-`(inferred — verify : peut-être délibéré, le code ne le justifie pas)`.
+L'écart de région subsiste, mais il est désormais **délibéré et documenté** :
+calcul, bucket et registre en `europe-west1` ; keyring KMS en `europe-west9`, où il
+existait déjà et d'où un keyring ne se déplace pas. Sans conséquence — KMS n'est
+appelé qu'à l'ouverture de session.
+
+Les anciennes racines `backend/terraform/` et `infra/` subsistent le temps de
+valider la nouvelle, puis seront supprimées (`docs/TODO.md` N12).

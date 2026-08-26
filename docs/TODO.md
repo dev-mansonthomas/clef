@@ -208,7 +208,7 @@ disque. `infra/README.md` reconnaît le problème.
 **Action :** Workload Identity Federation plutôt qu'une clé statique ; état sur GCS
 avec verrouillage.
 
-### H7 — Les deux racines Terraform sont cassées
+### ~~H7~~ — ✅ **RÉSOLU le 2026-08-26** — Les deux racines Terraform sont cassées
 
 Vérifié par exécution :
 
@@ -916,3 +916,65 @@ globale n'est plus lue.
 | N5 | **Pas de référentiel fermé des fonctions DT.** `fonctions_dt` est une liste de chaînes libres. Un référentiel — et une liste déroulante — sont un chantier produit distinct |
 | N6 | **Purge RGPD des bénévoles inactifs.** La décision retenue est « désactiver, ne jamais supprimer ». Une purge planifiée après délai de conservation reste à spécifier |
 | M33 | **Le référentiel legacy `responsables`** (`set_responsable`, `ResponsableData`, endpoints de `sync.py`) coexiste toujours avec les bénévoles. Son retrait est un chantier de nettoyage à part |
+
+
+---
+
+# Chantier du 2026-08-26 — déploiement GCP
+
+Décision de conception : [ADR 0008](adr/0008-redis-sidecar-cloud-run-instantanes-gcs.md).
+
+## Ce qui est fait
+
+| Constat | Traitement |
+|---|---|
+| **H7** — les deux racines Terraform sont cassées | ✅ Racine **unique** `deploy/terraform`, qui valide et est formatée. Les 8 erreurs étaient triviales, et 4 ont disparu avec le retrait de Memorystore. ⚠️ Les deux racines n'étaient pas concurrentes mais **complémentaires**, tout en se disputant le même service account et les mêmes APIs |
+| **H6** — clé de service account à longue durée exposée en output | ✅ Plus aucune `google_service_account_key` déclarée. Prérequis livré côté code : `app/services/google_credentials.py` remplace quatre copies du chargement de credentials et se replie sur l'ADC, ce que Cloud Run fournit sans clé. ⚠️ Les deux clés existantes restent à révoquer à la main |
+| **M12** — incohérence de région | ✅ Devenue un écart **documenté** : Cloud Run, bucket et registre en `europe-west1` avec le reste du projet ; le keyring KMS reste en `europe-west9`, où il existe et d'où il ne peut être déplacé |
+| **M11** — `JWT_SECRET_KEY` jamais transmis à Cloud Run | ✅ Le gabarit l'injecte |
+| **N1** — écrire `gcp-deploy.sh` | ✅ Deux scripts : `00-infra.sh` puis `01-gcp-deploy.sh`. Une commande chacun, préflight qui nomme ce qui manque, `shellcheck` muet |
+
+### Un défaut attrapé avant le premier déploiement
+
+Le gabarit Cloud Run déclarait l'ordre de démarrage par un champ `dependsOn` sur le
+conteneur backend. C'est la syntaxe du **provider Terraform** : l'API v1 utilisée par
+`gcloud run services replace` l'ignore, **sans erreur**. Le déploiement aurait
+« réussi » avec un backend démarrant avant sa base, pour seul symptôme des 500
+intermittents au démarrage — et l'authentification lit le référentiel dans Redis dès
+la première requête.
+
+La bonne forme est l'annotation
+`run.googleapis.com/container-dependencies: '{"backend":["redis"]}'`, **plus** un
+`startupProbe` sur le conteneur dont on dépend : sans sonde, l'annotation ne garantit
+rien. Les deux sont désormais gardés par `backend/tests/test_cloudrun_template.py`
+(14 tests, chacun vérifié par mutation du gabarit).
+
+Leçon générale : les fichiers d'infrastructure ne bénéficient d'aucun typage ni
+d'aucun compilateur. Un champ inconnu y est du silence, pas une erreur. Ils méritent
+des tests comme le reste.
+
+## Faits établis sur l'existant
+
+- **De l'infrastructure était déployée** sur `rcq-fr-dev`, contrairement à ce que tout le
+  monde croyait : keyring KMS, service account, 11 APIs, rôles IAM — et un Memorystore
+  facturé, **détruit le 2026-08-26**.
+- **Aucun service Cloud Run `clef-*`** n'a jamais existé : `deploy-dev` échouait toujours
+  à l'authentification GCP (H12). Vérifié toutes régions.
+- **Le projet `rcq-fr-dev` est partagé** avec une autre application entière (15 services
+  Cloud Run : `rcq-api`, `rcq-frontend`, `dev-export-*`, `ul-queteur-*`). D'où : secrets
+  préfixés `CLEF_` (Secret Manager est un espace de noms de projet, et un `JWT_SECRET`
+  existe déjà chez le voisin), `disable_on_destroy = false` sur les APIs, liaisons IAM
+  additives.
+- **Le state Terraform était local, non versionné, et contenait une clé privée en clair.**
+  `00-infra.sh` le migre vers un bucket GCS versionné.
+
+## Reste ouvert
+
+| # | Constat |
+|---|---|
+| N7 | **Aucun déploiement n'a encore été exécuté.** Les scripts sont écrits, `shellcheck` est muet et tous les chemins d'argument sont testés — mais **rien n'a tourné contre GCP**. Le premier `00-infra.sh` puis `01-gcp-deploy.sh` sont à faire depuis l'hôte, en relisant les plans. |
+| N8 | **Les deux clés de service account utilisateur restent à révoquer** : `745beb6b…` (celle du `/credentials` local, encore utile à `run_local.sh --real`) et `c0b9e001…` (celle de Terraform, sans usage). ⚠️ Révoquer la première casse le mode réel local jusqu'à `gcloud auth application-default login`. |
+| N9 | **Le montage GCS FUSE pour les instantanés RDB n'est pas éprouvé.** Redis écrit un fichier temporaire puis le renomme ; sur un système de fichiers objet, `rename` est un copier-supprimer, non atomique. Pour quelques mégaoctets ce devrait passer, mais **c'est le point à vérifier au premier déploiement** : `gcloud storage ls -l gs://<bucket>/` après 10 minutes. Si ça échoue, le repli est un RDB local recopié périodiquement vers GCS. |
+| N10 | **`backend/scripts/setup_gcp.sh` est périmé** : il lit des sorties Terraform `valkey_host`/`valkey_port` qui n'existent plus. À retirer ou réécrire. |
+| N11 | **`minInstances = 0` en production reste à trancher** : en dev et test, chaque mise en veille perd jusqu'à 10 min d'écritures. Voir ADR 0008. |
+| N12 | **L'ancienne racine `backend/terraform` et `infra/` subsistent.** Conservées le temps de valider la nouvelle ; à supprimer ensuite, avec leurs `terraform.tfstate` locaux. |

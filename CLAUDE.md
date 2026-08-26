@@ -173,22 +173,37 @@ Dans cette VM il échoue donc toujours, et c'est le comportement voulu.
 un comportement bizarre sans avoir lu cette ligne :
 `docker compose logs backend | grep USE_MOCKS`.
 
-### Terraform — ❌ CASSÉ (validation seule dans la VM, jamais d'apply)
+### Terraform — racine unique `deploy/terraform` ✅
+
+**Validation seule dans la VM, jamais d'`apply`** : la VM ne détient aucune
+credential sortante. `TF_DATA_DIR` doit pointer hors du montage partagé, sinon
+l'extraction du provider échoue en « permission denied ».
 
 ```sh
-tofu -chdir=backend/terraform init -backend=false -upgrade && \
-tofu -chdir=backend/terraform validate
+export TF_DATA_DIR=/tmp/clef-tf
+tofu -chdir=deploy/terraform init -backend=false -upgrade && \
+tofu -chdir=deploy/terraform validate && \
+tofu -chdir=deploy/terraform fmt -check
+# → Success! The configuration is valid.
 ```
 
-```
-Error: Reference to undeclared resource
-  on outputs.tf line 21, in output "valkey_internal_ip":
-  21:   value = google_compute_instance.valkey.network_interface[0].network_ip
-There is no managed resource "google_compute_instance" "valkey"
+`backend/terraform/` et `infra/` sont les **anciennes** racines : conservées le
+temps de valider la nouvelle, elles seront supprimées (`docs/TODO.md` N12). Ne pas
+y travailler.
+
+### Déploiement — deux scripts, lancés depuis l'HÔTE
+
+```sh
+./00-infra.sh dev          # provisionne l'infrastructure GCP
+./01-gcp-deploy.sh dev     # Cloud Build puis déploiement Cloud Run
 ```
 
-Les **deux** racines Terraform échouent à `validate` (`backend/terraform/` et
-`infra/`). Détails et causes dans `docs/TODO.md`.
+**Ne jamais les lancer depuis la VM** : ils échouent proprement (« Ce script se
+lance depuis l'HÔTE »), et c'est le modèle de sécurité qui le veut. Documentation
+complète dans `DEPLOYMENT.md`, conception dans
+`docs/adr/0008-redis-sidecar-cloud-run-instantanes-gcs.md`.
+
+⚠️ **Aucun déploiement n'a encore été exécuté** (`docs/TODO.md` N7).
 
 ## Carte des modules
 
@@ -206,7 +221,7 @@ Les **deux** racines Terraform échouent à `validate` (`backend/terraform/` et
 | `app/admin/` | Routes de debug réservées au super admin |
 | `app/scheduler.py` | Tâches de fond APScheduler (alertes CT/pollution, rappels de devis) |
 | `scripts/` | Scripts ponctuels d'ops et de migration |
-| `terraform/` | IaC OpenTofu : APIs GCP, KMS, Memorystore, service account. ⚠️ cassé, et son contenu provisionne encore un Memorystore **Valkey** — hors périmètre, voir ADR 0006 |
+| `terraform/` | ⚠️ **ancienne** racine IaC, périmée. La racine à jour est `deploy/terraform/` |
 | `tests/` | ~40 fichiers pytest, un par domaine |
 
 ### `frontend/`
@@ -225,7 +240,9 @@ Les **deux** racines Terraform échouent à `validate` (`backend/terraform/` et
 | Chemin | Responsabilité |
 |---|---|
 | `google-apps-scripts/` | Scripts Apps Script poussant les données référentiel vers l'API via clé API |
-| `infra/` | Seconde racine Terraform, apparemment antérieure `(inferred — verify)` |
+| `deploy/` | 👉 IaC à jour (`terraform/`) et descripteur Cloud Run à 2 conteneurs (`cloudrun-api.yaml.tpl`) |
+| `00-infra.sh`, `01-gcp-deploy.sh` | Déploiement GCP, **à lancer depuis l'hôte** |
+| `infra/` | ⚠️ **ancienne** seconde racine Terraform, périmée |
 | `docs/` | Docs agent (ce chantier) + `specs-gestion-factures.md`, antérieur et conservé |
 
 ## Conventions
@@ -353,4 +370,4 @@ Les **deux** racines Terraform échouent à `validate` (`backend/terraform/` et
 | Authentification, rôles | `backend/app/auth/dependencies.py`, `auth/service.py` (référentiel lu dans **Redis** via `benevoles:by_email`) |
 | Nouvel écran admin | `frontend/projects/admin/src/app/app.routes.ts` (lazy + guard) |
 | Écran terrain bénévole | `frontend/projects/form/src/app/` |
-| Infra GCP | `backend/terraform/` (⚠️ cassé, voir `docs/TODO.md`) |
+| Infra GCP, déploiement | `deploy/terraform/`, `00-infra.sh`, `01-gcp-deploy.sh`, `DEPLOYMENT.md` |

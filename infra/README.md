@@ -1,4 +1,11 @@
-# CLEF - Infrastructure as Code (Terraform)
+# CLEF - Infrastructure as Code (Terraform) — ⚠️ PÉRIMÉ
+
+> **Ne pas utiliser.** Cette racine Terraform est l'une des deux anciennes, remplacée
+> le 2026-08-26 par **`deploy/terraform/`** (racine unique, qui valide, avec un state
+> distant). Voir [ADR 0008](../docs/adr/0008-redis-sidecar-cloud-run-instantanes-gcs.md),
+> `DEPLOYMENT.md`, et le constat N12 de `docs/TODO.md` : ce dossier sera supprimé une
+> fois la nouvelle racine éprouvée. Le contenu ci-dessous est conservé pour référence
+> historique et provisionne un Memorystore désormais détruit.
 
 This directory contains Terraform configuration for provisioning GCP infrastructure for the CLEF application.
 
