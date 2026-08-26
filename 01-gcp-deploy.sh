@@ -161,7 +161,7 @@ fi
 
 # Un secret sans version fait échouer le démarrage du conteneur, pas le déploiement :
 # la révision serait créée puis mourrait, avec un message peu parlant.
-for secret in CLEF_GOOGLE_CLIENT_ID CLEF_GOOGLE_CLIENT_SECRET CLEF_QR_CODE_SALT CLEF_JWT_SECRET_KEY; do
+for secret in CLEF_GOOGLE_CLIENT_ID CLEF_GOOGLE_CLIENT_SECRET CLEF_QR_CODE_SALT; do
     COUNT=$(gcloud secrets versions list "$secret" --project="$PROJECT_ID" \
               --filter="state=enabled" --format="value(name)" 2>/dev/null | wc -l | tr -d ' ')
     if [ "$COUNT" = "0" ]; then
@@ -230,38 +230,75 @@ fi
 if [[ "$COMPONENTS" == *api* ]]; then
     echo "☁️  Déploiement du backend (2 conteneurs : backend + redis)..."
 
-    # L'URL du service est nécessaire au service lui-même (callbacks OAuth). Elle est
-    # déterministe une fois le service créé ; au premier déploiement, elle est vide et
-    # on relit après coup.
-    BACKEND_URL=$(gcloud run services describe "$SERVICE_NAME" \
-        --region="$REGION" --project="$PROJECT_ID" \
-        --format='value(status.url)' 2>/dev/null || true)
-    FRONTEND_URL=$(gcloud run services describe "$FRONTEND_SERVICE" \
-        --region="$REGION" --project="$PROJECT_ID" \
-        --format='value(status.url)' 2>/dev/null || true)
-    ALLOWED_FRONTEND_URLS="${FRONTEND_URL:-http://localhost:4200}"
+    # Le service a besoin de sa propre URL : c'est elle qui forme l'URI de
+    # redirection OAuth. Elle n'existe pas avant la première création — d'où la
+    # seconde passe plus bas.
+    service_url() {
+        gcloud run services describe "$1" \
+            --region="$REGION" --project="$PROJECT_ID" \
+            --format='value(status.url)' 2>/dev/null || true
+    }
 
-    RENDERED=$(mktemp)
-    trap 'rm -f "$RENDERED"' EXIT
-    SERVICE_NAME="$SERVICE_NAME" ENVIRONMENT="$ENVIRONMENT" \
-    MAX_INSTANCES="$MAX_INSTANCES" MIN_INSTANCES="$MIN_INSTANCES" \
-    SERVICE_ACCOUNT="$SERVICE_ACCOUNT" BACKEND_IMAGE="$BACKEND_IMAGE" \
-    PROJECT_ID="$PROJECT_ID" EMAIL_GESTIONNAIRE_DT="$EMAIL_GESTIONNAIRE_DT" \
-    ALLOWED_FRONTEND_URLS="$ALLOWED_FRONTEND_URLS" \
-    BACKEND_URL="${BACKEND_URL:-}" \
-    VEHICULES_SPREADSHEET_ID="${VEHICULES_SPREADSHEET_ID:-}" \
-    BENEVOLES_SPREADSHEET_ID="${BENEVOLES_SPREADSHEET_ID:-}" \
-    RESPONSABLES_SPREADSHEET_ID="${RESPONSABLES_SPREADSHEET_ID:-}" \
-    REDIS_MEMORY="$REDIS_MEMORY" SNAPSHOTS_BUCKET="$SNAPSHOTS_BUCKET" \
-        envsubst < "$TEMPLATE" > "$RENDERED"
+    # Rend le descripteur puis l'applique. Appelé une fois, ou deux à la création.
+    #
+    # ⚠️ Les noms des variables d'environnement doivent être ceux que le code lit :
+    # `CORS_ORIGINS` (app/main.py) et `GOOGLE_REDIRECT_URI` (app/auth/config.py).
+    # Une variable bien remplie sous un autre nom laisse le défaut de développement
+    # en place, sans aucune erreur — CORS bloque alors le frontend, et Google
+    # renvoie les utilisateurs vers localhost.
+    deploy_api() {
+        local backend_url="$1" frontend_url="$2"
+        local rendered
+        rendered=$(mktemp)
 
-    gcloud run services replace "$RENDERED" \
-        --region="$REGION" --project="$PROJECT_ID"
+        local cors="${backend_url:-http://localhost:8000}"
+        [ -n "$frontend_url" ] && cors="${frontend_url},${cors}"
+
+        SERVICE_NAME="$SERVICE_NAME" ENVIRONMENT="$ENVIRONMENT" \
+        MAX_INSTANCES="$MAX_INSTANCES" MIN_INSTANCES="$MIN_INSTANCES" \
+        SERVICE_ACCOUNT="$SERVICE_ACCOUNT" BACKEND_IMAGE="$BACKEND_IMAGE" \
+        PROJECT_ID="$PROJECT_ID" EMAIL_GESTIONNAIRE_DT="$EMAIL_GESTIONNAIRE_DT" \
+        CORS_ORIGINS="$cors" \
+        BACKEND_URL="$backend_url" \
+        GOOGLE_REDIRECT_URI="${backend_url:+${backend_url}/auth/callback}" \
+        VEHICULES_SPREADSHEET_ID="${VEHICULES_SPREADSHEET_ID:-}" \
+        BENEVOLES_SPREADSHEET_ID="${BENEVOLES_SPREADSHEET_ID:-}" \
+        RESPONSABLES_SPREADSHEET_ID="${RESPONSABLES_SPREADSHEET_ID:-}" \
+        REDIS_MEMORY="$REDIS_MEMORY" SNAPSHOTS_BUCKET="$SNAPSHOTS_BUCKET" \
+            envsubst < "$TEMPLATE" > "$rendered"
+
+        gcloud run services replace "$rendered" \
+            --region="$REGION" --project="$PROJECT_ID"
+        rm -f "$rendered"
+    }
+
+    BACKEND_URL=$(service_url "$SERVICE_NAME")
+    FRONTEND_URL=$(service_url "$FRONTEND_SERVICE")
+    FIRST_CREATION=false
+    [ -z "$BACKEND_URL" ] && FIRST_CREATION=true
+
+    deploy_api "$BACKEND_URL" "$FRONTEND_URL"
 
     gcloud run services add-iam-policy-binding "$SERVICE_NAME" \
         --region="$REGION" --project="$PROJECT_ID" \
         --member=allUsers --role=roles/run.invoker >/dev/null
+
+    # Seconde passe : à la création, l'URL n'existait pas au premier rendu, donc
+    # GOOGLE_REDIRECT_URI est parti vide. Le service tournerait, et la connexion
+    # échouerait — le genre de panne qu'on ne relie pas au déploiement.
+    if [ "$FIRST_CREATION" = true ]; then
+        BACKEND_URL=$(service_url "$SERVICE_NAME")
+        if [ -n "$BACKEND_URL" ]; then
+            echo "  ↻ première création : redéploiement avec l'URL du service"
+            echo "     ($BACKEND_URL) pour la redirection OAuth"
+            deploy_api "$BACKEND_URL" "$FRONTEND_URL"
+        fi
+    fi
+
     echo "  ✅ backend déployé"
+    echo ""
+    echo "  📌 Ajouter cet URI de redirection au client OAuth de la console GCP :"
+    echo "     ${BACKEND_URL}/auth/callback"
     echo ""
 fi
 
@@ -274,6 +311,17 @@ if [[ "$COMPONENTS" == *frontend* ]]; then
         --port=80 --memory=256Mi --cpu=1 \
         --min-instances=0 --max-instances=5
     echo "  ✅ frontend déployé"
+
+    # Le frontend vient peut-être d'être créé : son origine doit entrer dans
+    # CORS_ORIGINS du backend, sinon le navigateur bloque tous ses appels.
+    NEW_FRONTEND_URL=$(gcloud run services describe "$FRONTEND_SERVICE" \
+        --region="$REGION" --project="$PROJECT_ID" \
+        --format='value(status.url)' 2>/dev/null || true)
+    if [[ "$COMPONENTS" == *api* ]] && [ -n "$NEW_FRONTEND_URL" ] \
+       && [ "$NEW_FRONTEND_URL" != "${FRONTEND_URL:-}" ]; then
+        echo "  ↻ origine du frontend nouvelle : mise à jour de CORS_ORIGINS"
+        deploy_api "$(service_url "$SERVICE_NAME")" "$NEW_FRONTEND_URL"
+    fi
     echo ""
 fi
 

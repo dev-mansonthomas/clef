@@ -86,10 +86,24 @@ spec:
             # s'exécute SOUS le service account ci-dessus, sans clé (constat H6).
             - name: EMAIL_GESTIONNAIRE_DT
               value: ${EMAIL_GESTIONNAIRE_DT}
-            - name: ALLOWED_FRONTEND_URLS
-              value: ${ALLOWED_FRONTEND_URLS}
+            # ⚠️ Le nom compte : `app/main.py` lit `CORS_ORIGINS`, et rien d'autre.
+            # Une variable nommée autrement laisse le défaut en place —
+            # « localhost:4200,localhost:4202,localhost:8000 » — et le navigateur
+            # bloque tous les appels du frontend déployé, sans erreur côté serveur.
+            - name: CORS_ORIGINS
+              value: ${CORS_ORIGINS}
             - name: BACKEND_URL
               value: ${BACKEND_URL}
+            # ⚠️ Sans cette variable, `app/auth/config.py` retombe sur
+            # « http://localhost:8000/auth/callback » : Google renverrait chaque
+            # utilisateur vers sa propre machine, et la connexion serait
+            # intégralement cassée en production.
+            #
+            # Vide au tout premier déploiement — l'URL du service n'existe pas
+            # encore. 01-gcp-deploy.sh redéploie alors une seconde fois, une fois
+            # l'URL connue.
+            - name: GOOGLE_REDIRECT_URI
+              value: ${GOOGLE_REDIRECT_URI}
             - name: VEHICULES_SPREADSHEET_ID
               value: ${VEHICULES_SPREADSHEET_ID}
             - name: BENEVOLES_SPREADSHEET_ID
@@ -113,14 +127,6 @@ spec:
                 secretKeyRef:
                   # Ressource préfixée : projet partagé, espace de noms commun.
                   name: CLEF_QR_CODE_SALT
-                  key: latest
-            # Constat M11 : ce secret était déclaré et stocké, mais jamais transmis au
-            # service. Il l'est désormais.
-            - name: JWT_SECRET_KEY
-              valueFrom:
-                secretKeyRef:
-                  # Ressource préfixée : projet partagé, espace de noms commun.
-                  name: CLEF_JWT_SECRET_KEY
                   key: latest
           resources:
             limits:

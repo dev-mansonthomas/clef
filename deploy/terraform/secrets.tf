@@ -25,9 +25,22 @@ locals {
     "CLEF_GOOGLE_CLIENT_SECRET" = "CLEF — Client secret OAuth"
     # Sel du HMAC des QR codes véhicule. Le changer invalide tous les QR déjà imprimés.
     "CLEF_QR_CODE_SALT" = "CLEF — Sel HMAC de signature des QR codes véhicule"
-    # ⚠️ Constat M11 : ce secret était déclaré et stocké, mais n'était PAS transmis au
-    # service Cloud Run. 01-gcp-deploy.sh le passe désormais.
-    "CLEF_JWT_SECRET_KEY" = "CLEF — Clé de signature des jetons applicatifs"
+
+    # ⚠️ Il n'y a PAS de `CLEF_JWT_SECRET_KEY`, et c'est un constat, pas un oubli.
+    #
+    # Le constat M11 disait « JWT_SECRET_KEY est stocké mais jamais transmis au
+    # service ». En vérifiant ce que le code lit réellement : **aucun code ne lit
+    # `JWT_SECRET_KEY`**. `app/auth/config.py` déclare `session_secret_key`
+    # (`SESSION_SECRET_KEY`), qui n'est utilisé nulle part non plus.
+    #
+    # La raison est structurelle : le cookie de session porte l'**id_token de
+    # Google**, vérifié contre les clés publiques de Google
+    # (`google_oauth.verify_id_token`). Aucun jeton n'est signé par l'application,
+    # donc aucun secret de signature n'est nécessaire.
+    #
+    # Stocker un secret que rien ne lit n'aurait pas seulement été inutile : le
+    # prochain lecteur en aurait déduit que les sessions sont signées par
+    # l'application. Voir docs/TODO.md.
   }
 }
 

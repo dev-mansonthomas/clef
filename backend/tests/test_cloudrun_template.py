@@ -37,7 +37,8 @@ SUBSTITUTIONS = {
     "BACKEND_IMAGE": "europe-west1-docker.pkg.dev/projet/clef-images/clef-api:tag",
     "PROJECT_ID": "projet",
     "EMAIL_GESTIONNAIRE_DT": "prenom.nom@croix-rouge.fr",
-    "ALLOWED_FRONTEND_URLS": "https://frontend.example",
+    "CORS_ORIGINS": "https://frontend.example,https://api.example",
+    "GOOGLE_REDIRECT_URI": "https://api.example/auth/callback",
     "BACKEND_URL": "https://api.example",
     "VEHICULES_SPREADSHEET_ID": "id-vehicules",
     "BENEVOLES_SPREADSHEET_ID": "id-benevoles",
@@ -96,8 +97,10 @@ def test_toutes_les_variables_sont_connues(raw: str):
 def test_le_script_transmet_bien_ces_variables():
     """Le contrôle précédent ne vaut que si le script passe la même liste."""
     script = (TEMPLATE.parents[1] / "01-gcp-deploy.sh").read_text(encoding="utf-8")
-    envsubst_call = script[script.index("RENDERED=$(mktemp)") : script.index("envsubst <")]
-    manquantes = [v for v in SUBSTITUTIONS if f"{v}=" not in envsubst_call]
+    # Le rendu vit dans `deploy_api()`, appelé une ou deux fois selon qu'on crée le
+    # service ou qu'on le met à jour.
+    fonction = script[script.index("deploy_api() {") : script.index("envsubst < \"$TEMPLATE\"")]
+    manquantes = [v for v in SUBSTITUTIONS if f"{v}=" not in fonction]
     assert not manquantes, (
         f"01-gcp-deploy.sh ne transmet pas à envsubst : {manquantes}. "
         "Elles seraient rendues comme chaîne vide."
@@ -186,6 +189,53 @@ def test_redis_n_evince_aucune_cle(containers: dict):
     """Redis est la base, pas un cache : évincer, c'est perdre de la donnée."""
     args = " ".join(containers["redis"]["args"])
     assert "--maxmemory-policy noeviction" in args
+
+
+def test_toute_variable_injectee_est_lue_par_le_code(containers: dict):
+    """Une variable injectée sous un nom que le code ne lit pas est du vide utile.
+
+    C'est la classe de bug la plus coûteuse du gabarit, parce qu'elle est
+    silencieuse des deux côtés : le déploiement réussit, la variable est bien
+    présente dans la révision, et l'application applique son défaut de
+    développement. Trois occurrences réelles ont été trouvées ainsi —
+    `ALLOWED_FRONTEND_URLS` (le code lit `CORS_ORIGINS`), `GOOGLE_REDIRECT_URI`
+    absent (défaut `http://localhost:8000/auth/callback`, connexion cassée), et
+    `JWT_SECRET_KEY` qu'aucun code ne lit.
+    """
+    app_dir = Path(__file__).resolve().parents[1] / "app"
+    lus = set()
+    for f in app_dir.rglob("*.py"):
+        lus |= set(
+            re.findall(r'(?:getenv|environ\.get)\(\s*"([A-Z_][A-Z0-9_]*)"', f.read_text(encoding="utf-8"))
+        )
+        lus |= set(re.findall(r'environ\[\s*"([A-Z_][A-Z0-9_]*)"', f.read_text(encoding="utf-8")))
+
+    injectees = {e["name"] for e in containers["backend"]["env"]}
+    orphelines = injectees - lus
+    assert not orphelines, (
+        f"variables injectées que le code ne lit jamais : {sorted(orphelines)}. "
+        "Soit le nom est faux, soit la variable est inutile — dans les deux cas "
+        "l'application tourne sur son défaut, sans erreur."
+    )
+
+
+@pytest.mark.parametrize(
+    "variable,defaut_dangereux",
+    [
+        ("CORS_ORIGINS", "le navigateur bloque les appels du frontend déployé"),
+        ("GOOGLE_REDIRECT_URI", "Google renvoie les utilisateurs vers localhost:8000"),
+    ],
+)
+def test_variables_dont_le_defaut_casse_la_production(
+    containers: dict, variable: str, defaut_dangereux: str
+):
+    """Deux variables qui ont un défaut, et dont le défaut est faux en production.
+
+    Leur absence ne provoque aucune erreur — c'est pour cela qu'elles méritent un
+    test plutôt qu'une relecture.
+    """
+    noms = {e["name"] for e in containers["backend"]["env"]}
+    assert variable in noms, f"{variable} absente : {defaut_dangereux}."
 
 
 @pytest.mark.parametrize("interdite", ["USE_MOCKS", "GOOGLE_APPLICATION_CREDENTIALS"])

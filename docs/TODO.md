@@ -934,6 +934,39 @@ Décision de conception : [ADR 0008](adr/0008-redis-sidecar-cloud-run-instantane
 | **M11** — `JWT_SECRET_KEY` jamais transmis à Cloud Run | ✅ Le gabarit l'injecte |
 | **N1** — écrire `gcp-deploy.sh` | ✅ Deux scripts : `00-infra.sh` puis `01-gcp-deploy.sh`. Une commande chacun, préflight qui nomme ce qui manque, `shellcheck` muet |
 
+### M11 était un faux constat, et il en cachait deux vrais
+
+Le constat M11 disait « `JWT_SECRET_KEY` est stocké mais jamais transmis au service
+Cloud Run ». En vérifiant ce que le code lit réellement, avant de renseigner les
+secrets : **aucun code ne lit `JWT_SECRET_KEY`**. `app/auth/config.py` déclare
+`session_secret_key` (`SESSION_SECRET_KEY`), qui n'est utilisé nulle part non plus.
+
+La raison est structurelle : le cookie de session porte l'**id_token de Google**,
+vérifié contre les clés publiques de Google (`google_oauth.verify_id_token`). Aucun
+jeton n'est signé par l'application. Le secret est donc supprimé — en stocker un que
+rien ne lit aurait laissé croire au prochain lecteur que les sessions sont signées
+côté application.
+
+Le recoupement systématique « variables injectées par le gabarit » contre
+« variables lues par le code » a alors sorti **deux défauts bloquants**, qu'aucune
+relecture n'avait vus :
+
+| Variable | Effet |
+|---|---|
+| `ALLOWED_FRONTEND_URLS` | nom inventé ; `app/main.py` lit `CORS_ORIGINS`. Le défaut `localhost:4200,4202,8000` restait en place et **le navigateur bloquait tous les appels du frontend déployé** |
+| `GOOGLE_REDIRECT_URI` | absente ; `app/auth/config.py` retombe sur `http://localhost:8000/auth/callback`. Google aurait renvoyé chaque utilisateur **vers sa propre machine** : connexion intégralement cassée |
+
+Les deux sont muets : le déploiement réussit, la révision contient bien ce qu'on lui
+a donné, et l'application applique un défaut de développement. Corrigés, et gardés
+par deux tests de `test_cloudrun_template.py` — dont un qui compare l'ensemble des
+variables injectées à l'ensemble des `getenv` du code, et fait échouer la suite sur
+toute variable orpheline.
+
+`01-gcp-deploy.sh` **redéploie une seconde fois** à la création du service :
+l'URI de redirection dépend de l'URL du service, qui n'existe pas avant sa création.
+Même chose quand le frontend vient d'apparaître, pour que son origine entre dans
+`CORS_ORIGINS`.
+
 ### Deux défauts attrapés avant le premier apply
 
 **`roles/storage.objectAdmin` était accordé au niveau projet.** Dans `rcq-fr-dev`,

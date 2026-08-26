@@ -56,7 +56,7 @@ agissent avec vos droits GCP.
 | Persistance | bucket GCS | instantanés RDB, monté par Cloud Storage FUSE |
 | Frontend | `clef-frontend` | nginx servant `admin` et `form` |
 | Images | Artifact Registry `clef-images` | construites par **Cloud Build**, pas localement |
-| Secrets | Secret Manager, préfixe `CLEF_` | 4 secrets |
+| Secrets | Secret Manager, préfixe `CLEF_` | 3 secrets |
 | Chiffrement | KMS `clef-keyring` | en `europe-west9` — voir « Deux régions » |
 
 ### Trois conséquences à connaître
@@ -177,7 +177,7 @@ Ce que le script fait, dans l'ordre :
 5. liste les **secrets encore vides** et la commande pour les remplir.
 
 Ressources créées : 12 APIs, le service account `clef-backend` avec 3 rôles,
-le registre `clef-images`, le bucket d'instantanés, 4 secrets (sans valeur), et
+le registre `clef-images`, le bucket d'instantanés, 3 secrets (sans valeur), et
 le keyring KMS.
 
 **Aucune clé de service account n'est générée** (constat H6 clos) : sur Cloud Run,
@@ -185,7 +185,7 @@ le backend s'authentifie par *Application Default Credentials*, résolues par
 `backend/app/services/google_credentials.py`. Rien à télécharger, rien à faire
 tourner.
 
-### Renseigner les 4 secrets
+### Renseigner les 3 secrets
 
 `00-infra.sh` crée les secrets vides — une valeur de secret n'a pas sa place dans
 du code Terraform. À faire une fois, à la main :
@@ -197,9 +197,11 @@ printf '%s' 'GOCSPX-votre-secret' \
   | gcloud secrets versions add CLEF_GOOGLE_CLIENT_SECRET --data-file=- --project=rcq-fr-dev
 openssl rand -base64 32 \
   | gcloud secrets versions add CLEF_QR_CODE_SALT --data-file=- --project=rcq-fr-dev
-openssl rand -base64 32 \
-  | gcloud secrets versions add CLEF_JWT_SECRET_KEY --data-file=- --project=rcq-fr-dev
 ```
+
+Il n'y a **pas** de secret de signature de jetons, et ce n'est pas un oubli : le
+cookie de session porte l'id_token de Google, vérifié contre les clés publiques de
+Google. L'application ne signe aucun jeton.
 
 ⚠️ **`CLEF_QR_CODE_SALT` ne doit jamais changer** une fois des QR codes imprimés :
 les codes déjà collés sur les véhicules deviendraient invalides.
