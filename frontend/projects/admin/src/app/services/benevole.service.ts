@@ -11,8 +11,17 @@ export interface Benevole {
   nom: string;
   prenom: string;
   ul: string | null;
-  role: string | null;
+  telephone: string | null;
   nivol: string | null;
+  /**
+   * Organisation détenue par CLEF — pas par la feuille de référentiel.
+   *
+   * Le champ `role` à valeur unique a disparu : il ne pouvait pas exprimer qu'un
+   * bénévole est responsable de son UL **et** porteur d'une fonction à la DT.
+   * Voir docs/specs/synchronisation-referentiel-benevoles.md.
+   */
+  responsable_ul: boolean;
+  fonctions_dt: string[];
 }
 
 /**
@@ -24,11 +33,16 @@ export interface BenevoleListResponse {
 }
 
 /**
- * Request for updating bénévole role
+ * Mise à jour partielle de l'organisation d'un bénévole.
+ *
+ * Ne porte que des champs détenus par CLEF : l'identité (nom, prénom, UL, email,
+ * téléphone) vient de la feuille et serait de toute façon réécrite à la
+ * synchronisation suivante. Un champ omis n'est pas modifié.
  */
-export interface BenevoleRoleUpdate {
-  role: string | null;
-  ul?: string | null;
+export interface BenevoleOrganisationUpdate {
+  responsable_ul?: boolean;
+  fonctions_dt?: string[];
+  statut?: 'actif' | 'inactif';
 }
 
 /**
@@ -50,10 +64,17 @@ export class BenevoleService {
   }
 
   /**
-   * Update a bénévole's role
+   * Met à jour l'organisation d'un bénévole (responsabilité d'UL, fonctions DT, statut)
    */
-  updateBenevoleRole(dt: string, email: string, roleUpdate: BenevoleRoleUpdate): Observable<Benevole> {
-    return this.http.patch<Benevole>(`${this.apiUrl}/${dt}/benevoles/${email}`, roleUpdate);
+  updateBenevoleOrganisation(
+    dt: string,
+    email: string,
+    update: BenevoleOrganisationUpdate
+  ): Observable<Benevole> {
+    return this.http.patch<Benevole>(
+      `${this.apiUrl}/${dt}/benevoles/${encodeURIComponent(email)}`,
+      update
+    );
   }
 }
 

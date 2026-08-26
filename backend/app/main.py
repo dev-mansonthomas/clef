@@ -31,6 +31,7 @@ from app.routers import ical
 from app.routers import import_vehicles
 from app.routers import api_keys
 from app.routers import benevoles
+from app.routers.benevoles import directory_router as benevoles_directory_router
 from app.routers import stats
 from app.routers import fournisseurs
 from app.routers import valideurs
@@ -52,6 +53,51 @@ assert_mocks_not_in_production()
 cache = get_cache()
 
 
+async def _bootstrap_referentiel_mock(redis_store: RedisService) -> None:
+    """Peuple le référentiel depuis le mock Sheets — **développement uniquement**.
+
+    Sans utilisateurs en base, personne ne peut se connecter en local : depuis la tâche
+    N2 l'authentification lit le référentiel Redis. Cet amorçage remplace le
+    préchargement de production retiré, et n'est appelé que si `use_mocks()`.
+
+    Le mock porte encore l'ancien champ `role`, que `BenevoleData` ignore désormais :
+    il est traduit ici vers `responsable_ul` / `fonctions_dt`. Sans cette traduction,
+    tous les comptes de développement seraient de simples bénévoles et l'écran
+    d'administration DT deviendrait inaccessible en local, sans cause visible.
+    """
+    from app.models.redis_models import BenevoleData
+
+    try:
+        raw_benevoles = get_sheets_service().get_benevoles()
+    except Exception as e:
+        logger.warning("Amorçage du référentiel impossible : %s", e)
+        return
+
+    seeded = 0
+    for raw in raw_benevoles:
+        raw = dict(raw)
+        raw.setdefault("nivol", raw.get("email", "unknown"))
+        raw.setdefault("dt", redis_store.dt)
+        legacy_role = raw.pop("role", None)
+        raw["responsable_ul"] = legacy_role == "responsable_ul"
+        raw["fonctions_dt"] = (
+            ["Gestionnaire DT"] if legacy_role == "responsable_dt" else []
+        )
+        raw.pop("statut", None)  # « Actif » côté feuille ; CLEF possède ce champ
+        try:
+            await redis_store.set_benevole(BenevoleData(**raw))
+            seeded += 1
+        except Exception as e:
+            logger.warning("Bénévole d'amorçage ignoré (%s) : %s", raw.get("nivol"), e)
+
+    logger.warning(
+        "USE_MOCKS=true — référentiel amorcé avec %d bénévole(s) fictifs. "
+        "Ce n'est pas un chemin de production : la synchronisation Apps Script est "
+        "la seule source réelle.",
+        seeded,
+    )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Cycle de vie de l'application : connexion Redis, préchargement, scheduler.
@@ -61,6 +107,22 @@ async def lifespan(app: FastAPI):
     FastAPI n'en conserve qu'un shim déprécié. `lifespan` est la seule API portée.
     """
     # --- Démarrage ---
+    # Annoncer le mode avant toute autre chose : le défaut local de docker-compose est
+    # le mode mock, et démarrer dans le mauvais mode sans le voir est une confusion
+    # coûteuse. En mock, l'app sert des données fictives, accepte des jetons signés
+    # avec un secret public du dépôt et réduit le chiffrement KMS à du base64 (S1, S2)
+    # — d'où le niveau WARNING, pour que ça ressorte d'un flot d'INFO.
+    if use_mocks():
+        logger.warning(
+            "USE_MOCKS=true — services Google et OIDC simulés, données fictives, "
+            "aucune credential requise. Ne jamais utiliser en production."
+        )
+    else:
+        logger.info(
+            "USE_MOCKS=false — services Google réels "
+            "(GOOGLE_APPLICATION_CREDENTIALS requis)."
+        )
+
     try:
         # Connect to Redis
         await cache.connect()
@@ -77,37 +139,16 @@ async def lifespan(app: FastAPI):
         await init_data_async(cache.client)
         logger.info("DT and UL initialization complete")
 
-        # Preload référentiels from Google Sheets (optional - continue if not configured)
-        try:
-            sheets_service = get_sheets_service()
-
-            # Preload bénévoles into Redis with DT prefix
-            benevoles = sheets_service.get_benevoles()
-            from app.models.redis_models import BenevoleData
-            for benevole_dict in benevoles:
-                # Map email to nivol if nivol not present (temporary compatibility)
-                if "nivol" not in benevole_dict:
-                    benevole_dict["nivol"] = benevole_dict.get("email", "unknown")
-                # Ensure dt field is present
-                if "dt" not in benevole_dict:
-                    benevole_dict["dt"] = "DT75"
-                benevole = BenevoleData(**benevole_dict)
-                await redis_store.set_benevole(benevole)
-            logger.info(f"Preloaded {len(benevoles)} bénévoles into Redis with DT prefix")
-
-            # Preload responsables into Redis with DT prefix
-            responsables = sheets_service.get_responsables()
-            from app.models.redis_models import ResponsableData
-            for responsable_dict in responsables:
-                # Ensure dt field is present
-                if "dt" not in responsable_dict:
-                    responsable_dict["dt"] = "DT75"
-                responsable = ResponsableData(**responsable_dict)
-                await redis_store.set_responsable(responsable)
-            logger.info(f"Preloaded {len(responsables)} responsables into Redis with DT prefix")
-        except Exception as e:
-            logger.warning(f"Could not preload référentiels from Google Sheets: {e}")
-            logger.warning("Application will continue without preloaded référentiels")
+        # Le préchargement du référentiel depuis Google Sheets a été **retiré** : il
+        # constituait un second chemin d'écriture, avec un contrat différent de celui
+        # de la synchronisation (repli `email → nivol` qui stockait un bénévole sous
+        # son email en guise de clé primaire). Deux chemins, deux contrats, la même
+        # donnée. Conformément à l'ADR 0002, la synchronisation Apps Script
+        # (`POST /api/sync/{dt}/benevoles`) est le **seul** pont depuis Sheets.
+        #
+        # Reste une commodité de développement, explicitement gardée.
+        if use_mocks():
+            await _bootstrap_referentiel_mock(redis_store)
 
         # Start scheduler for alerts
         start_scheduler()
@@ -165,6 +206,7 @@ app.include_router(ical.router)
 app.include_router(import_vehicles.router)
 app.include_router(api_keys.router)
 app.include_router(benevoles.router)
+app.include_router(benevoles_directory_router)
 app.include_router(stats.router)
 app.include_router(dossiers_reparation.router)
 app.include_router(depenses.router)
@@ -209,43 +251,14 @@ async def test_endpoint():
         "using_mocks": use_mocks()
     }
 
-
-@app.get("/api/benevoles")
-async def get_benevoles():
-    """Get all volunteers from the referential"""
-    sheets_service = get_sheets_service()
-    benevoles = sheets_service.get_benevoles()
-    return {
-        "count": len(benevoles),
-        "benevoles": benevoles,
-        "using_mocks": use_mocks()
-    }
-
-
-@app.get("/api/benevoles/{email}")
-async def get_benevole(email: str):
-    """Get a specific volunteer by email"""
-    sheets_service = get_sheets_service()
-    benevole = sheets_service.get_benevole_by_email(email)
-    if benevole is None:
-        return {
-            "error": "Volunteer not found",
-            "email": email
-        }
-    return {
-        "benevole": benevole,
-        "using_mocks": use_mocks()
-    }
-
-
-@app.get("/api/responsables")
-async def get_responsables():
-    """Get all managers from the referential"""
-    sheets_service = get_sheets_service()
-    responsables = sheets_service.get_responsables()
-    return {
-        "count": len(responsables),
-        "responsables": responsables,
-        "using_mocks": use_mocks()
-    }
-
+# Les routes /api/benevoles, /api/benevoles/{email} et /api/responsables vivaient ici,
+# déclarées en ligne — donc sans aucun guard, ce fichier n'ayant pas de `Depends`.
+# L'annuaire des bénévoles était public : nom, prénom, email et UL servis à quiconque
+# (constat C1, RGPD). Elles lisaient en outre Google Sheets en direct.
+#
+# `/api/benevoles` est désormais servie par `routers/benevoles.directory_router` :
+# authentifiée, cadrée sur la délégation de la session, et lue dans Redis.
+# Les deux autres n'avaient aucun appelant et ont été supprimées.
+#
+# ⚠️ Ne pas déclarer de route ici : sans `Depends`, elle serait publique par
+# construction. Passer par un router avec un guard.

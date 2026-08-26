@@ -155,17 +155,23 @@ concernent que les requêtes non interceptées par les mocks.
 
 Services compose : `redis`, `backend`, `frontend`, `frontend-form`.
 
-⚠️ **Échoue tel quel dans cette VM** : `backend/.env` porte `USE_MOCKS=false`, donc le
-backend exige `/credentials/clef-backend-dev-key.json`, absent par construction (la VM
-ne détient aucune credential sortante). Le healthcheck échoue et les frontends ne
-démarrent pas. Avec `USE_MOCKS=true`, **tout démarre** — vérifié :
+**Deux modes**, le mock étant le défaut :
 
-```
-GET localhost:8000/health  → {"status":"healthy","redis":"connected"}
-GET localhost:4200         → 200      GET localhost:4202  → 200
+```sh
+./run_local.sh          # mock : aucune credential, fonctionne dans la VM
+./run_local.sh --real   # intégration réelle : hôte uniquement
 ```
 
-Décision en attente : voir le constat **H11** de `docs/TODO.md`.
+Vérifié en mode mock : `/health` → `{"status":"healthy","redis":"connected"}`, `4200`
+et `4202` → 200.
+
+`--real` exécute un **préflight** qui échoue avant tout démarrage si le service
+account (`~/.cred/CLEF/…`) ou les trois `*_SPREADSHEET_ID` de `backend/.env` manquent.
+Dans cette VM il échoue donc toujours, et c'est le comportement voulu.
+
+⚠️ Le backend **annonce son mode au démarrage** (`WARNING` en mock). Ne pas diagnostiquer
+un comportement bizarre sans avoir lu cette ligne :
+`docker compose logs backend | grep USE_MOCKS`.
 
 ### Terraform — ❌ CASSÉ (validation seule dans la VM, jamais d'apply)
 
@@ -238,6 +244,23 @@ Les **deux** racines Terraform échouent à `validate` (`backend/terraform/` et
 - **Marqueur `integration`** : les tests qui traversent le vrai chemin de données le
   portent. `pytest_runtest_setup` (`tests/conftest.py`) les **ignore** si `REDIS_URL`
   n'est pas joignable — jamais d'échec pour une dépendance d'environnement absente.
+- **L'authentification dépend de Redis** depuis la tâche N2 : le référentiel des
+  bénévoles y est lu via l'index `{dt}:benevoles:by_email`. Sans serveur, la suite se
+  replie sur `fakeredis` (`conftest.py` remplace `cache.connect()`) et reste verte.
+  Après un déploiement, lancer **une fois**
+  `python backend/scripts/backfill_benevole_email_index.py` : les bénévoles écrits
+  avant l'index seraient sinon introuvables, donc ramenés à « Bénévole » sans périmètre.
+- **Référentiel bénévoles : deux propriétaires.** La feuille « CLEF Benevoles » possède
+  l'identité (`nivol`, `nom`, `prenom`, `ul`, `email`, `telephone`) ; CLEF possède
+  l'organisation (`statut`, `responsable_ul`, `fonctions_dt`). Deux points d'entrée
+  disjoints — `upsert_benevole_identite` et `set_benevole_organisation` — rendent
+  l'écrasement de l'un par l'autre structurellement impossible. Le rôle applicatif
+  n'est **pas stocké** : il est dérivé (`app/auth/service.py`). Voir ADR 0007.
+- **Parité mock / réel** : `tests/test_mock_parity.py` compare les méthodes appelées sur
+  les services fournis par `service_factory` à celles réellement définies. Quatre dettes
+  connues y sont listées (M16, M32) ; toute **nouvelle** occurrence fait échouer la
+  suite. C'est la classe de bug qui a produit M16, M31 et M32 — invisible autrement,
+  puisque les tests tournent en `USE_MOCKS=true`.
 - **Aucune fixture `.csv` versionnée** : la règle `.gitignore` `*.csv` en a déjà fait
   disparaître deux définitivement. Les CSV de test sont **générés** — `conftest.py`
   côté backend, `e2e/helpers/vehicles-csv.ts` côté e2e. Seule exception, strictement
@@ -260,10 +283,12 @@ Les **deux** racines Terraform échouent à `validate` (`backend/terraform/` et
    le code de production. Ils comparent du naïf à du naïf, donc restent cohérents,
    mais `datetime.utcnow()` est déprécié depuis Python 3.12.
 
-3. **`main.py` n'a aucun `Depends`.** Trois routes y exposent des **données
-   personnelles de bénévoles sans authentification** — vérifié par requête réelle.
-   Sévérité critique, détaillé dans `docs/TODO.md`. Ne pas ajouter de route dans
-   `main.py` : passer par un router avec un guard.
+3. **`main.py` n'a aucun `Depends` : toute route y est publique par construction.**
+   Les trois routes de référentiel qui y exposaient les données personnelles des
+   bénévoles ont été retirées le 2026-08-20 (C1 clos). Ne **jamais** y déclarer de
+   route : passer par un router avec un guard. `tests/test_referentiel_directory.py`
+   contient une garde structurelle qui échoue si l'une d'elles réapparaît.
+   ⚠️ `GET /api/alerts/status` reste non authentifié (H4 voisin), toujours ouvert.
 
 4. **La CI garde désormais le déploiement.** `deploy-dev` déclare
    `needs: [backend-test, frontend-build, frontend-test, e2e]`, et les jobs de test
@@ -325,7 +350,7 @@ Les **deux** racines Terraform échouent à `validate` (`backend/terraform/` et
 |---|---|
 | Domaine réparation / sinistre / franchise | `backend/app/models/repair_models.py`, `backend/app/routers/dossiers_reparation.py`, `frontend/.../dossier-reparation/dossier-detail.component.ts` |
 | Accès aux données, nouvelle entité | `backend/app/services/redis_service.py` |
-| Authentification, rôles | `backend/app/auth/dependencies.py` |
+| Authentification, rôles | `backend/app/auth/dependencies.py`, `auth/service.py` (référentiel lu dans **Redis** via `benevoles:by_email`) |
 | Nouvel écran admin | `frontend/projects/admin/src/app/app.routes.ts` (lazy + guard) |
 | Écran terrain bénévole | `frontend/projects/form/src/app/` |
 | Infra GCP | `backend/terraform/` (⚠️ cassé, voir `docs/TODO.md`) |

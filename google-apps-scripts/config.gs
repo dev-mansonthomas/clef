@@ -22,7 +22,10 @@ const CONFIG = {
   SHEETS: {
     REFERENTIEL: 'Référentiel',
     RESPONSABLES: 'Responsables Véhicules',
-    BENEVOLES: 'Bénévoles',
+    // Onglet du classeur « CLEF Benevoles ». Surchargeable par la propriété de
+    // script CLEF_SHEET_BENEVOLES si le classeur venait à le renommer.
+    BENEVOLES: PropertiesService.getScriptProperties()
+      .getProperty('CLEF_SHEET_BENEVOLES') || 'Bénévoles',
     TECHLOG: 'TECHLOG'
   }
 };

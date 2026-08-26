@@ -10,7 +10,7 @@
 
 ## 🔴 Critique
 
-### C1 — Données personnelles de bénévoles exposées sans authentification
+### ~~C1~~ — ✅ **RÉSOLU le 2026-08-20** — Données personnelles de bénévoles exposées sans authentification
 
 `backend/app/main.py` ne contient **aucun `Depends`** (vérifié : `grep -c Depends
 app/main.py` → `0`) et l'app n'a pas de dépendance globale. Trois routes y exposent
@@ -37,6 +37,33 @@ divulgue `service_account_email`.
 
 **Action :** déplacer ces routes dans un router avec `require_authenticated_user`,
 ou les supprimer si elles ne servaient qu'au débogage.
+
+> ✅ **Fait, et les deux à la fois.**
+>
+> - `/api/benevoles` est **conservée** : les formulaires de réservation des deux
+>   applications s'en servent pour leur sélecteur de chauffeur
+>   (`form/.../reservation-form.component.ts:113`,
+>   `admin/.../reservation-form.component.ts:83`). Elle est désormais servie par
+>   `routers/benevoles.directory_router` : `require_authenticated_user`, périmètre pris
+>   sur `current_user.dt` — **jamais** sur un paramètre d'URL, ce qui la met hors
+>   d'atteinte de la classe C3 — et lecture dans Redis, plus dans Sheets.
+>   Chemin et forme de réponse inchangés : aucune modification frontend.
+> - `/api/benevoles/{email}` et `/api/responsables` sont **supprimées** : aucun
+>   appelant, ni frontend ni Apps Script. La surface la plus sûre est celle qui
+>   n'existe pas.
+>
+> Politique d'accès arbitrée par le propriétaire : **tout utilisateur authentifié de la
+> délégation**, email inclus. Restreindre aux gestionnaires casserait le parcours de
+> réservation du bénévole terrain.
+>
+> Vérifié en exécution sur la stack locale :
+> ```
+> GET /api/benevoles           → 401     (sans cookie)
+> GET /api/benevoles/{email}   → 404
+> GET /api/responsables        → 404
+> ```
+> `GET /api/alerts/status` (`routers/alerts.py:48`) reste **non authentifié** : hors
+> périmètre de ce correctif, toujours ouvert.
 
 ### C2 — La prise de véhicule échoue systématiquement en 422
 
@@ -208,7 +235,7 @@ réservation créée depuis l'admin n'apparaît donc pas dans le calendrier admi
 | # | Constat | Emplacement |
 |---|---|---|
 | M1 | **Le champ « Montant de la franchise » est décoratif.** Stocké (`valkey_models.py:34`) et consommé (`dossiers_reparation.py:423,540`, `approbation.py:101`), mais absent de `ConfigUpdate` **et** de `ConfigResponse` → ni écrit ni relu, figé à 350 € | `backend/app/models/config.py` |
-| M2 | **Toute exception d'authentification est avalée** en 401 muet, sans log — c'est ce qui a masqué le bug de fuseau pendant des mois | `auth/dependencies.py:60-61` |
+| M2 | ✅ **Traité 2026-08-20.** L'exception est désormais journalisée (`WARNING`, avec type et message) avant le 401. C'est ce log qui a immédiatement révélé la cause de F20 (`Event loop is closed`) pendant le chantier N2. Le 401 reste muet **côté client**, ce qui est correct : on ne renseigne pas un attaquant | `auth/dependencies.py` |
 | M3 | **Identité bénévole factice** dans le carnet de bord : entrées mal attribuées | `prise-form.component.ts:178-179`, `retour-form.component.ts:147-152` |
 | ~~M4~~ | ✅ **RÉSOLU 2026-08-13.** Les 2 specs Jasmine portées vers Vitest ; les 2 `app.spec.ts` scaffold (`Hello, admin`/`Hello, form`) réécrits sur le contrat réel. 22 tests passent. ⚠️ La couverture reste mince : 6 fichiers pour ~100 composants | `frontend/projects/**/*.spec.ts` |
 | ~~M5~~ | ✅ **RÉSOLU 2026-08-13.** Deux nouveaux jobs : `frontend-test` (matrice admin/form) et `e2e`. Tous deux dans le `needs:` de `deploy-dev` | `.github/workflows/ci.yml` |
@@ -632,3 +659,260 @@ obstacle est ce drapeau.
 | F17 | **`starlette.testclient` avertit** : `Using httpx with starlette.testclient is deprecated; install httpx2 instead`. Migration à prévoir. |
 | F18 | **`backend/scripts/setup_gcp.sh` lit des sorties Terraform nommées `valkey_host` / `valkey_port`.** Ces noms appartiennent à l'arbre Terraform, non touché par le renommage : les changer d'un seul côté casserait le script. À traiter avec H7. |
 | F19 | **`PyJWT` avertit** `InsecureKeyLengthWarning: The HMAC key is 27 bytes long` en test — le secret du mock OIDC est sous les 32 octets recommandés pour SHA-256. Sans effet en test ; à ne pas reproduire en production. |
+
+
+---
+
+# Constats du 2026-08-14 — premier passage réel de la CI sur `main`
+
+Le squash-merge de PR #6 a déclenché le premier run `push` sur `main` avec le
+workflow gardé. **Les 6 jobs de test sont passés** ; seul `deploy-dev` a échoué.
+
+## 🟠 Haute
+
+### H12 — Le déploiement automatique n'a jamais pu fonctionner : le secret GitHub est absent
+
+Run `31786247125`, job `Deploy to Dev (Cloud Run)`, échec en 8 s à l'étape
+« Authenticate to Google Cloud » :
+
+```
+google-github-actions/auth failed with: the GitHub Action workflow must specify
+exactly one of "workload_identity_provider" or "credentials_json"!
+```
+
+`credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}` résout à **chaîne vide** :
+le secret n'est pas configuré sur le dépôt. Les runs `push` sur `main` d'il y a quatre
+mois échouaient déjà en 12 à 15 s — très probablement au même endroit. Le déploiement
+automatique n'a donc **jamais fonctionné**, ce que l'absence de `needs:` (H1) rendait
+invisible : le job partait, échouait seul, et personne ne regardait.
+
+**Ce n'est pas une régression du chantier CI.** C'est ce chantier qui l'a rendu visible.
+
+**Action, à arbitrer avec H6** : ne pas se contenter d'ajouter le secret. H6 relève déjà
+qu'une clé de service account à longue durée exposée en secret GitHub est le mauvais
+patron. La **Workload Identity Federation** (`workload_identity_provider`, sans clé) est
+la voie recommandée, et l'action `google-github-actions/auth@v2` la prend en charge
+directement. À trancher dans le chantier déploiement (N1).
+
+## ⚪ Faible
+
+| # | Constat |
+|---|---|
+| F20 | **`Event loop is closed` remonte en annotation d'erreur sur `Backend Tests` en CI**, alors que le job passe. Même famille que **M27** et que la fuite de boucle d'événements décrite dans `tests/conftest.py` : un teardown asynchrone incomplet. Non fatal aujourd'hui, mais c'est le terreau des flakes. À traiter avec M27. |
+| F21 | **Toutes les actions du workflow tirent Node 20, déprécié** : `actions/checkout@v4`, `actions/setup-node@v4`, `actions/setup-python@v5`, `actions/upload-artifact@v4`, `google-github-actions/auth@v2`. GitHub les force déjà sur Node 24 et avertit à chaque run. Monter les actions d'un cran (`@v5` / `@v6` selon les cas) supprimera huit avertissements par run. |
+| F22 | **`git-pr-merge` ne réécrit pas le titre d'une PR réutilisée** : le commit de squash sur `main` s'appelle « feat: sinistres, franchise et édition de factures (#6) » et ne mentionne pas le chantier CI. Cosmétique, mais à savoir : passer le titre à l'outil ne suffit pas si la PR existe déjà. |
+
+
+---
+
+# Constats du 2026-08-14 — le mode réel n'est pas praticable en l'état
+
+Relevés en construisant le préflight de `./run_local.sh --real`. Tous **vérifiés par
+lecture du code**, avec les lignes citées.
+
+## 🔴 Critique
+
+### ~~M31~~ — ✅ **RÉSOLU le 2026-08-20** — `get_benevole_by_email()` n'existe que sur le mock
+
+Deuxième instance de la famille de bugs relevée en **M16** (`calendar_service.get_events()`),
+et celle-ci est sur le **chemin d'authentification**.
+
+```
+auth/service.py:104        return self.sheets_service.get_benevole_by_email(email)
+mocks/google_sheets_mock.py:290   def get_benevole_by_email(...)     ← existe
+services/sheets_real.py           ← N'EXISTE PAS
+```
+
+Avec `USE_MOCKS=false`, l'appel lève `AttributeError`. Mais `_get_benevole`
+(`auth/service.py:103-106`) l'enveloppe dans `except Exception: return None`, et
+`get_current_user` fait de même (`auth/dependencies.py:60-61`, constat **M2**). La
+chaîne complète, vérifiée par lecture de `get_user_from_token` :
+
+1. `email == EMAIL_GESTIONNAIRE_DT` → **Gestionnaire DT**. Ce chemin ne touche pas
+   Sheets (`auth/service.py:33-43`) : il continue de fonctionner.
+2. sinon `_get_benevole()` → `AttributeError` avalée → `None`.
+3. sinon `_get_responsable()` → `get_responsables()` existe bien sur le service réel,
+   mais avec `spreadsheet_id=None` l'appel Sheets échoue → avalé → `None`.
+4. sinon **repli** (`auth/service.py:88-99`) : `role="Bénévole"`, `ul=None`,
+   `perimetre=None`, `type_perimetre=None`.
+
+**Conséquence en production ou en intégration réelle :** seul le compte
+`EMAIL_GESTIONNAIRE_DT` obtient un rôle correct. **Tous les autres utilisateurs
+authentifiés sont silencieusement ramenés à « Bénévole » sans UL ni périmètre**, sans
+la moindre trace dans les logs. Les Responsables UL perdent leurs droits, les autres
+gestionnaires DT aussi.
+
+Le sens de la dégradation est heureusement *fail-closed* — personne ne gagne de droits.
+Mais c'est une panne fonctionnelle totale et muette.
+
+**Action :** c'est exactement la tâche **N2** de la décision **D4** — faire lire les
+bénévoles depuis Redis (`redis_store.get_benevole`, comme `routers/benevoles.py:70,74`
+le fait déjà) au lieu de Google Sheets. Cela supprime d'un coup : ce bug, la latence
+Sheets sur chaque requête d'authentification, et la dépendance du contrôle d'accès à un
+tableur en direct. À faire **avant** que le mode réel serve à quoi que ce soit.
+
+> ✅ **Fait — N2 est livrée.** `auth/service.py` ne référence plus le service Sheets
+> (test structurel à l'appui). `get_user_from_token` est devenue asynchrone et prend le
+> `RedisService` en paramètre : pas d'état caché, et l'appelant contrôle le périmètre.
+>
+> **Index email → NIVOL.** L'authentification identifie par email, les bénévoles sont
+> stockés par NIVOL. Un index `{dt}:benevoles:by_email:{email}` (deux lectures à coût
+> constant) évite de parcourir toute la délégation à chaque requête. Il est maintenu par
+> `set_benevole`/`delete_benevole`, purge l'entrée obsolète quand une adresse change —
+> sans quoi l'ancienne continuerait d'ouvrir une session — et normalise la casse.
+>
+> **Backfill obligatoire** avant la première connexion :
+> `python backend/scripts/backfill_benevole_email_index.py [--dt DT75] [--dry-run]`.
+> Les bénévoles écrits avant l'index seraient sinon introuvables — soit le symptôme de
+> M31 réintroduit par la porte des données.
+>
+> **Plus de dégradation silencieuse.** Une panne du datastore **remonte** au lieu de
+> produire un utilisateur sans périmètre, et un email absent du référentiel est
+> journalisé en `WARNING`. Vérifié : contre une base vide, l'endpoint répond 403 et le
+> log dit `Email authentifié absent du référentiel DT75 : aucun périmètre accordé`.
+>
+> ⚠️ **Conséquence à connaître : l'authentification dépend maintenant de Redis.** Si le
+> datastore est injoignable, personne ne se connecte — sauf `EMAIL_GESTIONNAIRE_DT`,
+> dont le chemin ne consulte aucun référentiel. C'est un couplage assumé : le contrôle
+> d'accès dépendait auparavant de l'API Google Sheets, moins disponible encore.
+
+## 🟠 Haute
+
+### H13 — Les trois URL de feuilles de la configuration DT sont entièrement inertes
+
+`DTConfiguration` (`models/redis_models.py:16-18`) déclare `sheets_url_vehicules`,
+`sheets_url_benevoles` et `sheets_url_responsables`. Recherche exhaustive dans tout le
+dépôt : **ces noms n'apparaissent nulle part ailleurs** que dans ces trois déclarations
+et deux mocks de test.
+
+- Ils ne sont **pas** dans `ConfigUpdate` → `PATCH /api/config` ne peut pas les écrire.
+- Ils ne sont **pas** dans `ConfigResponse` → `GET /api/config` ne les relit pas.
+- **Aucune ligne de code ne les consomme.**
+
+Le mécanisme réellement utilisé est ailleurs : `sheets_real.py:24-26` lit les variables
+d'environnement `VEHICULES_SPREADSHEET_ID`, `BENEVOLES_SPREADSHEET_ID` et
+`RESPONSABLES_SPREADSHEET_ID` — qui ne sont définies **ni** dans `backend/.env`, **ni**
+dans `.env.example` (constat **M9/M10**).
+
+Même défaut que **M1** (`montant_franchise`), mais en version intégrale : M1 était au
+moins consommé en aval, ici rien ne l'est.
+
+**Action :** trancher où vit cette configuration. Deux voies cohérentes :
+- **La configuration DT est la source** → ajouter les champs à
+  `ConfigUpdate`/`ConfigResponse`, extraire l'identifiant depuis l'URL (le code sait déjà
+  le faire pour `drive_folder_url`, `routers/config.py`), et faire lire la config par le
+  service Sheets.
+- **L'environnement est la source** → retirer les trois champs de `DTConfiguration`,
+  qui ne font que suggérer un réglage inexistant, et documenter les variables.
+
+La première voie est plus cohérente avec le multi-DT (**D2**) : chaque délégation a ses
+propres feuilles. Mais si **N2** est fait d'abord, l'authentification n'a plus besoin de
+Sheets du tout, et la question se réduit à l'import de véhicules.
+
+---
+
+# Constats du 2026-08-20 — audit de parité mock / réel
+
+En corrigeant M31, j'ai cherché ses frères et sœurs de façon systématique : comparer
+chaque méthode **appelée** sur un service fourni par `app/mocks/service_factory.py` aux
+méthodes réellement **définies** sur l'implémentation réelle. C'est désormais un test —
+`tests/test_mock_parity.py` — avec la dette existante en liste explicite : toute
+**nouvelle** occurrence fait échouer la suite.
+
+⚠️ Mon premier audit, écrit en shell, n'a rien trouvé — alors que M16 était sous son
+nez. Réécrit en Python et confronté à M16 comme témoin, il a remonté 17 signalements,
+dont 13 étaient des faux positifs de ma table de correspondance (les trois fichiers
+`drive*.py`). **Un audit dont on ne peut pas justifier le silence ne vaut rien.**
+
+## 🟠 Haute
+
+### M32 — Trois appels de plus vers des méthodes inexistantes, tous sur le chemin réel
+
+Même famille que **M16** et **M31**. Chacun lève `AttributeError` en `USE_MOCKS=false`.
+
+| Appel | Emplacement | Réalité |
+|---|---|---|
+| `sheets_service.get_vehicule_by_indicatif()` | `routers/reservations.py:56` | n'existe **que sur le mock** ; le service réel expose `get_vehicule_by_nom_synthetique` |
+| `calendar_service.get_calendar_id()` | `routers/calendar.py:34` | n'existe **nulle part** |
+| `calendar_service._get_calendar_name()` | `routers/calendar.py:41` | n'existe **nulle part** |
+| `calendar_service.get_events()` | `routers/ical.py:136,202` | n'existe **nulle part** ; le service réel expose `list_events` (= M16) |
+
+Conséquence : en mode réel, la **création et la configuration de calendrier**
+(`routers/calendar.py`) et les **flux iCal** (`routers/ical.py`) échouent, et la
+création de réservation par l'API legacy (`routers/reservations.py`) aussi. Aucun test
+ne pouvait le voir : ils tournent tous en `USE_MOCKS=true`.
+
+**Action :** aligner les appels sur les signatures réelles, puis retirer les entrées
+correspondantes de `KNOWN_DEBT` dans `tests/test_mock_parity.py` — le test refuse une
+dette obsolète, il échouera donc si on oublie.
+
+⚠️ `routers/calendar.py` appelle **deux** méthodes qui n'existent nulle part : ce
+fichier n'a très probablement jamais été exécuté en mode réel. À traiter avec **H8**
+(deux modèles de réservation coexistent) plutôt qu'isolément.
+
+## ⚪ Faible
+
+| # | Constat |
+|---|---|
+| F23 | **L'authentification fait un `PING` Redis par requête authentifiée.** Ajouté avec N2 pour détecter un client lié à une boucle d'événements morte (bascule Redis, maintenance Memorystore, plusieurs `TestClient` dans un même test) — sans quoi l'authentification resterait bloquée définitivement. Un aller-retour local, à comparer à l'appel HTTP complet vers l'API Sheets que ce chemin faisait avant. Mieux à terme : une reconnexion-et-réessai dans `RedisCache` lui-même, sans sonde préalable. |
+| F24 | **La suite se replie sur `fakeredis` quand aucun serveur n'est joignable** (`tests/conftest.py`), en remplaçant `cache.connect()`. Nécessaire depuis que l'authentification dépend du datastore : sans repli, 87 tests échouaient faute d'environnement, pas de code. Conséquence à connaître : `pytest` sans serveur n'exerce pas le vrai client Redis — c'est le rôle des 17 tests marqués `integration`. |
+
+---
+
+# Chantier du 2026-08-21 — référentiel bénévoles : identité vs organisation
+
+Les six fragilités relevées le 2026-08-20 sur l'import bénévole sont **traitées**, ainsi
+que **C3**. Spécification : `docs/specs/synchronisation-referentiel-benevoles.md`.
+Décision de conception : [ADR 0007](adr/0007-partage-de-propriete-feuille-clef.md).
+
+| # | Constat | Traitement |
+|---|---|---|
+| 1 | Les en-têtes de la feuille étaient un contrat d'API implicite | ✅ Alias explicites sur `Nivol`, `Nom`, `Prénom`, `UL`, `Téléphone`, `Email` ; `Prénom Nom` ignorée ; colonne absente → erreur **qui la nomme** |
+| 2 | Contradiction sur `nivol` entre les deux chemins d'écriture | ✅ Tranchée : la feuille porte `Nivol`, clé primaire. Le préchargement Sheets de `main.py` est **retiré** ; la synchronisation est le seul pont (ADR 0002). Reste un amorçage gardé par `use_mocks()` pour le développement local |
+| 3 | Tout ou rien : une ligne fautive rejetait le lot en 422 | ✅ Validation **ligne à ligne**, erreurs situées au numéro de ligne de la feuille, réponse 200 même partielle |
+| 4 | La synchronisation ne supprimait jamais rien | ✅ Réconciliation : absent du lot → `statut="inactif"`. Jamais de suppression — l'historique référence le bénévole |
+| 5 | `statut` était jeté | ✅ `statut` devient un champ de premier plan, **propriété de CLEF**, et l'authentification le respecte (401 si inactif) |
+| 6 | La synchronisation écrasait les rôles saisis dans CLEF | ✅ Deux points d'entrée disjoints : `upsert_benevole_identite` n'accepte aucun champ d'organisation, `set_benevole_organisation` aucun champ d'identité |
+| C3 | Clé de synchronisation globale unique | ✅ `validate_api_key` sur le `{dt}` de l'URL, sur les **six** endpoints de `sync.py`. `SYNC_API_KEY` n'existe plus |
+
+## Ce que le chantier a corrigé en plus
+
+- **Le modèle de rôles.** `role` à valeur unique → `responsable_ul: bool` +
+  `fonctions_dt: list[str]`. Un bénévole peut être responsable de son UL **et** porter
+  une fonction DT. Le rôle applicatif n'est plus stocké : il est **dérivé**.
+- **Bug préexistant sur `by_ul`.** `set_benevole` ne faisait qu'un `sadd` sur la
+  nouvelle UL : un changement d'UL laissait une entrée fantôme dans l'ancienne, et
+  `list_benevoles(ul=...)` renvoyait un bénévole qui n'y était plus. Corrigé.
+- **Le `PATCH` écrivait l'UL.** Nommer un responsable d'UL déplaçait le bénévole — une
+  valeur que la synchronisation suivante rétablissait de toute façon. Retiré.
+- **Le `PATCH` parcourait toute la délégation** pour retrouver un bénévole par email.
+  Passe par l'index `by_email`, à coût constant.
+- **Le téléphone** est importé et exposé dans l'annuaire, sur arbitrage du propriétaire.
+
+## ⚠️ Ordre de déploiement — contraignant
+
+```sh
+# 1. AVANT de déployer le nouveau code
+python backend/scripts/migrate_benevole_role_to_organisation.py --dry-run
+python backend/scripts/migrate_benevole_role_to_organisation.py
+
+# 2. Puis déployer.
+```
+
+Le nouveau code lit `responsable_ul` et `fonctions_dt`. Sur un document non migré,
+Pydantic leur donne `False` et `[]` : **tous les responsables perdraient leurs droits**
+jusqu'au passage de la migration. Le dry-run sur le Redis local rapportait
+`1 responsable_ul, 1 responsable_dt, 4 sans rôle`.
+
+Une **clé API de délégation** doit également exister avant la première synchronisation
+(écran de configuration, `generate_api_key_dt`) : l'ancienne variable d'environnement
+globale n'est plus lue.
+
+## Reste ouvert
+
+| # | Constat |
+|---|---|
+| N4 | **L'écran d'administration ne permet pas encore de saisir les `fonctions_dt`.** L'API (`PATCH /api/{dt}/benevoles/{email}`) et le stockage existent ; `dt-admin.component.ts` a été adapté au nouveau modèle mais ne gère que `responsable_ul`. Sans cet écran, la moitié CLEF du modèle n'est saisissable qu'à la main. Spec d'UI à écrire |
+| N5 | **Pas de référentiel fermé des fonctions DT.** `fonctions_dt` est une liste de chaînes libres. Un référentiel — et une liste déroulante — sont un chantier produit distinct |
+| N6 | **Purge RGPD des bénévoles inactifs.** La décision retenue est « désactiver, ne jamais supprimer ». Une purge planifiée après délai de conservation reste à spécifier |
+| M33 | **Le référentiel legacy `responsables`** (`set_responsable`, `ResponsableData`, endpoints de `sync.py`) coexiste toujours avec les bénévoles. Son retrait est un chantier de nettoyage à part |

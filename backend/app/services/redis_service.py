@@ -3,6 +3,8 @@ import logging
 import uuid
 import secrets
 from typing import Optional, List, Dict, Any, Set
+
+from pydantic import BaseModel
 from datetime import datetime, date
 from redis.asyncio import Redis
 from app.models.redis_models import VehicleData, BenevoleData, ResponsableData, ResponsableVehiculeData, CarnetBordEntry, DTConfiguration
@@ -25,6 +27,24 @@ def _get_calendar_service():
         from app.services.calendar_service import calendar_service
         _calendar_service = calendar_service
     return _calendar_service
+
+
+class BenevoleIdentite(BaseModel):
+    """Moitié « identité » d'un bénévole, telle que la feuille la fournit.
+
+    Sépare explicitement ce que la synchronisation a le droit d'écraser de ce qu'elle
+    doit préserver. Un `BenevoleIdentite` ne porte **aucun** champ d'organisation :
+    c'est structurellement impossible d'écraser un statut ou une fonction DT en
+    passant par lui.
+
+    Voir `docs/specs/synchronisation-referentiel-benevoles.md`.
+    """
+    nivol: str
+    nom: str
+    prenom: str
+    ul: str
+    email: Optional[str] = None
+    telephone: Optional[str] = None
 
 
 class RedisService:
@@ -354,6 +374,16 @@ class RedisService:
 
     # ========== Bénévoles ==========
 
+    @staticmethod
+    def _normalize_email(email: str) -> str:
+        """Normalise un email pour l'indexation : minuscules, sans espaces.
+
+        Le fournisseur d'identité peut renvoyer une casse différente de celle saisie
+        dans le référentiel. Un utilisateur légitime non reconnu serait silencieusement
+        ramené à « Bénévole » sans périmètre (constat M31).
+        """
+        return email.strip().lower()
+
     async def get_benevole(self, nivol: str) -> Optional[BenevoleData]:
         """Get bénévole by NIVOL."""
         data = await self.redis.json().get(self._key("benevoles", nivol))
@@ -361,19 +391,74 @@ class RedisService:
             return None
         return BenevoleData(**data)
 
+    async def get_benevole_by_email(self, email: str) -> Optional[BenevoleData]:
+        """Get bénévole by email address, via l'index `benevoles:by_email`.
+
+        Utilisé par l'authentification, qui n'identifie l'utilisateur que par l'email
+        porté par son jeton. Deux lectures à coût constant — pas de parcours de
+        l'index de la délégation, ce chemin étant traversé à chaque requête.
+
+        Args:
+            email: Email address, insensible à la casse
+
+        Returns:
+            Le bénévole, ou None si l'email n'est pas connu de cette délégation
+        """
+        if not email:
+            return None
+
+        nivol = await self.redis.get(
+            self._key("benevoles", "by_email", self._normalize_email(email))
+        )
+        if not nivol:
+            return None
+        return await self.get_benevole(nivol)
+
     async def set_benevole(self, benevole: BenevoleData) -> bool:
         """Set bénévole data and add to indices."""
         try:
+            # Lu avant l'écriture : sert à purger l'index email si l'adresse change.
+            previous = await self.get_benevole(benevole.nivol)
+
             key = self._key("benevoles", benevole.nivol)
             await self.redis.json().set(key, "$", benevole.model_dump(mode="json"))
 
             # Add to global index
             await self.redis.sadd(self._key("benevoles", "index"), benevole.nivol)
 
-            # Add to UL-specific index if UL is specified
+            # Add to UL-specific index if UL is specified.
+            # Retirer d'abord l'ancienne UL : sans cela un changement d'UL laissait une
+            # entrée fantôme, et `list_benevoles(ul=...)` renvoyait un bénévole qui
+            # n'y est plus.
+            if previous and previous.ul and previous.ul != benevole.ul:
+                await self.redis.srem(
+                    self._key("benevoles", "by_ul", previous.ul),
+                    benevole.nivol
+                )
             if benevole.ul:
                 await self.redis.sadd(
                     self._key("benevoles", "by_ul", benevole.ul),
+                    benevole.nivol
+                )
+
+            # Index email → NIVOL, consommé par l'authentification.
+            # `previous` sert à purger l'entrée devenue obsolète quand l'email change :
+            # sans cela, l'ancienne adresse continuerait d'identifier ce bénévole, donc
+            # d'ouvrir une session à son nom.
+            if previous and previous.email:
+                previous_key = self._key(
+                    "benevoles", "by_email", self._normalize_email(previous.email)
+                )
+                if not benevole.email or self._normalize_email(
+                    previous.email
+                ) != self._normalize_email(benevole.email):
+                    await self.redis.delete(previous_key)
+
+            if benevole.email:
+                await self.redis.set(
+                    self._key(
+                        "benevoles", "by_email", self._normalize_email(benevole.email)
+                    ),
                     benevole.nivol
                 )
 
@@ -381,6 +466,286 @@ class RedisService:
         except Exception as e:
             logger.error(f"Error setting benevole {benevole.nivol} for {self.dt}: {e}")
             return False
+
+    async def upsert_benevole_identite(self, identite: "BenevoleIdentite") -> str:
+        """Écrit l'identité d'un bénévole en **préservant** son organisation.
+
+        C'est le point d'entrée de la synchronisation depuis « CLEF Benevoles ».
+        La feuille possède l'identité ; `statut`, `responsable_ul` et `fonctions_dt`
+        appartiennent à CLEF et ne sont jamais touchés ici — sauf la réactivation d'un
+        bénévole qui réapparaît au référentiel.
+
+        Args:
+            identite: identité issue de la feuille
+
+        Returns:
+            `"created"`, `"updated"` ou `"reactivated"`
+        """
+        previous = await self.get_benevole(identite.nivol)
+
+        if previous is None:
+            outcome = "created"
+            statut = "actif"
+            responsable_ul = False
+            fonctions_dt: List[str] = []
+        else:
+            # Réapparaître au référentiel vaut réactivation : c'est le pendant de la
+            # réconciliation, sans quoi un retour resterait sans accès.
+            outcome = "reactivated" if previous.statut == "inactif" else "updated"
+            statut = "actif"
+            responsable_ul = previous.responsable_ul
+            fonctions_dt = list(previous.fonctions_dt)
+
+        await self.set_benevole(BenevoleData(
+            nivol=identite.nivol,
+            dt=self.dt,
+            nom=identite.nom,
+            prenom=identite.prenom,
+            ul=identite.ul,
+            email=identite.email,
+            telephone=identite.telephone,
+            statut=statut,
+            responsable_ul=responsable_ul,
+            fonctions_dt=fonctions_dt,
+        ))
+
+        if outcome == "reactivated":
+            logger.info(
+                "Bénévole %s (%s) réactivé : réapparu au référentiel",
+                identite.nivol, self.dt
+            )
+        return outcome
+
+    async def set_benevole_organisation(
+        self,
+        nivol: str,
+        *,
+        responsable_ul: Optional[bool] = None,
+        fonctions_dt: Optional[List[str]] = None,
+        statut: Optional[str] = None,
+    ) -> Optional[BenevoleData]:
+        """Met à jour les seuls champs dont **CLEF** est propriétaire.
+
+        Symétrique de `upsert_benevole_identite` : celui-ci n'écrit que l'identité,
+        celui-là n'écrit que l'organisation. Aucun des deux ne peut empiéter sur
+        l'autre, et c'est structurel — pas une convention à respecter.
+
+        Un argument laissé à `None` n'est pas modifié : la mise à jour est partielle,
+        pour qu'un `PATCH` sur un seul champ n'en réinitialise pas les autres.
+
+        Args:
+            nivol: clé primaire du bénévole
+            responsable_ul: responsabilité de son unité locale
+            fonctions_dt: fonctions exercées au niveau de la DT
+            statut: `actif` ou `inactif`
+
+        Returns:
+            Le bénévole mis à jour, ou None s'il n'existe pas.
+        """
+        benevole = await self.get_benevole(nivol)
+        if not benevole:
+            return None
+
+        if responsable_ul is not None:
+            benevole.responsable_ul = responsable_ul
+        if fonctions_dt is not None:
+            benevole.fonctions_dt = list(fonctions_dt)
+        if statut is not None:
+            benevole.statut = statut
+
+        await self.set_benevole(benevole)
+        return benevole
+
+    async def deactivate_benevoles_absent_from(
+        self, nivols_presents: set, max_ratio: float = 0.2
+    ) -> Dict[str, Any]:
+        """Passe à `inactif` les bénévoles actifs absents du jeu fourni.
+
+        Le lot de synchronisation est un **instantané complet** de la délégation :
+        une absence signifie un départ, et doit révoquer l'accès. Mais c'est la seule
+        opération de ce chantier qui retire un accès **en masse**, et un onglet
+        tronqué, un filtre resté actif ou une lecture Sheets partielle produiraient
+        exactement le même signal qu'un départ collectif.
+
+        D'où deux garde-fous : un **lot vide** ne désactive jamais personne, et une
+        désactivation portant sur plus de `max_ratio` des actifs est **abandonnée**.
+        Aucune suppression : toute erreur reste réversible.
+
+        Args:
+            nivols_presents: NIVOL présents dans le lot
+            max_ratio: proportion maximale d'actifs désactivables en une passe
+
+        Returns:
+            `deactivated`, `skipped`, `reason`, `active_before`, `nivols` (désactivés)
+        """
+        actifs = []
+        for nivol in await self.list_benevoles():
+            benevole = await self.get_benevole(nivol)
+            if benevole and benevole.statut == "actif":
+                actifs.append(benevole)
+
+        a_desactiver = [b for b in actifs if b.nivol not in nivols_presents]
+        result: Dict[str, Any] = {
+            "deactivated": 0,
+            "skipped": False,
+            "reason": None,
+            "active_before": len(actifs),
+            "nivols": [],
+        }
+
+        if not nivols_presents:
+            result["skipped"] = True
+            result["reason"] = (
+                "Lot vide : aucune désactivation. Une lecture de feuille tronquée "
+                "produit ce signal — il n'est jamais interprété comme un départ "
+                "collectif."
+            )
+            logger.error("Réconciliation %s abandonnée — %s", self.dt, result["reason"])
+            return result
+
+        if actifs and len(a_desactiver) / len(actifs) > max_ratio:
+            result["skipped"] = True
+            result["reason"] = (
+                f"Ratio de désactivation {len(a_desactiver)}/{len(actifs)} "
+                f"au-dessus du maximum {max_ratio:.0%} : réconciliation abandonnée. "
+                "Vérifier que la feuille n'est ni filtrée ni tronquée, puis relancer "
+                "avec un ratio explicite si la désactivation est légitime."
+            )
+            logger.error("Réconciliation %s abandonnée — %s", self.dt, result["reason"])
+            return result
+
+        for benevole in a_desactiver:
+            benevole.statut = "inactif"
+            await self.set_benevole(benevole)
+            result["nivols"].append(benevole.nivol)
+            # Nominatif volontairement : un accès perdu doit être explicable sans
+            # rouvrir la feuille.
+            logger.warning(
+                "Bénévole %s (%s, %s) désactivé : absent du référentiel",
+                benevole.nivol, benevole.email or "sans email", self.dt
+            )
+
+        result["deactivated"] = len(a_desactiver)
+        return result
+
+    #: Libellé donné à la fonction DT lors de la migration depuis l'ancien
+    #: `role == "responsable_dt"`. Libellé libre : `fonctions_dt` n'a pas de
+    #: référentiel fermé (hors périmètre de la spec).
+    MIGRATED_DT_FUNCTION = "Gestionnaire DT"
+
+    async def migrate_benevole_role_to_organisation(self) -> Dict[str, int]:
+        """Migre l'ancien champ `role` vers `responsable_ul` + `fonctions_dt`.
+
+        ⚠️ **À lancer avant de déployer le code qui lit les nouveaux champs.** Sur un
+        document non migré, Pydantic donne `responsable_ul=False` et `fonctions_dt=[]` :
+        tous les responsables perdraient leurs droits jusqu'au passage de cette
+        migration.
+
+        Correspondance :
+
+        | `role` hérité | Résultat |
+        |---|---|
+        | `responsable_ul` | `responsable_ul=True` |
+        | `responsable_dt` | `fonctions_dt=["Gestionnaire DT"]` |
+        | absent ou `null` | ni l'un ni l'autre |
+
+        Idempotent : un document déjà migré (sans `role`) est compté comme tel et
+        laissé intact — y compris son organisation, qui peut avoir été saisie dans
+        CLEF depuis.
+
+        Returns:
+            Compteurs : `total`, `migrated`, `already_migrated`, `without_ul`,
+            `missing` (nivol à l'index sans document).
+        """
+        counters = {
+            "total": 0, "migrated": 0, "already_migrated": 0,
+            "without_ul": 0, "missing": 0,
+        }
+
+        for nivol in await self.list_benevoles():
+            counters["total"] += 1
+            key = self._key("benevoles", nivol)
+            raw = await self.redis.json().get(key)
+            if not raw:
+                counters["missing"] += 1
+                logger.warning(
+                    "NIVOL %s présent à l'index de %s mais sans document", nivol, self.dt
+                )
+                continue
+
+            if not raw.get("ul"):
+                counters["without_ul"] += 1
+                logger.warning(
+                    "Bénévole %s (%s) sans UL : à corriger dans la feuille source",
+                    nivol, self.dt
+                )
+
+            legacy_role = raw.pop("role", "__absent__")
+            if legacy_role == "__absent__":
+                counters["already_migrated"] += 1
+                # Rien à réécrire : ne pas toucher à une organisation déjà saisie.
+                continue
+
+            raw.setdefault("statut", "actif")
+            if legacy_role == "responsable_ul":
+                raw["responsable_ul"] = True
+                raw.setdefault("fonctions_dt", [])
+            elif legacy_role == "responsable_dt":
+                raw["responsable_ul"] = False
+                raw["fonctions_dt"] = [self.MIGRATED_DT_FUNCTION]
+            else:
+                raw["responsable_ul"] = False
+                raw.setdefault("fonctions_dt", [])
+
+            benevole = BenevoleData(**raw)
+            # Passer par `set_benevole` plutôt qu'un `json().set` direct : c'est ce qui
+            # (re)construit les index, dont `by_email` — absent des documents hérités,
+            # donc sans lequel l'authentification ne retrouverait pas ce bénévole.
+            await self.set_benevole(benevole)
+            counters["migrated"] += 1
+
+        logger.info("Migration role → organisation %s : %s", self.dt, counters)
+        return counters
+
+    async def backfill_benevole_email_index(self) -> Dict[str, int]:
+        """Reconstruit l'index `benevoles:by_email` pour cette délégation.
+
+        Nécessaire pour les bénévoles écrits **avant** l'existence de cet index :
+        l'authentification s'appuie dessus (tâche N2), donc un bénévole non indexé
+        serait introuvable et ramené à « Bénévole » sans périmètre — le symptôme même
+        du constat M31.
+
+        Idempotent : réécrit les entrées existantes à l'identique.
+
+        Returns:
+            Compteurs : `total` parcourus, `indexed` indexés, `without_email` ignorés
+            faute d'adresse, `missing` documents absents malgré leur présence à l'index.
+        """
+        counters = {"total": 0, "indexed": 0, "without_email": 0, "missing": 0}
+
+        for nivol in await self.list_benevoles():
+            counters["total"] += 1
+            benevole = await self.get_benevole(nivol)
+            if not benevole:
+                counters["missing"] += 1
+                logger.warning(
+                    "NIVOL %s présent à l'index de %s mais sans document",
+                    nivol, self.dt
+                )
+                continue
+            if not benevole.email:
+                counters["without_email"] += 1
+                continue
+            await self.redis.set(
+                self._key(
+                    "benevoles", "by_email", self._normalize_email(benevole.email)
+                ),
+                nivol
+            )
+            counters["indexed"] += 1
+
+        logger.info("Backfill index email %s : %s", self.dt, counters)
+        return counters
 
     async def list_benevoles(self, ul: Optional[str] = None) -> List[str]:
         """
@@ -415,6 +780,15 @@ class RedisService:
                 await self.redis.srem(
                     self._key("benevoles", "by_ul", benevole.ul),
                     nivol
+                )
+
+            # Remove from email index — sinon l'adresse d'un bénévole supprimé
+            # continuerait d'ouvrir une session à son nom.
+            if benevole and benevole.email:
+                await self.redis.delete(
+                    self._key(
+                        "benevoles", "by_email", self._normalize_email(benevole.email)
+                    )
                 )
 
             return True

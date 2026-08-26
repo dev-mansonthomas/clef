@@ -1,28 +1,41 @@
 """
 Authentication service for handling user authentication and role determination.
+
+Le référentiel des bénévoles est lu dans **Redis**, pas dans Google Sheets : tâche N2
+de la décision D4. Sheets reste la source *en amont*, mais le pont est l'Apps Script
+de synchronisation (`routers/sync.py`), pas une lecture directe sur le chemin
+d'authentification. Voir ADR 0002 et le constat M31.
 """
+import logging
 from typing import Optional, Dict, Any
+
 from .models import User, TokenData
 from .config import auth_settings
-from app.mocks.service_factory import get_sheets_service
+
+logger = logging.getLogger(__name__)
 
 
 class AuthService:
     """Service for authentication and user role determination."""
-    
+
     def __init__(self):
-        self.sheets_service = get_sheets_service()
         self.dt_manager_email = auth_settings.email_gestionnaire_dt
-    
-    def get_user_from_token(self, token_data: TokenData) -> User:
+
+    async def get_user_from_token(self, token_data: TokenData, redis_store) -> User:
         """
         Create a User object from token data by looking up user info in referentials.
 
         Args:
             token_data: Data extracted from JWT token
+            redis_store: `RedisService` de la délégation, source du référentiel
 
         Returns:
             User object with role and UL information
+
+        Raises:
+            Toute exception du datastore est **propagée**. C'est délibéré : une panne
+            d'infrastructure ne doit pas se déguiser en « utilisateur sans droits ».
+            L'appelant la transforme en échec d'authentification (401), après log.
         """
         email = token_data.email
 
@@ -43,50 +56,59 @@ class AuthService:
                 type_perimetre="DT"
             )
 
-        # Check if user is a benevole (now includes responsables with role field)
-        benevole = self._get_benevole(email)
+        benevole = await redis_store.get_benevole_by_email(email)
         if benevole:
-            # Map benevole.role to User.role
-            user_role = "Bénévole"  # Default
-            perimetre = benevole.get("ul")
-            type_perimetre = "UL"
+            # Révocation. Pendant indispensable de la réconciliation : sans ce
+            # contrôle, désactiver un bénévole absent du référentiel ne lui retirerait
+            # rien. Une exception, pas un utilisateur dégradé — l'appelant la
+            # transforme en 401 après l'avoir journalisée.
+            if benevole.statut != "actif":
+                logger.warning(
+                    "Authentification refusée : bénévole %s inactif dans %s (email=%s)",
+                    benevole.nivol, getattr(redis_store, "dt", "?"), email,
+                )
+                raise PermissionError(
+                    f"Bénévole {benevole.nivol} inactif : accès révoqué"
+                )
 
-            benevole_role = benevole.get("role")
-            if benevole_role == "responsable_dt":
+            # Rôle **dérivé**, plus stocké. Une fonction à la DT l'emporte sur la
+            # responsabilité d'UL : la personne peut être les deux, et son périmètre
+            # effectif est alors le plus large. C'est exactement ce que l'ancien champ
+            # `role` à valeur unique ne pouvait pas exprimer.
+            if benevole.fonctions_dt:
                 user_role = "Gestionnaire DT"
                 perimetre = "DT Paris"
                 type_perimetre = "DT"
-            elif benevole_role == "responsable_ul":
+            elif benevole.responsable_ul:
                 user_role = "Responsable UL"
-                perimetre = benevole.get("ul")
+                perimetre = benevole.ul
+                type_perimetre = "UL"
+            else:
+                user_role = "Bénévole"
+                perimetre = benevole.ul
                 type_perimetre = "UL"
 
             return User(
                 email=email,
-                nom=benevole.get("nom", nom),
-                prenom=benevole.get("prenom", prenom),
-                dt=benevole.get("dt", "DT75"),  # Default to DT75 if not specified
-                ul=benevole.get("ul"),
+                nom=benevole.nom or nom,
+                prenom=benevole.prenom or prenom,
+                dt=benevole.dt,
+                ul=benevole.ul,
                 role=user_role,
                 perimetre=perimetre,
                 type_perimetre=type_perimetre
             )
 
-        # Fallback: check old responsables structure for backward compatibility
-        responsable = self._get_responsable(email)
-        if responsable:
-            return User(
-                email=email,
-                nom=responsable.get("nom", nom),
-                prenom=responsable.get("prenom", prenom),
-                dt=responsable.get("dt", "DT75"),  # Default to DT75 if not specified
-                ul=responsable.get("perimetre"),
-                role=responsable.get("role", "Responsable"),
-                perimetre=responsable.get("perimetre"),
-                type_perimetre=responsable.get("type_perimetre")
-            )
-
-        # Default: unknown user (should not happen in production)
+        # Repli : email inconnu du référentiel. Volontairement *fail-closed* — aucun
+        # périmètre, donc aucun droit, plutôt qu'un rôle par défaut. Journalisé, car
+        # c'est le symptôme d'un référentiel non synchronisé autant que d'un accès
+        # illégitime.
+        logger.warning(
+            "Email authentifié absent du référentiel %s : aucun périmètre accordé "
+            "(email=%s)",
+            getattr(redis_store, "dt", "?"),
+            email,
+        )
         return User(
             email=email,
             nom=nom,
@@ -97,24 +119,6 @@ class AuthService:
             perimetre=None,
             type_perimetre=None
         )
-    
-    def _get_benevole(self, email: str) -> Optional[Dict[str, Any]]:
-        """Get benevole data from cache."""
-        try:
-            return self.sheets_service.get_benevole_by_email(email)
-        except Exception:
-            return None
-    
-    def _get_responsable(self, email: str) -> Optional[Dict[str, Any]]:
-        """Get responsable data from cache."""
-        try:
-            responsables = self.sheets_service.get_responsables()
-            for resp in responsables:
-                if resp.get("email", "").lower() == email.lower():
-                    return resp
-            return None
-        except Exception:
-            return None
     
     def is_dt_manager(self, user: User) -> bool:
         """Check if user is DT manager."""
