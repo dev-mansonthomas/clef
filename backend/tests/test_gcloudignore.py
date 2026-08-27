@@ -36,6 +36,43 @@ def test_le_repertoire_source_a_son_gcloudignore(source: str):
     )
 
 
+@pytest.mark.parametrize("source", ["backend", "frontend"])
+def test_le_repertoire_source_a_son_dockerignore(source: str):
+    """Deux mécanismes distincts, et l'un ne couvre pas l'autre.
+
+    Cloud Build lit `.gcloudignore`, `docker build` lit `.dockerignore`. Vérifié par
+    construction réelle : avec le seul `.gcloudignore`, `docker build backend/` —
+    ce que fait `run_local.sh --build` — produisait une image de 1,59 Go contenant
+    `/app/.env`. Avec `.dockerignore` : 580 Mo et aucun secret.
+    """
+    assert (RACINE / source / ".dockerignore").is_file(), (
+        f"{source}/.dockerignore absent : `docker build` copierait les secrets et "
+        "les dépendances locales dans l'image, quoi que dise .gcloudignore."
+    )
+
+
+@pytest.mark.parametrize(
+    "source,motif",
+    [
+        ("backend", ".env"),
+        ("backend", ".env.*"),
+        ("backend", ".venv/"),
+        ("frontend", "node_modules/"),
+        ("frontend", ".env"),
+    ],
+)
+def test_les_deux_fichiers_restent_coherents(source: str, motif: str):
+    """Un motif présent dans l'un et absent de l'autre est un trou.
+
+    C'est la façon dont ce défaut est né : la racine excluait `.env`, les
+    répertoires source non.
+    """
+    for nom in (".gcloudignore", ".dockerignore"):
+        assert motif in _motifs(RACINE / source / nom), (
+            f"{source}/{nom} n'exclut pas {motif}, alors que l'autre fichier le fait."
+        )
+
+
 @pytest.mark.parametrize(
     "source,motif,pourquoi",
     [

@@ -6,21 +6,31 @@ FROM node:24-alpine AS builder
 # Set working directory
 WORKDIR /app
 
-# Install Angular CLI globally
-RUN npm install -g @angular/cli@21
-
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm ci --only=production
+# ⚠️ `npm ci` complet, PAS `--only=production` ni `--omit=dev`.
+#
+# Construire une application Angular EXIGE les devDependencies : le builder
+# `@angular/build:application` déclaré dans angular.json, `@angular/compiler-cli` et
+# `typescript` y vivent tous les trois. Avec `--only=production`, l'installation
+# réussit, puis `ng build` échoue faute de builder — un échec tardif, au milieu d'un
+# Cloud Build, dont la cause est deux étapes plus haut.
+#
+# Ce sont des dépendances de l'étage de CONSTRUCTION : rien de tout cela n'atteint
+# l'image finale, qui ne contient que nginx et des fichiers statiques.
+RUN npm ci
 
 # Copy application code
 COPY . .
 
 # Build both applications for production
-RUN ng build admin --configuration production
-RUN ng build form --configuration production
+#
+# `npx ng` et non un `ng` installé globalement : la version du CLI vient alors du
+# package.json du projet, la même que celle avec laquelle les builds sont vérifiés
+# en local. Un `npm install -g @angular/cli@21` pouvait résoudre un autre patch.
+RUN npx ng build admin --configuration production
+RUN npx ng build form --configuration production
 
 # Production stage with nginx
 FROM nginx:alpine
