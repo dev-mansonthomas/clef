@@ -141,6 +141,34 @@ def test_l_outil_de_journaux_filtre_par_conteneur():
     )
 
 
+@pytest.mark.parametrize("script", ["00-infra.sh", "01-gcp-deploy.sh", "02-logs.sh"])
+def test_un_seul_trap_exit_par_script(script: str):
+    """Les traps bash ne s'additionnent pas — le second REMPLACE le premier.
+
+    Défaut réel : `00-infra.sh` posait `trap ecrire_rapport EXIT` en tête, puis
+    `trap 'rm -f "$PLAN_FILE"' EXIT` à l'étape du plan. Le second écrasait le
+    premier, et le rapport JSON n'était donc **jamais** écrit sur une exécution
+    complète.
+
+    Le piège dans le piège : mon test d'origine ne sortait qu'en échec précoce —
+    avant l'installation du second trap — donc il passait. Un test qui n'atteint pas
+    le code fautif donne une confiance qu'il ne mérite pas.
+
+    Le nettoyage doit vivre DANS la fonction du trap unique, avec le code de sortie
+    capturé avant.
+    """
+    src = (TEMPLATE.parents[1] / script).read_text(encoding="utf-8")
+    traps = [
+        l.strip()
+        for l in src.splitlines()
+        if l.strip().startswith("trap ") and "EXIT" in l
+    ]
+    assert len(traps) <= 1, (
+        f"{script} pose {len(traps)} traps EXIT : {traps}. Le dernier remplace les "
+        "autres. Fusionner le nettoyage dans la fonction du trap unique."
+    )
+
+
 def test_le_build_reste_dans_la_region():
     """Cloud Build doit déposer ses sources dans un bucket régional.
 
