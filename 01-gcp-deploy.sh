@@ -129,6 +129,35 @@ if [ -z "$ACCOUNT" ] || [ "$ACCOUNT" = "(unset)" ]; then
 fi
 echo "  ✅ authentifié : $ACCOUNT"
 
+# ⚠️ Distinguer « la ressource est absente » de « le contrôle n a pas pu conclure ».
+#
+# Les contrôles ci-dessous étaient écrits « if gcloud … >/dev/null 2>&1 », ce qui
+# range TOUTE erreur dans « absent » : jeton expiré, droit manquant, API désactivée,
+# mauvais projet. Le script a ainsi affiché trois « absent — lancer ./00-infra.sh »
+# sur des ressources parfaitement existantes, et le conseil était non seulement
+# inutile mais trompeur. Un diagnostic qui invente une cause est pire que pas de
+# diagnostic.
+#
+# `gcloud config get-value account` ne fait aucun appel réseau : l authentification
+# peut donc paraître bonne alors que tout appel à l API échoue.
+#
+# Codes : 0 = présente, 1 = absente, 2 = indéterminé (l erreur réelle est affichée).
+verifier_existence() {
+    local libelle="$1"; shift
+    local sortie
+    if sortie=$("$@" 2>&1); then
+        return 0
+    fi
+    if printf '%s' "$sortie" | grep -qiE 'NOT_FOUND|not found|does not exist|404'; then
+        return 1
+    fi
+    echo "⚠️  Contrôle « $libelle » NON CONCLUANT — ce n est pas une absence."
+    printf '%s\n' "$sortie" | head -4 | sed 's/^/      /'
+    echo "      Si le message parle de jeton ou de réauthentification :"
+    echo "        gcloud auth login && gcloud auth application-default login"
+    return 2
+}
+
 # ⚠️ maxScale > 1 donnerait un Redis par instance, donc des jeux de données divergents
 # sans aucun signal. C'est la contrainte structurelle du sidecar (ADR 0008).
 if [ "$MAX_INSTANCES" != "1" ]; then
@@ -139,21 +168,25 @@ if [ "$MAX_INSTANCES" != "1" ]; then
 fi
 
 SERVICE_ACCOUNT="clef-backend@${PROJECT_ID}.iam.gserviceaccount.com"
-if gcloud iam service-accounts describe "$SERVICE_ACCOUNT" --project="$PROJECT_ID" >/dev/null 2>&1; then
-    echo "  ✅ service account : $SERVICE_ACCOUNT"
-else
-    echo "❌ Service account $SERVICE_ACCOUNT absent — lancer ./00-infra.sh $ENVIRONMENT"
-    FAILED=true
-fi
+verifier_existence "service account" \
+    gcloud iam service-accounts describe "$SERVICE_ACCOUNT" --project="$PROJECT_ID"
+case $? in
+    0) echo "  ✅ service account : $SERVICE_ACCOUNT" ;;
+    1) echo "❌ Service account $SERVICE_ACCOUNT absent — lancer ./00-infra.sh $ENVIRONMENT"
+       FAILED=true ;;
+    *) FAILED=true ;;
+esac
 
 SNAPSHOTS_BUCKET="${PROJECT_ID}-clef-redis-snapshots"
-if gcloud storage buckets describe "gs://$SNAPSHOTS_BUCKET" --project="$PROJECT_ID" >/dev/null 2>&1; then
-    echo "  ✅ bucket d'instantanés : gs://$SNAPSHOTS_BUCKET"
-else
-    echo "❌ Bucket gs://$SNAPSHOTS_BUCKET absent — lancer ./00-infra.sh $ENVIRONMENT"
-    echo "   Sans lui, Redis perdrait toutes les données à chaque redémarrage."
-    FAILED=true
-fi
+verifier_existence "bucket d instantanés" \
+    gcloud storage buckets describe "gs://$SNAPSHOTS_BUCKET" --project="$PROJECT_ID"
+case $? in
+    0) echo "  ✅ bucket d'instantanés : gs://$SNAPSHOTS_BUCKET" ;;
+    1) echo "❌ Bucket gs://$SNAPSHOTS_BUCKET absent — lancer ./00-infra.sh $ENVIRONMENT"
+       echo "   Sans lui, Redis perdrait toutes les données à chaque redémarrage."
+       FAILED=true ;;
+    *) FAILED=true ;;
+esac
 
 # ⚠️ Constat M12 : la CI et DEPLOYMENT.md déploient en europe-west1, alors que KMS et
 # le reste de l'infra sont en europe-west9. Un service portant le même nom dans une
@@ -173,13 +206,15 @@ for svc in "$SERVICE_NAME" "$FRONTEND_SERVICE"; do
     fi
 done
 
-if gcloud artifacts repositories describe clef-images \
-     --location="$REGION" --project="$PROJECT_ID" >/dev/null 2>&1; then
-    echo "  ✅ registre d'images"
-else
-    echo "❌ Registre clef-images absent — lancer ./00-infra.sh $ENVIRONMENT"
-    FAILED=true
-fi
+verifier_existence "registre d images" \
+    gcloud artifacts repositories describe clef-images \
+    --location="$REGION" --project="$PROJECT_ID"
+case $? in
+    0) echo "  ✅ registre d'images" ;;
+    1) echo "❌ Registre clef-images absent — lancer ./00-infra.sh $ENVIRONMENT"
+       FAILED=true ;;
+    *) FAILED=true ;;
+esac
 
 # Un secret sans version fait échouer le démarrage du conteneur, pas le déploiement :
 # la révision serait créée puis mourrait, avec un message peu parlant.
