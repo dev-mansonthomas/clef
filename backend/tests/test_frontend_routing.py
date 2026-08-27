@@ -101,6 +101,34 @@ def test_les_url_du_produit_sont_redirigees(nginx: str, chemin: str, app: str):
     )
 
 
+def test_la_page_d_accueil_est_un_fichier_et_mene_aux_deux_applications(dockerfile: str):
+    """La racine du domaine est une surface produit, pas un provisoire.
+
+    `clef.<domaine>` sert cette page et l'utilisateur y choisit son application. Elle
+    était produite par un `RUN echo` dans le Dockerfile : deux liens sans style, pris
+    pour un défaut de CSS alors que c'était l'absence de page.
+
+    Elle est volontairement autonome — aucune ressource externe, aucun build — pour
+    s'afficher même si les deux applications Angular sont en panne.
+    """
+    assert "COPY landing.html /usr/share/nginx/html/index.html" in dockerfile, (
+        "la page d'accueil doit être un fichier versionné, pas un `RUN echo`"
+    )
+    page = (RACINE / "frontend" / "landing.html").read_text(encoding="utf-8")
+
+    for prefixe in APPS.values():
+        assert f'href="{prefixe}"' in page, (
+            f"la page d'accueil ne mène pas à {prefixe}. Et la barre oblique finale "
+            "compte : sans elle, chaque visite subit une redirection 301."
+        )
+
+    assert 'lang="fr"' in page, "la langue doit être déclarée (lecteurs d'écran)"
+    assert "aria-label" in page, "la navigation et le logo doivent être étiquetés"
+    assert "http://" not in page.replace("http://www.w3.org", ""), (
+        "aucune ressource externe : la page doit tenir seule"
+    )
+
+
 def test_aucune_url_de_produit_non_couverte():
     """Cherche de NOUVELLES occurrences, au lieu de se fier à la liste connue.
 

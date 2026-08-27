@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CLEF — Gestion de flotte, Croix-Rouge DT75</title>
+  <meta name="description" content="CLEF — gestion de la flotte de véhicules de la délégation territoriale de Paris.">
+  <meta name="robots" content="noindex">
+  <!--
+    Page d'accueil servie à la racine du domaine.
+
+    Volontairement AUTONOME : aucune ressource externe, aucun build, un seul fichier.
+    Elle doit s'afficher même si les deux applications Angular sont en panne — c'est
+    la page depuis laquelle on choisit où aller, donc la dernière chose qui doit
+    tomber.
+
+    Elle remplace un `RUN echo '<html>…'` du Dockerfile qui produisait deux liens sans
+    aucun style. Ce n'était pas un défaut de CSS mais l'absence de page : l'utilisateur
+    l'a d'ailleurs pris pour le même bug que les ressources 404 de /admin/.
+
+    Les deux liens gardent leur barre oblique finale : `/admin/` et non `/admin`, pour
+    éviter une redirection 301 inutile à chaque visite.
+  -->
+  <style>
+    :root {
+      --rouge: #e30613;
+      --rouge-fonce: #b30410;
+      --encre: #1a1b1f;
+      --encre-douce: #44474e;
+      --fond: #faf9fd;
+      --carte: #ffffff;
+      --bord: #c4c6d0;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --encre: #e3e2e6;
+        --encre-douce: #c4c6d0;
+        --fond: #121316;
+        --carte: #1f2022;
+        --bord: #44474e;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2rem;
+      padding: 2rem 1rem;
+      background: var(--fond);
+      color: var(--encre);
+      font: 400 1rem/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+    header { text-align: center; max-width: 34rem; }
+    .marque {
+      display: inline-flex; align-items: center; gap: .75rem;
+      font-size: 2.25rem; font-weight: 700; letter-spacing: -.02em;
+    }
+    .croix { flex: none; }
+    h1 { font-size: 2.25rem; margin: 0; font-weight: 700; letter-spacing: -.02em; }
+    .sous-titre { margin: .5rem 0 0; color: var(--encre-douce); }
+    nav ul {
+      list-style: none; margin: 0; padding: 0;
+      display: grid; gap: 1rem;
+      grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+      width: min(46rem, 100%);
+    }
+    /* Le <li> est l'élément de grille, donc c'est LUI qui prend la hauteur de la
+       rangée. Sans ces deux règles, le <a> ne remplit pas son <li> : les cartes
+       s'affichent de hauteurs inégales et les « Ouvrir → » ne s'alignent pas. */
+    nav li { display: flex; }
+    a.carte {
+      flex: 1;
+      display: flex; flex-direction: column; gap: .35rem;
+      padding: 1.5rem;
+      background: var(--carte);
+      border: 1px solid var(--bord);
+      border-radius: 12px;
+      text-decoration: none;
+      color: inherit;
+      transition: border-color .15s, transform .15s, box-shadow .15s;
+    }
+    a.carte:hover, a.carte:focus-visible {
+      border-color: var(--rouge);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 18px rgb(0 0 0 / .12);
+    }
+    /* Un contour de focus visible et épais : ces écrans servent sur le terrain,
+       parfois au clavier, parfois avec des gants. */
+    a.carte:focus-visible { outline: 3px solid var(--rouge); outline-offset: 3px; }
+    .titre-carte { font-size: 1.15rem; font-weight: 600; }
+    .public { color: var(--encre-douce); font-size: .9rem; }
+    /* `margin-top: auto` colle l'appel à l'action en bas de la carte, quelle que
+       soit la longueur du texte au-dessus. */
+    .fleche { color: var(--rouge); font-weight: 600; margin-top: auto; padding-top: .75rem; }
+    footer { color: var(--encre-douce); font-size: .85rem; text-align: center; }
+    @media (prefers-reduced-motion: reduce) {
+      a.carte { transition: none; }
+      a.carte:hover, a.carte:focus-visible { transform: none; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <p class="marque">
+      <svg class="croix" width="40" height="40" viewBox="0 0 40 40" role="img" aria-label="Croix-Rouge française">
+        <rect width="40" height="40" rx="6" fill="var(--rouge)"/>
+        <path d="M16 8h8v8h8v8h-8v8h-8v-8H8v-8h8z" fill="#fff"/>
+      </svg>
+      <span>CLEF</span>
+    </p>
+    <h1>Gestion de flotte</h1>
+    <p class="sous-titre">Croix-Rouge française — délégation territoriale de Paris (DT75)</p>
+  </header>
+
+  <nav aria-label="Choisir une application">
+    <ul>
+      <li>
+        <a class="carte" href="/admin/">
+          <span class="titre-carte">Administration</span>
+          <span class="public">Gestionnaires DT et responsables d'unité locale</span>
+          <span class="public">Référentiel véhicules, dossiers de réparation, devis et factures, réservations, configuration.</span>
+          <span class="fleche" aria-hidden="true">Ouvrir →</span>
+        </a>
+      </li>
+      <li>
+        <a class="carte" href="/form/">
+          <span class="titre-carte">Carnet de bord</span>
+          <span class="public">Bénévoles sur le terrain</span>
+          <span class="public">Prise et retour de véhicule, kilométrage, carburant, état, photos, réservations.</span>
+          <span class="fleche" aria-hidden="true">Ouvrir →</span>
+        </a>
+      </li>
+    </ul>
+  </nav>
+
+  <footer>
+    <p>Connexion réservée aux adresses <strong>@croix-rouge.fr</strong>.</p>
+  </footer>
+</body>
+</html>

@@ -63,8 +63,15 @@ RUN rm -f /etc/nginx/conf.d/default.conf
 COPY --from=builder /app/dist/admin/browser /usr/share/nginx/html/admin
 COPY --from=builder /app/dist/form/browser /usr/share/nginx/html/form
 
-# Create a simple index.html at root
-RUN echo '<html><body><h1>CLEF Fleet Management</h1><ul><li><a href="/admin">Admin App</a></li><li><a href="/form">Form App</a></li></ul></body></html>' > /usr/share/nginx/html/index.html
+# Page d'accueil à la racine du domaine.
+#
+# C'était un `RUN echo '<html>…'` produisant deux liens sans aucun style. Ce n'était
+# pas un défaut de CSS mais l'absence de page — et c'est pourtant la porte d'entrée :
+# `clef.paquerette.com` sert cette page, et l'utilisateur choisit son application.
+#
+# Un fichier autonome, sans build ni ressource externe : elle doit s'afficher même si
+# les deux applications Angular sont en panne.
+COPY landing.html /usr/share/nginx/html/index.html
 
 # Expose port
 EXPOSE 80
