@@ -104,8 +104,15 @@ resource "google_compute_backend_service" "frontend" {
   project               = var.project_id
   protocol              = "HTTP"
   load_balancing_scheme = "EXTERNAL_MANAGED"
-  # Les bundles Angular sont servis par nginx : 30 s suffisent largement.
-  timeout_sec = 30
+
+  # ⚠️ PAS de `timeout_sec` — GCP le refuse sur un NEG serverless :
+  #
+  #     Error 400: Invalid value for field 'resource.timeoutSec': '300'.
+  #     Timeout sec is not supported for a backend service with Serverless
+  #     network endpoint groups.
+  #
+  # Le délai de requête effectif est celui du service Cloud Run lui-même
+  # (`timeoutSeconds` du gabarit, 300 s), pas un réglage du load balancer.
 
   backend {
     group = google_compute_region_network_endpoint_group.frontend[0].id
@@ -118,10 +125,21 @@ resource "google_compute_backend_service" "api" {
   project               = var.project_id
   protocol              = "HTTP"
   load_balancing_scheme = "EXTERNAL_MANAGED"
-  # ⚠️ Doit rester ≥ au `timeoutSeconds` du service Cloud Run (300 s), sinon le LB
-  # coupe une requête que le service traite encore — un import CSV volumineux, par
-  # exemple. Le client verrait un 502 sans rien dans les logs applicatifs.
-  timeout_sec = 300
+
+  # ⚠️ PAS de `timeout_sec`, et mon commentaire d'origine avait tort.
+  #
+  # J'avais écrit qu'il fallait le tenir ≥ au `timeoutSeconds` du service, « sinon le
+  # LB coupe une requête que le service traite encore ». Ce raisonnement ne
+  # s'applique pas à un NEG serverless : le champ n'existe pas, GCP refuse la
+  # création. Le délai effectif est celui du service Cloud Run — le sujet est donc
+  # traité là-bas, pas ici.
+  #
+  #     Error 400: Timeout sec is not supported for a backend service with
+  #     Serverless network endpoint groups.
+  #
+  # Signalé au premier apply réel, après que le backend frontend soit passé : 30 s
+  # étant la valeur par défaut, le provider n'envoyait rien ; 300 était un écart
+  # explicite, donc rejeté.
 
   backend {
     group = google_compute_region_network_endpoint_group.api[0].id

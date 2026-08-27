@@ -150,24 +150,36 @@ def test_l_api_compute_est_declaree():
     )
 
 
-def test_le_timeout_de_l_api_couvre_celui_du_service():
-    """Un LB plus court que le service coupe une requête encore en traitement.
+def test_aucun_timeout_sur_les_backends_serverless(lb: str):
+    """`timeout_sec` est REFUSÉ par GCP sur un NEG serverless.
 
-    Le client verrait un 502 sans rien dans les journaux applicatifs — le service,
-    lui, aurait fini son travail.
+    Ce test remplace un `test_le_timeout_de_l_api_couvre_celui_du_service` qui
+    comparait le délai du load balancer à celui du service Cloud Run. Le raisonnement
+    était faux : le champ n'existe pas pour ce type de backend, et GCP rejette la
+    création.
+
+        Error 400: Invalid value for field 'resource.timeoutSec': '300'.
+        Timeout sec is not supported for a backend service with Serverless
+        network endpoint groups.
+
+    Le piège est que la valeur par défaut passe : le backend frontend, à 30 s, a été
+    créé sans broncher parce que le provider n'envoyait rien. Seul l'écart explicite
+    de l'API a échoué. Un test qui n'aurait vérifié que le premier aurait conclu à
+    tort que le champ est accepté.
+
+    Le délai de requête effectif est celui du service Cloud Run — `timeoutSeconds`
+    du gabarit, vérifié par test_cloudrun_template.py.
     """
-    lb_src = LB.read_text(encoding="utf-8")
-    bloc = lb_src[lb_src.index('resource "google_compute_backend_service" "api"') :]
-    bloc = bloc[: bloc.index("\n}\n")]
-    m = re.search(r"timeout_sec\s*=\s*(\d+)", bloc)
-    assert m, "le backend service de l'API doit fixer un timeout"
-    gabarit = (RACINE / "deploy" / "cloudrun-api.yaml.tpl").read_text(encoding="utf-8")
-    service = re.search(r"timeoutSeconds:\s*(\d+)", gabarit)
-    assert service, "le gabarit Cloud Run doit fixer timeoutSeconds"
-    assert int(m.group(1)) >= int(service.group(1)), (
-        f"timeout du LB ({m.group(1)} s) inférieur à celui du service "
-        f"({service.group(1)} s) : le LB couperait une requête en cours."
-    )
+    for nom in ("frontend", "api"):
+        bloc = lb[lb.index(f'resource "google_compute_backend_service" "{nom}"') :]
+        bloc = bloc[: bloc.index("\n}\n")]
+        lignes_actives = [
+            l for l in bloc.splitlines() if "timeout_sec" in l and not l.strip().startswith("#")
+        ]
+        assert not lignes_actives, (
+            f"backend service « {nom} » : {lignes_actives}. GCP refuse `timeout_sec` "
+            "sur un NEG serverless — la création du backend échoue."
+        )
 
 
 def test_le_script_derive_toutes_les_url_du_domaine_public():
