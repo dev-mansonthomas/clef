@@ -299,6 +299,30 @@ gcloud run services update-traffic clef-api --to-revisions=<révision>=100 \
 ⚠️ **Un rollback ne restaure pas les données** : la nouvelle instance repart du
 dernier instantané, quelle que soit la révision.
 
+## Ce qui monte vers Cloud Build finit dans l'image
+
+`gcloud builds submit backend` ne lit que **`backend/.gcloudignore`** — ou, à défaut,
+`backend/.gitignore`. **Jamais** ceux de la racine. Et `backend/Dockerfile` fait
+`COPY . .`.
+
+Autrement dit : tout fichier présent dans `backend/` et non exclu par
+`backend/.gcloudignore` se retrouve **dans l'image de conteneur**, poussée sur un
+registre lisible par quiconque a accès au projet partagé.
+
+Les deux fichiers `.gcloudignore` existent et excluent les secrets (`​.env`,
+`.env.*`, `credentials/`) et les dépendances locales (`.venv/`, `node_modules/`) —
+0,7 Mo et 4,2 Mo envoyés, au lieu de 388 et 406. `backend/tests/test_gcloudignore.py`
+échoue si un de ces motifs disparaît.
+
+Pour vérifier avant de construire :
+
+```sh
+gcloud meta list-files-for-upload backend | grep -E '\.env|\.venv' && echo "⚠️ STOP"
+```
+
+⚠️ **Ne jamais ajouter un secret dans `backend/`** en comptant sur le `.gitignore` de
+la racine : il ne protège que git, pas Cloud Build.
+
 ## Dépannage
 
 | Symptôme | Cause probable |
