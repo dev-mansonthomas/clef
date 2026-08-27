@@ -310,6 +310,41 @@ Enchaînement à respecter, sinon personne ne peut se connecter :
 4. Lancez la synchronisation. Le référentiel se peuple, et les autres bénévoles
    peuvent se connecter.
 
+## Collecter les journaux — `./02-logs.sh <env>`
+
+```sh
+./02-logs.sh dev                                  # déploiement + exécution
+./02-logs.sh dev --what=run --service=api         # seulement les conteneurs
+./02-logs.sh dev --revision=clef-api-00001-cwd    # une révision précise
+```
+
+Écrit dans `debug/logs/`, un fichier par sujet. **Par où commencer quand un
+déploiement échoue :**
+
+| Fichier | Pourquoi lui d'abord |
+|---|---|
+| `<env>-api-conditions.txt` | `status.conditions` du service : c'est **là** que vit le message d'échec réel, souvent plus précis que celui de `gcloud` |
+| `<env>-api-<rev>-redis.log` | le sidecar. S'il n'a pas démarré, rien d'autre ne compte |
+| `<env>-api-<rev>-infrastructure.log` | montage gcsfuse, sondes, arrêts — ces lignes ne portent **aucun** nom de conteneur, donc elles échappent aux filtres par conteneur |
+| `<env>-api-describe.yaml` | la spécification réellement déployée : le seul moyen de vérifier que les annotations et les variables ont atterri, au lieu de le supposer |
+
+Deux raisons d'avoir un outil plutôt qu'une commande à retenir :
+
+- **Une révision qui échoue au démarrage n'apparaît pas dans
+  `gcloud run services logs read`** — elle n'a jamais servi de trafic. Il faut
+  interroger Cloud Logging par nom de révision.
+- **Le nom du conteneur est un *label*, pas un champ.** Sans filtre explicite, les
+  lignes du backend et celles du sidecar sont entremêlées, et on attribue une erreur
+  au mauvais conteneur.
+
+Le script ne s'arrête jamais sur une collecte en échec : chaque manque est écrit dans
+son fichier et listé dans l'index `02-logs.<env>.json`. Une collecte partielle vaut
+mieux qu'un abandon.
+
+⚠️ Les adresses électroniques sont **masquées** avant écriture (`t***@croix-rouge.fr`)
+— ce sont des données personnelles. Les adresses de service account sont épargnées :
+il faut pouvoir lire quelle identité le service utilise.
+
 ## Les deux scripts écrivent dans `debug/`
 
 Le dépôt est sur un montage partagé entre l'hôte et la VM de développement : ce qui

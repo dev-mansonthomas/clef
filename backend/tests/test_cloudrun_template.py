@@ -111,6 +111,36 @@ def test_le_script_transmet_bien_ces_variables():
     )
 
 
+def test_l_outil_de_journaux_filtre_par_conteneur():
+    """Le nom du conteneur est un label Cloud Logging, pas un champ.
+
+    Sans `labels."run.googleapis.com/container_name"`, les lignes du backend et
+    celles du sidecar redis arrivent entremêlées, et on attribue une erreur au
+    mauvais conteneur — exactement le genre de diagnostic qui coûte une heure.
+
+    Ce test tient aussi le fait que l'outil interroge Cloud Logging par NOM DE
+    RÉVISION : une révision qui échoue au démarrage n'a jamais servi de trafic et
+    n'apparaît donc pas dans `gcloud run services logs read`.
+    """
+    outil = TEMPLATE.parents[1] / "02-logs.sh"
+    assert outil.is_file(), "02-logs.sh absent"
+    src = outil.read_text(encoding="utf-8")
+    assert 'labels.\\"run.googleapis.com/container_name\\"' in src, (
+        "les journaux doivent être filtrés par conteneur"
+    )
+    assert "resource.labels.revision_name" in src, (
+        "interroger par nom de révision, sinon les révisions en échec sont invisibles"
+    )
+    assert "status.conditions" in src, (
+        "les conditions du service portent le message d'échec réel"
+    )
+    # Les adresses de service account doivent rester lisibles.
+    assert "gserviceaccount" in src, (
+        "le masquage doit épargner les adresses de service account, sinon le "
+        "`describe` devient inutilisable pour le diagnostic."
+    )
+
+
 def test_le_build_reste_dans_la_region():
     """Cloud Build doit déposer ses sources dans un bucket régional.
 
