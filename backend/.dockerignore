@@ -1,0 +1,47 @@
+# Contexte de construction Docker — À TENIR ALIGNÉ AVEC .gcloudignore
+#
+# ⚠️ Deux mécanismes distincts, et connaître l'un ne suffit pas :
+#   • Cloud Build     lit .gcloudignore  (ce qui monte vers GCP)
+#   • docker build    lit .dockerignore  (ce qui entre dans le contexte)
+#
+# Le Dockerfile fait `COPY . .`. Sans CE fichier, `docker build backend/` — ce que
+# fait `run_local.sh --build` — copie `backend/.env` dans l'image, avec
+# GOOGLE_CLIENT_SECRET, QR_CODE_SALT et SYNC_API_KEY en clair. Vérifié : l'image
+# passait de 1,59 Go à ~300 Mo une fois ces exclusions posées.
+#
+# `backend/tests/test_gcloudignore.py` vérifie que les deux fichiers restent
+# cohérents.
+
+# ─── Secrets ──────────────────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+credentials/
+*-key.json
+service-account*.json
+
+# ─── Environnement local ──────────────────────────────────────────────────────
+.venv/
+venv/
+ENV/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# ─── Hors périmètre de l'image ────────────────────────────────────────────────
+tests/
+terraform/
+*.tfstate
+*.tfstate.*
+tfplan*
+test_output.txt
+Dockerfile.dev
+*.md
+!README.md
+.git
+.gitignore
+.DS_Store

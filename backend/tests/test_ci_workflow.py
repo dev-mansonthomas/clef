@@ -50,16 +50,43 @@ def test_all_test_jobs_exist(jobs):
     assert not missing, f"Jobs de test absents du workflow : {sorted(missing)}"
 
 
-def test_deploy_is_gated_by_every_test_job(jobs):
-    """`deploy-dev` ne peut pas partir sans que les tests aient réussi."""
-    needs = jobs["deploy-dev"].get("needs")
-    assert needs, (
-        "deploy-dev n'a aucun `needs:` — un push sur main déploierait sans test "
-        "(docs/TODO.md H1)."
+def test_aucun_job_ne_deploie(jobs):
+    """La CI ne déploie pas, et son retour ne doit pas être silencieux.
+
+    Ce test remplace `test_deploy_is_gated_by_every_test_job`, qui exigeait un
+    `needs:` complet sur `deploy-dev`. Ce garde-fou était correct pour son époque
+    (constat H1) mais visait un job qui n'a **jamais** réussi à s'authentifier
+    (H12) et qui est devenu dangereux avec le passage de Redis en conteneur
+    adjoint : son `gcloud run deploy` mono-conteneur aurait écrasé la topologie à
+    deux conteneurs, détaché le volume d'instantanés — donc supprimé les données —
+    et remis `--max-instances 10` là où une instance = un Redis.
+
+    Le déploiement est manuel : `./00-infra.sh` puis `./01-gcp-deploy.sh`, depuis
+    l'hôte. S'il revient en CI (H12), il devra passer par
+    `gcloud run services replace` et le gabarit de `deploy/`. Ce test force alors
+    à venir le mettre à jour, ce qui rend la décision visible en revue.
+    """
+    fautifs = []
+    for nom, job in jobs.items():
+        etapes = " ".join(str(e.get("run", "")) for e in job.get("steps", []))
+        if "gcloud run deploy" in etapes or "run services replace" in etapes:
+            fautifs.append(nom)
+    assert not fautifs, (
+        f"jobs qui déploient : {sorted(fautifs)}. Le déploiement est manuel et "
+        "hors CI (ADR 0008, DEPLOYMENT.md). Un `gcloud run deploy` mono-conteneur "
+        "détruirait le datastore adjoint et son volume d'instantanés."
     )
-    declared = set(needs if isinstance(needs, list) else [needs])
-    missing = TEST_JOBS - declared
-    assert not missing, f"deploy-dev ne dépend pas de : {sorted(missing)}"
+
+
+def test_les_jobs_de_test_restent_la_condition_de_merge(jobs):
+    """Les quatre suites doivent tourner sur `push` comme sur `pull_request`.
+
+    C'est ce qui reste du constat H1 maintenant qu'il n'y a plus de job à garder :
+    la protection ne vient plus d'un `needs:`, mais du fait que les quatre suites
+    s'exécutent et bloquent la PR.
+    """
+    declencheurs = jobs  # les déclencheurs sont vérifiés plus bas, au niveau workflow
+    assert TEST_JOBS <= set(declencheurs), sorted(TEST_JOBS - set(declencheurs))
 
 
 def test_test_jobs_run_on_push_too(jobs):

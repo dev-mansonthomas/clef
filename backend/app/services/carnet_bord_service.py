@@ -8,6 +8,7 @@ from googleapiclient.errors import HttpError
 
 from app.services.sheets import SheetsService
 from app.cache.redis_cache import RedisCache
+from app.services.google_credentials import load_service_credentials
 
 
 class CarnetBordService:
@@ -30,21 +31,16 @@ class CarnetBordService:
         self._sheets_api_service = None
     
     def _get_credentials(self):
-        """Get Google service account credentials."""
-        credentials_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
-        if not credentials_path:
-            raise ValueError("GOOGLE_APPLICATION_CREDENTIALS environment variable not set")
-        
-        scopes = [
+        """Credentials du service account : fichier de clé, ou identité attachée.
+
+        Délégué à `load_service_credentials` : sur Cloud Run, l'identité vient du
+        serveur de métadonnées et aucune clé n'est nécessaire (constat H6).
+        """
+        return load_service_credentials([
             'https://www.googleapis.com/auth/spreadsheets',
             'https://www.googleapis.com/auth/drive.file'
-        ]
-        
-        return service_account.Credentials.from_service_account_file(
-            credentials_path,
-            scopes=scopes
-        )
-    
+        ])
+
     def _get_drive_service(self):
         """Get or create Google Drive API service."""
         if self._drive_service is None:

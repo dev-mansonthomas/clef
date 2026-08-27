@@ -173,11 +173,29 @@ async def lifespan(app: FastAPI):
         logger.error(f"Error during shutdown: {e}")
 
 
+# Documentation interactive : FERMÉE par défaut.
+#
+# FastAPI expose /docs, /redoc et /openapi.json sans authentification. Le service
+# Cloud Run est déployé avec `allUsers` / `roles/run.invoker` — il le faut, c'est une
+# application web publique dont les gardes sont applicatifs. Le schéma OpenAPI
+# décrit alors, à qui le demande, les 86 routes : les routes super-admin, la gestion
+# des clés d'API, le nom de l'en-tête X-API-Key de la synchronisation, le fait que
+# /api/approbation/{token} n'est pas authentifiée, et les modèles du référentiel
+# bénévoles (nivol, email, telephone, ul).
+#
+# Ça ne donne aucun accès — les gardes tiennent — mais ça supprime tout tâtonnement
+# pour qui sonde ensuite ces surfaces. Le défaut est donc `false`, et
+# docker-compose.yml pose `true` pour le développement local.
+_api_docs_enabled = os.getenv("ENABLE_API_DOCS", "false").lower() == "true"
+
 app = FastAPI(
     title="CLEF API",
     description="Gestion des Véhicules Croix-Rouge",
     version="0.1.0",
     lifespan=lifespan,
+    docs_url="/docs" if _api_docs_enabled else None,
+    redoc_url="/redoc" if _api_docs_enabled else None,
+    openapi_url="/openapi.json" if _api_docs_enabled else None,
 )
 
 # CORS configuration for local development

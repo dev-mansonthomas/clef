@@ -46,6 +46,11 @@ services:
       # avec `ENVIRONMENT`/`ENV` en production. Ce fichier ne sert de toute façon
       # qu'au développement local — la production passe par Cloud Run.
       - USE_MOCKS=${USE_MOCKS:-true}
+      # Documentation interactive (/docs, /redoc, /openapi.json). Le défaut du code
+      # est `false` : le schéma OpenAPI décrit toute la surface d'attaque, et le
+      # service Cloud Run est joignable publiquement. En local, elle est utile et
+      # sans risque — d'où ce `true`, explicite et limité à docker-compose.
+      - ENABLE_API_DOCS=${ENABLE_API_DOCS:-true}
     depends_on:
       redis:
         condition: service_healthy

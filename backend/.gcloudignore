@@ -1,0 +1,45 @@
+# Ce qui ne doit PAS partir vers Cloud Build.
+#
+# ⚠️ `gcloud builds submit backend` ne lit QUE ce fichier, ou à défaut
+# `backend/.gitignore` — jamais le `.gitignore` ni le `.gcloudignore` de la racine.
+# C'est le piège : à la racine, `.env` et `.venv/` sont bien exclus, et on en déduit
+# qu'ils le sont partout. Ils ne l'étaient pas ici.
+#
+# Et le Dockerfile fait `COPY . .` : tout ce qui monte finit DANS L'IMAGE.
+# Sans ce fichier, `backend/.env` — qui porte GOOGLE_CLIENT_SECRET, QR_CODE_SALT,
+# SYNC_API_KEY et le chemin d'une clé de service account — serait livré en clair
+# dans une image de conteneur poussée sur un registre.
+
+# ─── Secrets ──────────────────────────────────────────────────────────────────
+# En production, les valeurs viennent de Secret Manager, injectées par Cloud Run.
+.env
+.env.*
+!.env.example
+credentials/
+*.json.key
+*-key.json
+service-account*.json
+
+# ─── Environnement local ──────────────────────────────────────────────────────
+# 244 Mo de CPython aarch64 construit dans la VM : inutile, et copié dans l'image.
+.venv/
+venv/
+ENV/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# ─── Hors périmètre de l'image ────────────────────────────────────────────────
+tests/
+terraform/
+*.tfstate
+*.tfstate.*
+tfplan*
+test_output.txt
+*.md
+!README.md
+.DS_Store

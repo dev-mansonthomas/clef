@@ -208,7 +208,7 @@ disque. `infra/README.md` reconnaît le problème.
 **Action :** Workload Identity Federation plutôt qu'une clé statique ; état sur GCS
 avec verrouillage.
 
-### H7 — Les deux racines Terraform sont cassées
+### ~~H7~~ — ✅ **RÉSOLU le 2026-08-26** — Les deux racines Terraform sont cassées
 
 Vérifié par exécution :
 
@@ -698,7 +698,7 @@ directement. À trancher dans le chantier déploiement (N1).
 
 | # | Constat |
 |---|---|
-| F20 | **`Event loop is closed` remonte en annotation d'erreur sur `Backend Tests` en CI**, alors que le job passe. Même famille que **M27** et que la fuite de boucle d'événements décrite dans `tests/conftest.py` : un teardown asynchrone incomplet. Non fatal aujourd'hui, mais c'est le terreau des flakes. À traiter avec M27. |
+| F20 | **`Event loop is closed` remonte en annotation d'erreur sur `Backend Tests` en CI**, alors que le job passe. **Cause identifiée le 2026-08-26** : le destructeur du client redis-py (`redis/asyncio/connection.py:217 AbstractConnection.__del__`) s'exécute alors que la boucle d'événements qui portait la connexion a disparu. Des dizaines d'occurrences, sur 16 fichiers de tests. Origine : `reset_cache_after_test` met `cache.client = None` **sans le fermer**, et plusieurs fixtures injectent leur propre client dans le singleton de cache.<br><br>⚠️ **Difficile à corriger sur place** : quand la fixture de nettoyage s'exécute, la boucle du `TestClient` est déjà fermée — on ne peut donc pas y fermer proprement un client qui lui est lié. Le correctif de fond est d'arrêter de partager un singleton de cache entre des tests aux boucles différentes (une instance de cache par test), ce qui est un chantier de refonte des fixtures, pas un correctif ponctuel. Non fatal : les jobs passent. À traiter avec M27. |
 | F21 | **Toutes les actions du workflow tirent Node 20, déprécié** : `actions/checkout@v4`, `actions/setup-node@v4`, `actions/setup-python@v5`, `actions/upload-artifact@v4`, `google-github-actions/auth@v2`. GitHub les force déjà sur Node 24 et avertit à chaque run. Monter les actions d'un cran (`@v5` / `@v6` selon les cas) supprimera huit avertissements par run. |
 | F22 | **`git-pr-merge` ne réécrit pas le titre d'une PR réutilisée** : le commit de squash sur `main` s'appelle « feat: sinistres, franchise et édition de factures (#6) » et ne mentionne pas le chantier CI. Cosmétique, mais à savoir : passer le titre à l'outil ne suffit pas si la PR existe déjà. |
 
@@ -916,3 +916,193 @@ globale n'est plus lue.
 | N5 | **Pas de référentiel fermé des fonctions DT.** `fonctions_dt` est une liste de chaînes libres. Un référentiel — et une liste déroulante — sont un chantier produit distinct |
 | N6 | **Purge RGPD des bénévoles inactifs.** La décision retenue est « désactiver, ne jamais supprimer ». Une purge planifiée après délai de conservation reste à spécifier |
 | M33 | **Le référentiel legacy `responsables`** (`set_responsable`, `ResponsableData`, endpoints de `sync.py`) coexiste toujours avec les bénévoles. Son retrait est un chantier de nettoyage à part |
+
+
+---
+
+# Chantier du 2026-08-26 — déploiement GCP
+
+Décision de conception : [ADR 0008](adr/0008-redis-sidecar-cloud-run-instantanes-gcs.md).
+
+## Ce qui est fait
+
+| Constat | Traitement |
+|---|---|
+| **H7** — les deux racines Terraform sont cassées | ✅ Racine **unique** `deploy/terraform`, qui valide et est formatée. Les 8 erreurs étaient triviales, et 4 ont disparu avec le retrait de Memorystore. ⚠️ Les deux racines n'étaient pas concurrentes mais **complémentaires**, tout en se disputant le même service account et les mêmes APIs |
+| **H6** — clé de service account à longue durée exposée en output | ✅ Plus aucune `google_service_account_key` déclarée. Prérequis livré côté code : `app/services/google_credentials.py` remplace quatre copies du chargement de credentials et se replie sur l'ADC, ce que Cloud Run fournit sans clé. ⚠️ Les deux clés existantes restent à révoquer à la main |
+| **M12** — incohérence de région | ✅ Devenue un écart **documenté** : Cloud Run, bucket et registre en `europe-west1` avec le reste du projet ; le keyring KMS reste en `europe-west9`, où il existe et d'où il ne peut être déplacé |
+| **M11** — `JWT_SECRET_KEY` jamais transmis à Cloud Run | ✅ Le gabarit l'injecte |
+| **N1** — écrire `gcp-deploy.sh` | ✅ Deux scripts : `00-infra.sh` puis `01-gcp-deploy.sh`. Une commande chacun, préflight qui nomme ce qui manque, `shellcheck` muet |
+
+### M11 était un faux constat, et il en cachait deux vrais
+
+Le constat M11 disait « `JWT_SECRET_KEY` est stocké mais jamais transmis au service
+Cloud Run ». En vérifiant ce que le code lit réellement, avant de renseigner les
+secrets : **aucun code ne lit `JWT_SECRET_KEY`**. `app/auth/config.py` déclare
+`session_secret_key` (`SESSION_SECRET_KEY`), qui n'est utilisé nulle part non plus.
+
+La raison est structurelle : le cookie de session porte l'**id_token de Google**,
+vérifié contre les clés publiques de Google (`google_oauth.verify_id_token`). Aucun
+jeton n'est signé par l'application. Le secret est donc supprimé — en stocker un que
+rien ne lit aurait laissé croire au prochain lecteur que les sessions sont signées
+côté application.
+
+Le recoupement systématique « variables injectées par le gabarit » contre
+« variables lues par le code » a alors sorti **deux défauts bloquants**, qu'aucune
+relecture n'avait vus :
+
+| Variable | Effet |
+|---|---|
+| `ALLOWED_FRONTEND_URLS` | nom inventé ; `app/main.py` lit `CORS_ORIGINS`. Le défaut `localhost:4200,4202,8000` restait en place et **le navigateur bloquait tous les appels du frontend déployé** |
+| `GOOGLE_REDIRECT_URI` | absente ; `app/auth/config.py` retombe sur `http://localhost:8000/auth/callback`. Google aurait renvoyé chaque utilisateur **vers sa propre machine** : connexion intégralement cassée |
+
+Les deux sont muets : le déploiement réussit, la révision contient bien ce qu'on lui
+a donné, et l'application applique un défaut de développement. Corrigés, et gardés
+par deux tests de `test_cloudrun_template.py` — dont un qui compare l'ensemble des
+variables injectées à l'ensemble des `getenv` du code, et fait échouer la suite sur
+toute variable orpheline.
+
+`01-gcp-deploy.sh` **redéploie une seconde fois** à la création du service :
+l'URI de redirection dépend de l'URL du service, qui n'existe pas avant sa création.
+Même chose quand le frontend vient d'apparaître, pour que son origine entre dans
+`CORS_ORIGINS`.
+
+### Deux défauts attrapés avant le premier apply
+
+**`roles/storage.objectAdmin` était accordé au niveau projet.** Dans `rcq-fr-dev`,
+partagé avec une autre application entière, cela donnait au backend CLEF le droit de
+lire, écrire et **supprimer** les objets de tous les buckets du projet — dont ceux du
+voisin. Vu dans le plan du premier `00-infra.sh`, avant confirmation. La liaison est
+désormais portée par le bucket d'instantanés
+(`google_storage_bucket_iam_member`), pas par le projet.
+
+`roles/secretmanager.secretAccessor` reste au niveau projet, à dessein : il ne donne
+accès qu'aux secrets sur lesquels une liaison existe, et `secrets.tf` en pose une par
+secret CLEF. C'est la liaison par secret qui borne la portée.
+
+**Les liaisons IAM renommées auraient pu couper l'accès à KMS.** L'ancienne racine
+nommait la ressource `service_account_roles`, la nouvelle `backend_roles` : Terraform
+planifiait un destroy **et** un create de la liaison
+`roles/cloudkms.cryptoKeyEncrypterDecrypter`, sans dépendance entre les deux nœuds.
+Le create passant en premier aurait été un no-op, et le destroy suivant aurait retiré
+la liaison — le backend perdant la capacité de déchiffrer les refresh tokens OAuth des
+gestionnaires DT, sans erreur. Corrigé par un bloc `moved`, vérifié dans le plan réel
+(« has moved to », sans changement).
+
+### Un défaut attrapé avant le premier déploiement
+
+Le gabarit Cloud Run déclarait l'ordre de démarrage par un champ `dependsOn` sur le
+conteneur backend. C'est la syntaxe du **provider Terraform** : l'API v1 utilisée par
+`gcloud run services replace` l'ignore, **sans erreur**. Le déploiement aurait
+« réussi » avec un backend démarrant avant sa base, pour seul symptôme des 500
+intermittents au démarrage — et l'authentification lit le référentiel dans Redis dès
+la première requête.
+
+La bonne forme est l'annotation
+`run.googleapis.com/container-dependencies: '{"backend":["redis"]}'`, **plus** un
+`startupProbe` sur le conteneur dont on dépend : sans sonde, l'annotation ne garantit
+rien. Les deux sont désormais gardés par `backend/tests/test_cloudrun_template.py`
+(14 tests, chacun vérifié par mutation du gabarit).
+
+Leçon générale : les fichiers d'infrastructure ne bénéficient d'aucun typage ni
+d'aucun compilateur. Un champ inconnu y est du silence, pas une erreur. Ils méritent
+des tests comme le reste.
+
+## Revue de sécurité du 2026-08-27 — 2 constatations, 2 traitées
+
+`/security-review` sur `main...HEAD`. Deux constatations retenues, plus un
+durcissement et un bloquant fonctionnel découvert au passage. Toutes vérifiées
+indépendamment avant correction.
+
+| # | Défaut | Traitement |
+|---|---|---|
+| S3 | **Le proxy nginx ne vérifiait pas le certificat de l'amont.** `proxy_ssl_verify` vaut **`off`** par défaut : le SNI était posé délibérément, mais aucune vérification. Or c'est une connexion TLS **nouvelle** — avant cette branche, l'image frontend ne parlait jamais au backend — et tout le parcours authentifié la traverse : cookie de session, en-tête `X-API-Key` de la synchronisation, données personnelles des bénévoles | `proxy_ssl_verify on` + `verify_depth` + bundle CA de l'image + `proxy_ssl_name`. Posées **sans condition** : ces directives ne s'appliquent qu'à un amont `https`, nginx les ignore sur `http://`. Un `if` sur le schéma n'aurait jamais été testé. **Vérifié en exécution** : amont HTTPS à certificat auto-signé ⇒ `502` et `upstream SSL certificate verify error: (18:self-signed certificate)` ; amont HTTP ⇒ le relais fonctionne toujours |
+| S4 | **`/docs`, `/redoc` et `/openapi.json` devenaient joignables depuis Internet.** Le constructeur `FastAPI()` est préexistant, mais cette branche est le premier chemin de déploiement qui aboutit, et le service est nécessairement `allUsers` / `run.invoker`. Le schéma décrivait les 86 routes à qui le demande : routes super-admin, gestion des clés d'API, nom de l'en-tête `X-API-Key`, le fait que `/api/approbation/{token}` n'est pas authentifiée, et les modèles du référentiel bénévoles. Aucun accès n'en découlait — les gardes tiennent — mais tout le tâtonnement disparaissait | `ENABLE_API_DOCS`, défaut **`false`**. `docker-compose.yml` pose `true` : la doc reste disponible en local. **Vérifié en conteneur** : par défaut `/docs`, `/redoc`, `/openapi.json` → 404 ; avec le drapeau → 200. Un test interdit au gabarit Cloud Run de l'activer |
+| S5 | **Durcissement** : une entrée vide dans `ALLOWED_FRONTEND_URLS` dégénère `validate_redirect_url` en `url.startswith("/")`, qui accepte l'URL protocol-relative `//evil.tld` — un open redirect. Le cas est atteignable : le script rend la variable vide au tout premier déploiement. Il n'était pas exploitable, `GOOGLE_REDIRECT_URI` étant vide dans la même fenêtre — les deux dérivent de la même variable — mais le validateur ne doit pas dépendre de cette coïncidence | Entrées vides filtrées dans `app/auth/config.py` |
+| S6 | 🔴 **Bloquant fonctionnel, pas une vulnérabilité : la connexion ne pouvait pas fonctionner.** `GOOGLE_REDIRECT_URI` pointait l'origine de l'**API**. Le backend pose le cookie de session dans la réponse au callback, et le navigateur l'attribue à l'hôte qui lui a répondu : le cookie partait sur `clef-api-*.run.app`, puis le navigateur suivait la redirection vers le frontend, dont les appels ne portaient plus aucun cookie | L'URI pointe désormais l'origine du **frontend**, que nginx relaie déjà. Le cookie est attribué à l'hôte du frontend et tout reste en même origine. ⚠️ Le correctif réflexe — `SameSite=None` sur un domaine partagé — aurait détruit la propriété de même origine sur laquelle repose le reste du raisonnement. C'est aussi l'URI du **frontend** qu'il faut déclarer au client OAuth dans la console GCP |
+
+**Écartés après vérification** : l'open redirect par `startswith` (le validateur exige
+l'égalité ou le préfixe `autorisé + "/"`, donc `https://front.run.app.evil.tld` est
+rejeté) ; l'héritage des `add_header` nginx (défaut préexistant à l'octet près, et le
+bloc **nouveau** hérite bien des trois en-têtes) ; la confusion de chemin dans le
+proxy (nginx normalise avant de choisir la location, et l'URL du backend est de toute
+façon publique) ; l'injection de gabarit par `envsubst` (le filtre ne porte que sur
+les variables définies) ; les en-têtes transmis (le backend n'en lit aucun) ; le
+repli ADC de `google_credentials.py` (les credentials du serveur de métadonnées
+ignorent les scopes et produisent des 403, pas un accès élargi) ; l'absence de
+`requirepass` sur le sidecar Redis (aucun port déclaré, pas de connecteur VPC —
+6379 n'est joignable que du conteneur voisin).
+
+## Revue de code du 2026-08-27 — 13 constatations, 13 traitées
+
+`/code-review` sur `main...HEAD`. Toutes vérifiées par lecture du code ou par
+exécution avant correction ; aucune n'était un faux positif. Les quatre premières
+faisaient que **le déploiement aurait tourné sans que l'application fonctionne**.
+
+| # | Défaut | Traitement |
+|---|---|---|
+| R1 | **Le frontend déployé n'avait aucune route vers le backend.** `angular.json` ne déclare aucun `fileReplacements` : le build de production utilise `environment.ts`, où `apiUrl` est vide — les appels partent en relatif vers `/api/...`. `nginx.conf` ne définissait que `/health`, `/admin`, `/form` et `/`. Chaque appel du frontend recevait un 404 de nginx. `environment.prod.ts` est du code mort | `frontend/clef.conf.template` relaie `/api` et `/auth` vers le backend, rendu au démarrage par l'entrypoint nginx. **Vérifié en exécution** : `/api/test` renvoie le corps du backend, `/auth/me` un 401, `/health` reste servi par nginx |
+| R2 | **`ALLOWED_FRONTEND_URLS` retirée à tort.** Je l'avais crue inventée. `app/auth/config.py:65` la lit, et `app/auth/routes.py` s'en sert pour valider `redirect_to` puis choisir la destination post-connexion. Défaut `localhost:4200` : toute connexion rejetée en 400, et un callback réussi renvoyant sur localhost | Restaurée. Mon recoupement cherchait `getenv("NOM"` sur une seule ligne, et l'appel est écrit sur deux — d'où l'angle mort |
+| R3 | **Cookie de session `secure=False` en dur**, aux trois points d'appel dont la déconnexion | Piloté par `SESSION_COOKIE_SECURE`, à `true` dans le gabarit. `SameSite=Lax` reste correct : le proxy nginx fait du frontend et du backend la même origine |
+| R4 | **`FRONTEND_URL` et `DOMAIN` non injectées.** La première fabrique les liens d'approbation de devis **envoyés aux garages** ; la seconde l'URL encodée dans les QR codes **imprimés et collés sur les véhicules**, dont le défaut est `clef.example.com` | Injectées. `DOMAIN` retombe sur l'hôte du backend, jamais sur localhost : une valeur fausse ne se corrige pas par un redéploiement, mais au chiffon |
+| R5 | **Le job CI `deploy-dev` aurait détruit le datastore.** Inchangé, il tourne sur chaque push vers `main` et fait un `gcloud run deploy` mono-conteneur avec `--max-instances 10` et les anciens noms de secrets : topologie écrasée, volume d'instantanés détaché | Job **retiré**. `test_ci_workflow.py` échoue désormais si un job de déploiement réapparaît — le garde-fou est inversé, plus supprimé |
+| R6 | **Mon garde-fou de destruction ignorait les remplacements forcés.** Terraform écrit « must be replaced », qui détruit puis recrée. `google_secret_manager_secret` n'a pas de `prevent_destroy`, et changer `replication` — ce que j'avais fait en 48f7c66 — force un remplacement : le script aurait annoncé « aucune destruction planifiée » | Les deux libellés reconnus. Et l'extraction d'identifiant élargie aux préfixes `~`/`+` des blocs `-/+`, sans quoi un remplacement **légitime** était refusé. Quatre plans de référence vérifiés |
+| R7 | `--skip-build` ne résolvait que l'image backend : le frontend gardait un tag horodaté jamais poussé, et échouait **après** le remplacement du service api | Les deux images résolues, chacune sous condition de son composant |
+| R8 | `--format="value(package)@value(version)"` : gcloud refuse du texte hors projection, stderr était jeté, la variable sortait vide — `--skip-build` ne fonctionnait **jamais** | `format("{0}@{1}",package,version)` |
+| R9 | **`secretmanager.secretAccessor` au niveau projet.** Mon commentaire affirmait qu'il ne portait que sur les secrets liés : c'est faux, une liaison projet porte sur tous les secrets de `rcq-fr-dev`, dont ceux du voisin | Retiré. `secrets.tf` posait déjà une liaison par secret, qui suffit. Même raisonnement que pour `storage.objectAdmin` |
+| R10 | `--maxmemory-policy noeviction` **sans `--maxmemory`** : la politique est inerte, et le dépassement se traduit par un OOM-kill de Cloud Run — retour au dernier instantané, sans signal Redis | `--maxmemory` à 65 % de la limite du conteneur, calculé depuis `REDIS_MEMORY`. La marge couvre la duplication de pages du BGSAVE, que `maxmemory` ne compte pas |
+| R11 | `timeoutSeconds: 300` documenté comme un délai de grâce à l'arrêt. C'est le délai de **requête** ; Cloud Run n'expose aucun délai de grâce configurable | Commentaire corrigé. Le RPO réel à l'arrêt est la pleine fenêtre de 10 min, comme le dit l'ADR 0008 |
+| R12 | `00-infra.sh` réclamait encore `CLEF_JWT_SECRET_KEY`, supprimé de Terraform : il invitait à créer un secret que rien ne lit | Retiré |
+| R13 | `envsubst` non vérifié au préflight, alors qu'il est absent de macOS par défaut : l'échec tombait **après** la construction et la poussée des deux images | Contrôlé avec les autres prérequis |
+
+**Ce que la revue apprend sur mes garde-fous.** `test_cloudrun_template.py` vérifiait
+que tout ce qui est **injecté** est **lu**. Une inclusion dans un seul sens : elle ne
+pouvait structurellement pas voir une variable **manquante**, ce qui est précisément
+le défaut R2 — et R4. Le test inverse existe désormais, avec une liste explicite des
+variables dont le défaut est faux en production. Un garde-fou qui ne teste qu'une
+direction donne une confiance qu'il ne mérite pas.
+
+## Contraintes de l'environnement, découvertes par exécution
+
+Le premier `./00-infra.sh dev` a réellement tourné le 2026-08-27 : **12 ressources sur
+16 créées**, les 4 secrets en échec.
+
+**Une policy d'organisation `constraints/gcp.resourceLocations` interdit
+l'emplacement `global`** sur ce projet. `replication { auto {} }` place un secret
+dans `global` : les quatre créations ont été refusées. Corrigé par une réplication
+explicite en `europe-west1`, région dont le même apply a prouvé qu'elle est autorisée
+— bucket et registre y ont été créés.
+
+Le message d'erreur parle d'emplacement mais **ne nomme jamais `auto`** : rien dans
+l'erreur ne mène au champ fautif. À retenir pour toute ressource GCP ajoutée par la
+suite — vérifier son emplacement effectif avant de l'apply, `global` n'est pas une
+option ici.
+
+## Faits établis sur l'existant
+
+- **De l'infrastructure était déployée** sur `rcq-fr-dev`, contrairement à ce que tout le
+  monde croyait : keyring KMS, service account, 11 APIs, rôles IAM — et un Memorystore
+  facturé, **détruit le 2026-08-26**.
+- **Aucun service Cloud Run `clef-*`** n'a jamais existé : `deploy-dev` échouait toujours
+  à l'authentification GCP (H12). Vérifié toutes régions.
+- **Le projet `rcq-fr-dev` est partagé** avec une autre application entière (15 services
+  Cloud Run : `rcq-api`, `rcq-frontend`, `dev-export-*`, `ul-queteur-*`). D'où : secrets
+  préfixés `CLEF_` (Secret Manager est un espace de noms de projet, et un `JWT_SECRET`
+  existe déjà chez le voisin), `disable_on_destroy = false` sur les APIs, liaisons IAM
+  additives.
+- **Le state Terraform était local, non versionné, et contenait une clé privée en clair.**
+  `00-infra.sh` le migre vers un bucket GCS versionné.
+
+## Reste ouvert
+
+| # | Constat |
+|---|---|
+| N7 | **Aucun déploiement n'a encore été exécuté.** Les scripts sont écrits, `shellcheck` est muet et tous les chemins d'argument sont testés — mais **rien n'a tourné contre GCP**. Le premier `00-infra.sh` puis `01-gcp-deploy.sh` sont à faire depuis l'hôte, en relisant les plans. |
+| N8 | **Les deux clés de service account utilisateur restent à révoquer** : `745beb6b…` (celle du `/credentials` local, encore utile à `run_local.sh --real`) et `c0b9e001…` (celle de Terraform, sans usage). ⚠️ Révoquer la première casse le mode réel local jusqu'à `gcloud auth application-default login`. |
+| N9 | **Le montage GCS FUSE pour les instantanés RDB n'est pas éprouvé.** Redis écrit un fichier temporaire puis le renomme ; sur un système de fichiers objet, `rename` est un copier-supprimer, non atomique. Pour quelques mégaoctets ce devrait passer, mais **c'est le point à vérifier au premier déploiement** : `gcloud storage ls -l gs://<bucket>/` après 10 minutes. Si ça échoue, le repli est un RDB local recopié périodiquement vers GCS. |
+| **N15** | 🔴 **`npm ci --only=production` rendait l'image frontend inconstructible.** Construire une application Angular exige les devDependencies : le builder `@angular/build:application` déclaré dans `angular.json`, `@angular/compiler-cli` et `typescript` y vivent tous les trois. L'installation réussissait, puis `ng build` échouait faute de builder — un échec tardif, au milieu d'un Cloud Build, dont la cause est deux étapes plus haut. Corrigé en `npm ci` complet (ce sont des dépendances de l'étage de construction : rien n'atteint l'image finale, qui ne contient que nginx et des fichiers statiques) et `npx ng` au lieu d'un CLI installé globalement, pour que la version vienne du `package.json`. **Vérifié par construction réelle** : image de 104 Mo, `/`, `/admin/` et `/form/` servis en 200. |
+| **N14** | 🔴 **`backend/.env` serait parti en clair dans l'image de conteneur.** `gcloud builds submit backend` ne lit que `backend/.gcloudignore` — ou à défaut `backend/.gitignore`, qui ne contenait que `test_output.txt` — et **jamais** le `.gitignore` ni le `.gcloudignore` de la racine, où `.env` et `.venv/` sont pourtant bien exclus. Le Dockerfile faisant `COPY . .`, `backend/.env` (GOOGLE_CLIENT_SECRET, QR_CODE_SALT, SYNC_API_KEY, chemin d'une clé de service account) et ses variantes `.dev`/`.test`/`.prod` auraient été livrés dans une image poussée sur Artifact Registry — lisible par quiconque a accès au projet **partagé**. Plus 244 Mo de virtualenv et 362 Mo de `node_modules`. Attrapé le 2026-08-27, pendant le premier déploiement, avant qu'aucune image ne soit servie. Corrigé par `backend/.gcloudignore` et `frontend/.gcloudignore` (0,7 Mo et 4,2 Mo envoyés au lieu de 388 et 406). ⚠️ **Et ce n'était que la moitié du problème** : `.gcloudignore` ne concerne que Cloud Build. `docker build` lit `.dockerignore`, absent — donc `run_local.sh --build` copiait bel et bien `/app/.env` dans l'image, ce qu'une construction locale a confirmé (1,59 Go). `backend/.dockerignore` et `frontend/.dockerignore` ajoutés : image backend à 580 Mo, aucun secret, `/health` 200. `backend/tests/test_gcloudignore.py` (17 tests) exige les deux fichiers et vérifie qu'ils restent cohérents. ⚠️ **Si une image a été construite avant ce correctif, la supprimer du registre** — commandes dans la conversation. |
+| **N13** | 🔴 **Trois routes de production lisent Google Sheets avec le service account — impossible dans ce Workspace.** Le domaine `@croix-rouge.fr` interdit le partage d'un document vers une adresse extérieure, et `clef-backend@….gserviceaccount.com` en est une. C'est structurel : il n'existe pas de réglage qui l'autorise, et aucune délégation à l'échelle du domaine n'est configurée dans le dépôt. **C'est toute la raison pour laquelle les données circulent dans l'autre sens** — Apps Script pousse les bénévoles vers l'API, et tire les véhicules depuis l'API. Les trois routes fautives : `routers/upload.py:54` (`get_vehicule_by_nom_synthetique`, à l'envoi de photos), `routers/reservations.py:55` (`get_vehicule_by_indicatif`, à la création d'une réservation) et `services/alert_service.py:100` (`get_vehicles`, pour les alertes CT et pollution du scheduler). Toutes trois doivent lire **Redis** — le référentiel véhicules y est déjà, `redis_service` expose ce qu'il faut. Tant que ce n'est pas fait, le déploiement tourne mais l'envoi de photos, la création de réservations et les alertes échouent en 403. Découvert le 2026-08-27, sur correction de l'utilisateur : la documentation reconstruite décrivait Sheets comme lu par le backend, ce qui n'a jamais pu être vrai en production. |
+| N10 | **`backend/scripts/setup_gcp.sh` est périmé** : il lit des sorties Terraform `valkey_host`/`valkey_port` qui n'existent plus. À retirer ou réécrire. |
+| N11 | **`minInstances = 0` en production reste à trancher** : en dev et test, chaque mise en veille perd jusqu'à 10 min d'écritures. Voir ADR 0008. |
+| N12 | **L'ancienne racine `backend/terraform` et `infra/` subsistent.** Conservées le temps de valider la nouvelle ; à supprimer ensuite, avec leurs `terraform.tfstate` locaux. |

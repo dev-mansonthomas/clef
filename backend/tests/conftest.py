@@ -135,10 +135,12 @@ def redis_backend(monkeypatch):
                 if not cache._connected or cache.client is None:
                     await cache.connect()
                 await _seed_referentiel(cache.client)
-                # Laisser le cache dans l'état où les tests l'attendent : la connexion
-                # ouverte ici est liée à *cette* boucle, qui va disparaître.
+                # Fermer explicitement avant de lâcher la référence. Cette connexion
+                # est liée à la boucle d'`asyncio.run`, qui se referme juste après :
+                # la laisser ouverte produit un « Event loop is closed » au
+                # ramassage, remonté en annotation d'erreur par la CI (constat F20).
+                await cache.disconnect()
                 cache.client = None
-                cache._connected = False
 
             asyncio.run(_prepare())
             _REAL_SEEDED = True

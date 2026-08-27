@@ -1,0 +1,27 @@
+# Contexte de construction Docker — À TENIR ALIGNÉ AVEC .gcloudignore
+#
+# ⚠️ Cloud Build lit .gcloudignore, docker build lit .dockerignore. Les deux sont
+# nécessaires.
+#
+# `node_modules/` est ici doublement important : le Dockerfile fait son propre
+# `npm ci`, et copier un node_modules construit pour aarch64 dans l'étage de
+# construction produit des binaires natifs incompatibles — un échec dont la cause
+# n'est pas lisible dans l'erreur.
+
+node_modules/
+dist/
+.angular/
+
+.env
+.env.*
+!.env.example
+
+e2e/
+playwright-report/
+test-results/
+coverage/
+
+*.log
+.git
+.gitignore
+.DS_Store

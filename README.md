@@ -31,7 +31,7 @@ Web application for managing vehicles of the Croix-Rouge Française (French Red 
 - **Database**: Redis 8.10 with the native JSON module — single source of truth, no SQL
 - **Google APIs**: Drive (documents), Calendar (reservations), Gmail (alerts), Sheets (referentials via Apps Script)
 - **Auth**: Google OAuth 2.0 SSO restricted to `@croix-rouge.fr`
-- **Infrastructure**: GCP Cloud Run, Cloud KMS. ⚠️ **Le datastore de production n'est pas tranché** — l'IaC provisionne encore un Memorystore for Valkey, voir [ADR 0006](docs/adr/0006-redis-8-10-remplace-valkey.md)
+- **Infrastructure**: GCP Cloud Run (Redis 8.10 en **conteneur adjoint**, instantanés RDB sur Cloud Storage), Cloud KMS — voir [ADR 0008](docs/adr/0008-redis-sidecar-cloud-run-instantanes-gcs.md) et [`DEPLOYMENT.md`](DEPLOYMENT.md)
 - **Sync**: Google Apps Scripts in the referential Spreadsheet push data to the API
 
 ## Project Structure
@@ -50,10 +50,15 @@ clef/
 │   │   ├── models/             # Pydantic models
 │   │   └── cache/              # Redis connection layer
 │   ├── tests/                  # pytest tests
-│   └── terraform/              # Infrastructure as Code
+│   └── terraform/              # ⚠️ ancienne racine IaC, périmée (docs/TODO.md N12)
+├── deploy/                     # 👉 IaC et gabarit Cloud Run — la seule racine à jour
+│   ├── terraform/              # OpenTofu : APIs, IAM, registre, secrets, KMS, bucket
+│   └── cloudrun-api.yaml.tpl   # descripteur du service à 2 conteneurs
+├── 00-infra.sh                 # provisionnement GCP    — à lancer depuis l'HÔTE
+├── 01-gcp-deploy.sh            # build + déploiement    — à lancer depuis l'HÔTE
 ├── google-apps-scripts/        # Apps Script for Spreadsheet ↔ API sync
 ├── docker/                     # Docker configuration (Redis)
-├── infra/                      # Terraform/OpenTofu GCP setup
+├── infra/                      # ⚠️ seconde racine IaC, périmée (docs/TODO.md N12)
 └── docker-compose.yml          # Local dev environment
 ```
 
@@ -231,88 +236,48 @@ See [`frontend/e2e/README.md`](frontend/e2e/README.md) for detailed E2E test doc
 
 ## Infrastructure (GCP)
 
-> ⚠️ **Toute cette section décrit encore un déploiement basé sur Memorystore for
-> Valkey.** Le datastore applicatif est passé à **Redis 8.10** en local
-> ([ADR 0006](docs/adr/0006-redis-8-10-remplace-valkey.md)), mais **la cible de
-> production n'est pas tranchée** et l'IaC n'a pas été portée — les deux racines
-> Terraform échouent d'ailleurs à `tofu validate` (`docs/TODO.md` H7). Les noms
-> d'instances, les sorties `tofu output valkey_*` et les commandes de tunnel
-> ci-dessous restent donc ceux de l'infrastructure existante. Ne pas les lire comme
-> une description de l'état visé : voir `docs/TODO.md` N1 pour le chantier
-> déploiement.
+Le déploiement complet — prérequis, OAuth, secrets, amorçage, dépannage — est
+documenté dans **[`DEPLOYMENT.md`](DEPLOYMENT.md)**. En résumé, deux commandes,
+**depuis l'hôte** :
 
-| Environment | GCP Project | Services |
-|-------------|-------------|----------|
-| dev | `rcq-fr-dev` | Cloud Run, Memorystore for Valkey 8, Cloud KMS |
-| test | `rcq-fr-test` | Cloud Run, Memorystore for Valkey 8, Cloud KMS |
-| prod | `rcq-fr-prod` | Cloud Run, Memorystore for Valkey 8, Cloud KMS |
-
-- All resources prefixed with `clef-` (shared GCP projects)
-- IaC: OpenTofu/Terraform in [`infra/main.tf`](infra/main.tf) and [`backend/terraform/`](backend/terraform/)
-
-## Connecting to Remote Valkey
-
-Memorystore for Valkey is the **primary database** and is only accessible from the GCP VPC network. The backend connects automatically via the internal VPC; the `REDIS_URL` variable is configured by Terraform.
-
-### Valkey Instances
-
-| Environment | Instance | Region |
-|-------------|----------|--------|
-| dev | clef-valkey-dev | europe-west9 |
-| test | clef-valkey-test | europe-west9 |
-| prod | clef-valkey-prod | europe-west9 |
-
-### Via IAP Tunnel (recommended)
-
-```bash
-gcloud compute ssh BASTION_VM \
-  --zone=europe-west9-b \
-  --tunnel-through-iap \
-  -- -N -L 6379:VALKEY_INTERNAL_IP:6379
+```sh
+./00-infra.sh dev          # provisionne l'infrastructure — une fois par environnement
+./01-gcp-deploy.sh dev     # construit les images et déploie — à chaque livraison
 ```
 
-Replace `BASTION_VM` with a VM in the same VPC, and `VALKEY_INTERNAL_IP` with the Valkey internal IP (from GCP console or `tofu output`).
+| Environnement | Projet GCP | Services |
+|---|---|---|
+| dev | `rcq-fr-dev` | Cloud Run (`clef-api` + `clef-frontend`), Cloud Storage, Secret Manager, Cloud KMS |
+| test | `rcq-fr-test` | idem — projet à créer |
+| prod | `rcq-fr-prod` | idem — projet à créer |
 
-### Via Cloud Shell
+- Toutes les ressources sont préfixées `clef-`, et les secrets `CLEF_` : **les
+  projets GCP sont partagés** avec une autre application.
+- IaC : OpenTofu dans **[`deploy/terraform/`](deploy/terraform/)** — seule racine
+  valide. `backend/terraform/` et `infra/` sont périmées (`docs/TODO.md` N12).
+- **Rien n'est déployé à ce jour** : les scripts sont écrits et vérifiés, mais
+  n'ont jamais tourné contre GCP (`docs/TODO.md` N7).
 
-Cloud Shell has access to the Memorystore network:
+### Le datastore n'est pas un service managé
 
-```bash
-redis-cli -h VALKEY_INTERNAL_IP -p 6379
-```
+Redis 8.10 tourne en **conteneur adjoint** du backend, dans la même instance Cloud
+Run, joignable sur `localhost:6379`. Memorystore a été écarté : il ne sait pas
+indexer ni chercher dans le JSON, ce dont CLEF dépend. L'instance Memorystore
+`clef-valkey-dev` a été **détruite le 2026-08-26**. Raisonnement complet dans
+[ADR 0008](docs/adr/0008-redis-sidecar-cloud-run-instantanes-gcs.md).
 
-### Via Redis Insight
+Trois conséquences :
 
-1. Create the IAP tunnel (see above)
-2. Open Redis Insight → Add connection: **Host** `localhost`, **Port** `6379`
+| | |
+|---|---|
+| `maxScale = 1` **obligatoire** | une instance = un Redis. Deux instances, deux jeux de données qui divergent en silence. Le script refuse toute autre valeur |
+| RPO **10 minutes** | la persistance repose sur des instantanés RDB écrits vers un bucket GCS monté en FUSE |
+| Pas d'accès direct | plus de tunnel IAP ni de bastion : le datastore ne vit que dans l'instance. Pour l'inspecter, passer par les logs ou une route d'administration |
 
-### Authentication
+### En local
 
-Memorystore for Valkey uses **IAM** authentication.
-
-> ⚠️ **Écart vérifié le 2026-08-13 — cette section décrit une intention, pas la réalité.**
-> `roles/memorystore.dbConnectionUser` n'est accordé **nulle part** dans le dépôt.
-> Les seuls rôles réellement attribués au service account `clef-backend` par
-> `backend/terraform/service_account.tf` sont :
->
-> - `roles/cloudkms.cryptoKeyEncrypterDecrypter`
-> - `roles/compute.instanceAdmin.v1`
->
-> Le rôle nécessaire à la connexion IAM à Memorystore doit donc être ajouté avant
-> tout déploiement, sinon le backend ne pourra pas s'authentifier auprès de
-> l'instance Valkey. Voir `docs/TODO.md` (M23) et
-> `docs/adr/0005-deux-arbres-terraform-et-deploiement-imperatif.md`.
-
-### Useful Commands
-
-```bash
-# View Valkey endpoints
-cd backend/terraform && tofu output valkey_endpoints
-
-# Test connection (from Cloud Shell or via tunnel)
-redis-cli -h VALKEY_IP ping
-# Expected response: PONG
-```
+Le Redis local est celui de `docker-compose.yml`, lancé par `./run_local.sh`. Il
+n'y a **aucun datastore distant auquel se connecter**.
 
 ## Tech Stack
 
@@ -322,7 +287,7 @@ redis-cli -h VALKEY_IP ping
 | Backend | Python 3.14, FastAPI, Pydantic v2 |
 | Database | Redis 8.10 (JSON module) |
 | Auth | Google OAuth 2.0, Cloud KMS |
-| Cloud | GCP Cloud Run, Memorystore |
+| Cloud | GCP Cloud Run (Redis en sidecar), Cloud Storage, Secret Manager |
 | Testing | pytest, Vitest, Playwright |
 | IaC | OpenTofu/Terraform |
-| CI/CD | GitHub Actions |
+| CI/CD | GitHub Actions (tests et builds ; le **déploiement est manuel** — `docs/TODO.md` H12) |

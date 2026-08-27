@@ -8,6 +8,7 @@ from google.oauth2 import service_account
 from googleapiclient.discovery import build
 
 from app.services.gmail import GmailService
+from app.services.google_credentials import load_service_credentials
 
 
 class GoogleGmailService(GmailService):
@@ -22,16 +23,13 @@ class GoogleGmailService(GmailService):
         self.service_account_email = os.getenv("SERVICE_ACCOUNT_EMAIL", "")
     
     def _get_credentials(self):
-        """Get service account credentials from environment."""
-        credentials_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
-        if not credentials_path:
-            raise ValueError("GOOGLE_APPLICATION_CREDENTIALS environment variable not set")
-        
-        return service_account.Credentials.from_service_account_file(
-            credentials_path,
-            scopes=self.SCOPES
-        )
-    
+        """Credentials du service account : fichier de clé, ou identité attachée.
+
+        Délégué à `load_service_credentials` : sur Cloud Run, l'identité vient du
+        serveur de métadonnées et aucune clé n'est nécessaire (constat H6).
+        """
+        return load_service_credentials(self.SCOPES)
+
     def _create_message(
         self,
         to: str,

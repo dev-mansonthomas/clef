@@ -1,0 +1,118 @@
+# Bloc serveur nginx du frontend CLEF — rendu au démarrage du conteneur.
+#
+# ⚠️ Ce fichier est un GABARIT : l'entrypoint de l'image nginx traite
+# /etc/nginx/templates/*.template avec envsubst et écrit le résultat dans
+# /etc/nginx/conf.d/. `${BACKEND_HOST}` est donc remplacé à l'exécution, pas à la
+# construction — la même image sert dev, test et prod.
+#
+# POURQUOI UN PROXY, ET PAS UN apiUrl ABSOLU
+#
+# Le build de production utilise `environment.ts`, où `apiUrl` est la chaîne vide :
+# les services appellent donc `/api/...` en relatif (angular.json ne déclare AUCUN
+# fileReplacements, `environment.prod.ts` est du code mort). Sans route `/api` ici,
+# chaque appel du frontend déployé recevait un 404 de nginx.
+#
+# Le proxy résout aussi le cookie de session : frontend et backend deviennent la
+# MÊME origine, donc `SameSite=Lax` fonctionne et il n'y a aucun préflight CORS.
+# Un `apiUrl` absolu aurait imposé l'inverse — cookie `SameSite=None; Secure`,
+# CORS avec credentials, et deux origines à tenir synchronisées.
+server {
+    listen 80;
+    server_name _;
+    root /usr/share/nginx/html;
+
+    # Compression (le nginx.conf par défaut de l'image ne l'active pas).
+    gzip on;
+    gzip_vary on;
+    gzip_proxied any;
+    gzip_comp_level 6;
+    gzip_types text/plain text/css text/xml text/javascript application/json
+               application/javascript application/xml+rss application/rss+xml
+               font/truetype font/opentype application/vnd.ms-fontobject image/svg+xml;
+
+    # Santé du frontend lui-même : ne doit PAS traverser le proxy, sinon on
+    # diagnostiquerait le backend en croyant tester nginx.
+    location /health {
+        access_log off;
+        return 200 "healthy\n";
+        add_header Content-Type text/plain;
+    }
+
+    # ─── Backend ──────────────────────────────────────────────────────────────
+    # `/api` et `/auth` : les deux préfixes du backend. `/auth` compte autant que
+    # `/api` — c'est tout le parcours OAuth (login, callback, me, logout), déclaré
+    # avec `prefix="/auth"` dans app/auth/routes.py.
+    location ~ ^/(api|auth)/ {
+        # Deux variables, et c'est voulu :
+        #
+        #   BACKEND_ORIGIN  schéma + hôte, « https://clef-api-xxx.run.app »
+        #   BACKEND_HOST    hôte seul, pour l'en-tête Host
+        #
+        # Le schéma est une variable, pas « https » en dur : sinon le gabarit n'est
+        # vérifiable que contre un vrai Cloud Run, et on ne l'éprouve donc jamais
+        # avant de déployer. Ici, un backend local en HTTP clair suffit à valider le
+        # routage.
+        proxy_pass ${BACKEND_ORIGIN};
+
+        # Cloud Run route par le nom d'hôte et exige SNI : sans ces deux lignes,
+        # l'appel arrive sur le mauvais service ou échoue à la poignée de main TLS.
+        proxy_set_header Host ${BACKEND_HOST};
+
+        # Vérification du certificat de l'amont. `proxy_ssl_verify` vaut **off** par
+        # défaut dans nginx : sans ces lignes, le proxy accepte n'importe quel
+        # certificat — auto-signé, expiré, mauvais nom d'hôte. Tout le parcours
+        # authentifié traverse ce saut : cookie de session, en-tête X-API-Key de la
+        # synchronisation, données personnelles des bénévoles.
+        #
+        # Ces directives ne s'appliquent qu'à un amont **https** ; avec un
+        # `proxy_pass http://…`, nginx les ignore. Elles sont donc posées sans
+        # condition, ce qui garde le gabarit vérifiable contre un backend local en
+        # HTTP clair — un `if` sur le schéma aurait été non testé, donc faux un jour.
+        proxy_ssl_verify on;
+        proxy_ssl_verify_depth 2;
+        proxy_ssl_trusted_certificate /etc/ssl/certs/ca-certificates.crt;
+        proxy_ssl_server_name on;
+        proxy_ssl_name ${BACKEND_HOST};
+
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Real-IP $remote_addr;
+
+        # Le cookie de session est posé par le backend sur le domaine du frontend :
+        # ne rien réécrire, les deux sont la même origine vue du navigateur.
+        proxy_pass_request_headers on;
+
+        # Assez large pour un envoi de photos de véhicule.
+        client_max_body_size 25m;
+        proxy_read_timeout 120s;
+        proxy_connect_timeout 10s;
+    }
+
+    location /admin {
+        alias /usr/share/nginx/html/admin;
+        try_files $uri $uri/ /admin/index.html;
+
+        location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+            expires 1y;
+            add_header Cache-Control "public, immutable";
+        }
+    }
+
+    location /form {
+        alias /usr/share/nginx/html/form;
+        try_files $uri $uri/ /form/index.html;
+
+        location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+            expires 1y;
+            add_header Cache-Control "public, immutable";
+        }
+    }
+
+    location = / {
+        try_files /index.html =404;
+    }
+
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+}

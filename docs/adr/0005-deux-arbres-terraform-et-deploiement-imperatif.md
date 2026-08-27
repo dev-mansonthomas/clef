@@ -1,6 +1,15 @@
 # ADR 0005 — Deux arbres Terraform divergents, déploiement Cloud Run impératif
 
-**Statut :** ⚠️ **cassé — à trancher** — **(reconstructed — verify)**
+**Statut :** 🗄️ **remplacé le 2026-08-26 par
+[ADR 0008](0008-redis-sidecar-cloud-run-instantanes-gcs.md)** — **(reconstructed — verify)**
+
+> Le constat de cet ADR était juste et reste utile comme archive : deux racines,
+> aucune valide, un service Cloud Run créé impérativement. Ce qui a changé :
+> **une racine unique** `deploy/terraform` qui valide, un **state distant** dans un
+> bucket GCS versionné, et le service Cloud Run **déclaré** dans
+> `deploy/cloudrun-api.yaml.tpl`. Une nuance a émergé à la fusion : les deux racines
+> n'étaient pas *concurrentes* mais **complémentaires** — elles se disputaient
+> seulement le même service account et les mêmes APIs.
 **Date :** `infra/` daté du 2026-03-16, `backend/terraform/` du 2026-08-13
 
 ## Contexte

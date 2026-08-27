@@ -61,14 +61,14 @@ module.
 
 **Reste ouvert — hors périmètre de cette décision :**
 
-- **Le déploiement GCP.** `backend/terraform/memorystore_redis.tf` (renommé, contenu
-  inchangé) provisionne toujours un `google_memorystore_instance` en mode **Valkey**.
-  Le choix de la cible de production — Memorystore for Redis, Redis dans Cloud Run,
-  ou autre — n'est pas tranché ici. Voir [ADR 0005](0005-deux-arbres-terraform-et-deploiement-imperatif.md)
-  et `docs/TODO.md` H7/N1.
-- **`backend/scripts/setup_gcp.sh`** lit encore des sorties Terraform nommées
-  `valkey_host` / `valkey_port`. Ces noms appartiennent à l'arbre Terraform, non
-  touché : les renommer sans lui casserait le script.
+- ~~**Le déploiement GCP.**~~ ✅ **Tranché le 2026-08-26 par
+  [ADR 0008](0008-redis-sidecar-cloud-run-instantanes-gcs.md)** : Redis 8.10 en sidecar
+  Cloud Run, instantanés RDB sur GCS. Memorystore est écarté — il ne sait pas chercher
+  dans le JSON — et l'instance `clef-valkey-dev` a été détruite. La racine Terraform
+  unique vit désormais dans `deploy/terraform`.
+- **`backend/scripts/setup_gcp.sh`** lit des sorties Terraform `valkey_host` /
+  `valkey_port` qui **n'existent plus**. Ce script est périmé : il visait l'ancienne
+  racine et Memorystore. À retirer ou réécrire — voir `docs/TODO.md`.
 - **Le module Search reste inutilisé** (`docs/TODO.md` M25) : aucun `FT.CREATE` dans
   le code. L'image le fournit sans coût ; rien à décider.
 - **La montée du client `redis` en 7.x** n'a pas été mesurée et fait l'objet d'un

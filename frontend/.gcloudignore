@@ -1,0 +1,29 @@
+# Ce qui ne doit PAS partir vers Cloud Build.
+#
+# ⚠️ `gcloud builds submit frontend` ne lit QUE ce fichier, ou à défaut
+# `frontend/.gitignore` — jamais celui de la racine.
+#
+# `node_modules` était déjà exclu par `frontend/.gitignore` ; ce fichier le rend
+# explicite et ajoute le reste. Le Dockerfile fait son propre `npm ci`, puis
+# `COPY . .` : tout ce qui monte finit dans l'étage de construction.
+
+# 362 Mo, réinstallés par `npm ci` dans l'image.
+node_modules/
+
+# Sorties de build : reconstruites dans l'image.
+dist/
+.angular/
+
+# Secrets et environnement local
+.env
+.env.*
+!.env.example
+
+# Tests : l'image ne sert que les bundles.
+e2e/
+playwright-report/
+test-results/
+coverage/
+
+*.log
+.DS_Store

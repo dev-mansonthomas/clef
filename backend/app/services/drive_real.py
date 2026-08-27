@@ -8,6 +8,7 @@ from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaInMemoryUpload
 
 from app.services.drive import DriveService
+from app.services.google_credentials import load_service_credentials
 
 
 class GoogleDriveService(DriveService):
@@ -19,21 +20,16 @@ class GoogleDriveService(DriveService):
         self.service = build('drive', 'v3', credentials=self.credentials)
     
     def _get_credentials(self):
-        """Get service account credentials from environment."""
-        credentials_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
-        if not credentials_path:
-            raise ValueError("GOOGLE_APPLICATION_CREDENTIALS environment variable not set")
-        
-        scopes = [
+        """Credentials du service account : fichier de clé, ou identité attachée.
+
+        Délégué à `load_service_credentials` : sur Cloud Run, l'identité vient du
+        serveur de métadonnées et aucune clé n'est nécessaire (constat H6).
+        """
+        return load_service_credentials([
             'https://www.googleapis.com/auth/drive.file',
             'https://www.googleapis.com/auth/drive'
-        ]
-        
-        return service_account.Credentials.from_service_account_file(
-            credentials_path,
-            scopes=scopes
-        )
-    
+        ])
+
     def _retry_with_backoff(self, func, max_retries=3):
         """Execute a function with exponential backoff retry logic."""
         for attempt in range(max_retries):

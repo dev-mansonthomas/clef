@@ -61,9 +61,16 @@ resource "google_memorystore_instance" "clef_valkey" {
     app         = "clef"
   }
 
-  lifecycle {
-    prevent_destroy = true
-  }
+  # `prevent_destroy` a été retiré le 2026-08-26, délibérément.
+  #
+  # C'était un garde-fou légitime tant que Memorystore était le datastore principal.
+  # Il ne l'est plus : Memorystore ne sait pas chercher dans le JSON, et CLEF passe à
+  # Redis 8.10 en sidecar Cloud Run avec instantanés sur GCS (voir l'ADR sur le
+  # datastore). Cette instance est donc mise hors service, et cette racine entière est
+  # remplacée par deploy/terraform.
+  #
+  # ⚠️ Ne pas réintroduire ce bloc ici : reposer un garde-fou sur une ressource qu'on
+  # veut détruire ne protège plus rien, il masque juste l'intention.
 
   depends_on = [
     google_project_service.apis,

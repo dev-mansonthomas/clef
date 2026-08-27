@@ -1,3 +1,8 @@
+# ⚠️ Racine en voie de retrait. Les outputs `valkey_host` et `valkey_internal_ip`
+# ont été supprimés : ils référençaient un `google_compute_instance.valkey`
+# inexistant — vestige d'une tentative Redis sur Compute Engine abandonnée au
+# profit de Memorystore. C'est l'autre cause de l'échec de `tofu validate` (H7).
+
 output "project_id" {
   value = var.project_id
 }
@@ -9,16 +14,6 @@ output "service_account_email" {
 output "service_account_key" {
   value     = base64decode(google_service_account_key.clef_backend.private_key)
   sensitive = true
-}
-
-output "valkey_host" {
-  description = "Valkey VM external IP"
-  value       = google_compute_instance.valkey.network_interface[0].access_config[0].nat_ip
-}
-
-output "valkey_internal_ip" {
-  description = "Valkey VM internal IP (for use within GCP)"
-  value       = google_compute_instance.valkey.network_interface[0].network_ip
 }
 
 output "valkey_port" {

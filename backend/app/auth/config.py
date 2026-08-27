@@ -46,6 +46,15 @@ class AuthSettings(BaseSettings):
     # Session configuration
     session_secret_key: str = os.getenv("SESSION_SECRET_KEY", "dev-secret-key-change-in-production")
     session_cookie_name: str = "clef_session"
+
+    # Le cookie doit porter l'attribut Secure dès que le site est servi en HTTPS,
+    # sinon un navigateur l'accepte mais le transmettrait aussi en clair. Défaut
+    # `false` pour le développement local, qui tourne en HTTP.
+    #
+    # `SameSite=Lax` reste correct en production : nginx relaie /api et /auth, donc
+    # frontend et backend sont la MÊME origine vue du navigateur. Ce serait faux
+    # avec un apiUrl absolu — il faudrait alors `SameSite=None; Secure`.
+    session_cookie_secure: bool = os.getenv("SESSION_COOKIE_SECURE", "false").lower() == "true"
     session_max_age: int = 3600 * 24  # 24 hours
 
     # Mock mode
@@ -61,11 +70,22 @@ class AuthSettings(BaseSettings):
     # nommé et cherchable, plutôt que dispersé en littéraux "DT75".
     default_dt: str = os.getenv("DEFAULT_DT", "DT75")
 
-    # Allowed frontend URLs for redirect (comma-separated)
-    allowed_frontend_urls: list[str] = os.getenv(
-        "ALLOWED_FRONTEND_URLS",
-        "http://localhost:4200,http://localhost:4202"
-    ).split(",")
+    # Destinations autorisées après connexion (séparées par des virgules).
+    #
+    # ⚠️ Les entrées vides sont filtrées, et ce n'est pas cosmétique : une chaîne
+    # vide dans cette liste dégénère `validate_redirect_url` en
+    # `url.startswith("/")`, qui accepte alors l'URL protocol-relative `//evil.tld`
+    # — soit un open redirect. Le cas est atteignable : le script de déploiement
+    # rend la variable vide au tout premier déploiement, avant que l'URL du service
+    # n'existe.
+    allowed_frontend_urls: list[str] = [
+        u.strip()
+        for u in os.getenv(
+            "ALLOWED_FRONTEND_URLS",
+            "http://localhost:4200,http://localhost:4202"
+        ).split(",")
+        if u.strip()
+    ]
 
     # Backend URL for OAuth callbacks
     backend_url: str = os.getenv("BACKEND_URL", "http://localhost:8000")
