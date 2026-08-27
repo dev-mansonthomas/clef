@@ -310,6 +310,31 @@ Enchaînement à respecter, sinon personne ne peut se connecter :
 4. Lancez la synchronisation. Le référentiel se peuple, et les autres bénévoles
    peuvent se connecter.
 
+## Les deux scripts écrivent dans `debug/`
+
+Le dépôt est sur un montage partagé entre l'hôte et la VM de développement : ce qui
+est écrit ici est lisible par un agent, sans recopier de sortie à la main.
+
+| Fichier | Contenu |
+|---|---|
+| `debug/deploy/01-gcp-deploy.<env>.log` | la transcription complète du déploiement |
+| `debug/deploy/01-gcp-deploy.<env>.json` | rapport : préflight, images, nombre de passes `services replace`, URLs, URI de redirection, réponse de `/health`, code de sortie |
+| `debug/deploy/00-infra.<env>.plan.txt` | le plan Terraform en clair, **même si l'apply est abandonné** |
+| `debug/deploy/00-infra.<env>.json` | rapport : projet, région, destructions planifiées, appliqué ou non |
+
+`debug/` est **gitignoré** : rien de ceci n'est versionné.
+
+Les rapports sont écrits par un `trap EXIT`, donc **présents même quand le script
+s'arrête en cours de route** — c'est précisément le cas qu'on veut analyser.
+
+⚠️ Aucune valeur de secret n'y figure : les scripts n'en lisent aucune, ils comptent
+des versions. L'adresse du gestionnaire DT est notée présente ou absente, jamais
+recopiée — c'est une donnée personnelle.
+
+⚠️ `00-infra.sh` n'écrit **pas** de transcription, contrairement à l'autre : il pose
+une question de confirmation, et un `tee` en travers de stdout rendrait l'invite
+illisible. Son plan, lui, est écrit dans un fichier dédié.
+
 ## Vérifier, observer, revenir en arrière
 
 ```sh
