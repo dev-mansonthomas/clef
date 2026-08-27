@@ -362,6 +362,7 @@ la racine : il ne protège que git, pas Cloud Build.
 | Symptôme | Cause probable |
 |---|---|
 | « Ce script se lance depuis l'HÔTE » | vous êtes dans la VM — c'est voulu |
+| Le préflight annonce plusieurs ressources « absentes » d'un coup | ce n'est presque jamais une absence. `gcloud config get-value account` ne fait **aucun** appel réseau : le `✅ authentifié` peut donc s'afficher alors que la session est expirée. Depuis le correctif, le préflight distingue « absente » de « contrôle non concluant » et affiche l'erreur réelle. Lancer `gcloud auth login && gcloud auth application-default login` |
 | La révision est créée puis meurt aussitôt | un secret sans version, ou `USE_MOCKS` fixé en production (garde-fou S1) |
 | `/health` répond `"redis":"disconnected"` | le conteneur `redis` n'a pas démarré : regarder ses logs, pas ceux du backend |
 | Le bucket d'instantanés reste vide après 15 min | `cpu-throttling` remis à `true`, ou l'écriture RDB échoue sur GCS FUSE (constat N9) |

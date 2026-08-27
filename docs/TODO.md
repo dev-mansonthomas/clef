@@ -1094,6 +1094,28 @@ Cloud Build dans la région du build — et évite d'avoir à lui accorder des d
 un bucket qu'on aurait provisionné soi-même. Le bucket de state, lui, précisait déjà
 `--location`, ce qui explique qu'il soit passé.
 
+**Les sessions gcloud expirent, et vite.** Le 2026-08-27, deux réauthentifications
+ont été nécessaires dans la même journée, à 4 h 30 d'intervalle, alors que l'habitude
+était de ne pas se reconnecter pendant des mois. Symptôme : les contrôles du préflight
+échouent tous ensemble, et — avant correction — étaient rapportés comme des
+« ressources absentes ».
+
+Ce n'est pas l'outillage : `00-infra.sh` et `01-gcp-deploy.sh` n'exécutent qu'un
+`gcloud config get-value account`, en lecture seule, et n'écrivent ni dans
+`~/.config/gcloud` ni dans `CLOUDSDK_*` (audité). L'hypothèse la plus probable est une
+politique **Google Cloud session control** de Workspace, dont la durée aurait été
+raccourcie — cohérent avec une organisation qui vient d'imposer
+`constraints/gcp.resourceLocations` sur `global` **et** sur `us`.
+
+À trancher sur le message exact : « Reauthentication required » = durée de session ;
+« invalid_grant / Token has been expired or revoked » = révocation par un
+administrateur. La valeur se lit dans *Admin console → Sécurité → Contrôle d'accès et
+données → Google Cloud session control*.
+
+**Conséquence pratique** : sur un déploiement qui dure, s'attendre à devoir relancer
+`gcloud auth login` en cours de route. Le préflight sait désormais le dire au lieu
+d'inventer une absence.
+
 **La règle à retenir** : sur ce projet, une commande GCP qui ne précise pas
 d'emplacement en choisit un interdit. Vérifier l'emplacement effectif de toute
 ressource ajoutée, **y compris celles qu'un outil crée implicitement**. Deux tests de
