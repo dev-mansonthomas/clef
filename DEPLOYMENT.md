@@ -310,6 +310,67 @@ Enchaînement à respecter, sinon personne ne peut se connecter :
 4. Lancez la synchronisation. Le référentiel se peuple, et les autres bénévoles
    peuvent se connecter.
 
+## Domaine personnalisé
+
+Conception : [`docs/specs/domaine-personnalise-alb.md`](docs/specs/domaine-personnalise-alb.md).
+
+Un **seul hôte** — `clef.paquerette.com` en dev, `clef.croix-rouge.fr` visé en
+production — servi par un load balancer applicatif global qui route par **chemin** :
+
+| Chemin | Service |
+|---|---|
+| `/api/*`, `/auth/*`, `/admin/super/*` | `clef-api` |
+| tout le reste | `clef-frontend` |
+
+⚠️ **L'ordre compte** : le certificat managé ne se provisionne **que si le domaine
+résout déjà** vers l'IP du load balancer.
+
+```sh
+# 1. Le domaine dans le tfvars de l'environnement
+#    deploy/terraform/environments/dev.tfvars →  public_domain = "clef.paquerette.com"
+
+# 2. Créer le load balancer et obtenir l'IP
+./00-infra.sh dev
+#    la sortie `dns_a_creer` donne l'enregistrement exact à recopier
+
+# 3. Chez le registrar : un enregistrement A (pas un CNAME — un ALB global s'atteint
+#    par IP), TTL court le temps des essais
+#      clef.paquerette.com.  A  <IP>
+
+# 4. Attendre le certificat — la commande est dans la sortie `certificat_verifier`
+gcloud compute ssl-certificates describe clef-dev-cert --global \
+  --project=rcq-fr-dev --format='value(managed.status, managed.domainStatus)'
+
+# 5. Le domaine dans deploy/deploy.dev.env  →  PUBLIC_DOMAIN=clef.paquerette.com
+./01-gcp-deploy.sh dev
+
+# 6. Console GCP : ajouter au client OAuth
+#      origine        https://clef.paquerette.com
+#      redirection    https://clef.paquerette.com/auth/callback
+```
+
+**Une seule variable par endroit** : `public_domain` côté Terraform fait émettre le
+certificat, `PUBLIC_DOMAIN` côté déploiement fait que l'application connaît son nom.
+Le script en dérive `CORS_ORIGINS`, `ALLOWED_FRONTEND_URLS`, `FRONTEND_URL`,
+`GOOGLE_REDIRECT_URI` et `DOMAIN`.
+
+Laisser `public_domain` **vide** ne crée aucune ressource de load balancer : c'est
+l'état de `test` et `prod`, et un load balancer inutile est facturé à l'heure
+(~18 $/mois pour la règle de transfert).
+
+Un certificat bloqué en `FAILED_NOT_VISIBLE` signifie que le DNS ne résout pas encore
+vers la bonne IP — c'est la cause dans la quasi-totalité des cas.
+
+⚠️ **`DOMAIN` est l'hôte encodé dans les QR codes collés sur les véhicules.** Ne jamais
+imprimer depuis un environnement dont le domaine n'est pas définitif.
+
+### Ce que GCP vérifie pour nous
+
+L'url map porte six blocs `test` que **Google évalue à la création** : un url map dont
+un `test` échoue est refusé. Le routage est donc validé par la plateforme, pas par
+notre relecture — notamment la collision entre `/admin/` (application Angular) et
+`/admin/super/` (router backend).
+
 ## Collecter les journaux — `./02-logs.sh <env>`
 
 ```sh

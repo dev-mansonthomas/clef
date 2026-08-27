@@ -7,6 +7,10 @@ resource "google_project_service" "apis" {
   for_each = toset([
     # Exécution
     "run.googleapis.com",
+    # ⚠️ Requise par le load balancer : adresse globale, NEG, url map, proxies,
+    # certificat managé sont tous des ressources Compute. Elle avait été retirée
+    # avec Memorystore — elle est de retour pour cette raison, pas par inadvertance.
+    "compute.googleapis.com",
     "artifactregistry.googleapis.com",
     "cloudbuild.googleapis.com",
     "storage.googleapis.com",

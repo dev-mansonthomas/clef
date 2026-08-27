@@ -70,3 +70,21 @@ variable "snapshot_retention_days" {
   type        = number
   default     = 30
 }
+
+# ─── Domaine public et load balancer ──────────────────────────────────────────
+
+variable "public_domain" {
+  description = <<-EOT
+    Domaine public servi par le load balancer, sans schéma — « clef.paquerette.com ».
+
+    ⚠️ Laissé VIDE, aucune ressource de load balancer n'est créée : test et prod n'ont
+    pas encore de domaine, et un LB inutile coûte une règle de transfert à l'heure.
+
+    ⚠️ Ce domaine est aussi celui encodé dans les QR codes COLLÉS sur les véhicules
+    (app/services/qr_code_service.py). En changer invalide les autocollants déjà
+    imprimés — ne jamais imprimer depuis un environnement dont le domaine n'est pas
+    définitif.
+  EOT
+  type        = string
+  default     = ""
+}

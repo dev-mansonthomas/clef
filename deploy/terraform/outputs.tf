@@ -48,3 +48,29 @@ output "secrets_a_renseigner" {
   EOT
   value       = keys(google_secret_manager_secret.clef)
 }
+
+# ─── Load balancer ────────────────────────────────────────────────────────────
+
+output "load_balancer_ip" {
+  description = <<-EOT
+    IP à publier dans le DNS, en enregistrement A. Vide si aucun domaine n'est
+    configuré. C'est cette valeur qui débloque la suite : le certificat managé ne se
+    provisionne qu'une fois le domaine résolu vers elle.
+  EOT
+  value       = var.public_domain == "" ? "" : google_compute_global_address.clef[0].address
+}
+
+output "dns_a_creer" {
+  description = "L'enregistrement DNS exact à créer, prêt à recopier."
+  value = var.public_domain == "" ? "aucun domaine configuré (public_domain vide)" : format(
+    "%s.  A  %s", var.public_domain, google_compute_global_address.clef[0].address
+  )
+}
+
+output "certificat_verifier" {
+  description = "Commande à lancer pour suivre le provisionnement du certificat."
+  value = var.public_domain == "" ? "" : format(
+    "gcloud compute ssl-certificates describe %s --global --project=%s --format='value(managed.status, managed.domainStatus)'",
+    google_compute_managed_ssl_certificate.clef[0].name, var.project_id
+  )
+}
