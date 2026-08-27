@@ -30,6 +30,38 @@ server {
                application/javascript application/xml+rss application/rss+xml
                font/truetype font/opentype application/vnd.ms-fontobject image/svg+xml;
 
+    # ⚠️ Redirections RELATIVES.
+    #
+    # Par défaut, nginx fabrique un `Location:` absolu à partir de son propre nom
+    # d'hôte et de son port d'écoute — donc « http://… » sur le port 80, alors que le
+    # client parle en HTTPS à Cloud Run. La redirection de `/admin` vers `/admin/`
+    # renvoyait ainsi vers http, avec un aller-retour supplémentaire et un instant en
+    # clair. `off` fait émettre un chemin relatif, que le navigateur résout sur le
+    # schéma et l'hôte courants.
+    absolute_redirect off;
+
+    # ─── URL courtes du produit ───────────────────────────────────────────────
+    # Deux chemins sont fabriqués AILLEURS que dans le frontend, et sortent du
+    # produit — donc on ne peut plus les changer une fois émis :
+    #
+    #   • `https://{DOMAIN}/vehicle/{id}` — encodé dans les QR codes COLLÉS sur les
+    #     véhicules (app/services/qr_code_service.py:127). Une fois imprimé, c'est un
+    #     contrat définitif ;
+    #   • `{FRONTEND_URL}/approbation/{token}` — envoyé par courriel aux GARAGES
+    #     (app/routers/dossiers_reparation.py:419,524).
+    #
+    # Or les pages vivent sous le préfixe de leur application : `/form/vehicle/{id}`
+    # et `/admin/approbation/{token}`. Sans ces deux règles, les deux donnent un 404 —
+    # vérifié. On redirige plutôt que de rallonger l'URL imprimée : un QR code plus
+    # court est moins dense, donc plus facile à scanner, et si une page déménage un
+    # jour, seule cette configuration change.
+    location ~ ^/vehicle/(.*)$ {
+        return 301 /form/vehicle/$1;
+    }
+    location ~ ^/approbation/(.*)$ {
+        return 301 /admin/approbation/$1;
+    }
+
     # Santé du frontend lui-même : ne doit PAS traverser le proxy, sinon on
     # diagnostiquerait le backend en croyant tester nginx.
     location /health {
