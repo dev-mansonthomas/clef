@@ -1067,16 +1067,37 @@ direction donne une confiance qu'il ne mérite pas.
 Le premier `./00-infra.sh dev` a réellement tourné le 2026-08-27 : **12 ressources sur
 16 créées**, les 4 secrets en échec.
 
-**Une policy d'organisation `constraints/gcp.resourceLocations` interdit
-l'emplacement `global`** sur ce projet. `replication { auto {} }` place un secret
+**Une policy d'organisation `constraints/gcp.resourceLocations` interdit les
+emplacements par défaut de GCP** sur ce projet — `global` comme `us`. Deux
+occurrences rencontrées, à deux étapes différentes.
+
+**Première : `global`.** `replication { auto {} }` place un secret
 dans `global` : les quatre créations ont été refusées. Corrigé par une réplication
 explicite en `europe-west1`, région dont le même apply a prouvé qu'elle est autorisée
 — bucket et registre y ont été créés.
 
 Le message d'erreur parle d'emplacement mais **ne nomme jamais `auto`** : rien dans
-l'erreur ne mène au champ fautif. À retenir pour toute ressource GCP ajoutée par la
-suite — vérifier son emplacement effectif avant de l'apply, `global` n'est pas une
-option ici.
+l'erreur ne mène au champ fautif.
+
+**Seconde : `us`, au premier déploiement.** `gcloud builds submit --region=europe-west1`
+place le **build** dans la région, mais dépose l'archive des sources dans un bucket de
+staging qu'il crée par défaut en multi-région **US** :
+
+```
+ERROR: (gcloud.builds.submit) HTTPError 412: 'us' violates constraint
+       'constraints/gcp.resourceLocations'
+```
+
+Là encore, le message nomme l'emplacement sans nommer la ressource. Corrigé par
+`--default-buckets-behavior=regional-user-owned-bucket`, qui fait créer ce bucket par
+Cloud Build dans la région du build — et évite d'avoir à lui accorder des droits sur
+un bucket qu'on aurait provisionné soi-même. Le bucket de state, lui, précisait déjà
+`--location`, ce qui explique qu'il soit passé.
+
+**La règle à retenir** : sur ce projet, une commande GCP qui ne précise pas
+d'emplacement en choisit un interdit. Vérifier l'emplacement effectif de toute
+ressource ajoutée, **y compris celles qu'un outil crée implicitement**. Deux tests de
+`test_cloudrun_template.py` tiennent désormais les deux commandes concernées.
 
 ## Faits établis sur l'existant
 

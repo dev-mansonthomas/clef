@@ -225,21 +225,40 @@ echo ""
 BACKEND_IMAGE="${REGISTRY}/clef-api:${TAG}"
 FRONTEND_IMAGE="${REGISTRY}/clef-frontend:${TAG}"
 
+# ⚠️ `--default-buckets-behavior=regional-user-owned-bucket` n'est pas optionnel ici.
+#
+# `--region` place le BUILD dans la région ; il ne dit rien du bucket de staging où
+# gcloud dépose l'archive des sources. Par défaut, Cloud Build en crée un en
+# multi-région **US** (`gs://<projet>_cloudbuild`), et la policy d'organisation
+# `constraints/gcp.resourceLocations` le refuse :
+#
+#     ERROR: (gcloud.builds.submit) HTTPError 412:
+#            'us' violates constraint 'constraints/gcp.resourceLocations'
+#
+# Le message parle de « us » sans jamais nommer le bucket : rien n'y mène.
+#
+# Ce drapeau fait créer et gérer un bucket régional par Cloud Build lui-même, dans la
+# région du build — ce qui évite aussi d'avoir à lui accorder des droits à la main sur
+# un bucket qu'on aurait provisionné soi-même.
+#
+# Même famille de piège que la réplication `auto` des secrets : `global` et `us` ne
+# sont pas des emplacements disponibles sur ce projet, et les valeurs par défaut de
+# GCP y vont d'elles-mêmes.
+BUILD_FLAGS=(
+    --project="$PROJECT_ID"
+    --region="$REGION"
+    --default-buckets-behavior=regional-user-owned-bucket
+)
+
 if [ "$SKIP_BUILD" = false ]; then
     if [[ "$COMPONENTS" == *api* ]]; then
-        echo "🔨 Image backend (Cloud Build)..."
-        gcloud builds submit backend \
-            --tag="$BACKEND_IMAGE" \
-            --project="$PROJECT_ID" \
-            --region="$REGION"
+        echo "🔨 Image backend (Cloud Build, $REGION)..."
+        gcloud builds submit backend --tag="$BACKEND_IMAGE" "${BUILD_FLAGS[@]}"
         echo ""
     fi
     if [[ "$COMPONENTS" == *frontend* ]]; then
-        echo "🔨 Image frontend (Cloud Build)..."
-        gcloud builds submit frontend \
-            --tag="$FRONTEND_IMAGE" \
-            --project="$PROJECT_ID" \
-            --region="$REGION"
+        echo "🔨 Image frontend (Cloud Build, $REGION)..."
+        gcloud builds submit frontend --tag="$FRONTEND_IMAGE" "${BUILD_FLAGS[@]}"
         echo ""
     fi
 else

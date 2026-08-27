@@ -108,6 +108,23 @@ Conséquence pratique : **ne jamais utiliser `replication { auto {} }`** pour un
 déclare une réplication explicite en `europe-west1`. Le message d'erreur parle
 d'emplacement mais ne nomme jamais `auto` : la cause n'est pas lisible dans l'erreur.
 
+Deuxième occurrence, rencontrée au premier déploiement : `gcloud builds submit`
+place le **build** dans la région donnée par `--region`, mais dépose l'archive des
+sources dans un bucket de staging qu'il crée par défaut en multi-région **US**. La
+policy le refuse, avec un message qui nomme « us » sans jamais nommer le bucket :
+
+```
+ERROR: (gcloud.builds.submit) HTTPError 412: 'us' violates constraint
+       'constraints/gcp.resourceLocations'
+```
+
+D'où `--default-buckets-behavior=regional-user-owned-bucket` dans
+`01-gcp-deploy.sh`, qui fait créer ce bucket par Cloud Build dans la région du build.
+
+**La règle générale** : sur ce projet, une commande GCP qui ne précise pas
+d'emplacement en choisit un interdit. Vérifier l'emplacement effectif de toute
+ressource ajoutée, y compris celles créées implicitement par un outil.
+
 `europe-west1` est autorisée — le bucket et le registre y ont été créés sans
 difficulté au même apply. Pour lire la liste exacte :
 
@@ -351,6 +368,7 @@ la racine : il ne protège que git, pas Cloud Build.
 | Tout le monde est « Bénévole » sans UL | référentiel vide, ou identifiants de classeurs absents (M9/M10, M31) |
 | `tofu` : « permission denied » à l'extraction du provider | vous êtes dans la VM, sur le montage partagé. Pointer `TF_DATA_DIR` ailleurs — et de toute façon, pas d'`apply` dans la VM |
 | Redirection OAuth refusée | l'URL Cloud Run n'est pas dans les URI autorisés du client OAuth |
+| `HTTPError 412: 'us' violates constraint 'constraints/gcp.resourceLocations'` au build | le bucket de staging de Cloud Build, créé en multi-région US par défaut. `--default-buckets-behavior=regional-user-owned-bucket` |
 | `Constraint constraints/gcp.resourceLocations violated ... in [global]` | une ressource est créée dans `global`, interdit par la policy d'organisation. Pour Secret Manager, c'est `replication { auto {} }` — le message ne nomme jamais `auto`. Utiliser une réplication explicite en `europe-west1` |
 
 ## Ce qui n'est pas fait

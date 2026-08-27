@@ -111,6 +111,44 @@ def test_le_script_transmet_bien_ces_variables():
     )
 
 
+def test_le_build_reste_dans_la_region():
+    """Cloud Build doit déposer ses sources dans un bucket régional.
+
+    `--region` place le BUILD dans la région ; il ne dit rien du bucket de staging.
+    Par défaut Cloud Build en crée un en multi-région **US**, que la policy
+    d'organisation `constraints/gcp.resourceLocations` refuse :
+
+        ERROR: (gcloud.builds.submit) HTTPError 412:
+               'us' violates constraint 'constraints/gcp.resourceLocations'
+
+    Le message nomme « us » sans jamais nommer le bucket — rien n'y mène. C'est la
+    même famille de piège que la réplication `auto` des secrets : les valeurs par
+    défaut de GCP visent des emplacements interdits sur ce projet.
+    """
+    script = (TEMPLATE.parents[1] / "01-gcp-deploy.sh").read_text(encoding="utf-8")
+    assert "--default-buckets-behavior=regional-user-owned-bucket" in script, (
+        "sans ce drapeau, `gcloud builds submit` crée son bucket de staging en "
+        "multi-région US et la policy d'organisation refuse le build."
+    )
+    # Et le drapeau ne vaut rien si les builds ne passent pas par ce jeu d'options.
+    for composant in ("backend", "frontend"):
+        assert f'gcloud builds submit {composant} --tag=' in script, (
+            f"le build {composant} doit passer par BUILD_FLAGS."
+        )
+
+
+def test_le_bucket_de_state_est_regional():
+    """Même piège, autre commande : un bucket créé sans `--location` part en US."""
+    script = (TEMPLATE.parents[1] / "00-infra.sh").read_text(encoding="utf-8")
+    creation = script[script.index("gcloud storage buckets create") :]
+    creation = creation[: creation.index("\n\n")]
+    assert '--location="$REGION"' in creation, (
+        "le bucket de state Terraform doit être créé dans la région : sans "
+        "`--location`, gcloud le place en multi-région US, interdite ici — et ce "
+        "bucket contient le state, donc des données sensibles."
+    )
+
+
 def test_deux_conteneurs_backend_et_redis(containers: dict):
     assert set(containers) == {"backend", "redis"}
 
