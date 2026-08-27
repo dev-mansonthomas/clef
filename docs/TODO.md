@@ -1008,7 +1008,32 @@ Leçon générale : les fichiers d'infrastructure ne bénéficient d'aucun typag
 d'aucun compilateur. Un champ inconnu y est du silence, pas une erreur. Ils méritent
 des tests comme le reste.
 
-## Premier déploiement réel — pourquoi il a échoué (2026-08-27)
+## ✅ N7 clos — le premier déploiement a abouti (2026-08-27)
+
+Après le correctif ci-dessous, `./01-gcp-deploy.sh dev` **passe** : les deux images
+sont construites par Cloud Build en `europe-west1`, le service à deux conteneurs est
+créé, et le sidecar Redis démarre.
+
+⚠️ **Mais l'application ne fonctionne pas encore.** Diagnostic reporté à un chantier
+dédié — le déploiement était le périmètre de celui-ci. Pistes déjà connues, par ordre
+de probabilité :
+
+1. **N13** — trois routes lisent Google Sheets avec le service account, ce qui est
+   structurellement impossible dans ce Workspace : `upload.py:54` (envoi de photos),
+   `reservations.py:55` (création de réservation), `alert_service.py:100` (alertes
+   CT/pollution). Elles doivent lire Redis.
+2. **L'URI de redirection OAuth** doit être déclaré côté client OAuth dans la console
+   GCP — et c'est celui du **frontend**, pas celui de l'API. Sans lui, la connexion
+   échoue en `redirect_uri_mismatch`.
+3. **Le référentiel Redis est vide** au premier démarrage : seul
+   `EMAIL_GESTIONNAIRE_DT` peut se connecter, tant que la synchronisation Apps Script
+   n'a pas tourné. C'est l'amorçage attendu, pas une panne.
+4. **Les instantanés RDB** ne sont pas encore observés (reste de N9).
+
+À reprendre avec `./02-logs.sh dev --what=run`, qui donne maintenant les journaux par
+conteneur.
+
+## Premier déploiement réel — pourquoi il a d'abord échoué (2026-08-27)
 
 Le message de Cloud Run était :
 
