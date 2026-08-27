@@ -1008,6 +1008,60 @@ Leçon générale : les fichiers d'infrastructure ne bénéficient d'aucun typag
 d'aucun compilateur. Un champ inconnu y est du silence, pas une erreur. Ils méritent
 des tests comme le reste.
 
+## Premier déploiement réel — pourquoi il a échoué (2026-08-27)
+
+Le message de Cloud Run était :
+
+    The user-provided container failed the configured startup probe checks.
+
+Il désigne une sonde. La cause est ailleurs — et c'est tout l'intérêt de le consigner.
+Les journaux, collectés par `./02-logs.sh dev`, disent :
+
+    STARTUP TCP probe succeeded after 1 attempt for container "redis" on port 6379
+    Ready to accept connections tcp
+    ERROR json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+    ERROR pydantic_settings.exceptions.SettingsError: error parsing value for field
+          "allowed_frontend_urls" from source "EnvSettingsSource"
+
+**Ce qui a bien fonctionné**, et qu'il faut retenir comme acquis : GCSFuse a monté le
+bucket (`File system has been successfully mounted`, avec `uid:1000 dir-mode:777` —
+donc la crainte d'un montage en root non traversable par l'uid 999 de l'image redis
+était **infondée**), Redis 8.10.1 a démarré avec ses modules, et **la sonde du sidecar
+est passée du premier coup**. Le constat N9 est donc largement levé sur le montage
+lui-même ; reste à observer l'écriture périodique du RDB.
+
+**La cause réelle** : `pydantic-settings` exige du **JSON** pour tout champ de type
+complexe lu depuis l'environnement. `ALLOWED_FRONTEND_URLS=https://…run.app` — une URL
+nue, ce que le script transmet — lève une exception à l'**import** de
+`app/auth/config.py`, donc avant que l'application existe. Cloud Run ne pouvait
+rapporter que l'absence de réponse.
+
+Corrigé par `Annotated[list[str], NoDecode]` plus un validateur `mode="before"` qui
+accepte le format « a,b,c ». Appliqué aux **trois** champs de type liste, pas au seul
+qui a explosé : `google_scopes` et `dt_oauth_scopes` échoueraient identiquement le jour
+où quelqu'un les pose dans l'environnement.
+
+### Pourquoi aucun test ne l'avait vu
+
+C'est la leçon, et elle vaut plus que le correctif. **En local, aucune de ces variables
+n'est définie** : les valeurs par défaut s'appliquent, rien ne plante, et les 548 tests
+étaient verts. Aucun test ne plaçait l'application dans l'environnement où elle allait
+réellement tourner.
+
+`backend/tests/test_cloudrun_env_import.py` (9 tests) rend cet environnement **la
+condition testée** : il lit les variables depuis le gabarit rendu — donc toute variable
+ajoutée y entre automatiquement — les pose dans un environnement **minimal** (rien de
+la machine de développement, comme sur Cloud Run) et importe `app.main` dans un
+sous-processus. Il couvre aussi les formes dégradées : variables vides, ce que le script
+produit au tout premier passage. Les 9 vérifiés par mutation : sans `NoDecode`, les 9
+tombent.
+
+Second défaut découvert au passage : `test_toute_variable_injectee_est_lue_par_le_code`
+ne voyait plus `ALLOWED_FRONTEND_URLS`, car **`pydantic-settings` lit l'environnement
+par nom de champ, sans appel `getenv` visible**. Un grep ne peut pas le savoir. Le test
+prend désormais aussi les noms de champs de `AuthSettings.model_fields` comme sources
+de lecture — vérifié par mutation qu'il attrape toujours une vraie orpheline.
+
 ## Revue de sécurité du 2026-08-27 — 2 constatations, 2 traitées
 
 `/security-review` sur `main...HEAD`. Deux constatations retenues, plus un

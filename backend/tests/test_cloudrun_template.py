@@ -294,10 +294,20 @@ def test_toute_variable_injectee_est_lue_par_le_code(containers: dict):
     app_dir = Path(__file__).resolve().parents[1] / "app"
     lus = set()
     for f in app_dir.rglob("*.py"):
+        texte = f.read_text(encoding="utf-8")
         lus |= set(
-            re.findall(r'(?:getenv|environ\.get)\(\s*"([A-Z_][A-Z0-9_]*)"', f.read_text(encoding="utf-8"))
+            re.findall(r'(?:getenv|environ\.get)\(\s*"([A-Z_][A-Z0-9_]*)"', texte)
         )
-        lus |= set(re.findall(r'environ\[\s*"([A-Z_][A-Z0-9_]*)"', f.read_text(encoding="utf-8")))
+        lus |= set(re.findall(r'environ\[\s*"([A-Z_][A-Z0-9_]*)"', texte))
+
+    # ⚠️ Un grep sur `getenv` ne suffit pas : `pydantic-settings` lit l'environnement
+    # **par nom de champ**, sans aucun appel visible. `ALLOWED_FRONTEND_URLS` est
+    # exactement dans ce cas depuis qu'elle est portée par un champ annoté plutôt que
+    # par un `os.getenv` dans la valeur par défaut. Sans cette source, le test
+    # déclarerait orpheline une variable pourtant lue.
+    from app.auth.config import AuthSettings
+
+    lus |= {nom.upper() for nom in AuthSettings.model_fields}
 
     injectees = {e["name"] for e in containers["backend"]["env"]}
     orphelines = injectees - lus
