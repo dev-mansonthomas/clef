@@ -27,12 +27,17 @@ resource "google_project_iam_member" "backend_roles" {
   for_each = toset([
     # Déchiffrer les refresh tokens OAuth des gestionnaires DT (KMS).
     "roles/cloudkms.cryptoKeyEncrypterDecrypter",
-    # Lire les secrets injectés dans Cloud Run.
+    # ⚠️ PAS de `roles/secretmanager.secretAccessor` ici.
     #
-    # ⚠️ Reste au niveau projet, à dessein : `secretmanager.secretAccessor` ne donne
-    # accès qu'aux secrets sur lesquels une liaison existe, et secrets.tf en pose une
-    # par secret CLEF. C'est cette liaison par secret qui borne réellement la portée.
-    "roles/secretmanager.secretAccessor",
+    # J'avais écrit que ce rôle « ne donne accès qu'aux secrets sur lesquels une
+    # liaison existe ». C'est faux : une liaison au niveau PROJET porte sur toutes
+    # les ressources du projet — donc sur tous les secrets de `rcq-fr-dev`, y
+    # compris ceux de l'application voisine.
+    #
+    # `secrets.tf` pose déjà une liaison par secret CLEF
+    # (`google_secret_manager_secret_iam_member`), ce qui suffit et borne la portée
+    # pour de bon. Même raisonnement que pour `storage.objectAdmin`, déplacé sur le
+    # bucket dans storage.tf.
   ])
 
   project = var.project_id

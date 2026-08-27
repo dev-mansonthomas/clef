@@ -59,6 +59,23 @@ agissent avec vos droits GCP.
 | Secrets | Secret Manager, préfixe `CLEF_` | 3 secrets |
 | Chiffrement | KMS `clef-keyring` | en `europe-west9` — voir « Deux régions » |
 
+### Le frontend relaie l'API — il n'y a qu'une seule origine
+
+nginx relaie `/api` et `/auth` vers le service backend (`frontend/clef.conf.template`,
+rendu au démarrage du conteneur avec `BACKEND_ORIGIN` et `BACKEND_HOST`).
+
+Ce n'est pas un détail d'implémentation. Le build de production utilise
+`environment.ts`, où `apiUrl` est la chaîne vide : le frontend appelle donc `/api/...`
+en **relatif**. Sans ce relais, chaque appel recevrait un 404 de nginx.
+
+Il en découle que frontend et backend sont la **même origine** vue du navigateur :
+`SameSite=Lax` suffit pour le cookie de session, et il n'y a aucun préflight CORS
+dans le parcours normal. Un `apiUrl` absolu imposerait l'inverse — `SameSite=None;
+Secure`, CORS avec credentials, deux origines à tenir synchronisées.
+
+⚠️ Déployer le frontend **exige** que le backend existe : le script relit son URL pour
+la passer à nginx, et refuse sinon.
+
 ### Trois conséquences à connaître
 
 1. **`maxScale = 1`, obligatoirement.** Chaque instance Cloud Run a son propre

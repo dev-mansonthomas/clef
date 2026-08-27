@@ -200,13 +200,26 @@ verifier_destructions() {
 
     local suspectes
     suspectes=$(printf '%s\n' "$plan_texte" | awk -v sensibles="$sensibles" '
-        /^  # .* will be destroyed/ {
+        # ATTENTION : « must be replaced » compte autant que « will be destroyed ».
+        # Terraform emploie ce second libelle pour un remplacement force, qui
+        # DETRUIT puis recree. Le cas est concret : google_secret_manager_secret na
+        # aucun prevent_destroy, et modifier son bloc replication force un
+        # remplacement, donc la perte de toutes ses versions. Le garde-fou annoncait
+        # alors « aucune destruction planifiee ».
+        #
+        # (Pas dapostrophe dans ce commentaire : il vit dans un programme awk entre
+        # guillemets simples, quune apostrophe terminerait.)
+        /^  # .* (will be destroyed|must be replaced)/ {
             adresse = $2
             sensible = (adresse ~ sensibles)
             bloc = ""
             next
         }
-        sensible && /^      - (id|name|secret_id|bucket|account_id|repository_id|email) +=/ {
+        # Le prefixe varie selon le type de bloc : « - » sur une destruction, mais
+        # « ~ », « + » ou rien du tout dans un bloc de remplacement « -/+ ». Ne
+        # reconnaitre que « - » laissait la liste vide sur un remplacement, donc
+        # refusait aussi les remplacements legitimes de CLEF.
+        sensible && /^ +[-+~]? *(id|name|secret_id|bucket|account_id|repository_id|email) +=/ {
             # La valeur est la chaîne ENTRE GUILLEMETS. Surtout pas $NF : la ligne
             # se termine par « -> null » sur une destruction, et on comparerait
             # « null » au lieu de l identifiant — refusant alors tout apply légitime.
@@ -232,7 +245,7 @@ verifier_destructions() {
     # Les APIs sortant du state : vérifier qu'aucune ne serait désactivée.
     local apis_desactivees
     apis_desactivees=$(printf '%s\n' "$plan_texte" | awk '
-        /^  # google_project_service.* will be destroyed/ { addr = $2; vu = 1; next }
+        /^  # google_project_service.* (will be destroyed|must be replaced)/ { addr = $2; vu = 1; next }
         vu && /disable_on_destroy *= *true/ { print addr; vu = 0 }
         vu && /^    }/ { vu = 0 }
     ')
@@ -244,11 +257,11 @@ verifier_destructions() {
     fi
 
     local nb
-    nb=$(printf '%s\n' "$plan_texte" | grep -c "will be destroyed" || true)
+    nb=$(printf '%s\n' "$plan_texte" | grep -cE "will be destroyed|must be replaced" || true)
     if [ "$nb" -gt 0 ]; then
         echo "  ✅ $nb destruction(s) planifiée(s), toutes sur des ressources CLEF :"
-        printf '%s\n' "$plan_texte" | grep "will be destroyed" \
-            | sed 's/^  # /       /; s/ will be destroyed//'
+        printf '%s\n' "$plan_texte" | grep -E "will be destroyed|must be replaced" \
+            | sed 's/^  # /       /'
         echo ""
     else
         echo "  ✅ aucune destruction planifiée"
@@ -281,7 +294,7 @@ echo ""
 # démarrage du conteneur — autant le dire maintenant.
 echo "🔐 Secrets..."
 MISSING=""
-for secret in CLEF_GOOGLE_CLIENT_ID CLEF_GOOGLE_CLIENT_SECRET CLEF_QR_CODE_SALT CLEF_JWT_SECRET_KEY; do
+for secret in CLEF_GOOGLE_CLIENT_ID CLEF_GOOGLE_CLIENT_SECRET CLEF_QR_CODE_SALT; do
     COUNT=$(gcloud secrets versions list "$secret" --project="$PROJECT_ID" \
               --filter="state=enabled" --format="value(name)" 2>/dev/null | wc -l | tr -d ' ')
     if [ "$COUNT" = "0" ]; then
@@ -298,7 +311,7 @@ if [ -n "$MISSING" ]; then
     echo "      Pour chacun :"
     echo "        printf '%s' 'LA_VALEUR' | gcloud secrets versions add NOM --data-file=- --project=$PROJECT_ID"
     echo ""
-    echo "      QR_CODE_SALT peut être généré (⚠️ le changer invalide les QR déjà imprimés) :"
+    echo "      CLEF_QR_CODE_SALT peut être généré (⚠️ le changer invalide les QR déjà imprimés) :"
     printf '        openssl rand -hex 32 | tr -d "\\n" | gcloud secrets versions add CLEF_QR_CODE_SALT --data-file=- --project=%s\n' "$PROJECT_ID"
 fi
 echo ""

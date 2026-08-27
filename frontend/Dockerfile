@@ -35,8 +35,17 @@ RUN npx ng build form --configuration production
 # Production stage with nginx
 FROM nginx:alpine
 
-# Copy custom nginx configuration
-COPY nginx.conf /etc/nginx/nginx.conf
+# Configuration nginx : un GABARIT, pas un fichier figé.
+#
+# L'entrypoint de l'image nginx traite /etc/nginx/templates/*.template avec envsubst
+# au démarrage du conteneur, et écrit le résultat dans /etc/nginx/conf.d/. C'est
+# ainsi que ${BACKEND_HOST} est résolu à l'exécution : la même image sert dev, test
+# et prod, et l'URL du backend n'est pas gravée dans l'image.
+#
+# On garde donc le /etc/nginx/nginx.conf de l'image, qui inclut conf.d/*.conf — et
+# on supprime son default.conf, qui déclare lui aussi un serveur sur le port 80.
+COPY clef.conf.template /etc/nginx/templates/clef.conf.template
+RUN rm -f /etc/nginx/conf.d/default.conf
 
 # Copy built applications
 COPY --from=builder /app/dist/admin/browser /usr/share/nginx/html/admin

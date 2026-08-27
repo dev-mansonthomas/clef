@@ -46,6 +46,15 @@ class AuthSettings(BaseSettings):
     # Session configuration
     session_secret_key: str = os.getenv("SESSION_SECRET_KEY", "dev-secret-key-change-in-production")
     session_cookie_name: str = "clef_session"
+
+    # Le cookie doit porter l'attribut Secure dès que le site est servi en HTTPS,
+    # sinon un navigateur l'accepte mais le transmettrait aussi en clair. Défaut
+    # `false` pour le développement local, qui tourne en HTTP.
+    #
+    # `SameSite=Lax` reste correct en production : nginx relaie /api et /auth, donc
+    # frontend et backend sont la MÊME origine vue du navigateur. Ce serait faux
+    # avec un apiUrl absolu — il faudrait alors `SameSite=None; Secure`.
+    session_cookie_secure: bool = os.getenv("SESSION_COOKIE_SECURE", "false").lower() == "true"
     session_max_age: int = 3600 * 24  # 24 hours
 
     # Mock mode

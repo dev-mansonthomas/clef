@@ -39,11 +39,15 @@ SUBSTITUTIONS = {
     "EMAIL_GESTIONNAIRE_DT": "prenom.nom@croix-rouge.fr",
     "CORS_ORIGINS": "https://frontend.example,https://api.example",
     "GOOGLE_REDIRECT_URI": "https://api.example/auth/callback",
+    "ALLOWED_FRONTEND_URLS": "https://frontend.example",
+    "FRONTEND_URL": "https://frontend.example",
+    "DOMAIN": "frontend.example",
     "BACKEND_URL": "https://api.example",
     "VEHICULES_SPREADSHEET_ID": "id-vehicules",
     "BENEVOLES_SPREADSHEET_ID": "id-benevoles",
     "RESPONSABLES_SPREADSHEET_ID": "id-responsables",
     "REDIS_MEMORY": "512Mi",
+    "REDIS_MAXMEMORY": "332mb",
     "SNAPSHOTS_BUCKET": "projet-clef-redis-snapshots",
 }
 
@@ -191,6 +195,23 @@ def test_redis_n_evince_aucune_cle(containers: dict):
     assert "--maxmemory-policy noeviction" in args
 
 
+def test_redis_a_une_limite_memoire(containers: dict):
+    """`noeviction` sans `--maxmemory` ne protège de rien.
+
+    Sans limite, Redis n'a rien à comparer : c'est Cloud Run qui tue le conteneur en
+    dépassement, et l'instance repart du dernier instantané — jusqu'à 10 minutes
+    d'écritures perdues, sans signal côté Redis. Avec une limite, Redis refuse
+    l'écriture et le client reçoit une erreur explicite.
+    """
+    args = containers["redis"]["args"]
+    assert "--maxmemory" in args, (
+        "aucune limite mémoire : le dépassement se traduit par un OOM-kill "
+        "silencieux, pas par un refus d'écriture."
+    )
+    limite = args[args.index("--maxmemory") + 1]
+    assert limite and limite != "0", f"limite mémoire vide ou nulle : {limite!r}"
+
+
 def test_toute_variable_injectee_est_lue_par_le_code(containers: dict):
     """Une variable injectée sous un nom que le code ne lit pas est du vide utile.
 
@@ -236,6 +257,35 @@ def test_variables_dont_le_defaut_casse_la_production(
     """
     noms = {e["name"] for e in containers["backend"]["env"]}
     assert variable in noms, f"{variable} absente : {defaut_dangereux}."
+
+
+# Variables que le code lit avec un défaut FAUX en production, et dont l'absence ne
+# provoque aucune erreur. La liste est explicite plutôt que déduite : toutes les
+# `getenv` du code n'ont pas à être injectées, seules celles-ci.
+VARIABLES_OBLIGATOIRES = {
+    "CORS_ORIGINS": "le navigateur bloque les appels au backend en accès direct",
+    "GOOGLE_REDIRECT_URI": "Google renvoie les utilisateurs vers localhost:8000",
+    "ALLOWED_FRONTEND_URLS": "toute connexion est rejetée en 400 « Invalid redirect URL »",
+    "FRONTEND_URL": "les liens d'approbation de devis envoyés aux garages pointent sur localhost",
+    "DOMAIN": "les QR codes IMPRIMÉS encodent https://clef.example.com",
+    "SESSION_COOKIE_SECURE": "le cookie de session n'est pas marqué Secure sur un site HTTPS",
+}
+
+
+@pytest.mark.parametrize("variable", sorted(VARIABLES_OBLIGATOIRES))
+def test_variables_dont_l_absence_est_indetectable(containers: dict, variable: str):
+    """L'inverse du test précédent, et c'est lui qui manquait.
+
+    `test_toute_variable_injectee_est_lue_par_le_code` vérifie une inclusion dans un
+    seul sens : tout ce qui est injecté est lu. Il ne pouvait donc pas voir une
+    variable **manquante** — c'est ainsi que `ALLOWED_FRONTEND_URLS`, pourtant lue
+    par `app/auth/config.py:65`, a pu être retirée du gabarit sans qu'aucun test ne
+    tombe.
+    """
+    noms = {e["name"] for e in containers["backend"]["env"]}
+    assert variable in noms, (
+        f"{variable} absente du gabarit : {VARIABLES_OBLIGATOIRES[variable]}."
+    )
 
 
 @pytest.mark.parametrize("interdite", ["USE_MOCKS", "GOOGLE_APPLICATION_CREDENTIALS"])

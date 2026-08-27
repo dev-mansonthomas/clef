@@ -58,8 +58,18 @@ spec:
         run.googleapis.com/container-dependencies: '{"backend":["redis"]}'
     spec:
       serviceAccountName: ${SERVICE_ACCOUNT}
-      # Laisser à Redis le temps d'un dernier instantané sur SIGTERM : c'est ce qui
-      # borne la perte réelle bien en dessous des 10 minutes lors d'un arrêt propre.
+      # ⚠️ Délai maximal d'une REQUÊTE, et rien d'autre.
+      #
+      # Le commentaire précédent affirmait que ce réglage laissait à Redis le temps
+      # d'un dernier instantané sur SIGTERM, « bornant la perte bien en dessous des
+      # 10 minutes ». C'est faux : dans l'API Knative utilisée ici,
+      # `spec.template.spec.timeoutSeconds` est le délai de requête. Cloud Run
+      # n'expose aucun délai de grâce à l'arrêt configurable.
+      #
+      # Le RPO réel à l'arrêt est donc la pleine fenêtre d'instantané, soit
+      # 10 minutes. C'est ce que dit l'ADR 0008 ; ce commentaire prétendait le
+      # contraire. 300 s reste utile en soi : un import CSV volumineux dépasse le
+      # défaut de 60 s.
       timeoutSeconds: 300
       containers:
         # ─────────────────────────── Backend ───────────────────────────
@@ -88,10 +98,48 @@ spec:
               value: ${EMAIL_GESTIONNAIRE_DT}
             # ⚠️ Le nom compte : `app/main.py` lit `CORS_ORIGINS`, et rien d'autre.
             # Une variable nommée autrement laisse le défaut en place —
-            # « localhost:4200,localhost:4202,localhost:8000 » — et le navigateur
-            # bloque tous les appels du frontend déployé, sans erreur côté serveur.
+            # « localhost:4200,localhost:4202,localhost:8000 ».
+            #
+            # Depuis que nginx relaie /api et /auth, frontend et backend sont la même
+            # origine et CORS ne joue plus aucun rôle dans le parcours normal. On la
+            # renseigne quand même : un accès direct au backend (Swagger, débogage)
+            # passe par là.
             - name: CORS_ORIGINS
               value: ${CORS_ORIGINS}
+            # ⚠️ NE PAS confondre avec CORS_ORIGINS, et surtout ne pas la retirer.
+            #
+            # `app/auth/config.py:65` la lit, et `app/auth/routes.py` s'en sert pour
+            # VALIDER le paramètre `redirect_to` de /auth/login puis pour choisir la
+            # destination après /auth/callback. Absente, le défaut est
+            # « http://localhost:4200,http://localhost:4202 » : toute connexion
+            # depuis le frontend déployé est rejetée en HTTP 400 « Invalid redirect
+            # URL », et un callback réussi renvoie l'utilisateur sur localhost.
+            #
+            # Je l'avais supprimée en croyant le nom inventé — mon recoupement
+            # cherchait `getenv("NOM"` sur une seule ligne, et l'appel est écrit sur
+            # deux. Le test de garde ne voyait pas le trou : il vérifie que tout ce
+            # qui est injecté est lu, pas que tout ce qui est lu est injecté.
+            - name: ALLOWED_FRONTEND_URLS
+              value: ${ALLOWED_FRONTEND_URLS}
+            # Lue par `app/routers/dossiers_reparation.py` pour fabriquer le lien
+            # d'approbation des devis envoyé aux garages. Défaut
+            # « http://localhost:4200 » : des liens inutilisables dans des courriels
+            # partis chez des tiers.
+            - name: FRONTEND_URL
+              value: ${FRONTEND_URL}
+            # Lue par `app/services/qr_code_service.py:126`, qui construit
+            # « https://${DOMAIN}/vehicle/<id> ». Défaut « clef.example.com ».
+            #
+            # ⚠️ C'est la variable la plus difficile à rattraper : ces URL sont
+            # IMPRIMÉES et collées sur les véhicules. Une valeur fausse ne se corrige
+            # pas par un redéploiement, elle se corrige au chiffon.
+            - name: DOMAIN
+              value: ${DOMAIN}
+            # Le cookie de session est posé sur une origine HTTPS : il doit être
+            # marqué Secure. Le défaut du code est `false`, pour le développement
+            # local en HTTP clair.
+            - name: SESSION_COOKIE_SECURE
+              value: "true"
             - name: BACKEND_URL
               value: ${BACKEND_URL}
             # ⚠️ Sans cette variable, `app/auth/config.py` retombe sur
@@ -173,6 +221,19 @@ spec:
             - --stop-writes-on-bgsave-error
             - "no"
             # Redis est ici la base, pas un cache : ne jamais évincer de clé.
+            #
+            # ⚠️ `noeviction` seul ne protège de rien : sans `--maxmemory`, Redis
+            # n'a aucune limite à comparer, et c'est Cloud Run qui tue le conteneur
+            # en dépassement mémoire. L'instance redémarre alors sur le dernier
+            # instantané — jusqu'à 10 minutes d'écritures perdues, sans qu'aucun
+            # signal Redis ne l'explique.
+            #
+            # Avec une limite, Redis refuse l'écriture et le client reçoit une
+            # erreur claire. La marge sous la limite du conteneur n'est pas du
+            # confort : un BGSAVE duplique les pages modifiées pendant sa durée
+            # (copy-on-write), et cette copie n'est pas comptée dans `maxmemory`.
+            - --maxmemory
+            - ${REDIS_MAXMEMORY}
             - --maxmemory-policy
             - noeviction
           # Requis par `container-dependencies` (voir l'annotation). Un sidecar ne

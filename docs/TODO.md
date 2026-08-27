@@ -1008,6 +1008,35 @@ Leçon générale : les fichiers d'infrastructure ne bénéficient d'aucun typag
 d'aucun compilateur. Un champ inconnu y est du silence, pas une erreur. Ils méritent
 des tests comme le reste.
 
+## Revue de code du 2026-08-27 — 13 constatations, 13 traitées
+
+`/code-review` sur `main...HEAD`. Toutes vérifiées par lecture du code ou par
+exécution avant correction ; aucune n'était un faux positif. Les quatre premières
+faisaient que **le déploiement aurait tourné sans que l'application fonctionne**.
+
+| # | Défaut | Traitement |
+|---|---|---|
+| R1 | **Le frontend déployé n'avait aucune route vers le backend.** `angular.json` ne déclare aucun `fileReplacements` : le build de production utilise `environment.ts`, où `apiUrl` est vide — les appels partent en relatif vers `/api/...`. `nginx.conf` ne définissait que `/health`, `/admin`, `/form` et `/`. Chaque appel du frontend recevait un 404 de nginx. `environment.prod.ts` est du code mort | `frontend/clef.conf.template` relaie `/api` et `/auth` vers le backend, rendu au démarrage par l'entrypoint nginx. **Vérifié en exécution** : `/api/test` renvoie le corps du backend, `/auth/me` un 401, `/health` reste servi par nginx |
+| R2 | **`ALLOWED_FRONTEND_URLS` retirée à tort.** Je l'avais crue inventée. `app/auth/config.py:65` la lit, et `app/auth/routes.py` s'en sert pour valider `redirect_to` puis choisir la destination post-connexion. Défaut `localhost:4200` : toute connexion rejetée en 400, et un callback réussi renvoyant sur localhost | Restaurée. Mon recoupement cherchait `getenv("NOM"` sur une seule ligne, et l'appel est écrit sur deux — d'où l'angle mort |
+| R3 | **Cookie de session `secure=False` en dur**, aux trois points d'appel dont la déconnexion | Piloté par `SESSION_COOKIE_SECURE`, à `true` dans le gabarit. `SameSite=Lax` reste correct : le proxy nginx fait du frontend et du backend la même origine |
+| R4 | **`FRONTEND_URL` et `DOMAIN` non injectées.** La première fabrique les liens d'approbation de devis **envoyés aux garages** ; la seconde l'URL encodée dans les QR codes **imprimés et collés sur les véhicules**, dont le défaut est `clef.example.com` | Injectées. `DOMAIN` retombe sur l'hôte du backend, jamais sur localhost : une valeur fausse ne se corrige pas par un redéploiement, mais au chiffon |
+| R5 | **Le job CI `deploy-dev` aurait détruit le datastore.** Inchangé, il tourne sur chaque push vers `main` et fait un `gcloud run deploy` mono-conteneur avec `--max-instances 10` et les anciens noms de secrets : topologie écrasée, volume d'instantanés détaché | Job **retiré**. `test_ci_workflow.py` échoue désormais si un job de déploiement réapparaît — le garde-fou est inversé, plus supprimé |
+| R6 | **Mon garde-fou de destruction ignorait les remplacements forcés.** Terraform écrit « must be replaced », qui détruit puis recrée. `google_secret_manager_secret` n'a pas de `prevent_destroy`, et changer `replication` — ce que j'avais fait en 48f7c66 — force un remplacement : le script aurait annoncé « aucune destruction planifiée » | Les deux libellés reconnus. Et l'extraction d'identifiant élargie aux préfixes `~`/`+` des blocs `-/+`, sans quoi un remplacement **légitime** était refusé. Quatre plans de référence vérifiés |
+| R7 | `--skip-build` ne résolvait que l'image backend : le frontend gardait un tag horodaté jamais poussé, et échouait **après** le remplacement du service api | Les deux images résolues, chacune sous condition de son composant |
+| R8 | `--format="value(package)@value(version)"` : gcloud refuse du texte hors projection, stderr était jeté, la variable sortait vide — `--skip-build` ne fonctionnait **jamais** | `format("{0}@{1}",package,version)` |
+| R9 | **`secretmanager.secretAccessor` au niveau projet.** Mon commentaire affirmait qu'il ne portait que sur les secrets liés : c'est faux, une liaison projet porte sur tous les secrets de `rcq-fr-dev`, dont ceux du voisin | Retiré. `secrets.tf` posait déjà une liaison par secret, qui suffit. Même raisonnement que pour `storage.objectAdmin` |
+| R10 | `--maxmemory-policy noeviction` **sans `--maxmemory`** : la politique est inerte, et le dépassement se traduit par un OOM-kill de Cloud Run — retour au dernier instantané, sans signal Redis | `--maxmemory` à 65 % de la limite du conteneur, calculé depuis `REDIS_MEMORY`. La marge couvre la duplication de pages du BGSAVE, que `maxmemory` ne compte pas |
+| R11 | `timeoutSeconds: 300` documenté comme un délai de grâce à l'arrêt. C'est le délai de **requête** ; Cloud Run n'expose aucun délai de grâce configurable | Commentaire corrigé. Le RPO réel à l'arrêt est la pleine fenêtre de 10 min, comme le dit l'ADR 0008 |
+| R12 | `00-infra.sh` réclamait encore `CLEF_JWT_SECRET_KEY`, supprimé de Terraform : il invitait à créer un secret que rien ne lit | Retiré |
+| R13 | `envsubst` non vérifié au préflight, alors qu'il est absent de macOS par défaut : l'échec tombait **après** la construction et la poussée des deux images | Contrôlé avec les autres prérequis |
+
+**Ce que la revue apprend sur mes garde-fous.** `test_cloudrun_template.py` vérifiait
+que tout ce qui est **injecté** est **lu**. Une inclusion dans un seul sens : elle ne
+pouvait structurellement pas voir une variable **manquante**, ce qui est précisément
+le défaut R2 — et R4. Le test inverse existe désormais, avec une liste explicite des
+variables dont le défaut est faux en production. Un garde-fou qui ne teste qu'une
+direction donne une confiance qu'il ne mérite pas.
+
 ## Contraintes de l'environnement, découvertes par exécution
 
 Le premier `./00-infra.sh dev` a réellement tourné le 2026-08-27 : **12 ressources sur

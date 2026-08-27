@@ -76,6 +76,15 @@ FRONTEND_SERVICE="${FRONTEND_SERVICE:-clef-frontend}"
 MIN_INSTANCES="${MIN_INSTANCES:-0}"
 MAX_INSTANCES="${MAX_INSTANCES:-1}"
 REDIS_MEMORY="${REDIS_MEMORY:-512Mi}"
+# Limite interne de Redis, à tenir SOUS celle du conteneur : un BGSAVE duplique les
+# pages modifiées pendant sa durée, et cette copie échappe à `maxmemory`. Au-delà,
+# c'est Cloud Run qui tue le conteneur, et l'instance repart du dernier instantané.
+# Défaut : 65 % de la limite, calculé plutôt que codé en dur pour suivre REDIS_MEMORY.
+if [ -z "${REDIS_MAXMEMORY:-}" ]; then
+    _mem_mo=${REDIS_MEMORY%[MmGg]i}
+    case "$REDIS_MEMORY" in *[Gg]i) _mem_mo=$((_mem_mo * 1024)) ;; esac
+    REDIS_MAXMEMORY="$(( _mem_mo * 65 / 100 ))mb"
+fi
 REGISTRY="${REGION}-docker.pkg.dev/${PROJECT_ID}/clef-images"
 TAG="$(date -u +%Y%m%d-%H%M%S)"
 
@@ -94,6 +103,19 @@ echo ""
 # cause.
 echo "🔎 Préflight..."
 FAILED=false
+
+# envsubst (paquet gettext) rend le descripteur du service. Absent de macOS par
+# défaut — donc de l hôte documenté. Sans ce contrôle, l échec survient APRÈS la
+# construction et la poussée des deux images, ce qui contredit la promesse du
+# préflight : refuser avant d agir.
+if ! command -v envsubst >/dev/null 2>&1; then
+    echo "❌ envsubst introuvable (paquet gettext)."
+    echo "   Il rend deploy/cloudrun-api.yaml.tpl ; sans lui le déploiement du"
+    echo "   backend est impossible."
+    echo "   macOS   : brew install gettext && brew link --force gettext"
+    echo "   Debian  : sudo apt-get install gettext-base"
+    exit 1
+fi
 
 if ! command -v gcloud >/dev/null 2>&1; then
     echo "❌ 'gcloud' introuvable. Ce script se lance depuis l'HÔTE, pas depuis la VM."
@@ -222,11 +244,36 @@ if [ "$SKIP_BUILD" = false ]; then
     fi
 else
     echo "⏭️  Construction ignorée : réutilisation de la dernière image poussée."
-    BACKEND_IMAGE=$(gcloud artifacts docker images list "${REGISTRY}/clef-api" \
-        --project="$PROJECT_ID" --sort-by=~UPDATE_TIME --limit=1 \
-        --format="value(package)@value(version)" 2>/dev/null | head -1)
-    [ -n "$BACKEND_IMAGE" ] || { echo "❌ Aucune image backend à réutiliser."; exit 1; }
-    echo "    backend : $BACKEND_IMAGE"
+
+    # ⚠️ Deux défauts corrigés ici.
+    #
+    # 1. Le format était "value(package)@value(version)" : gcloud refuse du texte
+    #    littéral hors projection. L affectation sortait vide, stderr était jeté, et
+    #    le script s arrêtait TOUJOURS sur « Aucune image à réutiliser » —
+    #    --skip-build ne fonctionnait donc jamais.
+    # 2. Seule l image backend était résolue. FRONTEND_IMAGE gardait un tag
+    #    horodaté du jour, jamais poussé : le déploiement du frontend échouait sur
+    #    « image not found », APRÈS que le service api ait déjà été remplacé.
+    derniere_image() {
+        gcloud artifacts docker images list "$1" \
+            --project="$PROJECT_ID" --sort-by=~UPDATE_TIME --limit=1 \
+            --format='value(format("{0}@{1}",package,version))' 2>/dev/null | head -1
+    }
+
+    if [[ "$COMPONENTS" == *api* ]]; then
+        BACKEND_IMAGE=$(derniere_image "${REGISTRY}/clef-api")
+        [ -n "$BACKEND_IMAGE" ] || {
+            echo "❌ Aucune image backend dans ${REGISTRY}/clef-api."
+            echo "   Relancer sans --skip-build."; exit 1; }
+        echo "    backend  : $BACKEND_IMAGE"
+    fi
+    if [[ "$COMPONENTS" == *frontend* ]]; then
+        FRONTEND_IMAGE=$(derniere_image "${REGISTRY}/clef-frontend")
+        [ -n "$FRONTEND_IMAGE" ] || {
+            echo "❌ Aucune image frontend dans ${REGISTRY}/clef-frontend."
+            echo "   Relancer sans --skip-build."; exit 1; }
+        echo "    frontend : $FRONTEND_IMAGE"
+    fi
     echo ""
 fi
 
@@ -259,20 +306,40 @@ if [[ "$COMPONENTS" == *api* ]]; then
         local rendered
         rendered=$(mktemp)
 
+        # CORS ne sert plus qu'à l'accès direct au backend : nginx relaie /api et
+        # /auth, donc le parcours normal est en même origine.
         local cors="${backend_url:-http://localhost:8000}"
         [ -n "$frontend_url" ] && cors="${frontend_url},${cors}"
+
+        # ⚠️ Ces trois-là visent le FRONTEND, pas le backend.
+        #
+        #   ALLOWED_FRONTEND_URLS  destinations autorisées après connexion ;
+        #   FRONTEND_URL           liens d'approbation de devis dans les courriels ;
+        #   DOMAIN                 hôte encodé dans les QR codes IMPRIMÉS.
+        #
+        # Au premier déploiement le frontend n'existe pas encore : on retombe sur
+        # l'URL du backend, qui sert la même origine via son propre proxy, et la
+        # seconde passe corrige dès que le frontend est là. Un repli sur localhost
+        # serait pire : DOMAIN finirait imprimé sur des autocollants.
+        local front="${frontend_url:-$backend_url}"
+        local domain="${front#https://}"
+        domain="${domain#http://}"
 
         SERVICE_NAME="$SERVICE_NAME" ENVIRONMENT="$ENVIRONMENT" \
         MAX_INSTANCES="$MAX_INSTANCES" MIN_INSTANCES="$MIN_INSTANCES" \
         SERVICE_ACCOUNT="$SERVICE_ACCOUNT" BACKEND_IMAGE="$BACKEND_IMAGE" \
         PROJECT_ID="$PROJECT_ID" EMAIL_GESTIONNAIRE_DT="$EMAIL_GESTIONNAIRE_DT" \
         CORS_ORIGINS="$cors" \
+        ALLOWED_FRONTEND_URLS="$front" \
+        FRONTEND_URL="$front" \
+        DOMAIN="$domain" \
         BACKEND_URL="$backend_url" \
         GOOGLE_REDIRECT_URI="${backend_url:+${backend_url}/auth/callback}" \
         VEHICULES_SPREADSHEET_ID="${VEHICULES_SPREADSHEET_ID:-}" \
         BENEVOLES_SPREADSHEET_ID="${BENEVOLES_SPREADSHEET_ID:-}" \
         RESPONSABLES_SPREADSHEET_ID="${RESPONSABLES_SPREADSHEET_ID:-}" \
-        REDIS_MEMORY="$REDIS_MEMORY" SNAPSHOTS_BUCKET="$SNAPSHOTS_BUCKET" \
+        REDIS_MEMORY="$REDIS_MEMORY" REDIS_MAXMEMORY="$REDIS_MAXMEMORY" \
+        SNAPSHOTS_BUCKET="$SNAPSHOTS_BUCKET" \
             envsubst < "$TEMPLATE" > "$rendered"
 
         gcloud run services replace "$rendered" \
@@ -312,12 +379,24 @@ fi
 
 if [[ "$COMPONENTS" == *frontend* ]]; then
     echo "☁️  Déploiement du frontend..."
+    # nginx relaie /api et /auth vers le backend : il lui faut son NOM D'HÔTE, sans
+    # schéma (le gabarit fait « proxy_pass https://${BACKEND_HOST} » et s'en sert
+    # aussi comme en-tête Host, ce qu'exige le routage de Cloud Run).
+    API_URL=$(service_url "$SERVICE_NAME")
+    if [ -z "$API_URL" ]; then
+        echo "❌ Le service $SERVICE_NAME n'existe pas : le frontend n'aurait aucune"
+        echo "   route vers l'API. Déployer d'abord avec --components=api."
+        exit 1
+    fi
+    BACKEND_HOST="${API_URL#https://}"
+
     gcloud run deploy "$FRONTEND_SERVICE" \
         --image="$FRONTEND_IMAGE" \
         --region="$REGION" --project="$PROJECT_ID" \
         --platform=managed --allow-unauthenticated \
         --port=80 --memory=256Mi --cpu=1 \
-        --min-instances=0 --max-instances=5
+        --min-instances=0 --max-instances=5 \
+        --set-env-vars="BACKEND_ORIGIN=${API_URL},BACKEND_HOST=${BACKEND_HOST}"
     echo "  ✅ frontend déployé"
 
     # Le frontend vient peut-être d'être créé : son origine doit entrer dans

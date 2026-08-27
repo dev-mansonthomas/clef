@@ -175,7 +175,9 @@ async def callback(
                             value=session_token,
                             max_age=auth_settings.session_max_age,
                             httponly=True,
-                            secure=False,  # Set to True in production with HTTPS
+                            # Piloté par SESSION_COOKIE_SECURE : `true` sur Cloud Run (HTTPS),
+                            # `false` en développement local (HTTP).
+                            secure=auth_settings.session_cookie_secure,
                             samesite="lax"
                         )
 
@@ -191,7 +193,9 @@ async def callback(
             value=session_token,
             max_age=auth_settings.session_max_age,
             httponly=True,
-            secure=False,  # Set to True in production with HTTPS
+            # Piloté par SESSION_COOKIE_SECURE : `true` sur Cloud Run (HTTPS),
+            # `false` en développement local (HTTP).
+            secure=auth_settings.session_cookie_secure,
             samesite="lax"
         )
 
@@ -217,11 +221,14 @@ async def logout(response: Response):
     Returns:
         Success message
     """
-    # Use SameSite=Lax for all environments (matches login cookie)
+    # ⚠️ Les attributs doivent être IDENTIQUES à ceux de la pose : un navigateur
+    # identifie un cookie par (nom, domaine, chemin) mais refuse de supprimer un
+    # cookie Secure via une instruction non Secure. Un `secure` divergent ici et la
+    # déconnexion ne déconnecte pas.
     response.delete_cookie(
         key=auth_settings.session_cookie_name,
         httponly=True,
-        secure=False,  # Set to True in production with HTTPS
+        secure=auth_settings.session_cookie_secure,
         samesite="lax"
     )
 
