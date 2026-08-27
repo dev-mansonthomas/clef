@@ -62,6 +62,58 @@ PROJECT_ID=$(grep -E '^project_id' "$TFVARS" | cut -d'"' -f2)
 REGION=$(grep -E '^region' "$TFVARS" | cut -d'"' -f2)
 STATE_BUCKET="${PROJECT_ID}-clef-tfstate"
 
+# ---------------------------------------------------------------------------
+# Journalisation — le plan et un rapport, lisibles depuis la VM
+# ---------------------------------------------------------------------------
+# Le script tourne sur l'HÔTE, l'agent travaille dans la VM, et le dépôt est sur un
+# montage partagé. Écrire le plan ici permet de le faire auditer sans le recopier.
+#
+# ⚠️ Le flux n'est PAS redirigé vers un tee, contrairement à 01-gcp-deploy.sh : ce
+# script pose une question de confirmation, et un tee en travers de stdout rend
+# l'invite illisible ou la fait apparaître après coup. On écrit donc des fichiers
+# explicites plutôt que de capturer la sortie.
+#
+# `debug/` est gitignoré. Le plan ne contient aucune valeur de secret : Terraform ne
+# gère que les conteneurs, jamais les versions.
+DEBUG_DIR="debug/deploy"
+mkdir -p "$DEBUG_DIR"
+PLAN_TXT="${DEBUG_DIR}/00-infra.${ENVIRONMENT}.plan.txt"
+REPORT_FILE="${DEBUG_DIR}/00-infra.${ENVIRONMENT}.json"
+
+R_STEP="démarrage"
+R_APPLIQUE=false
+R_DESTRUCTIONS=""
+
+ecrire_rapport() {
+    local code=$?
+    local liste="[]"
+    if [ -n "$R_DESTRUCTIONS" ]; then
+        liste=$(printf '%s\n' "$R_DESTRUCTIONS" | sed 's/"/\\"/g; s/^/    "/; s/$/",/' \
+                | sed '$ s/,$//')
+        liste=$(printf '[\n%s\n  ]' "$liste")
+    fi
+    cat > "$REPORT_FILE" <<JSON
+{
+  "schemaVersion": 1,
+  "tool": "00-infra.sh",
+  "ok": $([ "$code" -eq 0 ] && echo true || echo false),
+  "exitCode": $code,
+  "derniereEtape": "$R_STEP",
+  "environnement": "$ENVIRONMENT",
+  "projet": "${PROJECT_ID:-}",
+  "region": "${REGION:-}",
+  "bucketDeState": "${STATE_BUCKET:-}",
+  "applique": $R_APPLIQUE,
+  "destructionsPlanifiees": $liste,
+  "plan": "$PLAN_TXT"
+}
+JSON
+    echo ""
+    echo "📝 Rapport : $REPORT_FILE"
+    [ -f "$PLAN_TXT" ] && echo "   Plan      : $PLAN_TXT"
+}
+trap ecrire_rapport EXIT
+
 echo "🏗️  CLEF — infrastructure « $ENVIRONMENT »"
 echo "    projet : $PROJECT_ID"
 echo "    région : $REGION"
@@ -195,6 +247,13 @@ verifier_destructions() {
     local plan_texte
     plan_texte=$(tofu -chdir="$TF_DIR" show -no-color "$PLAN_FILE")
 
+    # Le plan, en clair, pour audit après coup — y compris si on abandonne ensuite.
+    printf '%s\n' "$plan_texte" > "$PLAN_TXT"
+    R_STEP="plan écrit"
+    R_DESTRUCTIONS=$(printf '%s\n' "$plan_texte" \
+        | grep -E "will be destroyed|must be replaced" \
+        | sed 's/^  # //' || true)
+
     # Types dont une destruction est irréversible ou porte une identité.
     local sensibles='google_secret_manager_secret|google_storage_bucket|google_kms|google_service_account|google_artifact_registry|google_redis|google_memorystore|google_sql'
 
@@ -283,7 +342,10 @@ fi
 
 echo ""
 echo "🚀 Application..."
+R_STEP="apply"
 tofu -chdir="$TF_DIR" apply -input=false "$PLAN_FILE"
+R_APPLIQUE=true
+R_STEP="appliqué"
 echo ""
 
 # ---------------------------------------------------------------------------

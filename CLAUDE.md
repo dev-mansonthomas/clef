@@ -203,6 +203,18 @@ lance depuis l'HÔTE »), et c'est le modèle de sécurité qui le veut. Documen
 complète dans `DEPLOYMENT.md`, conception dans
 `docs/adr/0008-redis-sidecar-cloud-run-instantanes-gcs.md`.
 
+Pour diagnostiquer, **`./02-logs.sh <env>`** (hôte) collecte dans `debug/logs/` les
+conditions du service, les journaux **par conteneur** — le nom du conteneur est un
+label, pas un champ — la spécification déployée et les journaux Cloud Build. Une
+révision qui échoue au démarrage n'apparaît pas dans `gcloud run services logs read` :
+c'est pour ça que l'outil interroge Cloud Logging par nom de révision.
+
+Les deux scripts écrivent dans **`debug/deploy/`** (gitignoré, montage partagé) :
+transcription et rapport JSON pour `01-gcp-deploy.sh`, plan Terraform en clair et
+rapport pour `00-infra.sh`. Les rapports sont posés par un `trap EXIT`, donc présents
+même sur un arrêt en cours de route. **Les lire plutôt que demander une sortie
+collée.**
+
 ⚠️ **Aucun déploiement n'a encore été exécuté** (`docs/TODO.md` N7).
 
 ## Carte des modules

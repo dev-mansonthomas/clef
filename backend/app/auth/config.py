@@ -2,8 +2,10 @@
 Configuration for authentication module.
 """
 import os
-from typing import Optional
-from pydantic_settings import BaseSettings
+from typing import Annotated, Optional
+
+from pydantic import field_validator
+from pydantic_settings import BaseSettings, NoDecode
 
 
 class AuthSettings(BaseSettings):
@@ -20,10 +22,10 @@ class AuthSettings(BaseSettings):
     google_userinfo_uri: str = "https://www.googleapis.com/oauth2/v3/userinfo"
 
     # OAuth scopes
-    google_scopes: list[str] = ["openid", "https://www.googleapis.com/auth/userinfo.email", "https://www.googleapis.com/auth/userinfo.profile"]
+    google_scopes: Annotated[list[str], NoDecode] = ["openid", "https://www.googleapis.com/auth/userinfo.email", "https://www.googleapis.com/auth/userinfo.profile"]
 
     # Scopes for DT Manager authorization (Calendar + Drive + Gmail)
-    dt_oauth_scopes: list[str] = [
+    dt_oauth_scopes: Annotated[list[str], NoDecode] = [
         "openid",
         "email",
         "profile",
@@ -70,22 +72,47 @@ class AuthSettings(BaseSettings):
     # nommé et cherchable, plutôt que dispersé en littéraux "DT75".
     default_dt: str = os.getenv("DEFAULT_DT", "DT75")
 
-    # Destinations autorisées après connexion (séparées par des virgules).
+    # Destinations autorisées après connexion, séparées par des virgules.
     #
-    # ⚠️ Les entrées vides sont filtrées, et ce n'est pas cosmétique : une chaîne
-    # vide dans cette liste dégénère `validate_redirect_url` en
-    # `url.startswith("/")`, qui accepte alors l'URL protocol-relative `//evil.tld`
-    # — soit un open redirect. Le cas est atteignable : le script de déploiement
-    # rend la variable vide au tout premier déploiement, avant que l'URL du service
-    # n'existe.
-    allowed_frontend_urls: list[str] = [
-        u.strip()
-        for u in os.getenv(
-            "ALLOWED_FRONTEND_URLS",
-            "http://localhost:4200,http://localhost:4202"
-        ).split(",")
-        if u.strip()
+    # ⚠️ `NoDecode` n'est pas décoratif : sans lui, pydantic-settings exige du **JSON**
+    # pour tout champ de type complexe lu depuis l'environnement. Une valeur comme
+    # « https://clef-frontend-xxx.run.app » lève alors
+    #
+    #     SettingsError: error parsing value for field "allowed_frontend_urls"
+    #     from source "EnvSettingsSource"
+    #
+    # ...à l'IMPORT du module, donc avant que l'application existe. C'est ce qui a
+    # fait échouer le premier déploiement réel : le conteneur mourait au démarrage,
+    # et le message de Cloud Run parlait d'une sonde, pas de configuration.
+    #
+    # Le piège est qu'en local la variable n'est jamais définie : la valeur par
+    # défaut s'applique, rien ne plante, et aucun test ne couvrait le cas.
+    #
+    # ⚠️ Les entrées vides sont filtrées par le validateur ci-dessous, et ce n'est pas
+    # cosmétique : une chaîne vide dégénère `validate_redirect_url` en
+    # `url.startswith("/")`, qui accepte l'URL protocol-relative `//evil.tld` — soit
+    # un open redirect. Le cas est atteignable, le script de déploiement rendant la
+    # variable vide au tout premier passage.
+    allowed_frontend_urls: Annotated[list[str], NoDecode] = [
+        "http://localhost:4200",
+        "http://localhost:4202",
     ]
+
+    @field_validator(
+        "allowed_frontend_urls", "google_scopes", "dt_oauth_scopes", mode="before"
+    )
+    @classmethod
+    def _liste_separee_par_virgules(cls, v: object) -> object:
+        """Accepte « a,b,c » là où pydantic-settings attendrait du JSON.
+
+        Appliqué aux trois champs de type liste, pas seulement à celui qui a explosé :
+        les deux autres n'étaient pas injectés, mais le jour où quelqu'un pose
+        `GOOGLE_SCOPES` ou `DT_OAUTH_SCOPES` dans l'environnement, le défaut échouerait
+        exactement de la même façon.
+        """
+        if isinstance(v, str):
+            return [x.strip() for x in v.split(",") if x.strip()]
+        return v
 
     # Backend URL for OAuth callbacks
     backend_url: str = os.getenv("BACKEND_URL", "http://localhost:8000")

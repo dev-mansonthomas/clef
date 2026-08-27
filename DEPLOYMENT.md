@@ -108,6 +108,23 @@ Conséquence pratique : **ne jamais utiliser `replication { auto {} }`** pour un
 déclare une réplication explicite en `europe-west1`. Le message d'erreur parle
 d'emplacement mais ne nomme jamais `auto` : la cause n'est pas lisible dans l'erreur.
 
+Deuxième occurrence, rencontrée au premier déploiement : `gcloud builds submit`
+place le **build** dans la région donnée par `--region`, mais dépose l'archive des
+sources dans un bucket de staging qu'il crée par défaut en multi-région **US**. La
+policy le refuse, avec un message qui nomme « us » sans jamais nommer le bucket :
+
+```
+ERROR: (gcloud.builds.submit) HTTPError 412: 'us' violates constraint
+       'constraints/gcp.resourceLocations'
+```
+
+D'où `--default-buckets-behavior=regional-user-owned-bucket` dans
+`01-gcp-deploy.sh`, qui fait créer ce bucket par Cloud Build dans la région du build.
+
+**La règle générale** : sur ce projet, une commande GCP qui ne précise pas
+d'emplacement en choisit un interdit. Vérifier l'emplacement effectif de toute
+ressource ajoutée, y compris celles créées implicitement par un outil.
+
 `europe-west1` est autorisée — le bucket et le registre y ont été créés sans
 difficulté au même apply. Pour lire la liste exacte :
 
@@ -293,6 +310,66 @@ Enchaînement à respecter, sinon personne ne peut se connecter :
 4. Lancez la synchronisation. Le référentiel se peuple, et les autres bénévoles
    peuvent se connecter.
 
+## Collecter les journaux — `./02-logs.sh <env>`
+
+```sh
+./02-logs.sh dev                                  # déploiement + exécution
+./02-logs.sh dev --what=run --service=api         # seulement les conteneurs
+./02-logs.sh dev --revision=clef-api-00001-cwd    # une révision précise
+```
+
+Écrit dans `debug/logs/`, un fichier par sujet. **Par où commencer quand un
+déploiement échoue :**
+
+| Fichier | Pourquoi lui d'abord |
+|---|---|
+| `<env>-api-conditions.txt` | `status.conditions` du service : c'est **là** que vit le message d'échec réel, souvent plus précis que celui de `gcloud` |
+| `<env>-api-<rev>-redis.log` | le sidecar. S'il n'a pas démarré, rien d'autre ne compte |
+| `<env>-api-<rev>-infrastructure.log` | montage gcsfuse, sondes, arrêts — ces lignes ne portent **aucun** nom de conteneur, donc elles échappent aux filtres par conteneur |
+| `<env>-api-describe.yaml` | la spécification réellement déployée : le seul moyen de vérifier que les annotations et les variables ont atterri, au lieu de le supposer |
+
+Deux raisons d'avoir un outil plutôt qu'une commande à retenir :
+
+- **Une révision qui échoue au démarrage n'apparaît pas dans
+  `gcloud run services logs read`** — elle n'a jamais servi de trafic. Il faut
+  interroger Cloud Logging par nom de révision.
+- **Le nom du conteneur est un *label*, pas un champ.** Sans filtre explicite, les
+  lignes du backend et celles du sidecar sont entremêlées, et on attribue une erreur
+  au mauvais conteneur.
+
+Le script ne s'arrête jamais sur une collecte en échec : chaque manque est écrit dans
+son fichier et listé dans l'index `02-logs.<env>.json`. Une collecte partielle vaut
+mieux qu'un abandon.
+
+⚠️ Les adresses électroniques sont **masquées** avant écriture (`t***@croix-rouge.fr`)
+— ce sont des données personnelles. Les adresses de service account sont épargnées :
+il faut pouvoir lire quelle identité le service utilise.
+
+## Les deux scripts écrivent dans `debug/`
+
+Le dépôt est sur un montage partagé entre l'hôte et la VM de développement : ce qui
+est écrit ici est lisible par un agent, sans recopier de sortie à la main.
+
+| Fichier | Contenu |
+|---|---|
+| `debug/deploy/01-gcp-deploy.<env>.log` | la transcription complète du déploiement |
+| `debug/deploy/01-gcp-deploy.<env>.json` | rapport : préflight, images, nombre de passes `services replace`, URLs, URI de redirection, réponse de `/health`, code de sortie |
+| `debug/deploy/00-infra.<env>.plan.txt` | le plan Terraform en clair, **même si l'apply est abandonné** |
+| `debug/deploy/00-infra.<env>.json` | rapport : projet, région, destructions planifiées, appliqué ou non |
+
+`debug/` est **gitignoré** : rien de ceci n'est versionné.
+
+Les rapports sont écrits par un `trap EXIT`, donc **présents même quand le script
+s'arrête en cours de route** — c'est précisément le cas qu'on veut analyser.
+
+⚠️ Aucune valeur de secret n'y figure : les scripts n'en lisent aucune, ils comptent
+des versions. L'adresse du gestionnaire DT est notée présente ou absente, jamais
+recopiée — c'est une donnée personnelle.
+
+⚠️ `00-infra.sh` n'écrit **pas** de transcription, contrairement à l'autre : il pose
+une question de confirmation, et un `tee` en travers de stdout rendrait l'invite
+illisible. Son plan, lui, est écrit dans un fichier dédié.
+
 ## Vérifier, observer, revenir en arrière
 
 ```sh
@@ -345,12 +422,14 @@ la racine : il ne protège que git, pas Cloud Build.
 | Symptôme | Cause probable |
 |---|---|
 | « Ce script se lance depuis l'HÔTE » | vous êtes dans la VM — c'est voulu |
+| Le préflight annonce plusieurs ressources « absentes » d'un coup | ce n'est presque jamais une absence. `gcloud config get-value account` ne fait **aucun** appel réseau : le `✅ authentifié` peut donc s'afficher alors que la session est expirée. Depuis le correctif, le préflight distingue « absente » de « contrôle non concluant » et affiche l'erreur réelle. Lancer `gcloud auth login && gcloud auth application-default login` |
 | La révision est créée puis meurt aussitôt | un secret sans version, ou `USE_MOCKS` fixé en production (garde-fou S1) |
 | `/health` répond `"redis":"disconnected"` | le conteneur `redis` n'a pas démarré : regarder ses logs, pas ceux du backend |
 | Le bucket d'instantanés reste vide après 15 min | `cpu-throttling` remis à `true`, ou l'écriture RDB échoue sur GCS FUSE (constat N9) |
 | Tout le monde est « Bénévole » sans UL | référentiel vide, ou identifiants de classeurs absents (M9/M10, M31) |
 | `tofu` : « permission denied » à l'extraction du provider | vous êtes dans la VM, sur le montage partagé. Pointer `TF_DATA_DIR` ailleurs — et de toute façon, pas d'`apply` dans la VM |
 | Redirection OAuth refusée | l'URL Cloud Run n'est pas dans les URI autorisés du client OAuth |
+| `HTTPError 412: 'us' violates constraint 'constraints/gcp.resourceLocations'` au build | le bucket de staging de Cloud Build, créé en multi-région US par défaut. `--default-buckets-behavior=regional-user-owned-bucket` |
 | `Constraint constraints/gcp.resourceLocations violated ... in [global]` | une ressource est créée dans `global`, interdit par la policy d'organisation. Pour Secret Manager, c'est `replication { auto {} }` — le message ne nomme jamais `auto`. Utiliser une réplication explicite en `europe-west1` |
 
 ## Ce qui n'est pas fait

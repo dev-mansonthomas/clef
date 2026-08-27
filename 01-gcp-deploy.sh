@@ -53,6 +53,83 @@ case "$ENVIRONMENT" in
 esac
 
 # ---------------------------------------------------------------------------
+# Journalisation — transcription et rapport lisibles depuis la VM
+# ---------------------------------------------------------------------------
+# Le script tourne sur l'HÔTE, l'agent travaille dans la VM, et le dépôt est sur un
+# montage partagé : écrire ici évite de recopier des sorties à la main pour analyse.
+#
+# `debug/` est gitignoré — rien de ceci n'est versionné.
+#
+# ⚠️ Aucune valeur de secret n'est journalisée : le script n'en lit aucune, il ne
+# compte que des versions. L'adresse du gestionnaire DT est notée comme présente ou
+# absente, jamais recopiée : c'est une donnée personnelle.
+DEBUG_DIR="debug/deploy"
+mkdir -p "$DEBUG_DIR"
+LOG_FILE="${DEBUG_DIR}/01-gcp-deploy.${ENVIRONMENT}.log"
+REPORT_FILE="${DEBUG_DIR}/01-gcp-deploy.${ENVIRONMENT}.json"
+: > "$LOG_FILE"
+
+# Champs remplis au fil de l'exécution, écrits par le trap — donc présents même si le
+# script s'arrête en cours de route, ce qui est précisément le cas intéressant.
+R_PREFLIGHT="non atteint"
+R_BACKEND_IMAGE=""
+R_FRONTEND_IMAGE=""
+R_BACKEND_URL=""
+R_FRONTEND_URL=""
+R_REDIRECT_URI=""
+R_HEALTH=""
+R_PASSES=0
+R_STEP="démarrage"
+
+json_escape() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
+
+ecrire_rapport() {
+    local code=$?
+    cat > "$REPORT_FILE" <<JSON
+{
+  "schemaVersion": 1,
+  "tool": "01-gcp-deploy.sh",
+  "ok": $([ "$code" -eq 0 ] && echo true || echo false),
+  "exitCode": $code,
+  "derniereEtape": "$(json_escape "$R_STEP")",
+  "environnement": "$(json_escape "$ENVIRONMENT")",
+  "projet": "$(json_escape "${PROJECT_ID:-}")",
+  "region": "$(json_escape "${REGION:-}")",
+  "tag": "$(json_escape "${TAG:-}")",
+  "composants": "$(json_escape "$COMPONENTS")",
+  "skipBuild": $SKIP_BUILD,
+  "preflight": "$(json_escape "$R_PREFLIGHT")",
+  "maxInstances": "$(json_escape "${MAX_INSTANCES:-}")",
+  "minInstances": "$(json_escape "${MIN_INSTANCES:-}")",
+  "redisMemory": "$(json_escape "${REDIS_MEMORY:-}")",
+  "redisMaxmemory": "$(json_escape "${REDIS_MAXMEMORY:-}")",
+  "emailGestionnaireDtRenseigne": $([ -n "${EMAIL_GESTIONNAIRE_DT:-}" ] && echo true || echo false),
+  "spreadsheetIdsRenseignes": $([ -n "${VEHICULES_SPREADSHEET_ID:-}${BENEVOLES_SPREADSHEET_ID:-}${RESPONSABLES_SPREADSHEET_ID:-}" ] && echo true || echo false),
+  "images": {
+    "backend": "$(json_escape "$R_BACKEND_IMAGE")",
+    "frontend": "$(json_escape "$R_FRONTEND_IMAGE")"
+  },
+  "passesServiceReplace": $R_PASSES,
+  "urls": {
+    "backend": "$(json_escape "$R_BACKEND_URL")",
+    "frontend": "$(json_escape "$R_FRONTEND_URL")"
+  },
+  "uriRedirectionOauth": "$(json_escape "$R_REDIRECT_URI")",
+  "health": "$(json_escape "$R_HEALTH")",
+  "bucketInstantanes": "$(json_escape "${SNAPSHOTS_BUCKET:-}")",
+  "transcription": "$(json_escape "$LOG_FILE")"
+}
+JSON
+    echo ""
+    echo "📝 Rapport : $REPORT_FILE"
+    echo "   Transcription : $LOG_FILE"
+}
+trap ecrire_rapport EXIT
+
+# Tout ce qui suit part à la fois à l'écran et dans la transcription.
+exec > >(tee -a "$LOG_FILE") 2>&1
+
+# ---------------------------------------------------------------------------
 # Configuration de l'environnement
 # ---------------------------------------------------------------------------
 ENV_FILE="deploy/deploy.${ENVIRONMENT}.env"
@@ -129,6 +206,35 @@ if [ -z "$ACCOUNT" ] || [ "$ACCOUNT" = "(unset)" ]; then
 fi
 echo "  ✅ authentifié : $ACCOUNT"
 
+# ⚠️ Distinguer « la ressource est absente » de « le contrôle n a pas pu conclure ».
+#
+# Les contrôles ci-dessous étaient écrits « if gcloud … >/dev/null 2>&1 », ce qui
+# range TOUTE erreur dans « absent » : jeton expiré, droit manquant, API désactivée,
+# mauvais projet. Le script a ainsi affiché trois « absent — lancer ./00-infra.sh »
+# sur des ressources parfaitement existantes, et le conseil était non seulement
+# inutile mais trompeur. Un diagnostic qui invente une cause est pire que pas de
+# diagnostic.
+#
+# `gcloud config get-value account` ne fait aucun appel réseau : l authentification
+# peut donc paraître bonne alors que tout appel à l API échoue.
+#
+# Codes : 0 = présente, 1 = absente, 2 = indéterminé (l erreur réelle est affichée).
+verifier_existence() {
+    local libelle="$1"; shift
+    local sortie
+    if sortie=$("$@" 2>&1); then
+        return 0
+    fi
+    if printf '%s' "$sortie" | grep -qiE 'NOT_FOUND|not found|does not exist|404'; then
+        return 1
+    fi
+    echo "⚠️  Contrôle « $libelle » NON CONCLUANT — ce n est pas une absence."
+    printf '%s\n' "$sortie" | head -4 | sed 's/^/      /'
+    echo "      Si le message parle de jeton ou de réauthentification :"
+    echo "        gcloud auth login && gcloud auth application-default login"
+    return 2
+}
+
 # ⚠️ maxScale > 1 donnerait un Redis par instance, donc des jeux de données divergents
 # sans aucun signal. C'est la contrainte structurelle du sidecar (ADR 0008).
 if [ "$MAX_INSTANCES" != "1" ]; then
@@ -139,21 +245,25 @@ if [ "$MAX_INSTANCES" != "1" ]; then
 fi
 
 SERVICE_ACCOUNT="clef-backend@${PROJECT_ID}.iam.gserviceaccount.com"
-if gcloud iam service-accounts describe "$SERVICE_ACCOUNT" --project="$PROJECT_ID" >/dev/null 2>&1; then
-    echo "  ✅ service account : $SERVICE_ACCOUNT"
-else
-    echo "❌ Service account $SERVICE_ACCOUNT absent — lancer ./00-infra.sh $ENVIRONMENT"
-    FAILED=true
-fi
+verifier_existence "service account" \
+    gcloud iam service-accounts describe "$SERVICE_ACCOUNT" --project="$PROJECT_ID"
+case $? in
+    0) echo "  ✅ service account : $SERVICE_ACCOUNT" ;;
+    1) echo "❌ Service account $SERVICE_ACCOUNT absent — lancer ./00-infra.sh $ENVIRONMENT"
+       FAILED=true ;;
+    *) FAILED=true ;;
+esac
 
 SNAPSHOTS_BUCKET="${PROJECT_ID}-clef-redis-snapshots"
-if gcloud storage buckets describe "gs://$SNAPSHOTS_BUCKET" --project="$PROJECT_ID" >/dev/null 2>&1; then
-    echo "  ✅ bucket d'instantanés : gs://$SNAPSHOTS_BUCKET"
-else
-    echo "❌ Bucket gs://$SNAPSHOTS_BUCKET absent — lancer ./00-infra.sh $ENVIRONMENT"
-    echo "   Sans lui, Redis perdrait toutes les données à chaque redémarrage."
-    FAILED=true
-fi
+verifier_existence "bucket d instantanés" \
+    gcloud storage buckets describe "gs://$SNAPSHOTS_BUCKET" --project="$PROJECT_ID"
+case $? in
+    0) echo "  ✅ bucket d'instantanés : gs://$SNAPSHOTS_BUCKET" ;;
+    1) echo "❌ Bucket gs://$SNAPSHOTS_BUCKET absent — lancer ./00-infra.sh $ENVIRONMENT"
+       echo "   Sans lui, Redis perdrait toutes les données à chaque redémarrage."
+       FAILED=true ;;
+    *) FAILED=true ;;
+esac
 
 # ⚠️ Constat M12 : la CI et DEPLOYMENT.md déploient en europe-west1, alors que KMS et
 # le reste de l'infra sont en europe-west9. Un service portant le même nom dans une
@@ -173,13 +283,15 @@ for svc in "$SERVICE_NAME" "$FRONTEND_SERVICE"; do
     fi
 done
 
-if gcloud artifacts repositories describe clef-images \
-     --location="$REGION" --project="$PROJECT_ID" >/dev/null 2>&1; then
-    echo "  ✅ registre d'images"
-else
-    echo "❌ Registre clef-images absent — lancer ./00-infra.sh $ENVIRONMENT"
-    FAILED=true
-fi
+verifier_existence "registre d images" \
+    gcloud artifacts repositories describe clef-images \
+    --location="$REGION" --project="$PROJECT_ID"
+case $? in
+    0) echo "  ✅ registre d'images" ;;
+    1) echo "❌ Registre clef-images absent — lancer ./00-infra.sh $ENVIRONMENT"
+       FAILED=true ;;
+    *) FAILED=true ;;
+esac
 
 # Un secret sans version fait échouer le démarrage du conteneur, pas le déploiement :
 # la révision serait créée puis mourrait, avec un message peu parlant.
@@ -213,9 +325,12 @@ done
 
 if [ "$FAILED" = true ]; then
     echo ""
+    R_PREFLIGHT="échec"
     echo "🛑 Rien n'a été déployé. Corriger les points ci-dessus."
     exit 1
 fi
+R_PREFLIGHT="complet"
+R_STEP="construction des images"
 echo "  ✅ préflight complet"
 echo ""
 
@@ -224,22 +339,43 @@ echo ""
 # ---------------------------------------------------------------------------
 BACKEND_IMAGE="${REGISTRY}/clef-api:${TAG}"
 FRONTEND_IMAGE="${REGISTRY}/clef-frontend:${TAG}"
+R_BACKEND_IMAGE="$BACKEND_IMAGE"
+R_FRONTEND_IMAGE="$FRONTEND_IMAGE"
+
+# ⚠️ `--default-buckets-behavior=regional-user-owned-bucket` n'est pas optionnel ici.
+#
+# `--region` place le BUILD dans la région ; il ne dit rien du bucket de staging où
+# gcloud dépose l'archive des sources. Par défaut, Cloud Build en crée un en
+# multi-région **US** (`gs://<projet>_cloudbuild`), et la policy d'organisation
+# `constraints/gcp.resourceLocations` le refuse :
+#
+#     ERROR: (gcloud.builds.submit) HTTPError 412:
+#            'us' violates constraint 'constraints/gcp.resourceLocations'
+#
+# Le message parle de « us » sans jamais nommer le bucket : rien n'y mène.
+#
+# Ce drapeau fait créer et gérer un bucket régional par Cloud Build lui-même, dans la
+# région du build — ce qui évite aussi d'avoir à lui accorder des droits à la main sur
+# un bucket qu'on aurait provisionné soi-même.
+#
+# Même famille de piège que la réplication `auto` des secrets : `global` et `us` ne
+# sont pas des emplacements disponibles sur ce projet, et les valeurs par défaut de
+# GCP y vont d'elles-mêmes.
+BUILD_FLAGS=(
+    --project="$PROJECT_ID"
+    --region="$REGION"
+    --default-buckets-behavior=regional-user-owned-bucket
+)
 
 if [ "$SKIP_BUILD" = false ]; then
     if [[ "$COMPONENTS" == *api* ]]; then
-        echo "🔨 Image backend (Cloud Build)..."
-        gcloud builds submit backend \
-            --tag="$BACKEND_IMAGE" \
-            --project="$PROJECT_ID" \
-            --region="$REGION"
+        echo "🔨 Image backend (Cloud Build, $REGION)..."
+        gcloud builds submit backend --tag="$BACKEND_IMAGE" "${BUILD_FLAGS[@]}"
         echo ""
     fi
     if [[ "$COMPONENTS" == *frontend* ]]; then
-        echo "🔨 Image frontend (Cloud Build)..."
-        gcloud builds submit frontend \
-            --tag="$FRONTEND_IMAGE" \
-            --project="$PROJECT_ID" \
-            --region="$REGION"
+        echo "🔨 Image frontend (Cloud Build, $REGION)..."
+        gcloud builds submit frontend --tag="$FRONTEND_IMAGE" "${BUILD_FLAGS[@]}"
         echo ""
     fi
 else
@@ -345,6 +481,11 @@ if [[ "$COMPONENTS" == *api* ]]; then
         gcloud run services replace "$rendered" \
             --region="$REGION" --project="$PROJECT_ID"
         rm -f "$rendered"
+
+        # Tracé dans le rapport : c'est le nombre de passes et l'URI final qui
+        # expliquent, après coup, pourquoi la connexion marche ou non.
+        R_PASSES=$((R_PASSES + 1))
+        R_REDIRECT_URI="${front:+${front}/auth/callback}"
     }
 
     BACKEND_URL=$(service_url "$SERVICE_NAME")
@@ -370,6 +511,7 @@ if [[ "$COMPONENTS" == *api* ]]; then
         fi
     fi
 
+    R_STEP="backend déployé"
     echo "  ✅ backend déployé"
     echo ""
     echo "  📌 Ajouter cet URI de redirection au client OAuth de la console GCP :"
@@ -397,6 +539,7 @@ if [[ "$COMPONENTS" == *frontend* ]]; then
         --port=80 --memory=256Mi --cpu=1 \
         --min-instances=0 --max-instances=5 \
         --set-env-vars="BACKEND_ORIGIN=${API_URL},BACKEND_HOST=${BACKEND_HOST}"
+    R_STEP="frontend déployé"
     echo "  ✅ frontend déployé"
 
     # Le frontend vient peut-être d'être créé : son origine doit entrer dans
@@ -423,6 +566,7 @@ FRONTEND_URL=$(gcloud run services describe "$FRONTEND_SERVICE" \
 
 if [ -n "$BACKEND_URL" ]; then
     HEALTH=$(curl -fsS --max-time 30 "${BACKEND_URL}/health" 2>/dev/null || echo "INJOIGNABLE")
+    R_HEALTH="$HEALTH"
     echo "  /health → $HEALTH"
     case "$HEALTH" in
         *'"redis":"connected"'*)
@@ -436,6 +580,9 @@ if [ -n "$BACKEND_URL" ]; then
 fi
 echo ""
 
+R_STEP="terminé"
+R_BACKEND_URL="$BACKEND_URL"
+R_FRONTEND_URL="$FRONTEND_URL"
 echo "✅ Déploiement « $ENVIRONMENT » terminé."
 echo ""
 echo "📍 URLs :"

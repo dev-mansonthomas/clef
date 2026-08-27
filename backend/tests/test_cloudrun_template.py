@@ -111,6 +111,74 @@ def test_le_script_transmet_bien_ces_variables():
     )
 
 
+def test_l_outil_de_journaux_filtre_par_conteneur():
+    """Le nom du conteneur est un label Cloud Logging, pas un champ.
+
+    Sans `labels."run.googleapis.com/container_name"`, les lignes du backend et
+    celles du sidecar redis arrivent entremêlées, et on attribue une erreur au
+    mauvais conteneur — exactement le genre de diagnostic qui coûte une heure.
+
+    Ce test tient aussi le fait que l'outil interroge Cloud Logging par NOM DE
+    RÉVISION : une révision qui échoue au démarrage n'a jamais servi de trafic et
+    n'apparaît donc pas dans `gcloud run services logs read`.
+    """
+    outil = TEMPLATE.parents[1] / "02-logs.sh"
+    assert outil.is_file(), "02-logs.sh absent"
+    src = outil.read_text(encoding="utf-8")
+    assert 'labels.\\"run.googleapis.com/container_name\\"' in src, (
+        "les journaux doivent être filtrés par conteneur"
+    )
+    assert "resource.labels.revision_name" in src, (
+        "interroger par nom de révision, sinon les révisions en échec sont invisibles"
+    )
+    assert "status.conditions" in src, (
+        "les conditions du service portent le message d'échec réel"
+    )
+    # Les adresses de service account doivent rester lisibles.
+    assert "gserviceaccount" in src, (
+        "le masquage doit épargner les adresses de service account, sinon le "
+        "`describe` devient inutilisable pour le diagnostic."
+    )
+
+
+def test_le_build_reste_dans_la_region():
+    """Cloud Build doit déposer ses sources dans un bucket régional.
+
+    `--region` place le BUILD dans la région ; il ne dit rien du bucket de staging.
+    Par défaut Cloud Build en crée un en multi-région **US**, que la policy
+    d'organisation `constraints/gcp.resourceLocations` refuse :
+
+        ERROR: (gcloud.builds.submit) HTTPError 412:
+               'us' violates constraint 'constraints/gcp.resourceLocations'
+
+    Le message nomme « us » sans jamais nommer le bucket — rien n'y mène. C'est la
+    même famille de piège que la réplication `auto` des secrets : les valeurs par
+    défaut de GCP visent des emplacements interdits sur ce projet.
+    """
+    script = (TEMPLATE.parents[1] / "01-gcp-deploy.sh").read_text(encoding="utf-8")
+    assert "--default-buckets-behavior=regional-user-owned-bucket" in script, (
+        "sans ce drapeau, `gcloud builds submit` crée son bucket de staging en "
+        "multi-région US et la policy d'organisation refuse le build."
+    )
+    # Et le drapeau ne vaut rien si les builds ne passent pas par ce jeu d'options.
+    for composant in ("backend", "frontend"):
+        assert f'gcloud builds submit {composant} --tag=' in script, (
+            f"le build {composant} doit passer par BUILD_FLAGS."
+        )
+
+
+def test_le_bucket_de_state_est_regional():
+    """Même piège, autre commande : un bucket créé sans `--location` part en US."""
+    script = (TEMPLATE.parents[1] / "00-infra.sh").read_text(encoding="utf-8")
+    creation = script[script.index("gcloud storage buckets create") :]
+    creation = creation[: creation.index("\n\n")]
+    assert '--location="$REGION"' in creation, (
+        "le bucket de state Terraform doit être créé dans la région : sans "
+        "`--location`, gcloud le place en multi-région US, interdite ici — et ce "
+        "bucket contient le state, donc des données sensibles."
+    )
+
+
 def test_deux_conteneurs_backend_et_redis(containers: dict):
     assert set(containers) == {"backend", "redis"}
 
@@ -226,10 +294,20 @@ def test_toute_variable_injectee_est_lue_par_le_code(containers: dict):
     app_dir = Path(__file__).resolve().parents[1] / "app"
     lus = set()
     for f in app_dir.rglob("*.py"):
+        texte = f.read_text(encoding="utf-8")
         lus |= set(
-            re.findall(r'(?:getenv|environ\.get)\(\s*"([A-Z_][A-Z0-9_]*)"', f.read_text(encoding="utf-8"))
+            re.findall(r'(?:getenv|environ\.get)\(\s*"([A-Z_][A-Z0-9_]*)"', texte)
         )
-        lus |= set(re.findall(r'environ\[\s*"([A-Z_][A-Z0-9_]*)"', f.read_text(encoding="utf-8")))
+        lus |= set(re.findall(r'environ\[\s*"([A-Z_][A-Z0-9_]*)"', texte))
+
+    # ⚠️ Un grep sur `getenv` ne suffit pas : `pydantic-settings` lit l'environnement
+    # **par nom de champ**, sans aucun appel visible. `ALLOWED_FRONTEND_URLS` est
+    # exactement dans ce cas depuis qu'elle est portée par un champ annoté plutôt que
+    # par un `os.getenv` dans la valeur par défaut. Sans cette source, le test
+    # déclarerait orpheline une variable pourtant lue.
+    from app.auth.config import AuthSettings
+
+    lus |= {nom.upper() for nom in AuthSettings.model_fields}
 
     injectees = {e["name"] for e in containers["backend"]["env"]}
     orphelines = injectees - lus
