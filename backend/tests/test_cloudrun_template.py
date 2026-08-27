@@ -288,6 +288,24 @@ def test_variables_dont_l_absence_est_indetectable(containers: dict, variable: s
     )
 
 
+def test_la_documentation_interactive_reste_fermee(containers: dict):
+    """Ni /docs, ni /redoc, ni /openapi.json sur un service public.
+
+    Le service est déployé avec `allUsers` / `roles/run.invoker` — il le faut, les
+    gardes sont applicatifs. Mais le schéma OpenAPI décrit alors les 86 routes à qui
+    le demande : routes super-admin, gestion des clés d'API, nom de l'en-tête
+    X-API-Key de la synchronisation, et les modèles du référentiel bénévoles.
+    Aucun accès n'en découle, mais tout le tâtonnement disparaît.
+
+    Le défaut du code est déjà `false` ; ce test interdit de l'ouvrir depuis le
+    gabarit — c'est-à-dire d'un geste, sans revue.
+    """
+    env = {e["name"]: e.get("value") for e in containers["backend"]["env"]}
+    assert env.get("ENABLE_API_DOCS", "false").lower() != "true", (
+        "ENABLE_API_DOCS=true expose /docs et /openapi.json sur un service public."
+    )
+
+
 @pytest.mark.parametrize("interdite", ["USE_MOCKS", "GOOGLE_APPLICATION_CREDENTIALS"])
 def test_variables_interdites_en_production(containers: dict, interdite: str):
     """Deux variables dont la seule présence serait un défaut.

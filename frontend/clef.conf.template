@@ -57,7 +57,22 @@ server {
         # Cloud Run route par le nom d'hôte et exige SNI : sans ces deux lignes,
         # l'appel arrive sur le mauvais service ou échoue à la poignée de main TLS.
         proxy_set_header Host ${BACKEND_HOST};
+
+        # Vérification du certificat de l'amont. `proxy_ssl_verify` vaut **off** par
+        # défaut dans nginx : sans ces lignes, le proxy accepte n'importe quel
+        # certificat — auto-signé, expiré, mauvais nom d'hôte. Tout le parcours
+        # authentifié traverse ce saut : cookie de session, en-tête X-API-Key de la
+        # synchronisation, données personnelles des bénévoles.
+        #
+        # Ces directives ne s'appliquent qu'à un amont **https** ; avec un
+        # `proxy_pass http://…`, nginx les ignore. Elles sont donc posées sans
+        # condition, ce qui garde le gabarit vérifiable contre un backend local en
+        # HTTP clair — un `if` sur le schéma aurait été non testé, donc faux un jour.
+        proxy_ssl_verify on;
+        proxy_ssl_verify_depth 2;
+        proxy_ssl_trusted_certificate /etc/ssl/certs/ca-certificates.crt;
         proxy_ssl_server_name on;
+        proxy_ssl_name ${BACKEND_HOST};
 
         proxy_set_header X-Forwarded-Proto https;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;

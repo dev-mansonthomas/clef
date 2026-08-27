@@ -334,7 +334,7 @@ if [[ "$COMPONENTS" == *api* ]]; then
         FRONTEND_URL="$front" \
         DOMAIN="$domain" \
         BACKEND_URL="$backend_url" \
-        GOOGLE_REDIRECT_URI="${backend_url:+${backend_url}/auth/callback}" \
+        GOOGLE_REDIRECT_URI="${front:+${front}/auth/callback}" \
         VEHICULES_SPREADSHEET_ID="${VEHICULES_SPREADSHEET_ID:-}" \
         BENEVOLES_SPREADSHEET_ID="${BENEVOLES_SPREADSHEET_ID:-}" \
         RESPONSABLES_SPREADSHEET_ID="${RESPONSABLES_SPREADSHEET_ID:-}" \

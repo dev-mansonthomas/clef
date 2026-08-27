@@ -147,6 +147,18 @@ spec:
             # utilisateur vers sa propre machine, et la connexion serait
             # intégralement cassée en production.
             #
+            # ⚠️⚠️ Et elle doit pointer l'origine du **FRONTEND**, pas celle de
+            # l'API. Le backend pose le cookie de session dans la réponse au
+            # callback : le navigateur l'attribue à l'hôte qui lui a répondu. Sur
+            # l'origine de l'API, le cookie serait posé pour `clef-api-*.run.app`,
+            # puis le navigateur suivrait la redirection vers le frontend — dont les
+            # appels ne porteraient aucun cookie. Connexion silencieusement cassée.
+            #
+            # nginx relaie déjà `/auth` : le callback traverse le proxy, le backend
+            # répond, et le cookie est attribué à l'hôte du frontend. Tout reste en
+            # même origine. C'est aussi cet URI, celui du frontend, qu'il faut
+            # déclarer au client OAuth dans la console GCP.
+            #
             # Vide au tout premier déploiement — l'URL du service n'existe pas
             # encore. 01-gcp-deploy.sh redéploie alors une seconde fois, une fois
             # l'URL connue.

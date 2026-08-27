@@ -1008,6 +1008,31 @@ Leçon générale : les fichiers d'infrastructure ne bénéficient d'aucun typag
 d'aucun compilateur. Un champ inconnu y est du silence, pas une erreur. Ils méritent
 des tests comme le reste.
 
+## Revue de sécurité du 2026-08-27 — 2 constatations, 2 traitées
+
+`/security-review` sur `main...HEAD`. Deux constatations retenues, plus un
+durcissement et un bloquant fonctionnel découvert au passage. Toutes vérifiées
+indépendamment avant correction.
+
+| # | Défaut | Traitement |
+|---|---|---|
+| S3 | **Le proxy nginx ne vérifiait pas le certificat de l'amont.** `proxy_ssl_verify` vaut **`off`** par défaut : le SNI était posé délibérément, mais aucune vérification. Or c'est une connexion TLS **nouvelle** — avant cette branche, l'image frontend ne parlait jamais au backend — et tout le parcours authentifié la traverse : cookie de session, en-tête `X-API-Key` de la synchronisation, données personnelles des bénévoles | `proxy_ssl_verify on` + `verify_depth` + bundle CA de l'image + `proxy_ssl_name`. Posées **sans condition** : ces directives ne s'appliquent qu'à un amont `https`, nginx les ignore sur `http://`. Un `if` sur le schéma n'aurait jamais été testé. **Vérifié en exécution** : amont HTTPS à certificat auto-signé ⇒ `502` et `upstream SSL certificate verify error: (18:self-signed certificate)` ; amont HTTP ⇒ le relais fonctionne toujours |
+| S4 | **`/docs`, `/redoc` et `/openapi.json` devenaient joignables depuis Internet.** Le constructeur `FastAPI()` est préexistant, mais cette branche est le premier chemin de déploiement qui aboutit, et le service est nécessairement `allUsers` / `run.invoker`. Le schéma décrivait les 86 routes à qui le demande : routes super-admin, gestion des clés d'API, nom de l'en-tête `X-API-Key`, le fait que `/api/approbation/{token}` n'est pas authentifiée, et les modèles du référentiel bénévoles. Aucun accès n'en découlait — les gardes tiennent — mais tout le tâtonnement disparaissait | `ENABLE_API_DOCS`, défaut **`false`**. `docker-compose.yml` pose `true` : la doc reste disponible en local. **Vérifié en conteneur** : par défaut `/docs`, `/redoc`, `/openapi.json` → 404 ; avec le drapeau → 200. Un test interdit au gabarit Cloud Run de l'activer |
+| S5 | **Durcissement** : une entrée vide dans `ALLOWED_FRONTEND_URLS` dégénère `validate_redirect_url` en `url.startswith("/")`, qui accepte l'URL protocol-relative `//evil.tld` — un open redirect. Le cas est atteignable : le script rend la variable vide au tout premier déploiement. Il n'était pas exploitable, `GOOGLE_REDIRECT_URI` étant vide dans la même fenêtre — les deux dérivent de la même variable — mais le validateur ne doit pas dépendre de cette coïncidence | Entrées vides filtrées dans `app/auth/config.py` |
+| S6 | 🔴 **Bloquant fonctionnel, pas une vulnérabilité : la connexion ne pouvait pas fonctionner.** `GOOGLE_REDIRECT_URI` pointait l'origine de l'**API**. Le backend pose le cookie de session dans la réponse au callback, et le navigateur l'attribue à l'hôte qui lui a répondu : le cookie partait sur `clef-api-*.run.app`, puis le navigateur suivait la redirection vers le frontend, dont les appels ne portaient plus aucun cookie | L'URI pointe désormais l'origine du **frontend**, que nginx relaie déjà. Le cookie est attribué à l'hôte du frontend et tout reste en même origine. ⚠️ Le correctif réflexe — `SameSite=None` sur un domaine partagé — aurait détruit la propriété de même origine sur laquelle repose le reste du raisonnement. C'est aussi l'URI du **frontend** qu'il faut déclarer au client OAuth dans la console GCP |
+
+**Écartés après vérification** : l'open redirect par `startswith` (le validateur exige
+l'égalité ou le préfixe `autorisé + "/"`, donc `https://front.run.app.evil.tld` est
+rejeté) ; l'héritage des `add_header` nginx (défaut préexistant à l'octet près, et le
+bloc **nouveau** hérite bien des trois en-têtes) ; la confusion de chemin dans le
+proxy (nginx normalise avant de choisir la location, et l'URL du backend est de toute
+façon publique) ; l'injection de gabarit par `envsubst` (le filtre ne porte que sur
+les variables définies) ; les en-têtes transmis (le backend n'en lit aucun) ; le
+repli ADC de `google_credentials.py` (les credentials du serveur de métadonnées
+ignorent les scopes et produisent des 403, pas un accès élargi) ; l'absence de
+`requirepass` sur le sidecar Redis (aucun port déclaré, pas de connecteur VPC —
+6379 n'est joignable que du conteneur voisin).
+
 ## Revue de code du 2026-08-27 — 13 constatations, 13 traitées
 
 `/code-review` sur `main...HEAD`. Toutes vérifiées par lecture du code ou par
