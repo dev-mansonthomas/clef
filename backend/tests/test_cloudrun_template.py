@@ -39,6 +39,7 @@ SUBSTITUTIONS = {
     "EMAIL_GESTIONNAIRE_DT": "prenom.nom@croix-rouge.fr",
     "CORS_ORIGINS": "https://frontend.example,https://api.example",
     "GOOGLE_REDIRECT_URI": "https://api.example/auth/callback",
+    "DT_OAUTH_REDIRECT_URI": "https://api.example/auth/callback-dt",
     "ALLOWED_FRONTEND_URLS": "https://frontend.example",
     "FRONTEND_URL": "https://frontend.example",
     "DOMAIN": "frontend.example",
@@ -138,6 +139,44 @@ def test_l_outil_de_journaux_filtre_par_conteneur():
     assert "gserviceaccount" in src, (
         "le masquage doit épargner les adresses de service account, sinon le "
         "`describe` devient inutilisable pour le diagnostic."
+    )
+
+
+def test_l_outil_de_journaux_ne_confond_pas_echec_et_absence():
+    """« ∅ aucune révision » ne doit jamais être le symptôme d'un gcloud en échec.
+
+    `derniere_revision()` faisait `2>/dev/null` : jeton expiré, droit manquant, API
+    désactivée, mauvais projet sortaient tous en chaîne vide, et l'appelant affichait
+    « ∅ aucune révision » — le diagnostic exactement inverse, le service étant bien là.
+
+    Constaté le 2026-08-28 : une collecte `--what=run` a écrit un index à
+    `"fichiers": []` et `"collectesEnEchec": []` — donc « tout va bien, il n'y a
+    rien » — alors que cinq révisions existaient.
+
+    Second piège, trouvé en exécution : la fonction appelée en `$(...)` tourne dans un
+    sous-shell, et l'erreur remontée par variable globale était perdue. D'où
+    l'interdiction de la substitution de commande ici.
+    """
+    src = (TEMPLATE.parents[1] / "02-logs.sh").read_text(encoding="utf-8")
+    bloc = src[src.index("derniere_revision() {") :]
+    bloc = bloc[: bloc.index("\n}\n")]
+    assert "2>/dev/null" not in bloc, (
+        "la liste des révisions ne doit pas jeter stderr : l'échec deviendrait "
+        "indiscernable de l'absence"
+    )
+    # Le commentaire de la fonction CITE la forme fautive pour l'expliquer : ne
+    # regarder que le code exécuté.
+    code = "\n".join(l for l in src.splitlines() if not l.lstrip().startswith("#"))
+    assert "$(derniere_revision" not in code, (
+        "appelée en substitution de commande, la fonction tourne dans un sous-shell "
+        "et son erreur est perdue — passer par DERNIERE_REVISION"
+    )
+    assert "revision-introuvable" in src, (
+        "l'échec doit produire un FICHIER portant le message de gcloud, sinon l'index "
+        "paraît simplement vide"
+    )
+    assert "le service n'a jamais été déployé" in src, (
+        "et le cas « réellement aucune révision » doit rester distinct de l'échec"
     )
 
 
@@ -351,6 +390,9 @@ def test_toute_variable_injectee_est_lue_par_le_code(containers: dict):
     [
         ("CORS_ORIGINS", "le navigateur bloque les appels du frontend déployé"),
         ("GOOGLE_REDIRECT_URI", "Google renvoie les utilisateurs vers localhost:8000"),
+        ("DT_OAUTH_REDIRECT_URI",
+         "la délégation Calendar/Drive/Gmail d'un gestionnaire DT échoue en "
+         "redirect_uri_mismatch, Google recevant localhost:8000/auth/callback-dt"),
     ],
 )
 def test_variables_dont_le_defaut_casse_la_production(
@@ -424,3 +466,64 @@ def test_variables_interdites_en_production(containers: dict, interdite: str):
     """
     noms = {e["name"] for e in containers["backend"].get("env", [])}
     assert interdite not in noms
+
+
+def test_le_preflight_verifie_la_FORME_des_secrets():
+    """Une version présente ne dit rien du contenu — et deux valeurs fausses l'ont prouvé.
+
+    Le contrôle ne comptait que les versions actives. Le 2026-08-28, deux valeurs de
+    `CLEF_GOOGLE_CLIENT_ID` ont chacune coûté un cycle complet de déploiement, avec
+    pour seul symptôme un « Error 401: invalid_client » rendu par Google :
+
+      1. `ton-client-id.apps.googleusercontent.com` — la commande de DEPLOYMENT.md
+         lancée telle quelle, sans substituer la valeur ;
+      2. `CLEF-rcq-fr-dev-client_secret_1022015855967-2irg….apps.googleusercontent.com`
+         — le NOM du fichier de credentials téléchargé, collé au lieu du champ
+         `.web.client_id` qu'il contient.
+
+    Les deux finissent par `.apps.googleusercontent.com` : un contrôle de suffixe
+    n'aurait rien vu. C'est la STRUCTURE qui les distingue — `<numéro de
+    projet>-<empreinte>.apps.googleusercontent.com`.
+    """
+    src = (TEMPLATE.parents[1] / "01-gcp-deploy.sh").read_text(encoding="utf-8")
+
+    assert r"'^[0-9]+(-[a-z0-9]+)?\.apps\.googleusercontent\.com$'" in src, (
+        "le client_id doit être validé sur sa STRUCTURE, pas sur son suffixe : les "
+        "deux valeurs fausses observées finissaient par .apps.googleusercontent.com"
+    )
+    assert "PLACEHOLDERS=" in src, "les valeurs bouchons doivent être refusées"
+
+    # ⚠️ Sans la sentinelle, le contrôle de caractère blanc est MORT : `$(...)`
+    # supprime les retours ligne finaux, et c'est précisément le défaut cherché
+    # (`echo` au lieu de `printf '%s'`). Vérifié en exécution : la valeur passait.
+    assert "printf 'S%s' \"$?\"" in src, (
+        "la lecture du secret doit poser une sentinelle, sinon un \\n final est "
+        "invisible à la substitution de commande et le contrôle ne sert à rien"
+    )
+    assert "ILLISIBLE" in src, (
+        "une valeur illisible (droit manquant) doit être distinguée d'une valeur "
+        "fausse — ne pas rejouer le défaut de derniere_revision() dans 02-logs.sh"
+    )
+
+    # Aucune valeur de secret ne doit être journalisée. Une seule exception, assumée :
+    # le client_id refusé, que Google publie de toute façon dans chaque URL
+    # d'autorisation et que l'opérateur doit comparer à sa console.
+    lignes = src.splitlines()
+    affichages = []
+    for i, ligne in enumerate(lignes):
+        nu = ligne.strip()
+        if "VALEUR_SECRET" not in nu or not nu.startswith(("echo ", "printf ", "if ")):
+            continue
+        # `printf … | grep` n'affiche RIEN : la valeur part dans le tuyau. Le tuyau
+        # peut être sur la ligne suivante, la commande étant coupée par un `\`.
+        suite = nu + (lignes[i + 1].strip() if nu.endswith("\\") and i + 1 < len(lignes) else "")
+        if "|" in suite:
+            continue
+        affichages.append(nu)
+    assert len(affichages) == 1, (
+        f"{len(affichages)} lignes affichent une valeur de secret : {affichages}. "
+        "Le script journalise tout via tee — un secret y resterait sur disque."
+    )
+    assert "CLIENT_ID" in src[: src.index(affichages[0])].rsplit("case", 1)[-1], (
+        "la seule valeur affichable est le client_id, qui n'est pas confidentiel"
+    )

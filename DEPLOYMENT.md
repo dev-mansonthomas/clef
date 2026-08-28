@@ -180,14 +180,34 @@ OAuth 2.0 Client ID*, type **Web application** :
 
 | Champ | Valeur |
 |---|---|
-| Origines JavaScript autorisées | `http://localhost:8000` (dev local), `https://<url-cloud-run>` |
-| URI de redirection autorisés | `http://localhost:8000/auth/callback`, `https://<url-cloud-run>/auth/callback` |
+| Origines JavaScript autorisées | `https://dev.clef.paquerette.com` (**le domaine public d'abord** — c'est lui que le navigateur voit), `http://localhost:4200`, `http://localhost:4202`, `http://localhost:8000` (dev local), et `https://<url-cloud-run>` tant que l'ingress n'est pas verrouillé |
+| URI de redirection autorisés | `https://dev.clef.paquerette.com/auth/callback`, **`https://dev.clef.paquerette.com/auth/callback-dt`**, `http://localhost:8000/auth/callback`, `http://localhost:8000/auth/callback-dt` |
 
-Conservez le **Client ID** et le **Client Secret** : ils alimentent les secrets
-`CLEF_GOOGLE_CLIENT_ID` et `CLEF_GOOGLE_CLIENT_SECRET` à l'étape suivante.
+**Il y a DEUX flux OAuth, donc deux URI par environnement.** Le second,
+`/auth/callback-dt`, est celui de la **délégation** Calendar/Drive/Gmail d'un
+gestionnaire DT (`/auth/authorize-dt`, appelé par l'écran *Administration DT*).
+Oublié en console, la connexion normale fonctionne parfaitement et seule cette
+délégation échoue — en `redirect_uri_mismatch`, sur un écran que personne n'ouvre
+tous les jours. Les deux URI partagent la même origine depuis le 2026-08-28 : le
+second dérivait de l'URL `*.run.app`, ce qui aurait cessé de fonctionner au
+verrouillage de l'ingress.
 
-L'URL Cloud Run n'est connue qu'après le premier déploiement : lancez d'abord les
-deux scripts, puis revenez ajouter l'URI de redirection.
+⚠️ **L'URI de redirection doit être celui du DOMAINE PUBLIC**, pas celui de l'URL
+`run.app` : dès que `PUBLIC_DOMAIN` est renseigné, le backend annonce
+`https://<domaine>/auth/callback` à Google. `01-gcp-deploy.sh` affiche en fin
+d'exécution les deux valeurs **réellement déployées** — les recopier de là.
+
+Un client dont les URI sont restés sur `localhost` donne un `Error 400:
+redirect_uri_mismatch` — distinct du `Error 401: invalid_client`, qui signale un
+**client_id** faux, pas une URI manquante. Les deux se ressemblent dans l'écran de
+Google ; le premier mot du message tranche.
+
+⚠️ Le fichier JSON téléchargé par la console est un **instantané au moment du
+téléchargement** : les URI ajoutés ensuite n'y figurent pas. Ne pas s'y fier pour
+vérifier la configuration du client — la console est la source de vérité.
+
+Conservez le fichier de credentials : les deux valeurs en sont extraites par `jq` à
+l'étape suivante — jamais retapées.
 
 **Seules les adresses `@croix-rouge.fr` sont autorisées à s'authentifier.**
 
@@ -224,14 +244,37 @@ tourner.
 `00-infra.sh` crée les secrets vides — une valeur de secret n'a pas sa place dans
 du code Terraform. À faire une fois, à la main :
 
+⚠️ **Ne pas retaper ces valeurs à la main.** La console livre un fichier JSON
+(`client_secret_<id>.json`) : les deux valeurs sont **dans** ce fichier, à extraire avec
+`jq`. Les deux erreurs commises le 2026-08-28 viennent d'une saisie manuelle — la
+commande d'exemple lancée sans substituer la valeur, puis le **nom du fichier** collé au
+lieu du champ `.web.client_id` qu'il contient. Chacune a coûté un cycle de déploiement,
+avec pour seul symptôme un `Error 401: invalid_client` rendu par Google.
+
 ```sh
-printf '%s' 'votre-client-id.apps.googleusercontent.com' \
+CRED=~/.cred/CLEF/CLEF-rcq-fr-dev-client_secret_*.json
+
+jq -r '.web.client_id' $CRED | tr -d '\n' \
   | gcloud secrets versions add CLEF_GOOGLE_CLIENT_ID --data-file=- --project=rcq-fr-dev
-printf '%s' 'GOCSPX-votre-secret' \
+jq -r '.web.client_secret' $CRED | tr -d '\n' \
   | gcloud secrets versions add CLEF_GOOGLE_CLIENT_SECRET --data-file=- --project=rcq-fr-dev
-openssl rand -base64 32 \
+openssl rand -hex 32 | tr -d '\n' \
   | gcloud secrets versions add CLEF_QR_CODE_SALT --data-file=- --project=rcq-fr-dev
 ```
+
+Le `tr -d '\n'` n'est pas décoratif : `jq -r` termine sa sortie par un retour ligne, et
+ce seul octet suffit à faire refuser l'identifiant par Google.
+
+Un identifiant client a la forme `<numéro-de-projet>-<empreinte>.apps.googleusercontent.com`
+— par exemple `1022015855967-2irg….apps.googleusercontent.com`. Le préflight de
+`01-gcp-deploy.sh` **lit les trois valeurs et vérifie cette forme** : valeur bouchon,
+caractère blanc, structure invalide, sel trop court sont refusés avant la construction
+des images. Une valeur illisible (droit `secretmanager.versions.access` manquant) est
+signalée comme *non concluante*, pas comme fausse.
+
+⚠️ **Le secret est lu au DÉMARRAGE du conteneur** (`secretKeyRef … key: latest`).
+Ajouter une version ne change rien au service tant qu'aucune **nouvelle révision** n'est
+créée : `./01-gcp-deploy.sh <env> --skip-build` suffit.
 
 Il n'y a **pas** de secret de signature de jetons, et ce n'est pas un oubli : le
 cookie de session porte l'id_token de Google, vérifié contre les clés publiques de
@@ -314,8 +357,9 @@ Enchaînement à respecter, sinon personne ne peut se connecter :
 
 Conception : [`docs/specs/domaine-personnalise-alb.md`](docs/specs/domaine-personnalise-alb.md).
 
-Un **seul hôte** — `clef.paquerette.com` en dev, `clef.croix-rouge.fr` visé en
-production — servi par un load balancer applicatif global qui route par **chemin** :
+Un **seul hôte par environnement**, PRÉFIXÉ — `dev.clef.paquerette.com` en dev,
+`clef.paquerette.com` (sans préfixe) visé en production, `clef.croix-rouge.fr` si la
+Croix-Rouge délègue un sous-domaine — servi par un load balancer applicatif global qui route par **chemin** :
 
 | Chemin | Service |
 |---|---|
@@ -326,8 +370,8 @@ production — servi par un load balancer applicatif global qui route par **chem
 résout déjà** vers l'IP du load balancer.
 
 ```sh
-# 1. Le domaine dans le tfvars de l'environnement
-#    deploy/terraform/environments/dev.tfvars →  public_domain = "clef.paquerette.com"
+# 1. Le domaine dans le fichier d'environnement (UNIQUE source)
+#    deploy/deploy.dev.env →  PUBLIC_DOMAIN=dev.clef.paquerette.com
 
 # 2. Créer le load balancer et obtenir l'IP
 ./00-infra.sh dev
@@ -335,28 +379,60 @@ résout déjà** vers l'IP du load balancer.
 
 # 3. Chez le registrar : un enregistrement A (pas un CNAME — un ALB global s'atteint
 #    par IP), TTL court le temps des essais
-#      clef.paquerette.com.  A  <IP>
+#      dev.clef.paquerette.com.  A  <IP>
 
-# 4. Attendre le certificat — la commande est dans la sortie `certificat_verifier`
-gcloud compute ssl-certificates describe clef-dev-cert --global \
-  --project=rcq-fr-dev --format='value(managed.status, managed.domainStatus)'
+# 4. Attendre le certificat.
+#    ⚠️ Le nom du certificat porte une empreinte du domaine
+#    (« clef-dev-cert-1f2e3d4c ») : il DOIT changer avec le domaine, sinon la bascule
+#    sans coupure est impossible — GCP refuse le doublon de nom. Ne pas le composer à
+#    la main : la commande exacte, nom compris, est dans la sortie Terraform.
+tofu -chdir=deploy/terraform output -raw certificat_verifier
+#    ou, pour le lister :
+gcloud compute ssl-certificates list --global --project=rcq-fr-dev
 
-# 5. Le domaine dans deploy/deploy.dev.env  →  PUBLIC_DOMAIN=clef.paquerette.com
+# 5. Le domaine dans deploy/deploy.dev.env  →  PUBLIC_DOMAIN=dev.clef.paquerette.com
 ./01-gcp-deploy.sh dev
 
-# 6. Console GCP : ajouter au client OAuth
-#      origine        https://clef.paquerette.com
-#      redirection    https://clef.paquerette.com/auth/callback
+# 6. Console GCP : ajouter au client OAuth les deux valeurs que le script AFFICHE
+#    en fin d'exécution — ce sont celles réellement déployées :
+#      origine        https://dev.clef.paquerette.com
+#      redirection    https://dev.clef.paquerette.com/auth/callback
 ```
 
-**Une seule variable par endroit** : `public_domain` côté Terraform fait émettre le
-certificat, `PUBLIC_DOMAIN` côté déploiement fait que l'application connaît son nom.
-Le script en dérive `CORS_ORIGINS`, `ALLOWED_FRONTEND_URLS`, `FRONTEND_URL`,
-`GOOGLE_REDIRECT_URI` et `DOMAIN`.
+Le script **vérifie lui-même** le domaine à la fin : `https://<domaine>/health` (le
+frontend, service par défaut du LB), `https://<domaine>/api/test` (la règle `/api/*`)
+et la redirection 301 depuis `http://`. Si l'une des trois échoue, il le dit et ne
+conclut pas « ✅ terminé » — la cause est presque toujours un certificat encore en
+`FAILED_NOT_VISIBLE`, donc un DNS qui ne résout pas encore.
+
+Il refuse aussi de déployer si `PUBLIC_DOMAIN` porte un schéma (`https://…`), un chemin
+ou un port : un domaine mal collé
+finissait dans `GOOGLE_REDIRECT_URI` **et** dans `DOMAIN`, l'hôte imprimé sur les QR
+codes des véhicules.
+
+**Une seule déclaration, un seul fichier** : `PUBLIC_DOMAIN` dans
+`deploy/deploy.<env>.env`. `00-infra.sh` la passe à Terraform en `-var` — qui fait
+émettre le certificat — et `01-gcp-deploy.sh` la donne à l'application, qui en dérive
+`CORS_ORIGINS`, `ALLOWED_FRONTEND_URLS`, `FRONTEND_URL`, `GOOGLE_REDIRECT_URI` et
+`DOMAIN`.
+
+⚠️ Il y avait auparavant **deux** déclarations, celle-ci et `public_domain` dans
+`deploy/terraform/environments/<env>.tfvars`. Les tfvars sont supprimés le 2026-08-28 :
+personne ne pense à aller chercher une valeur d'environnement dans du code Terraform,
+et le domaine de dev a été corrigé d'un seul côté. Terraform garde ses **défauts** dans
+`variables.tf` — un défaut est un repli, pas une source de vérité.
 
 Laisser `public_domain` **vide** ne crée aucune ressource de load balancer : c'est
 l'état de `test` et `prod`, et un load balancer inutile est facturé à l'heure
 (~18 $/mois pour la règle de transfert).
+
+⚠️ **L'IP statique, elle, reste réservée** (`keep_public_ip`, défaut `true`) : elle est
+publiée dans le DNS, et la libérer imposerait un nouvel enregistrement DNS *et* la
+réémission du certificat au rallumage. Coût de cette réserve : ~7 $/mois. C'est aussi
+ce qui rend l'extinction possible — `prevent_destroy` sur l'adresse n'est pas
+conditionnel, et faisait échouer **au plan** tout apply qui vidait `public_domain`,
+bloquant du même coup des changements sans rapport. Pour libérer réellement l'IP :
+`KEEP_PUBLIC_IP=false` dans `deploy/deploy.<env>.env`, opération délibérée.
 
 Un certificat bloqué en `FAILED_NOT_VISIBLE` signifie que le DNS ne résout pas encore
 vers la bonne IP — c'est la cause dans la quasi-totalité des cas.

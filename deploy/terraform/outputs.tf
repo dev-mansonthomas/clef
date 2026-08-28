@@ -53,11 +53,15 @@ output "secrets_a_renseigner" {
 
 output "load_balancer_ip" {
   description = <<-EOT
-    IP à publier dans le DNS, en enregistrement A. Vide si aucun domaine n'est
-    configuré. C'est cette valeur qui débloque la suite : le certificat managé ne se
-    provisionne qu'une fois le domaine résolu vers elle.
+    IP à publier dans le DNS, en enregistrement A. C'est cette valeur qui débloque la
+    suite : le certificat managé ne se provisionne qu'une fois le domaine résolu vers
+    elle.
+
+    Elle reste affichée quand le load balancer est éteint (`public_domain` vide) tant
+    que `keep_public_ip` vaut true : l'IP est alors réservée mais non servie, et le
+    DNS déjà publié reste valide.
   EOT
-  value       = var.public_domain == "" ? "" : google_compute_global_address.clef[0].address
+  value       = local.ip_active == 0 ? "" : google_compute_global_address.clef[0].address
 }
 
 output "dns_a_creer" {

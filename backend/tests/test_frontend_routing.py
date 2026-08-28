@@ -72,10 +72,52 @@ def test_les_redirections_sont_relatives(nginx: str):
     )
 
 
-def test_le_proxy_couvre_les_deux_prefixes_du_backend(nginx: str):
-    """`/api` ET `/auth` : le second porte tout le parcours OAuth."""
-    assert re.search(r"location\s+~\s+\^/\(api\|auth\)/", nginx), (
-        "le relais doit couvrir /api et /auth"
+# Préfixes du backend, ceux-là mêmes que route le load balancer. La parité entre les
+# deux est vérifiée par test_loadbalancer_terraform.py — un préfixe ajouté ici sans
+# l'être là-bas (ou l'inverse) fait échouer la suite.
+PREFIXES_BACKEND = ("api", "auth", "admin/super")
+
+
+@pytest.mark.parametrize("prefixe", PREFIXES_BACKEND)
+def test_le_proxy_couvre_tous_les_prefixes_du_backend(nginx: str, prefixe: str):
+    """`/api`, `/auth` ET `/admin/super`.
+
+    `/auth` porte tout le parcours OAuth. `/admin/super` manquait : par le load
+    balancer ces appels atteignent bien l'API, mais par l'URL run.app du frontend —
+    encore le seul chemin tant que l'ingress n'est pas verrouillé — ils tombaient dans
+    `location /admin` et recevaient l'index.html de l'application admin au lieu du
+    JSON. Sans conséquence tant que la page super-admin est un écran « en
+    construction » sans appel HTTP ; la panne serait apparue à son implémentation.
+    """
+    motif = re.search(r"location\s+~\s+\^/\(([^)]*)\)/", nginx)
+    assert motif, "le relais du backend a disparu, ou son motif a changé de forme"
+    couverts = {p.strip() for p in motif.group(1).split("|")}
+    assert prefixe in couverts, (
+        f"/{prefixe} n'est pas relayé vers le backend : {sorted(couverts)}. "
+        f"Ces appels recevraient du HTML là où le client attend du JSON."
+    )
+
+
+def test_hsts_est_emis(nginx: str):
+    """Un 301 depuis le clair reste interceptable à la PREMIÈRE visite.
+
+    Le load balancer ne sert le domaine qu'en HTTPS et redirige le port 80, mais un
+    nom tapé à la main, un QR code collé sur un véhicule ou un lien reçu par courriel
+    partent en `http://` — donc détournables une fois. Sur une application qui sert
+    les données personnelles des bénévoles, l'en-tête est le minimum.
+    """
+    motif = re.search(
+        r'add_header\s+Strict-Transport-Security\s+"max-age=(\d+)([^"]*)"\s+always\s*;',
+        nginx,
+    )
+    assert motif, "aucun en-tête Strict-Transport-Security émis par le frontend"
+    assert int(motif.group(1)) >= 31536000, (
+        f"max-age={motif.group(1)} : trop court pour protéger une première visite "
+        "(un an est la valeur usuelle)"
+    )
+    assert "preload" not in motif.group(2), (
+        "`preload` est un engagement difficile à défaire, et l'inscription se fait "
+        "hors de ce fichier : ne pas l'annoncer ici"
     )
 
 

@@ -33,7 +33,7 @@ GET /api/responsables   → HTTP 200
 En mode mock les données sont fictives ; **en production ce sont les nom, prénom,
 email et unité locale de bénévoles de la Croix-Rouge**. Enjeu RGPD direct.
 `GET /api/alerts/status` (`routers/alerts.py:48`) est également non authentifié et
-divulgue `service_account_email`.
+divulgue `service_account_email`. ✅ **Supprimée le 2026-08-28** — voir plus bas.
 
 **Action :** déplacer ces routes dans un router avec `require_authenticated_user`,
 ou les supprimer si elles ne servaient qu'au débogage.
@@ -62,8 +62,29 @@ ou les supprimer si elles ne servaient qu'au débogage.
 > GET /api/benevoles/{email}   → 404
 > GET /api/responsables        → 404
 > ```
-> `GET /api/alerts/status` (`routers/alerts.py:48`) reste **non authentifié** : hors
-> périmètre de ce correctif, toujours ouvert.
+> `GET /api/alerts/status` était restée **non authentifiée**, hors périmètre de ce
+> correctif. ✅ **Supprimée le 2026-08-28**, et supprimée plutôt que gardée :
+>
+> - aucun appelant — ni `admin`, ni `form`, ni e2e, ni les Apps Script ;
+> - `"enabled": True` était **codé en dur** alors que le job dépend de
+>   `SCHEDULER_ENABLED` : la route répondait « activé » scheduler éteint, donc elle
+>   mentait précisément quand on l'interrogeait ;
+> - elle ne disait rien de ce qu'on voudrait savoir : dernière et prochaine exécution,
+>   nombre d'alertes envoyées, erreurs ;
+> - ses deux seules valeurs exactes (`alert_delay_days`, `use_mocks`) sont désormais
+>   servies sous guard par `GET /admin/super/environnement` ;
+> - et la fonctionnalité qu'elle décrivait **ne fonctionne pas en production** :
+>   `alert_service.py:100` lit le référentiel dans Sheets avec le service account —
+>   c'est le constat N13.
+>
+> `tests/test_probe_publique.py` porte deux gardes : le 404 de la route, et une
+> vérification que **toute** route du router des alertes remonte à un `require_*`.
+> Le second est une garde de router, pas de route : `POST /trigger` était gardée et
+> `GET /status` non, à quinze lignes d'écart, et cela ne se voyait pas à la relecture.
+>
+> ⚠️ Si superviser ce job redevient un besoin — il est légitime, c'est une tâche
+> silencieuse — la route à écrire lit l'état RÉEL du scheduler (`job.next_run_time`)
+> sous `require_dt_manager`. C'est une petite fonctionnalité, pas un correctif.
 
 ### C2 — La prise de véhicule échoue systématiquement en 422
 
@@ -924,26 +945,37 @@ globale n'est plus lue.
 
 ## Domaine personnalisé : en attente du certificat
 
-L'infrastructure du load balancer est **appliquée**. `clef.paquerette.com` résout vers
+L'infrastructure du load balancer est **appliquée**. `dev.clef.paquerette.com` résout vers
 l'IP globale, l'enregistrement `A` est publié, et le certificat managé est en
 `PROVISIONING` sur les deux lignes — l'état sain. Rien à faire jusqu'à `ACTIVE`.
 
 ```sh
-gcloud compute ssl-certificates describe clef-dev-cert --global \
-  --project=rcq-fr-dev --format='yaml(managed.status, managed.domainStatus)'
+# ⚠️ Le nom du certificat porte désormais une empreinte du domaine
+# (« clef-dev-cert-1f2e3d4c ») : sans cela, `create_before_destroy` était inopérant.
+# Ne pas le composer à la main.
+tofu -chdir=deploy/terraform output -raw certificat_verifier
+gcloud compute ssl-certificates list --global --project=rcq-fr-dev
 ```
+
+⚠️ **Conséquence à connaître avant le prochain `./00-infra.sh dev`** : le certificat
+`clef-dev-cert` déjà provisionné sera **remplacé** par `clef-dev-cert-<empreinte>`, et
+la fenêtre de provisionnement repart de zéro. Le moment est le bon — l'ancien est encore
+en `PROVISIONING`, donc rien n'est servi en HTTPS et il n'y a aucune coupure à subir.
+Fait après passage en `ACTIVE`, c'eût été une interruption.
 
 **Reste à faire, dans cet ordre :**
 
 1. Attendre `ACTIVE`. Si ça reste bloqué en `FAILED_NOT_VISIBLE`, c'est le DNS — mais
    il résout déjà, donc ce n'est pas attendu.
-2. `PUBLIC_DOMAIN=clef.paquerette.com` dans `deploy/deploy.dev.env`, puis
+2. `PUBLIC_DOMAIN=dev.clef.paquerette.com` dans `deploy/deploy.dev.env`, puis
    `./01-gcp-deploy.sh dev`. **Indépendant du certificat** : peut se faire avant.
    Sans cette étape, la connexion échouera en `redirect_uri_mismatch` même avec un
    certificat actif — le service utiliserait encore son URL `run.app` comme URI de
    redirection.
-3. Vérifier : `https://clef.paquerette.com/` (accueil), `/admin/`, `/form/`,
-   `/api/test`, et `http://…` qui doit rediriger en 301.
+3. Vérifier — **`01-gcp-deploy.sh` le fait maintenant lui-même** : `/health` par le
+   domaine (service par défaut du LB), `/api/test` (règle `/api/*`) et la redirection
+   301 depuis `http://`. Si l'une échoue, il le dit et ne conclut plus « ✅ terminé ».
+   Reste à l'œil : `https://dev.clef.paquerette.com/`, `/admin/`, `/form/`.
 4. Se connecter. L'origine et l'URI de redirection du domaine sont **déjà déclarés**
    côté client OAuth.
 
@@ -1242,6 +1274,42 @@ pouvait structurellement pas voir une variable **manquante**, ce qui est précis
 le défaut R2 — et R4. Le test inverse existe désormais, avec une liste explicite des
 variables dont le défaut est faux en production. Un garde-fou qui ne teste qu'une
 direction donne une confiance qu'il ne mérite pas.
+
+## Revue de code du 2026-08-28 — 11 constatations, 11 traitées
+
+`/code-review` sur le dernier commit (`c623d80`, PR #11 — domaine personnalisé par
+ALB) et la surface de déploiement voisine. **Les deux premières auraient empêché toute
+connexion** le jour de l'ouverture du domaine ; trois autres ne se manifestaient qu'au
+*second* apply Terraform, donc après la mise en service.
+
+| # | Défaut | Traitement |
+|---|---|---|
+| V1 | 🔴 **L'URI de redirection OAuth affiché n'était pas celui déployé.** Le script disait « enregistrer `${BACKEND_URL}/auth/callback} » alors que `deploy_api` envoie `${PUBLIC_BASE}/auth/callback` dès qu'un domaine existe. L'opérateur déclarait l'URI `*.run.app`, l'application en annonçait un autre : **toute** connexion échouait en `redirect_uri_mismatch` | Le script affiche `$R_REDIRECT_URI` — la valeur réellement partie dans le service — et l'origine JavaScript correspondante. Un test interdit la recomposition |
+| V2 | 🟠 **`ALLOWED_FRONTEND_URLS` réduite à une seule valeur** alors que `validate_redirect_url` la lit comme une **liste**. Dès que le domaine public existait, l'origine `*.run.app` disparaissait des destinations valides — service pourtant toujours publiquement invocable et toujours dans `CORS_ORIGINS` : `400 Invalid redirect URL` | Liste, domaine public en tête, origines run.app conservées derrière, sans doublon |
+| V3 | 🟠 **`create_before_destroy` sur un certificat à nom FIXE ne peut pas fonctionner.** Changer `public_domain` force le remplacement ; Terraform crée d'abord, GCP refuse le doublon de nom (`alreadyExists`), l'apply échoue — et la bascule sans coupure n'a jamais lieu | Le nom porte `substr(sha256(public_domain), 0, 8)`. Même effet que le `random_id` + `keepers` de la doc du provider, sans état supplémentaire. La sortie `certificat_verifier` donne le nom réel |
+| V4 | 🟠 **`prevent_destroy` rendait inutilisable l'interrupteur documenté.** Il n'est pas conditionnel : vider `public_domain` planifiait la destruction d'une ressource protégée, et Terraform échouait **au plan** — la racine entière devenait inapplicable, y compris pour des changements sans rapport, et `tofu destroy` était bloqué | L'adresse suit sa propre condition (`ip_active`) et **reste réservée** quand le LB s'éteint : le DNS publié reste valide. `keep_public_ip = false` la libère explicitement |
+| V5 | 🟠 **Politique TLS et certificat n'attendaient pas l'activation des APIs.** Ne référençant aucune autre ressource, le provider ne leur déduisait aucune dépendance : au premier apply d'un environnement où `compute.googleapis.com` s'active dans la même passe, elles couraient l'activation et échouaient en `SERVICE_DISABLED` | `depends_on` ajouté. Le test écrit pour l'occasion est **générique** — il a trouvé une **troisième** ressource dans le même cas, l'url map de redirection, que la relecture avait manquée |
+| V6 | ⚪ **La spec prescrivait encore `timeout_sec` à 300 s**, le champ même que le second commit de la PR avait retiré parce que GCP le REFUSE sur un NEG serverless. Un mainteneur suivant la spec le remettait, et l'apply échouait | Ligne de risque réécrite, avec le message d'erreur exact |
+| V7 | ⚪ **`PUBLIC_DOMAIN` utilisé brut.** Collé avec son schéma — la forme affichée partout dans la documentation — il donnait `https://https://clef…` dans `FRONTEND_URL`, `GOOGLE_REDIRECT_URI` et, **irréversiblement**, dans `DOMAIN` : l'hôte encodé dans les QR codes collés sur les véhicules. Rien ne le recoupait non plus avec le `public_domain` du tfvars | Validé comme nom d'hôte seul (ni schéma, ni chemin, ni port), normalisé en minuscules, et comparé au tfvars de l'environnement. Refus **avant** de déployer, comme pour `PROJECT_ID` |
+| V8 | ⚪ **nginx ne relayait pas `/admin/super/*`**, que le LB route vers l'API. Par l'URL run.app — encore le seul chemin tant que l'ingress n'est pas verrouillé — ces appels tombaient dans `location /admin` et recevaient l'index.html de l'application admin au lieu du JSON | Les trois préfixes relayés. **Vérifié en exécution** (nginx + backend factice) : `/admin/super/status` va au backend, `/admin/vehicles` sert toujours le SPA. Un test compare les préfixes du relais à ceux du LB : ils ne peuvent plus diverger |
+| V9 | ⚪ **`/api/test` divulguait `environment` et `using_mocks` sans authentification**, déclarée en ligne dans `main.py` — donc publique par construction, la famille de C1 — et désormais publiée sur le domaine public de la Croix-Rouge | Scindée : la **sonde** de routage reste publique dans `routers/probe.py` (c'est son rôle : prouver que `/api/*` atteint l'API) mais ne dit plus rien ; le **diagnostic** passe sous guard en `GET /admin/super/environnement`. Garde structurelle : toute nouvelle route en ligne dans `main.py` fait échouer la suite |
+| V10 | ⚪ **Aucun `Strict-Transport-Security`.** Le LB ne sert qu'en HTTPS et redirige le port 80, mais un 301 est interceptable : la **première** visite — nom tapé, QR code, lien de courriel — partait en clair, sur une application qui sert les données personnelles des bénévoles | En-tête posé (un an, `includeSubDomains`, sans `preload`). **Vérifié en exécution** sur la navigation admin. ⚠️ nginx n'hérite pas des `add_header` dans les blocs qui en déclarent un : les deux locations d'actifs statiques ne l'ont pas — sans conséquence pour HSTS, mais un scanner le signalera |
+| V11 | ⚪ **La vérification finale ne sondait que l'URL `run.app`.** Certificat en `FAILED_NOT_VISIBLE`, enregistrement A absent, NEG visant le mauvais service : tout cela passait, et le script concluait « ✅ Déploiement terminé » | Trois sondes par le domaine public — `/health`, `/api/test`, et le 301 depuis `http://` avec conservation du chemin — et un message final qui ne dit plus « terminé » quand elles échouent. Résultat aussi dans le rapport JSON |
+
+**Un douzième, hors des onze.** `GET /api/alerts/status` — signalée dans V9 comme « de
+la même famille, toujours ouverte » — a été **supprimée** dans la même branche, sur
+décision de l'utilisateur après examen de son utilité. Elle divulguait
+`service_account_email` en plus du mode mock, n'avait aucun appelant, et son champ
+`enabled` codé en dur mentait dès que `SCHEDULER_ENABLED=false`. Détail dans la section
+C1 ci-dessus.
+
+**Ce que la revue apprend.** Cinq des six constats Terraform partagent une cause :
+*une propriété déclarative dont l'effet réel contredit ce qu'en dit le commentaire ou
+la documentation* — `create_before_destroy` inopérant sur un nom fixe,
+`prevent_destroy` qui bloque son propre interrupteur, un `depends_on` absent là où
+aucune référence ne le remplace. Aucune n'est visible d'un `tofu validate` ; toutes le
+sont d'un test qui lit le fichier. Le test générique de V5 en a trouvé une de plus que
+la relecture : **écrire la règle plutôt que la vérifier cas par cas**.
 
 ## Contraintes de l'environnement, découvertes par exécution
 

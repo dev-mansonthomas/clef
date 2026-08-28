@@ -60,9 +60,13 @@ esac
 #
 # `debug/` est gitignoré — rien de ceci n'est versionné.
 #
-# ⚠️ Aucune valeur de secret n'est journalisée : le script n'en lit aucune, il ne
-# compte que des versions. L'adresse du gestionnaire DT est notée comme présente ou
-# absente, jamais recopiée : c'est une donnée personnelle.
+# ⚠️ Aucune valeur de secret n'est journalisée. Le préflight LIT celles des trois
+# secrets pour en vérifier la forme (voir plus bas), mais n'en écrit aucune : seul un
+# verdict sort. Exception assumée, le `client_id` OAuth, affiché **quand il est
+# refusé** — il n'est pas confidentiel, Google le publie dans chaque URL
+# d'autorisation, et c'est la valeur que l'opérateur doit comparer à sa console.
+# L'adresse du gestionnaire DT est notée comme présente ou absente, jamais recopiée :
+# c'est une donnée personnelle.
 DEBUG_DIR="debug/deploy"
 mkdir -p "$DEBUG_DIR"
 LOG_FILE="${DEBUG_DIR}/01-gcp-deploy.${ENVIRONMENT}.log"
@@ -78,6 +82,8 @@ R_BACKEND_URL=""
 R_FRONTEND_URL=""
 R_REDIRECT_URI=""
 R_HEALTH=""
+R_PUBLIC_DOMAIN=""
+R_PUBLIC_VERIF=""
 R_PASSES=0
 R_STEP="démarrage"
 
@@ -116,6 +122,8 @@ ecrire_rapport() {
   },
   "uriRedirectionOauth": "$(json_escape "$R_REDIRECT_URI")",
   "health": "$(json_escape "$R_HEALTH")",
+  "domainePublic": "$(json_escape "$R_PUBLIC_DOMAIN")",
+  "verificationDomainePublic": "$(json_escape "$R_PUBLIC_VERIF")",
   "bucketInstantanes": "$(json_escape "${SNAPSHOTS_BUCKET:-}")",
   "transcription": "$(json_escape "$LOG_FILE")"
 }
@@ -144,6 +152,13 @@ set -a
 . "./$ENV_FILE"
 set +a
 
+# Règles partagées avec 00-infra.sh — voir l'en-tête de ce fichier.
+# `disable=SC1091` en plus de `source=` : sans l'option -x, shellcheck ne suit pas le
+# fichier et sort en 1 sur un simple info — ce qui ferait échouer un contrôle de lint
+# qui ne connaît pas l'option.
+# shellcheck source=deploy/env-commun.sh disable=SC1091
+. "./deploy/env-commun.sh"
+
 : "${PROJECT_ID:?PROJECT_ID manquant dans $ENV_FILE}"
 : "${REGION:?REGION manquant dans $ENV_FILE}"
 : "${EMAIL_GESTIONNAIRE_DT:?EMAIL_GESTIONNAIRE_DT manquant dans $ENV_FILE}"
@@ -165,8 +180,23 @@ fi
 # Base publique. Quand un domaine est configuré, TOUTES les URL que l'application
 # fabrique en découlent — un seul endroit à changer. Sinon on garde le comportement
 # d'avant : les URL *.run.app relues après déploiement.
+#
+# ⚠️ PUBLIC_DOMAIN est un NOM D'HÔTE : ni schéma, ni chemin, ni port. La règle vit
+# dans deploy/env-commun.sh, partagée avec 00-infra.sh : la même valeur alimente les
+# URL de l'application ET le certificat, deux validations divergentes seraient pires
+# qu'une.
+#
+# Le recoupement avec `public_domain` du tfvars a disparu avec les tfvars :
+# `deploy/deploy.<env>.env` est désormais l'UNIQUE source, il n'y a plus rien à
+# recouper.
+if ! PUBLIC_DOMAIN="$(valider_domaine_public "${PUBLIC_DOMAIN:-}")"; then
+    echo "   Corriger PUBLIC_DOMAIN dans $ENV_FILE."
+    exit 2
+fi
+R_PUBLIC_DOMAIN="$PUBLIC_DOMAIN"
+
 PUBLIC_BASE=""
-[ -n "${PUBLIC_DOMAIN:-}" ] && PUBLIC_BASE="https://${PUBLIC_DOMAIN}"
+[ -n "$PUBLIC_DOMAIN" ] && PUBLIC_BASE="https://${PUBLIC_DOMAIN}"
 
 REGISTRY="${REGION}-docker.pkg.dev/${PROJECT_ID}/clef-images"
 TAG="$(date -u +%Y%m%d-%H%M%S)"
@@ -301,6 +331,45 @@ esac
 
 # Un secret sans version fait échouer le démarrage du conteneur, pas le déploiement :
 # la révision serait créée puis mourrait, avec un message peu parlant.
+#
+# ⚠️ Et une version PRÉSENTE ne dit rien de son CONTENU. Ce contrôle ne comptait que
+# les versions, et deux valeurs fausses ont chacune coûté un cycle complet de
+# déploiement le 2026-08-28 :
+#
+#   1. « ton-client-id.apps.googleusercontent.com » — la commande de DEPLOYMENT.md
+#      lancée telle quelle, sans substituer la vraie valeur ;
+#   2. « CLEF-rcq-fr-dev-client_secret_1022015855967-2irg….apps.googleusercontent.com »
+#      — le NOM DU FICHIER de credentials téléchargé, collé au lieu du champ
+#      `.web.client_id` qu'il contient.
+#
+# Les deux finissent par `.apps.googleusercontent.com` : vérifier le suffixe n'aurait
+# rien attrapé. Un identifiant Google a une STRUCTURE — `<numéro de projet>-<empreinte
+# minuscule>.apps.googleusercontent.com` — et c'est elle qui distingue les trois cas.
+# Le symptôme, sinon, est un « Error 401: invalid_client » côté Google, à deux
+# redéploiements de sa cause.
+PLACEHOLDERS='(^|[^a-z])(ton|votre|your|mon|my)-|changeme|change-me|placeholder|a-remplir|remplacer|xxxxx|todo|<|>'
+
+# Lit une valeur de secret. Ne l'affiche jamais, ne l'écrit jamais sur disque. Rend 1
+# si la LECTURE a échoué — droit manquant, réseau — cas qu'il faut distinguer d'une
+# valeur fausse.
+#
+# ⚠️ La sentinelle « S » n'est pas une coquetterie. Une substitution de commande
+# `$(...)` SUPPRIME les retours ligne finaux : écrite naïvement, cette fonction ne
+# pouvait pas voir un `\n` en fin de secret — le défaut le plus courant, `echo` au
+# lieu de `printf '%s'`, et celui que le contrôle ci-dessous cherche. Vérifié en
+# exécution avant correction : la valeur passait le contrôle. La sentinelle et le code
+# de sortie sont collés après la valeur, puis retirés autour du DERNIER « S ».
+VALEUR_SECRET=""
+lire_secret() {
+    local brut code
+    brut=$(gcloud secrets versions access latest --secret="$1" \
+        --project="$PROJECT_ID" 2>/dev/null; printf 'S%s' "$?")
+    code="${brut##*S}"
+    VALEUR_SECRET="${brut%S*}"
+    [ "$code" = "0" ] || return 1
+    return 0
+}
+
 for secret in CLEF_GOOGLE_CLIENT_ID CLEF_GOOGLE_CLIENT_SECRET CLEF_QR_CODE_SALT; do
     COUNT=$(gcloud secrets versions list "$secret" --project="$PROJECT_ID" \
               --filter="state=enabled" --format="value(name)" 2>/dev/null | wc -l | tr -d ' ')
@@ -308,26 +377,84 @@ for secret in CLEF_GOOGLE_CLIENT_ID CLEF_GOOGLE_CLIENT_SECRET CLEF_QR_CODE_SALT;
         echo "❌ Secret $secret sans version active."
         echo "   printf '%s' 'VALEUR' | gcloud secrets versions add $secret --data-file=- --project=$PROJECT_ID"
         FAILED=true
+        continue
     fi
-done
-[ "$FAILED" = false ] && echo "  ✅ secrets renseignés"
 
-# Les identifiants de feuilles sont lus par app/services/sheets_real.py, qui
-# s'authentifie avec le SERVICE ACCOUNT — et ne peut donc pas les lire : le domaine
-# @croix-rouge.fr interdit tout partage vers une adresse extérieure, ce qu'est une
-# adresse .gserviceaccount.com. Les renseigner ne débloque rien ; les laisser vides
-# ne casse rien de plus.
-#
-# Le référentiel arrive dans Redis par Apps Script, pas par ce chemin. Trois routes
-# dépendent pourtant encore de sheets_real et prendront un 403 en production —
-# constat N13 de docs/TODO.md. On le dit ici, une fois, plutôt que de laisser croire
-# qu'une variable manquante en est la cause.
-for var in VEHICULES_SPREADSHEET_ID BENEVOLES_SPREADSHEET_ID RESPONSABLES_SPREADSHEET_ID; do
-    if [ -z "${!var:-}" ]; then
-        echo "ℹ️  $var vide — sans effet : le service account ne peut de toute façon"
-        echo "    pas lire une feuille du domaine (voir constat N13)."
+    if ! lire_secret "$secret"; then
+        echo "  ⚠️  $secret : version présente, valeur ILLISIBLE depuis ce compte"
+        echo "     (droit secretmanager.versions.access manquant ?) — contrôle de"
+        echo "     forme non concluant, ce n'est PAS une valeur fausse."
+        continue
     fi
+
+    # Un caractère blanc est toujours une erreur de copie : `echo` au lieu de
+    # `printf` ajoute un \n, invisible dans la console, fatal côté Google.
+    case "$VALEUR_SECRET" in
+        *[[:space:]]*)
+            echo "❌ $secret contient un caractère blanc (espace ou retour ligne)."
+            echo "   Cause quasi certaine : \`echo\` au lieu de \`printf '%s'\`."
+            FAILED=true
+            continue ;;
+    esac
+
+    if printf '%s' "$VALEUR_SECRET" | tr '[:upper:]' '[:lower:]' | grep -Eq "$PLACEHOLDERS"; then
+        echo "❌ $secret ressemble à une valeur BOUCHON, pas à un vrai secret."
+        echo "   Remplacer par la valeur réelle (voir DEPLOYMENT.md § « Renseigner les 3 secrets »)."
+        FAILED=true
+        continue
+    fi
+
+    case "$secret" in
+        CLEF_GOOGLE_CLIENT_ID)
+            # <numéro de projet>-<empreinte>.apps.googleusercontent.com
+            if ! printf '%s' "$VALEUR_SECRET" \
+                | grep -Eq '^[0-9]+(-[a-z0-9]+)?\.apps\.googleusercontent\.com$'; then
+                echo "❌ CLEF_GOOGLE_CLIENT_ID n'a pas la forme d'un identifiant Google :"
+                echo "     $VALEUR_SECRET"
+                echo "   Attendu : <numéro-de-projet>-<empreinte>.apps.googleusercontent.com"
+                echo "   Il est dans le fichier de credentials téléchargé, PAS dans son nom :"
+                printf '     %s\n' \
+                    "jq -r .web.client_id <fichier>.json | tr -d '\\n' \\" \
+                    "  | gcloud secrets versions add CLEF_GOOGLE_CLIENT_ID --data-file=- --project=$PROJECT_ID"
+                FAILED=true
+            fi ;;
+        CLEF_GOOGLE_CLIENT_SECRET)
+            # Les clients récents donnent « GOCSPX-… ». Les anciens non : on avertit,
+            # on ne refuse pas — un refus à tort bloquerait un déploiement légitime.
+            case "$VALEUR_SECRET" in
+                GOCSPX-*) ;;
+                *) echo "  ⚠️  CLEF_GOOGLE_CLIENT_SECRET ne commence pas par « GOCSPX- »."
+                   echo "     Forme inhabituelle pour un client récent — à vérifier, sans blocage." ;;
+            esac ;;
+        CLEF_QR_CODE_SALT)
+            LONGUEUR=${#VALEUR_SECRET}
+            if [ "$LONGUEUR" -lt 16 ]; then
+                # qr_code_service.py:17 refuse en dessous : le conteneur répondrait 500
+                # sur toute génération de QR code.
+                echo "❌ CLEF_QR_CODE_SALT fait $LONGUEUR caractères ; le code en exige 16 au moins."
+                FAILED=true
+            elif [ "$LONGUEUR" -lt 32 ]; then
+                echo "  ⚠️  CLEF_QR_CODE_SALT ne fait que $LONGUEUR caractères."
+                echo "     Les jetons des QR codes COLLÉS sur les véhicules en dépendent, et"
+                echo "     le sel ne peut plus changer une fois imprimés : viser 32+."
+            fi ;;
+    esac
 done
+VALEUR_SECRET=""
+[ "$FAILED" = false ] && echo "  ✅ secrets renseignés (présence ET forme)"
+
+# ⚠️ Aucun contrôle sur les trois `*_SPREADSHEET_ID` : retiré le 2026-08-29.
+#
+# Le préflight signalait leur absence par trois lignes `ℹ️`. C'était du bruit à chaque
+# déploiement pour une non-information : le référentiel arrive dans Redis par Apps
+# Script, et `sheets_real.py` ne pourrait de toute façon pas lire ces classeurs — le
+# domaine @croix-rouge.fr interdit tout partage vers une adresse
+# `.gserviceaccount.com`. Les renseigner ne débloque rien.
+#
+# Un préflight doit refuser ou se taire. Trois lignes qui disent « ceci est sans
+# effet » entraînent à survoler sa sortie, et c'est la sortie où doivent ressortir les
+# refus. Le fond du sujet est documenté là où on le cherche :
+# `deploy/deploy.env.example` et le constat N13 de `docs/TODO.md`.
 
 if [ "$FAILED" = true ]; then
     echo ""
@@ -476,16 +603,35 @@ if [[ "$COMPONENTS" == *api* ]]; then
         local domain="${front#https://}"
         domain="${domain#http://}"
 
+        # ⚠️ ALLOWED_FRONTEND_URLS est une LISTE séparée par des virgules — les trois
+        # autres sont des valeurs simples.
+        #
+        # `validate_redirect_url` (app/auth/config.py) la découpe et refuse toute
+        # destination absente. Réduite à `front`, l'origine *.run.app disparaissait dès
+        # qu'un domaine public existait, alors que ce service reste publiquement
+        # invocable et présent dans CORS_ORIGINS : une connexion entamée depuis cette
+        # URL repartait en « 400 Invalid redirect URL ». Le domaine public reste en
+        # TÊTE — c'est la destination par défaut.
+        local front_allowed="$front" origine
+        for origine in "$frontend_url" "$backend_url"; do
+            [ -n "$origine" ] || continue
+            case ",${front_allowed}," in
+                *",${origine},"*) continue ;;
+            esac
+            front_allowed="${front_allowed},${origine}"
+        done
+
         SERVICE_NAME="$SERVICE_NAME" ENVIRONMENT="$ENVIRONMENT" \
         MAX_INSTANCES="$MAX_INSTANCES" MIN_INSTANCES="$MIN_INSTANCES" \
         SERVICE_ACCOUNT="$SERVICE_ACCOUNT" BACKEND_IMAGE="$BACKEND_IMAGE" \
         PROJECT_ID="$PROJECT_ID" EMAIL_GESTIONNAIRE_DT="$EMAIL_GESTIONNAIRE_DT" \
         CORS_ORIGINS="$cors" \
-        ALLOWED_FRONTEND_URLS="$front" \
+        ALLOWED_FRONTEND_URLS="${front_allowed}" \
         FRONTEND_URL="$front" \
         DOMAIN="$domain" \
         BACKEND_URL="$backend_url" \
         GOOGLE_REDIRECT_URI="${front:+${front}/auth/callback}" \
+        DT_OAUTH_REDIRECT_URI="${front:+${front}/auth/callback-dt}" \
         VEHICULES_SPREADSHEET_ID="${VEHICULES_SPREADSHEET_ID:-}" \
         BENEVOLES_SPREADSHEET_ID="${BENEVOLES_SPREADSHEET_ID:-}" \
         RESPONSABLES_SPREADSHEET_ID="${RESPONSABLES_SPREADSHEET_ID:-}" \
@@ -529,8 +675,25 @@ if [[ "$COMPONENTS" == *api* ]]; then
     R_STEP="backend déployé"
     echo "  ✅ backend déployé"
     echo ""
-    echo "  📌 Ajouter cet URI de redirection au client OAuth de la console GCP :"
-    echo "     ${BACKEND_URL}/auth/callback"
+    # ⚠️ Afficher l'URI RÉELLEMENT déployé, jamais une recomposition.
+    #
+    # Ce message donnait « ${BACKEND_URL}/auth/callback » alors que deploy_api envoie
+    # « ${PUBLIC_BASE}/auth/callback » dès qu'un domaine est configuré. L'opérateur
+    # enregistrait donc l'URI *.run.app, l'application en annonçait un autre, et
+    # TOUTE connexion échouait en redirect_uri_mismatch.
+    if [ -n "$R_REDIRECT_URI" ]; then
+        echo "  📌 À déclarer sur le client OAuth de la console GCP :"
+        echo "     origine JavaScript : ${R_REDIRECT_URI%/auth/callback}"
+        echo "     URI de redirection : $R_REDIRECT_URI"
+        # Le second flux — délégation Calendar/Drive/Gmail d'un gestionnaire DT — a
+        # son propre URI. Oublié en console, l'écran dt-admin échoue en
+        # redirect_uri_mismatch, et RIEN d'autre ne le signale.
+        echo "     URI de redirection : ${R_REDIRECT_URI%/auth/callback}/auth/callback-dt"
+        echo "                          (délégation DT — les DEUX sont nécessaires)"
+    else
+        echo "  ⚠️  Aucune URL connue : URI de redirection OAuth vide, la connexion"
+        echo "     échouera. Relancer une fois le service créé."
+    fi
     echo ""
 fi
 
@@ -593,14 +756,92 @@ if [ -n "$BACKEND_URL" ]; then
         *)  echo "  ⚠️  réponse inattendue — voir les logs." ;;
     esac
 fi
+
+# ⚠️ Quand un domaine est configuré, c'est LUI qu'il faut éprouver.
+#
+# Cette étape ne sondait que ${BACKEND_URL}/health, l'URL *.run.app — celle que
+# personne n'utilise dès qu'il y a un domaine. Un certificat encore en
+# FAILED_NOT_VISIBLE, un enregistrement A absent ou un NEG visant le mauvais service
+# passaient donc inaperçus, et le script concluait « ✅ Déploiement terminé ».
+#
+# Les trois sondes couvrent les trois chemins distincts du load balancer :
+#   /health    → service par DÉFAUT (nginx, frontend) ;
+#   /api/test  → règle de chemin /api/* (NEG de l'API) ;
+#   http://    → l'url map de redirection, sur le port 80.
+PUB_FAIL=false
+if [ -n "$PUBLIC_BASE" ]; then
+    echo ""
+    echo "  🌐 Domaine public : $PUBLIC_DOMAIN"
+
+    if PUB_HEALTH=$(curl -fsS --max-time 30 "${PUBLIC_BASE}/health" 2>/dev/null); then
+        echo "  ✅ ${PUBLIC_BASE}/health → $(printf '%s' "$PUB_HEALTH" | head -1)"
+    else
+        PUB_FAIL=true
+        echo "  ❌ ${PUBLIC_BASE}/health injoignable (frontend, service par défaut)"
+    fi
+
+    if curl -fsS --max-time 30 "${PUBLIC_BASE}/api/test" >/dev/null 2>&1; then
+        echo "  ✅ ${PUBLIC_BASE}/api/test → l'API répond à travers le load balancer"
+    else
+        PUB_FAIL=true
+        echo "  ❌ ${PUBLIC_BASE}/api/test : la règle /api/* n'atteint pas l'API"
+    fi
+
+    # Sans -L : c'est la redirection elle-même qu'on mesure, pas sa cible. Le chemin
+    # doit être conservé — les QR codes et les courriels en portent un.
+    PUB_REDIR=$(curl -s -o /dev/null --max-time 30 -w '%{http_code} %{redirect_url}' \
+        "http://${PUBLIC_DOMAIN}/form/" 2>/dev/null || printf '000 ')
+    PUB_CODE="${PUB_REDIR%% *}"
+    PUB_CIBLE="${PUB_REDIR#* }"
+
+    # ⚠️ GCP renvoie le PORT EXPLICITE dans la redirection :
+    #
+    #     Location: https://clef.paquerette.com:443/form/
+    #
+    # Ma première version comparait à l'URL sans port et concluait « redirige, mais
+    # pas où il faut » sur une redirection parfaitement correcte — constaté au premier
+    # déploiement réel, le 2026-08-28. Un contrôle trop strict qui crie au loup vaut
+    # à peine mieux qu'un contrôle absent : on apprend à ignorer sa sortie.
+    PUB_CIBLE_NORM=$(printf '%s' "$PUB_CIBLE" | sed 's|:443/|/|')
+
+    if [ "$PUB_CODE" = "301" ] && [ "$PUB_CIBLE_NORM" = "https://${PUBLIC_DOMAIN}/form/" ]; then
+        echo "  ✅ http:// → 301 vers https, chemin conservé"
+    elif [ "$PUB_CODE" = "301" ]; then
+        PUB_FAIL=true
+        echo "  ❌ http:// redirige, mais pas où il faut : $PUB_CIBLE"
+        echo "     attendu : https://${PUBLIC_DOMAIN}/form/ (le port :443 est toléré)"
+    else
+        PUB_FAIL=true
+        echo "  ❌ http:// ne redirige pas en 301 (réponse : $PUB_REDIR)"
+    fi
+
+    if [ "$PUB_FAIL" = true ]; then
+        R_PUBLIC_VERIF="incomplet"
+        echo ""
+        echo "  ⚠️  Le domaine public ne répond pas complètement. Causes usuelles :"
+        echo "     • certificat pas encore ACTIVE — le DNS d'abord, puis 15 min à 24 h ;"
+        echo "     • enregistrement A absent, ou pointant ailleurs que l'IP du LB ;"
+        echo "     • ./00-infra.sh $ENVIRONMENT pas passé avec public_domain renseigné."
+        echo "     gcloud compute ssl-certificates list --global --project=$PROJECT_ID"
+        echo "     tofu -chdir=deploy/terraform output dns_a_creer"
+    else
+        R_PUBLIC_VERIF="ok"
+    fi
+fi
 echo ""
 
 R_STEP="terminé"
 R_BACKEND_URL="$BACKEND_URL"
 R_FRONTEND_URL="$FRONTEND_URL"
-echo "✅ Déploiement « $ENVIRONMENT » terminé."
+if [ "$PUB_FAIL" = true ]; then
+    echo "⚠️  Déploiement « $ENVIRONMENT » terminé, mais le domaine public ne répond"
+    echo "    pas complètement — voir juste au-dessus. Les services eux-mêmes sont à jour."
+else
+    echo "✅ Déploiement « $ENVIRONMENT » terminé."
+fi
 echo ""
 echo "📍 URLs :"
+[ -n "$PUBLIC_BASE" ]  && echo "   public   : $PUBLIC_BASE"
 [ -n "$BACKEND_URL" ]  && echo "   backend  : $BACKEND_URL"
 [ -n "$FRONTEND_URL" ] && echo "   frontend : $FRONTEND_URL"
 echo ""

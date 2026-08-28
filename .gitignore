@@ -99,14 +99,15 @@ Desktop.ini
 tfplan*
 *.tfstate
 *.tfstate.*
-# `*.tfvars` porte parfois des secrets — d'où la règle. Mais les fichiers
-# d'environnement de CLEF ne contiennent que project_id, environment et deux
-# régions : ils sont **nécessaires** à ./00-infra.sh, qui refuse de démarrer sans.
-# Sans cette exception, un clone frais ne pourrait pas provisionner.
-# (Même piège que la règle `*.csv`, qui avait avalé une fixture de test.)
+# `*.tfvars` porte parfois des secrets — d'où la règle.
+#
+# ⚠️ L'exception `!deploy/terraform/environments/*.tfvars` a été RETIRÉE le 2026-08-28
+# avec les fichiers eux-mêmes : `deploy/deploy.<env>.env` est désormais l'unique source
+# des variables d'un environnement, et `00-infra.sh` les passe à Terraform en `-var`.
+# Deux sources pour une même valeur — dont une que personne ne pense à consulter —
+# avaient déjà laissé un domaine corrigé d'un seul côté.
 *.tfvars
 !*.tfvars.example
-!deploy/terraform/environments/*.tfvars
 .terraform/
 # Le fichier de verrouillage des providers **doit** être versionné : c'est lui qui
 # garantit que tout le monde, et la machine de déploiement, résolvent la même

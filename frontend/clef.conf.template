@@ -71,10 +71,23 @@ server {
     }
 
     # ─── Backend ──────────────────────────────────────────────────────────────
-    # `/api` et `/auth` : les deux préfixes du backend. `/auth` compte autant que
-    # `/api` — c'est tout le parcours OAuth (login, callback, me, logout), déclaré
-    # avec `prefix="/auth"` dans app/auth/routes.py.
-    location ~ ^/(api|auth)/ {
+    # Les TROIS préfixes du backend, ceux-là mêmes que route le load balancer.
+    #
+    #   /api          routes métier ;
+    #   /auth         tout le parcours OAuth (login, callback, me, logout),
+    #                 déclaré avec `prefix="/auth"` dans app/auth/routes.py ;
+    #   /admin/super  router super-admin (app/admin/super_admin_routes.py).
+    #
+    # ⚠️ `/admin/super` était ABSENT : par le load balancer ces appels arrivent bien à
+    # l'API, mais par l'URL run.app du frontend — encore le seul chemin tant que
+    # l'ingress n'est pas verrouillé — ils tombaient dans `location /admin` et
+    # recevaient l'index.html de l'application admin au lieu du JSON attendu. Sans
+    # conséquence AUJOURD'HUI, la page super-admin étant un écran « en construction »
+    # sans appel HTTP ; la panne serait apparue le jour de son implémentation.
+    #
+    # Une location REGEX gagne sur une location par préfixe (`location /admin`) :
+    # c'est ce qui fait que cette règle-ci l'emporte, sans casser /admin/vehicles.
+    location ~ ^/(api|auth|admin/super)/ {
         # Deux variables, et c'est voulu :
         #
         #   BACKEND_ORIGIN  schéma + hôte, « https://clef-api-xxx.run.app »
@@ -147,4 +160,25 @@ server {
     add_header X-Frame-Options "SAMEORIGIN" always;
     add_header X-Content-Type-Options "nosniff" always;
     add_header X-XSS-Protection "1; mode=block" always;
+
+    # ⚠️ HSTS. Le load balancer sert le domaine en HTTPS seul et redirige le port 80
+    # en 301, mais un 301 est interceptable : la PREMIÈRE visite — nom tapé à la main,
+    # QR code collé sur un véhicule, lien reçu par courriel — partait en clair et
+    # restait détournable. Sur une application qui sert les données personnelles des
+    # bénévoles, c'est le premier en-tête à poser.
+    #
+    # Un navigateur IGNORE cet en-tête reçu sur une connexion non sécurisée
+    # (RFC 6797 §7.2) : le poser ici est donc sans effet en local sur http://, et sans
+    # effet non plus avant que le certificat ne passe ACTIVE — puisque le domaine
+    # n'est alors pas joignable en https du tout.
+    #
+    # Pas de `preload` : l'inscription sur la liste des navigateurs est un engagement
+    # difficile à défaire, et ce n'est pas à ce fichier de le prendre.
+    #
+    # ⚠️ nginx n'HÉRITE des `add_header` que dans les blocs qui n'en déclarent aucun.
+    # Les deux locations d'actifs statiques (`expires 1y`) posent leur propre
+    # Cache-Control : elles perdent donc TOUS ces en-têtes, celui-ci compris. C'est
+    # sans conséquence pour HSTS — la navigation HTML, elle, le reçoit — mais c'est la
+    # raison pour laquelle un scanner peut signaler un .js sans en-tête de sécurité.
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
 }

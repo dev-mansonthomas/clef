@@ -75,7 +75,13 @@ variable "snapshot_retention_days" {
 
 variable "public_domain" {
   description = <<-EOT
-    Domaine public servi par le load balancer, sans schéma — « clef.paquerette.com ».
+    Domaine public servi par le load balancer, sans schéma.
+
+    ⚠️ **`clef.paquerette.com` est le domaine de PRODUCTION.** Les environnements
+    inférieurs sont préfixés : `dev.clef.paquerette.com` pour dev,
+    `test.clef.paquerette.com` le jour où test en aura un. Confondre les deux, c'est
+    servir la production depuis dev — et, plus insidieux, imprimer des QR codes
+    portant le domaine de production depuis un environnement de développement.
 
     ⚠️ Laissé VIDE, aucune ressource de load balancer n'est créée : test et prod n'ont
     pas encore de domaine, et un LB inutile coûte une règle de transfert à l'heure.
@@ -87,4 +93,24 @@ variable "public_domain" {
   EOT
   type        = string
   default     = ""
+}
+
+variable "keep_public_ip" {
+  description = <<-EOT
+    Conserver l'IP statique quand `public_domain` est vidé.
+
+    L'interrupteur du load balancer est `public_domain` : vide, plus aucune ressource.
+    Mais l'IP, elle, est publiée dans le DNS de la Croix-Rouge — la libérer impose un
+    nouvel enregistrement DNS ET la réémission du certificat au rallumage. Elle est
+    donc conservée par défaut, pour ~7 $/mois d'IP statique inutilisée.
+
+    C'est aussi ce qui rend l'interrupteur UTILISABLE : `prevent_destroy` sur l'adresse
+    n'est pas conditionnel, et faisait échouer au plan tout apply qui la détruisait —
+    y compris des changements sans rapport. Voir le bloc `locals` de loadbalancer.tf.
+
+    Passer à `false` libère l'IP : opération délibérée, à ne faire que si le domaine
+    est abandonné.
+  EOT
+  type        = bool
+  default     = true
 }

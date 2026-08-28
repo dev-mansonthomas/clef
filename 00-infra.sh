@@ -11,10 +11,11 @@
 #   1. vérifie les prérequis et l'authentification ;
 #   2. crée le bucket de state Terraform (un backend ne peut pas se provisionner
 #      lui-même — c'est le seul geste fait hors Terraform) ;
-#   3. adopte le state local de l'ancienne racine, s'il existe et si le nouveau est
-#      vide, pour ne pas tenter de recréer un keyring KMS déjà en place ;
-#   4. init, plan, puis apply après confirmation ;
-#   5. signale les secrets encore vides.
+#   3. init, plan, puis apply après confirmation ;
+#   4. signale les secrets encore vides.
+#
+# L'étape d'adoption du state de l'ancienne racine a disparu avec cette racine :
+# `backend/terraform/` et `infra/` sont supprimées (constat N12).
 #
 # Idempotent : le relancer ne fait que reconverger.
 
@@ -22,7 +23,6 @@ set -euo pipefail
 
 ENVIRONMENT="${1:-}"
 TF_DIR="deploy/terraform"
-OLD_STATE="backend/terraform/terraform.tfstate"
 
 # ---------------------------------------------------------------------------
 # Aide et validation des arguments
@@ -55,12 +55,44 @@ case "$ENVIRONMENT" in
     *)  echo "❌ Environnement inconnu : $ENVIRONMENT"; echo ""; usage; exit 2 ;;
 esac
 
-TFVARS="$TF_DIR/environments/${ENVIRONMENT}.tfvars"
-[ -f "$TFVARS" ] || { echo "❌ $TFVARS absent."; exit 1; }
+# ─── Une seule source de variables : deploy/deploy.<env>.env ─────────────────
+#
+# ⚠️ Ce script lisait `deploy/terraform/environments/<env>.tfvars`, qui portait
+# project_id, region et public_domain — en double avec le fichier d'environnement lu
+# par 01-gcp-deploy.sh et 02-logs.sh. Deux sources pour une même valeur, dont une que
+# personne ne pense à aller consulter : c'est ainsi qu'un domaine peut être corrigé
+# d'un côté et pas de l'autre, avec pour symptôme un certificat qui ne couvre pas
+# l'hôte que l'application annonce.
+#
+# Les tfvars sont SUPPRIMÉS. Terraform reçoit ces valeurs en `-var`, depuis le fichier
+# d'environnement. Terraform garde ses propres DÉFAUTS (`variables.tf`) — un défaut
+# n'est pas une source de vérité, c'est un repli.
+# shellcheck source=deploy/env-commun.sh disable=SC1091
+. "./deploy/env-commun.sh"
+charger_env_deploiement "$ENVIRONMENT" || exit 1
 
-PROJECT_ID=$(grep -E '^project_id' "$TFVARS" | cut -d'"' -f2)
-REGION=$(grep -E '^region' "$TFVARS" | cut -d'"' -f2)
+: "${PROJECT_ID:?PROJECT_ID manquant dans $ENV_FILE}"
+REGION="${REGION:-europe-west1}"
 STATE_BUCKET="${PROJECT_ID}-clef-tfstate"
+
+# Le domaine alimente le certificat managé : même règle que côté déploiement.
+if ! PUBLIC_DOMAIN="$(valider_domaine_public "${PUBLIC_DOMAIN:-}")"; then
+    echo "   Corriger PUBLIC_DOMAIN dans $ENV_FILE."
+    exit 2
+fi
+
+# Les variables passées à Terraform. Seules celles RENSEIGNÉES sont transmises : les
+# autres gardent le défaut déclaré dans variables.tf, qui reste le bon endroit pour
+# une valeur qui ne dépend pas de l'environnement.
+TF_ARGS=(
+    -var "project_id=$PROJECT_ID"
+    -var "environment=$ENVIRONMENT"
+    -var "region=$REGION"
+    -var "public_domain=$PUBLIC_DOMAIN"
+)
+[ -n "${KMS_REGION:-}" ]              && TF_ARGS+=(-var "kms_region=$KMS_REGION")
+[ -n "${SNAPSHOT_RETENTION_DAYS:-}" ] && TF_ARGS+=(-var "snapshot_retention_days=$SNAPSHOT_RETENTION_DAYS")
+[ -n "${KEEP_PUBLIC_IP:-}" ]          && TF_ARGS+=(-var "keep_public_ip=$KEEP_PUBLIC_IP")
 
 # ---------------------------------------------------------------------------
 # Journalisation — le plan et un rapport, lisibles depuis la VM
@@ -179,40 +211,19 @@ fi
 echo ""
 
 # ---------------------------------------------------------------------------
-# Adoption de l'ancien state
+# L'adoption de l'ancien state a été RETIRÉE le 2026-08-28
 # ---------------------------------------------------------------------------
-# L'ancienne racine backend/terraform a réellement provisionné un keyring KMS, un
-# service account et 11 APIs. Sans adopter son state, le premier apply tenterait de
-# les recréer — et échouerait, les noms étant déjà pris.
+# Ce script proposait d'adopter `backend/terraform/terraform.tfstate` : l'ancienne
+# racine avait réellement provisionné le keyring KMS, le service account et les APIs,
+# et sans adoption le premier apply aurait tenté de les recréer.
 #
-# Les adresses de ressources de la nouvelle racine sont volontairement identiques pour
-# que cette adoption fonctionne.
-REMOTE_STATE_EXISTS=false
-if gcloud storage ls "gs://$STATE_BUCKET/${ENVIRONMENT}/default.tfstate" >/dev/null 2>&1; then
-    REMOTE_STATE_EXISTS=true
-fi
-
-if [ "$REMOTE_STATE_EXISTS" = false ] && [ -f "$OLD_STATE" ] && [ "$ENVIRONMENT" = "dev" ]; then
-    echo "📦 Adoption de l'ancien state local..."
-    echo "    $OLD_STATE porte des ressources réelles (KMS, service account, APIs)."
-    echo "    Sans cette adoption, le premier apply tenterait de les recréer."
-    echo ""
-    RESOURCES=$(python3 -c "
-import json,sys
-d=json.load(open('$OLD_STATE'))
-for r in d.get('resources',[]): print(f\"      - {r['type']}.{r['name']}\")
-" 2>/dev/null || echo "      (inventaire indisponible)")
-    echo "$RESOURCES"
-    echo ""
-    read -r -p "    Adopter ce state ? [o/N] " reply
-    if [ "$reply" = "o" ] || [ "$reply" = "O" ]; then
-        cp "$OLD_STATE" "$TF_DIR/terraform.tfstate"
-        echo "  ✅ copié — il sera migré vers GCS par l'init"
-    else
-        echo "  ⏭️  ignoré. ⚠️ L'apply échouera probablement sur des ressources déjà existantes."
-    fi
-    echo ""
-fi
+# L'adoption a eu lieu, le state vit dans GCS (bucket versionné), et les deux anciennes
+# racines sont supprimées — constat N12 clos. Ce fichier d'état portait en outre
+# `google_service_account_key.clef_backend`, donc une clé privée en clair sur disque :
+# c'est le constat H6, et sa disparition est un bénéfice de plus.
+#
+# ⚠️ Si le state GCS était perdu, le repli n'est plus une copie locale mais les
+# VERSIONS du bucket : `gcloud storage ls --all-versions gs://<bucket>/<env>/`.
 
 # ---------------------------------------------------------------------------
 # Init, plan, apply
@@ -236,7 +247,7 @@ echo "📋 Plan..."
 PLAN_FILE=$(mktemp)
 # Pas de `trap` ici : il remplacerait celui du rapport. Le nettoyage est fait par
 # `ecrire_rapport`, seul trap EXIT du script.
-tofu -chdir="$TF_DIR" plan -var-file="environments/${ENVIRONMENT}.tfvars" \
+tofu -chdir="$TF_DIR" plan "${TF_ARGS[@]}" \
     -out="$PLAN_FILE" -input=false
 echo ""
 
