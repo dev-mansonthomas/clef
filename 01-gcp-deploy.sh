@@ -162,6 +162,12 @@ if [ -z "${REDIS_MAXMEMORY:-}" ]; then
     case "$REDIS_MEMORY" in *[Gg]i) _mem_mo=$((_mem_mo * 1024)) ;; esac
     REDIS_MAXMEMORY="$(( _mem_mo * 65 / 100 ))mb"
 fi
+# Base publique. Quand un domaine est configuré, TOUTES les URL que l'application
+# fabrique en découlent — un seul endroit à changer. Sinon on garde le comportement
+# d'avant : les URL *.run.app relues après déploiement.
+PUBLIC_BASE=""
+[ -n "${PUBLIC_DOMAIN:-}" ] && PUBLIC_BASE="https://${PUBLIC_DOMAIN}"
+
 REGISTRY="${REGION}-docker.pkg.dev/${PROJECT_ID}/clef-images"
 TAG="$(date -u +%Y%m%d-%H%M%S)"
 
@@ -442,10 +448,11 @@ if [[ "$COMPONENTS" == *api* ]]; then
         local rendered
         rendered=$(mktemp)
 
-        # CORS ne sert plus qu'à l'accès direct au backend : nginx relaie /api et
-        # /auth, donc le parcours normal est en même origine.
+        # CORS ne sert plus qu'à l'accès direct au backend : le LB, ou à défaut le
+        # relais nginx, met le parcours normal en même origine.
         local cors="${backend_url:-http://localhost:8000}"
         [ -n "$frontend_url" ] && cors="${frontend_url},${cors}"
+        [ -n "$PUBLIC_BASE" ] && cors="${PUBLIC_BASE},${cors}"
 
         # ⚠️ Ces trois-là visent le FRONTEND, pas le backend.
         #
@@ -457,7 +464,15 @@ if [[ "$COMPONENTS" == *api* ]]; then
         # l'URL du backend, qui sert la même origine via son propre proxy, et la
         # seconde passe corrige dès que le frontend est là. Un repli sur localhost
         # serait pire : DOMAIN finirait imprimé sur des autocollants.
-        local front="${frontend_url:-$backend_url}"
+        # ⚠️ Le domaine public PRIME sur les URL run.app dès qu'il est configuré.
+        #
+        # C'est lui que le navigateur voit, donc lui qui doit servir de destination
+        # après connexion (ALLOWED_FRONTEND_URLS), de base aux liens d'approbation
+        # envoyés aux garages (FRONTEND_URL), et d'hôte encodé dans les QR codes
+        # (DOMAIN). Laisser une URL run.app ici produirait des liens et des
+        # autocollants qui cesseront de fonctionner le jour du verrouillage de
+        # l'ingress.
+        local front="${PUBLIC_BASE:-${frontend_url:-$backend_url}}"
         local domain="${front#https://}"
         domain="${domain#http://}"
 

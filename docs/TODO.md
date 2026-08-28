@@ -920,6 +920,58 @@ globale n'est plus lue.
 
 ---
 
+# Où on en est — 2026-08-28, fin de séance
+
+## Domaine personnalisé : en attente du certificat
+
+L'infrastructure du load balancer est **appliquée**. `clef.paquerette.com` résout vers
+l'IP globale, l'enregistrement `A` est publié, et le certificat managé est en
+`PROVISIONING` sur les deux lignes — l'état sain. Rien à faire jusqu'à `ACTIVE`.
+
+```sh
+gcloud compute ssl-certificates describe clef-dev-cert --global \
+  --project=rcq-fr-dev --format='yaml(managed.status, managed.domainStatus)'
+```
+
+**Reste à faire, dans cet ordre :**
+
+1. Attendre `ACTIVE`. Si ça reste bloqué en `FAILED_NOT_VISIBLE`, c'est le DNS — mais
+   il résout déjà, donc ce n'est pas attendu.
+2. `PUBLIC_DOMAIN=clef.paquerette.com` dans `deploy/deploy.dev.env`, puis
+   `./01-gcp-deploy.sh dev`. **Indépendant du certificat** : peut se faire avant.
+   Sans cette étape, la connexion échouera en `redirect_uri_mismatch` même avec un
+   certificat actif — le service utiliserait encore son URL `run.app` comme URI de
+   redirection.
+3. Vérifier : `https://clef.paquerette.com/` (accueil), `/admin/`, `/form/`,
+   `/api/test`, et `http://…` qui doit rediriger en 301.
+4. Se connecter. L'origine et l'URI de redirection du domaine sont **déjà déclarés**
+   côté client OAuth.
+
+## Deux branches à merger
+
+| Branche | Contenu |
+|---|---|
+| `fix/frontend-base-href` | corrige un bug **en production** : le frontend déployé ne servait aucune ressource. Plus les URL des QR codes et des courriels d'approbation, et la page d'accueil |
+| `feat/domaine-personnalise-alb` | le load balancer, déjà appliqué contre GCP mais non mergé |
+
+## Ce qui empêchera l'application de fonctionner, une fois le domaine ouvert
+
+**Constat N13**, connu et non traité : trois routes lisent Google Sheets avec le service
+account, ce qui est structurellement impossible dans ce Workspace. `upload.py:54` (envoi
+de photos), `reservations.py:55` (création de réservation), `alert_service.py:100`
+(alertes CT et pollution). Elles doivent lire Redis.
+
+La connexion et le back-office marcheront ; ces trois fonctions échoueront en 403.
+
+## Ce qui n'a jamais été observé
+
+**Les instantanés RDB** (reliquat de N9). Le montage GCS fonctionne — les journaux du
+premier déploiement le prouvent — mais aucune écriture périodique n'a été constatée :
+
+```sh
+gcloud storage ls -l gs://rcq-fr-dev-clef-redis-snapshots/
+```
+
 # Chantier du 2026-08-26 — déploiement GCP
 
 Décision de conception : [ADR 0008](adr/0008-redis-sidecar-cloud-run-instantanes-gcs.md).
