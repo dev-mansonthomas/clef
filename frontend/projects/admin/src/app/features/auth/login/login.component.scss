@@ -3,7 +3,50 @@
   justify-content: center;
   align-items: center;
   min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+
+  // ⚠️ Le fond dépend de l'ENVIRONNEMENT — voir core/environnement.ts.
+  //
+  // Il portait un dégradé violet codé en dur, sans rapport avec l'identité
+  // Croix-Rouge et identique dans tous les environnements. Une teinte légère mais
+  // franche est ce qui distingue deux onglets ouverts côte à côte : la production
+  // reste blanche, elle n'a rien à signaler.
+  background: #fafafa;
+
+  &.env-dev {
+    background: linear-gradient(160deg, #e7f0fb 0%, #cfe0f5 100%);
+  }
+  &.env-recette {
+    background: linear-gradient(160deg, #e8f5ec 0%, #cfe8d6 100%);
+  }
+  &.env-inconnu {
+    background: linear-gradient(160deg, #fdf3e0 0%, #f7e3bd 100%);
+  }
+}
+
+// Bandeau d'environnement, en tête de la carte de connexion.
+.bandeau-env {
+  padding: 0.6rem 1rem;
+  text-align: center;
+  font-size: 0.9rem;
+  letter-spacing: 0.02em;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+
+  strong {
+    text-transform: uppercase;
+  }
+
+  .env-dev & {
+    background: #d7e6f8;
+    color: #0b3d75;
+  }
+  .env-recette & {
+    background: #d6ecdd;
+    color: #14522a;
+  }
+  .env-inconnu & {
+    background: #f8e6c2;
+    color: #6b4405;
+  }
 }
 
 .login-card {

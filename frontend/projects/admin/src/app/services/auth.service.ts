@@ -1,6 +1,7 @@
 import { Injectable, inject, signal } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Router } from '@angular/router';
+import { Location } from '@angular/common';
 import { Observable, BehaviorSubject, tap, catchError, of } from 'rxjs';
 import { User } from '../models/user.model';
 import { environment } from '../../environments/environment';
@@ -15,6 +16,7 @@ interface LoginResponse {
 export class AuthService {
   private readonly http = inject(HttpClient);
   private readonly router = inject(Router);
+  private readonly location = inject(Location);
   private readonly apiUrl = environment.apiUrl;
 
   // Current user state
@@ -34,10 +36,19 @@ export class AuthService {
    * @param returnUrl Optional path to redirect to after login (e.g. '/approbation/token-123')
    */
   login(returnUrl?: string): void {
-    // Build redirect_to: origin + optional path
-    const redirectTo = returnUrl
-      ? window.location.origin + returnUrl
-      : window.location.origin;
+    // ⚠️ Le chemin doit passer par `prepareExternalUrl`, qui préfixe le BASE HREF.
+    //
+    // Les deux applications sont servies sous un sous-chemin (`/admin/`), et
+    // `returnUrl` est une route ANGULAR — « /dashboard » — donc relative à ce
+    // préfixe. Concaténée à `window.location.origin`, elle donnait
+    // « https://dev.clef.paquerette.com/dashboard » : un 404 de nginx après une
+    // authentification pourtant réussie, constaté au premier déploiement du domaine.
+    // `prepareExternalUrl` rend « /admin/dashboard ».
+    //
+    // Même famille que les redirections `/vehicle/…` et `/approbation/…` du gabarit
+    // nginx : une URL fabriquée d'un côté, servie sous un préfixe de l'autre.
+    const chemin = this.location.prepareExternalUrl(returnUrl ?? '/');
+    const redirectTo = window.location.origin + chemin;
 
     this.http.get<LoginResponse>(`${this.apiUrl}/auth/login`, {
       params: { redirect_to: redirectTo }
@@ -74,8 +85,18 @@ export class AuthService {
         this.currentUserSubject.next(user);
         this.isAuthenticated.set(true);
       }),
-      catchError((error) => {
-        console.error('Failed to get current user:', error);
+      catchError((error: unknown) => {
+        // Un 401 ici est la réponse ATTENDUE quand il n'y a pas de session : c'est
+        // ainsi que l'application apprend qu'elle n'est pas connectée. Le journaliser
+        // en `error` remplissait la console de rouge sur l'écran de connexion, où
+        // c'est le cas normal — et noyait les pannes réelles.
+        //
+        // ⚠️ La ligne « GET /auth/me 401 » du navigateur, elle, est émise par le
+        // navigateur lui-même : aucun code ne la supprime. Seul le fait de ne pas
+        // faire la requête l'enlève, ce qui est impossible ici (cookie `HttpOnly`).
+        if (!(error instanceof HttpErrorResponse) || error.status !== 401) {
+          console.error('Failed to get current user:', error);
+        }
         this.currentUserSubject.next(null);
         this.isAuthenticated.set(false);
         return of(null);

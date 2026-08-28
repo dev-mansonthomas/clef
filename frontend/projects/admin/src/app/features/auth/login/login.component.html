@@ -1,5 +1,10 @@
-<div class="login-container">
+<div class="login-container" [class]="environnement.classe">
   <mat-card class="login-card">
+    @if (environnement.libelle) {
+      <div class="bandeau-env">
+        Environnement <strong>{{ environnement.libelle }}</strong>
+      </div>
+    }
     <mat-card-header>
       <mat-card-title>Administration - Gestion de Flotte</mat-card-title>
       <mat-card-subtitle>Croix-Rouge Française</mat-card-subtitle>
