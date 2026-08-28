@@ -1008,6 +1008,56 @@ Leçon générale : les fichiers d'infrastructure ne bénéficient d'aucun typag
 d'aucun compilateur. Un champ inconnu y est du silence, pas une erreur. Ils méritent
 des tests comme le reste.
 
+## Le frontend déployé ne servait rien (2026-08-28)
+
+Symptôme : page sans style, une douzaine de 404 sur `main-*.js`, `chunk-*.js`,
+`styles-*.css`, `manifest.json`, `favicon.ico`, et un
+« Refused to apply style ... MIME type ('text/html') ».
+
+**Cause unique** : `<base href="/">` est codé en dur dans les deux `index.html` sources,
+et `angular.json` ne déclare aucun `baseHref`. Les applications sont pourtant servies
+sous `/admin/` et `/form/` : le navigateur résolvait donc toutes les ressources à la
+**racine** du domaine, où nginx n'a rien. Le message de MIME type est le même défaut vu
+d'un autre angle — le repli renvoyait du HTML là où le navigateur attendait du CSS.
+
+Corrigé par `--base-href=/admin/` et `--base-href=/form/` à la construction. Les
+références dans `index.html` étant relatives, poser la bonne base suffit ; il n'y avait
+rien d'autre à réécrire. Vérifié par construction et exécution de l'image : `/admin/`,
+`main-*.js` (`application/javascript`), `styles-*.css` (`text/css`), `manifest.json`,
+`favicon.ico` et le lien profond `/admin/vehicles` répondent tous 200 avec le bon type.
+
+### Deux autres URL cassées, trouvées en cherchant la même famille
+
+| URL fabriquée | Par | Résultat | Corrigé en |
+|---|---|---|---|
+| `https://{DOMAIN}/vehicle/{id}` | `qr_code_service.py:127` — **QR codes collés sur les véhicules** | 404 | redirection 301 vers `/form/vehicle/{id}` |
+| `{FRONTEND_URL}/approbation/{token}` | `dossiers_reparation.py:419,524` — **courriels aux garages** | 404 | redirection 301 vers `/admin/approbation/{token}` |
+
+Ces deux-là **sortent du produit** : un QR code imprimé et un courriel envoyé ne se
+corrigent pas par un redéploiement. D'où des redirections dans nginx plutôt qu'un
+allongement des URL — un QR code plus court est aussi moins dense, donc plus facile à
+scanner. Si une page déménage, seule la configuration nginx change.
+
+Ajouté au passage : **`absolute_redirect off`**. nginx fabriquait ses `Location:` depuis
+son propre hôte et son port d'écoute 80, donc `/admin` redirigeait vers **http://**
+alors que le client parle HTTPS à Cloud Run.
+
+### Le test qui a de la valeur
+
+`backend/tests/test_frontend_routing.py` (7 tests) ne se contente pas de vérifier la
+liste connue : `test_aucune_url_de_produit_non_couverte` **relit le backend** à chaque
+exécution et échoue sur toute URL de frontend fabriquée qu'nginx ne connaît pas. Les
+trois défauts d'origine ont été trouvés à la main, un par un, après déploiement.
+
+Il porte aussi son propre garde-fou : si ses motifs de détection cessent de trouver les
+deux occurrences connues, il échoue — un test qui ne trouve plus rien ne teste plus
+rien. Les trois vérifiés par mutation.
+
+⚠️ **La page racine `/` n'est pas un bug** : c'est un `RUN echo '<html>…'` du
+`frontend/Dockerfile`, deux liens sans style, écrit comme provisoire. Elle n'a jamais eu
+de CSS. À remplacer ou à rediriger — décision produit, laquelle des deux applications
+est la porte d'entrée.
+
 ## ✅ N7 clos — le premier déploiement a abouti (2026-08-27)
 
 Après le correctif ci-dessous, `./01-gcp-deploy.sh dev` **passe** : les deux images

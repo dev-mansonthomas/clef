@@ -29,8 +29,20 @@ COPY . .
 # `npx ng` et non un `ng` installé globalement : la version du CLI vient alors du
 # package.json du projet, la même que celle avec laquelle les builds sont vérifiés
 # en local. Un `npm install -g @angular/cli@21` pouvait résoudre un autre patch.
-RUN npx ng build admin --configuration production
-RUN npx ng build form --configuration production
+# ⚠️ `--base-href` n'est pas optionnel : les deux applications sont servies sous un
+# SOUS-CHEMIN (`/admin/` et `/form/`), pas à la racine.
+#
+# Sans lui, `index.html` garde `<base href="/">` — la valeur codée dans les sources —
+# et le navigateur résout `main-XXX.js`, `styles-XXX.css`, les `chunk-*.js`, le
+# manifeste et la favicon à la RACINE du domaine, où nginx n'a rien. Résultat observé
+# au premier déploiement : une page sans style ni JavaScript, une douzaine de 404, et
+# un « Refused to apply style ... MIME type ('text/html') » — parce que le repli
+# nginx renvoie une page HTML là où le navigateur attend du CSS.
+#
+# Les références dans index.html sont RELATIVES : poser la bonne base suffit, il n'y
+# a rien d'autre à réécrire.
+RUN npx ng build admin --configuration production --base-href=/admin/
+RUN npx ng build form  --configuration production --base-href=/form/
 
 # Production stage with nginx
 FROM nginx:alpine
@@ -51,8 +63,15 @@ RUN rm -f /etc/nginx/conf.d/default.conf
 COPY --from=builder /app/dist/admin/browser /usr/share/nginx/html/admin
 COPY --from=builder /app/dist/form/browser /usr/share/nginx/html/form
 
-# Create a simple index.html at root
-RUN echo '<html><body><h1>CLEF Fleet Management</h1><ul><li><a href="/admin">Admin App</a></li><li><a href="/form">Form App</a></li></ul></body></html>' > /usr/share/nginx/html/index.html
+# Page d'accueil à la racine du domaine.
+#
+# C'était un `RUN echo '<html>…'` produisant deux liens sans aucun style. Ce n'était
+# pas un défaut de CSS mais l'absence de page — et c'est pourtant la porte d'entrée :
+# `clef.paquerette.com` sert cette page, et l'utilisateur choisit son application.
+#
+# Un fichier autonome, sans build ni ressource externe : elle doit s'afficher même si
+# les deux applications Angular sont en panne.
+COPY landing.html /usr/share/nginx/html/index.html
 
 # Expose port
 EXPOSE 80

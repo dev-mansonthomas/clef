@@ -86,6 +86,17 @@ R_DESTRUCTIONS=""
 
 ecrire_rapport() {
     local code=$?
+    # ⚠️ Le nettoyage du plan temporaire vit ICI, pas dans un second trap.
+    #
+    # Les traps bash ne s'additionnent pas : un `trap … EXIT` déclaré plus loin
+    # REMPLACE celui-ci. C'est exactement ce qui s'était produit — un
+    # `trap 'rm -f "$PLAN_FILE"' EXIT` posé à l'étape du plan écrasait
+    # l'écriture du rapport, qui ne se produisait donc jamais sur une exécution
+    # complète.
+    #
+    # Le code de sortie est capturé AVANT le `rm`, sinon on rapporterait celui du
+    # nettoyage.
+    rm -f "${PLAN_FILE:-}"
     local liste="[]"
     if [ -n "$R_DESTRUCTIONS" ]; then
         liste=$(printf '%s\n' "$R_DESTRUCTIONS" | sed 's/"/\\"/g; s/^/    "/; s/$/",/' \
@@ -223,7 +234,8 @@ fi
 
 echo "📋 Plan..."
 PLAN_FILE=$(mktemp)
-trap 'rm -f "$PLAN_FILE"' EXIT
+# Pas de `trap` ici : il remplacerait celui du rapport. Le nettoyage est fait par
+# `ecrire_rapport`, seul trap EXIT du script.
 tofu -chdir="$TF_DIR" plan -var-file="environments/${ENVIRONMENT}.tfvars" \
     -out="$PLAN_FILE" -input=false
 echo ""
