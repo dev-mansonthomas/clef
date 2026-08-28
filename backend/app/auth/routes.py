@@ -159,7 +159,7 @@ async def callback(
                     if not status.get("authorized", False):
                         # Build the authorization URL with extended scopes
                         authorization_url = google_oauth.get_authorization_url(
-                            redirect_uri=f"{auth_settings.backend_url}/auth/callback-dt",
+                            redirect_uri=auth_settings.dt_oauth_redirect_uri,
                             scopes=auth_settings.dt_oauth_scopes,
                             access_type="offline",
                             prompt="consent",
@@ -306,7 +306,7 @@ async def authorize_dt(
     """
     # Build authorization URL with extended scopes
     authorization_url = google_oauth.get_authorization_url(
-        redirect_uri=f"{auth_settings.backend_url}/auth/callback-dt",
+        redirect_uri=auth_settings.dt_oauth_redirect_uri,
         scopes=auth_settings.dt_oauth_scopes,
         access_type="offline",  # For refresh token
         prompt="consent",  # Force consent to get refresh token
@@ -337,7 +337,7 @@ async def callback_dt(
         # Exchange code for tokens
         tokens = await google_oauth.exchange_code_for_tokens(
             code=code,
-            redirect_uri=f"{auth_settings.backend_url}/auth/callback-dt",
+            redirect_uri=auth_settings.dt_oauth_redirect_uri,
         )
 
         if not tokens.get("refresh_token"):

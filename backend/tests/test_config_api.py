@@ -121,14 +121,31 @@ class TestGetConfig:
     """Tests for GET /api/config endpoint."""
 
     @pytest.mark.asyncio
-    async def test_get_config_from_env(self, client, env_vars, mock_redis_service):
-        """Test getting configuration from environment variables."""
+    async def test_le_destinataire_des_alertes_ignore_l_environnement(
+        self, client, env_vars, mock_redis_service
+    ):
+        """Le destinataire des alertes vient de REDIS, jamais de l'environnement.
+
+        Ce test figeait l'inverse : il vérifiait qu'`EMAIL_DESTINATAIRE_ALERTES`
+        alimentait la réponse. C'était un piège — le destinataire est un réglage
+        MÉTIER, que le gestionnaire DT change depuis l'écran de configuration. Une
+        variable d'environnement l'écrasait sans que l'écran ne montre quoi que ce
+        soit, et la valeur trouvée dans `backend/.env` le 2026-08-28 était l'adresse
+        d'un prestataire externe que personne n'avait choisie dans l'application.
+
+        `env_vars` pose délibérément la variable : elle doit rester sans effet.
+        """
         response = await client.get("/api/config")
 
         assert response.status_code == 200
         data = response.json()
 
-        assert data["email_destinataire_alertes"] == "alerts@croix-rouge.fr"
+        assert data["email_destinataire_alertes"] == "", (
+            "aucune configuration en Redis : le destinataire doit être VIDE, pas "
+            "hérité de l'environnement"
+        )
+        # Celui-ci, en revanche, reste un paramètre de déploiement : c'est l'unique
+        # porte d'entrée avant la première synchronisation du référentiel.
         assert data["email_gestionnaire_dt"] == "thomas.manson@croix-rouge.fr"
         assert data["drive_sync_status"] == "idle"
         assert data["drive_sync_processed"] == 0

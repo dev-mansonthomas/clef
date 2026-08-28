@@ -45,20 +45,23 @@ async def trigger_alerts(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/status")
-async def get_alert_status() -> Dict[str, Any]:
-    """
-    Get alert service status.
-    
-    Returns:
-        Status information
-    """
-    import os
-    
-    return {
-        "enabled": True,
-        "alert_delay_days": int(os.getenv("ALERT_DELAY_DAYS", "60")),
-        "service_account_email": os.getenv("SERVICE_ACCOUNT_EMAIL", ""),
-        "use_mocks": os.getenv("USE_MOCKS", "false").lower() == "true"
-    }
+# `GET /api/alerts/status` a été SUPPRIMÉE le 2026-08-28. Elle n'avait aucun `Depends`,
+# et le load balancer publie `/api/*` sur le domaine public : elle divulguait
+# anonymement `service_account_email`, `use_mocks` et le nom de l'environnement.
+#
+# Elle a été supprimée plutôt que gardée, parce qu'elle ne servait à rien :
+#
+#   • aucun appelant — ni `admin`, ni `form`, ni e2e, ni les Apps Script ;
+#   • `"enabled": True` était CODÉ EN DUR, alors que le job dépend de
+#     `SCHEDULER_ENABLED` (scheduler.py) : la route répondait « activé » même
+#     scheduler éteint, donc elle mentait précisément quand on l'interrogeait ;
+#   • elle ne disait rien de ce qu'on voudrait savoir — dernière et prochaine
+#     exécution, nombre d'alertes envoyées, erreurs ;
+#   • ses deux seules valeurs exactes sont désormais servies sous guard par
+#     `GET /admin/super/environnement`.
+#
+# ⚠️ Si le besoin de superviser ce job revient — il est légitime, c'est une tâche
+# silencieuse — la route à écrire lit l'état RÉEL du scheduler
+# (`job.next_run_time`), sous `require_dt_manager` comme `/trigger`. Ce n'est pas un
+# correctif, c'est une petite fonctionnalité.
 

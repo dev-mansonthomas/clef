@@ -45,7 +45,7 @@ done
 # « unhealthy » et deux frontends qui ne démarrent pas — un symptôme à trois niveaux
 # de distance de la cause. On échoue tôt, avec le nom du fichier manquant.
 preflight_real() {
-    local env_file="backend/.env"
+    local env_file="backend/.env.local"
     local failed=false
 
     echo "🔎 Vérification des prérequis du mode réel..."

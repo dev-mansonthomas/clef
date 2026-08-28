@@ -29,7 +29,7 @@ services:
       - backend-cache:/root/.cache
       - ~/.cred/CLEF:/credentials:ro
     env_file:
-      - ./backend/.env
+      - ./backend/.env.local
     environment:
       - PYTHONUNBUFFERED=1
       - REDIS_HOST=redis
