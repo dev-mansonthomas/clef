@@ -31,9 +31,26 @@ class ConfigService:
 
         # Build config dict with fallback to environment variables
         config = {
+            # ⚠️ Redis est la SEULE source du destinataire des alertes.
+            #
+            # Il y avait un repli sur `EMAIL_DESTINATAIRE_ALERTES`, et ce repli était
+            # un piège : c'est un réglage MÉTIER, modifiable par un gestionnaire DT
+            # depuis l'écran de configuration, pas un paramètre de déploiement.
+            # Un environnement qui portait la variable écrasait silencieusement le
+            # « rien » que l'écran affichait — et la valeur trouvée dans
+            # `backend/.env` le 2026-08-28 était l'adresse personnelle d'un
+            # prestataire externe, jamais choisie dans l'application.
+            #
+            # Le champ existe déjà dans `DTConfiguration`, `ConfigUpdate`,
+            # `ConfigResponse` et l'écran admin : il n'y a rien à ajouter, seulement
+            # ce repli à retirer.
+            # `or ""` : le champ est Optional dans DTConfiguration, et ConfigResponse
+            # attend un `str`. Sans cette conversion, une configuration existante sans
+            # destinataire faisait échouer la construction de la réponse — donc un 400
+            # sur un PATCH sans rapport, le routeur enveloppant toute exception.
+            # C'est le rôle que jouait par accident le repli sur l'environnement.
             "email_destinataire_alertes": (
-                dt_config.email_destinataire_alertes if dt_config and dt_config.email_destinataire_alertes
-                else os.getenv("EMAIL_DESTINATAIRE_ALERTES", "")
+                (dt_config.email_destinataire_alertes if dt_config else None) or ""
             ),
             "email_gestionnaire_dt": os.getenv("EMAIL_GESTIONNAIRE_DT", ""),
             "drive_folder_id": dt_config.drive_folder_id if dt_config else None,

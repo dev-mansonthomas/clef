@@ -164,6 +164,19 @@ spec:
             # l'URL connue.
             - name: GOOGLE_REDIRECT_URI
               value: ${GOOGLE_REDIRECT_URI}
+            # ⚠️ Le SECOND flux OAuth, celui de la délégation Calendar/Drive/Gmail
+            # d'un gestionnaire DT (`/auth/authorize-dt`, appelé par l'écran
+            # dt-admin). Il fabriquait son URI depuis BACKEND_URL, donc l'origine
+            # *.run.app, quand le flux principal annonce le domaine public : deux URI
+            # à déclarer en console pour un seul client, et celui-là cesserait de
+            # fonctionner le jour du verrouillage de l'ingress. Le load balancer
+            # routant `/auth/*` vers l'API, la même origine convient aux deux.
+            #
+            # Sans cette variable, `app/auth/config.py` retombe sur
+            # « http://localhost:8000/auth/callback-dt » : Google refuse en
+            # redirect_uri_mismatch, et le gestionnaire ne peut jamais déléguer.
+            - name: DT_OAUTH_REDIRECT_URI
+              value: ${DT_OAUTH_REDIRECT_URI}
             - name: VEHICULES_SPREADSHEET_ID
               value: ${VEHICULES_SPREADSHEET_ID}
             - name: BENEVOLES_SPREADSHEET_ID

@@ -349,7 +349,7 @@ import { ConfirmCancelDevisDialogComponent } from './confirm-cancel-devis-dialog
               <ng-container *ngFor="let f of dossier.factures">
                 <tr>
                   <td>{{ f.date_facture | date:'dd/MM/yyyy' }}</td>
-                  <td>{{ f.fournisseur?.nom || f.id }}</td>
+                  <td>{{ f.fournisseur.nom || f.id }}</td>
                   <td class="item-classification">{{ classificationLabel(f.classification) }}</td>
                   <td class="col-right">{{ f.montant_total | number:'1.2-2' }} €</td>
                   <td class="col-right item-montant-crf">CRF: {{ f.montant_crf | number:'1.2-2' }} €</td>

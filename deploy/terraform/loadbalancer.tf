@@ -46,13 +46,31 @@
 # transfert à l'heure.
 locals {
   lb_active = var.public_domain == "" ? 0 : 1
+
+  # ⚠️ L'adresse IP ne suit PAS `lb_active`, et c'est le point de tout ce fichier.
+  #
+  # Elle porte `prevent_destroy` parce qu'elle est publiée dans le DNS. Or
+  # `prevent_destroy` n'est pas une expression : il vaut aussi quand `count` passe à
+  # 0. Vider `public_domain` — l'interrupteur documenté — planifiait donc la
+  # destruction d'une ressource protégée, et Terraform ÉCHOUAIT AU PLAN :
+  #
+  #     Instance cannot be destroyed ... lifecycle.prevent_destroy set
+  #
+  # La racine entière devenait inapplicable, y compris pour des changements sans
+  # rapport, et `tofu destroy` était bloqué. L'IP survit donc à l'extinction du LB :
+  # le DNS reste valide, et le rallumage ne demande ni nouvel enregistrement ni
+  # réémission de certificat. Coût : une IP statique inutilisée, ~7 $/mois.
+  # `keep_public_ip = false` la libère (opération délibérée et rare).
+  ip_active = var.public_domain != "" || var.keep_public_ip ? 1 : 0
 }
 
 # ─── Adresse IP publique ──────────────────────────────────────────────────────
 # Statique, parce que c'est elle qui va dans le DNS. Une IP éphémère changerait au
 # moindre remplacement de la règle de transfert, et le domaine cesserait de résoudre.
 resource "google_compute_global_address" "clef" {
-  count   = local.lb_active
+  # `ip_active`, pas `lb_active` : elle reste réservée quand le LB est éteint —
+  # voir le commentaire du bloc `locals`.
+  count   = local.ip_active
   name    = "clef-${var.environment}-ip"
   project = var.project_id
 
@@ -155,6 +173,11 @@ resource "google_compute_ssl_policy" "clef" {
   project         = var.project_id
   profile         = "MODERN"
   min_tls_version = "TLS_1_2"
+
+  # Comme l'adresse et les NEG. Sans cela, un premier apply qui active
+  # compute.googleapis.com dans la même passe échoue en SERVICE_DISABLED : le
+  # provider ne déduit aucune dépendance d'une ressource qui ne référence rien.
+  depends_on = [google_project_service.apis]
 }
 
 # ─── Certificat managé ────────────────────────────────────────────────────────
@@ -162,8 +185,20 @@ resource "google_compute_ssl_policy" "clef" {
 # L'ordre d'exploitation est donc : apply, puis DNS, puis attente. Un certificat qui
 # reste en `FAILED_NOT_VISIBLE` signifie que le DNS ne pointe pas encore la bonne IP.
 resource "google_compute_managed_ssl_certificate" "clef" {
-  count   = local.lb_active
-  name    = "clef-${var.environment}-cert"
+  count = local.lb_active
+
+  # ⚠️ Le nom porte une empreinte du DOMAINE, et ce n'est pas cosmétique.
+  #
+  # `create_before_destroy` sur un nom FIXE ne peut pas fonctionner : changer de
+  # domaine force le remplacement, Terraform crée d'abord — et GCP refuse le doublon
+  # de nom (`alreadyExists`). L'apply échouait, et la bascule sans coupure que cette
+  # option promet n'avait jamais lieu. Le nom devant changer avec le domaine,
+  # l'empreinte le garantit sans état supplémentaire (la doc du provider fait la même
+  # chose avec `random_id` et ses `keepers`).
+  #
+  # Le nom réel est donné par la sortie `certificat_verifier` : ne pas le composer à
+  # la main dans un script ou une commande de diagnostic.
+  name    = "clef-${var.environment}-cert-${substr(sha256(var.public_domain), 0, 8)}"
   project = var.project_id
 
   managed {
@@ -172,9 +207,12 @@ resource "google_compute_managed_ssl_certificate" "clef" {
 
   lifecycle {
     # Un certificat managé ne se modifie pas : changer de domaine impose un nouveau
-    # certificat. `create_before_destroy` évite une coupure entre les deux.
+    # certificat. `create_before_destroy` évite une coupure entre les deux — voir le
+    # nom ci-dessus, dont il dépend entièrement.
     create_before_destroy = true
   }
+
+  depends_on = [google_project_service.apis]
 }
 
 # ─── Routage ──────────────────────────────────────────────────────────────────
@@ -286,6 +324,11 @@ resource "google_compute_url_map" "redirection_https" {
     redirect_response_code = "MOVED_PERMANENTLY_DEFAULT"
     strip_query            = false
   }
+
+  # Comme la politique TLS et le certificat : cette url map ne référence aucune autre
+  # ressource, donc le provider ne lui déduit aucune dépendance. Trouvée par le test
+  # générique, pas par relecture.
+  depends_on = [google_project_service.apis]
 }
 
 resource "google_compute_target_http_proxy" "redirection" {

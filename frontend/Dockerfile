@@ -67,7 +67,8 @@ COPY --from=builder /app/dist/form/browser /usr/share/nginx/html/form
 #
 # C'était un `RUN echo '<html>…'` produisant deux liens sans aucun style. Ce n'était
 # pas un défaut de CSS mais l'absence de page — et c'est pourtant la porte d'entrée :
-# `clef.paquerette.com` sert cette page, et l'utilisateur choisit son application.
+# La racine du domaine (`dev.clef.paquerette.com` en dev, `clef.paquerette.com` en
+# production) sert cette page, et l'utilisateur choisit son application.
 #
 # Un fichier autonome, sans build ni ressource externe : elle doit s'afficher même si
 # les deux applications Angular sont en panne.

@@ -24,6 +24,7 @@ RACINE = Path(__file__).resolve().parents[2]
 TF = RACINE / "deploy" / "terraform"
 LB = TF / "loadbalancer.tf"
 SCRIPT = RACINE / "01-gcp-deploy.sh"
+NGINX = RACINE / "frontend" / "clef.conf.template"
 
 
 @pytest.fixture(scope="module")
@@ -200,3 +201,234 @@ def test_le_script_derive_toutes_les_url_du_domaine_public():
         assert re.search(rf'{variable}="\$\{{?(front|domain)', src), (
             f"{variable} doit dériver de `front`/`domain`, donc de PUBLIC_DOMAIN"
         )
+
+
+# ─── Ce que la revue du 2026-08-28 a corrigé ─────────────────────────────────
+# Cinq défauts d'une même famille : une ressource ou une variable dont le comportement
+# réel contredisait ce que le fichier — ou la documentation — en disait.
+
+
+def test_le_nom_du_certificat_change_avec_le_domaine(lb: str):
+    """`create_before_destroy` sur un nom FIXE ne peut pas fonctionner.
+
+    Changer `public_domain` force le remplacement du certificat managé. Avec
+    `create_before_destroy`, Terraform crée d'abord — et GCP refuse le doublon de nom :
+
+        Error 400: The resource 'clef-dev-cert' already exists
+
+    L'apply échouait donc, et la bascule sans coupure que cette option promet n'avait
+    jamais lieu. Le nom doit dériver du domaine (la doc du provider obtient le même
+    effet avec `random_id` et ses `keepers`).
+    """
+    bloc = lb[lb.index('resource "google_compute_managed_ssl_certificate"') :]
+    bloc = bloc[: bloc.index("\n}\n")]
+    ligne_nom = next(l for l in bloc.splitlines() if re.match(r"\s*name\s*=", l))
+    assert "var.public_domain" in ligne_nom, (
+        f"le nom du certificat ne dépend pas du domaine : {ligne_nom.strip()}. "
+        "Avec create_before_destroy, GCP refusera le doublon de nom au changement "
+        "de domaine."
+    )
+    assert "create_before_destroy = true" in bloc, (
+        "sans create_before_destroy, changer de domaine coupe le service entre la "
+        "destruction et la réémission"
+    )
+
+
+def test_chaque_ressource_attend_l_activation_des_apis(lb: str):
+    """Une ressource qui ne référence rien ne dépend de rien — le provider n'invente pas.
+
+    L'adresse et les deux NEG portaient `depends_on = [google_project_service.apis]` ;
+    la politique TLS et le certificat, non. Ces deux-là ne référencent aucune autre
+    ressource : au premier apply d'un environnement où `compute.googleapis.com`
+    s'active dans la même passe, elles couraient l'activation et échouaient en
+    SERVICE_DISABLED. Les backend services, eux, héritent de la dépendance par les NEG.
+    """
+    for typ, nom in re.findall(r'^resource "([a-z_]+)" "([a-z_]+)" \{', lb, re.M):
+        bloc = lb[lb.index(f'resource "{typ}" "{nom}" {{') :]
+        bloc = bloc[: bloc.index("\n}\n")]
+        actif = "\n".join(
+            l for l in bloc.splitlines() if not l.strip().startswith("#")
+        )
+        if "google_project_service.apis" in actif:
+            continue
+        assert re.search(r"=\s*google_compute_", actif), (
+            f"{typ}.{nom} ne référence aucune autre ressource compute et n'attend pas "
+            "google_project_service.apis : au premier apply elle court l'activation "
+            "de l'API et échoue en SERVICE_DISABLED."
+        )
+
+
+def test_l_interrupteur_du_load_balancer_reste_applicable(lb: str):
+    """`prevent_destroy` n'est pas une expression — il vaut aussi quand `count` = 0.
+
+    Vider `public_domain` est l'interrupteur documenté. Avec l'adresse gardée par
+    `prevent_destroy` ET conditionnée à `lb_active`, cet interrupteur planifiait la
+    destruction d'une ressource protégée : Terraform échouait AU PLAN
+    (« Instance cannot be destroyed »), rendant la racine entière inapplicable —
+    y compris pour des changements sans rapport — et bloquant `tofu destroy`.
+
+    L'adresse suit donc sa propre condition, et reste réservée quand le LB s'éteint :
+    le DNS publié reste valide.
+    """
+    assert re.search(r"ip_active\s*=\s*var\.public_domain\s*!=\s*\"\"", lb), (
+        "l'adresse doit avoir sa propre condition, distincte de lb_active"
+    )
+    bloc = lb[lb.index('resource "google_compute_global_address"') :]
+    bloc = bloc[: bloc.index("\n}\n")]
+    assert "count   = local.ip_active" in bloc or "count = local.ip_active" in bloc, (
+        "l'adresse est encore conditionnée à lb_active : vider public_domain "
+        "échouera au plan sur son prevent_destroy"
+    )
+    assert "prevent_destroy = true" in bloc, "l'IP publiée dans le DNS reste protégée"
+
+    variables = (TF / "variables.tf").read_text(encoding="utf-8")
+    bloc_var = variables[variables.index('variable "keep_public_ip"') :]
+    assert "default     = true" in bloc_var, (
+        "conserver l'IP doit être le DÉFAUT : la libérer impose un nouvel "
+        "enregistrement DNS et la réémission du certificat"
+    )
+
+
+def test_le_relais_nginx_couvre_les_memes_prefixes_que_le_load_balancer(lb: str):
+    """Deux chemins vers l'API, un seul jeu de préfixes.
+
+    Le LB route `/api/*`, `/auth/*` et `/admin/super/*`. Le relais nginx du frontend
+    reste le seul chemin par l'URL run.app tant que l'ingress n'est pas verrouillé :
+    un préfixe présent d'un côté et pas de l'autre donne un 404 — ou pire, l'index.html
+    de l'application admin là où le client attend du JSON. C'est ce qui manquait pour
+    `/admin/super`.
+    """
+    prefixes_lb = set()
+    for paths in re.findall(r"path_rule\s*\{[^}]*paths\s*=\s*\[([^\]]*)\]", lb, re.S):
+        for chemin in re.findall(r'"([^"]+)"', paths):
+            prefixes_lb.add(chemin.lstrip("/").removesuffix("/*"))
+
+    nginx = NGINX.read_text(encoding="utf-8")
+    motif = re.search(r"location\s+~\s+\^/\(([^)]*)\)/", nginx)
+    assert motif, "le relais du backend a disparu de clef.conf.template"
+    prefixes_nginx = {p.strip() for p in motif.group(1).split("|")}
+
+    assert prefixes_lb == prefixes_nginx, (
+        f"divergence : load balancer {sorted(prefixes_lb)}, "
+        f"nginx {sorted(prefixes_nginx)}. Les deux chemins doivent router les mêmes "
+        "préfixes vers l'API."
+    )
+
+
+# ─── Le script de déploiement ────────────────────────────────────────────────
+
+
+@pytest.fixture(scope="module")
+def script() -> str:
+    return SCRIPT.read_text(encoding="utf-8")
+
+
+def test_les_destinations_de_connexion_gardent_les_origines_run_app(script: str):
+    """`ALLOWED_FRONTEND_URLS` est une LISTE, pas une valeur.
+
+    `validate_redirect_url` (app/auth/routes.py) la découpe sur les virgules et refuse
+    toute destination absente. Réduite au seul domaine public, l'origine `*.run.app`
+    disparaissait des destinations valides alors que ce service reste publiquement
+    invocable et présent dans CORS_ORIGINS : une connexion entamée depuis cette URL
+    repartait en « 400 Invalid redirect URL ».
+    """
+    assert "ALLOWED_FRONTEND_URLS=\"${front_allowed}\"" in script, (
+        "ALLOWED_FRONTEND_URLS doit recevoir la liste, pas la seule valeur `front`"
+    )
+    bloc = script[script.index("local front_allowed=") :]
+    bloc = bloc[: bloc.index("SERVICE_NAME=")]
+    assert 'front_allowed="${front_allowed},${origine}"' in bloc, (
+        "les origines run.app doivent être AJOUTÉES à la liste, pas la remplacer"
+    )
+    assert '"$frontend_url" "$backend_url"' in bloc, (
+        "les deux origines run.app doivent être conservées comme destinations"
+    )
+
+
+def test_l_uri_de_redirection_affiche_est_celui_qui_est_deploye(script: str):
+    """Un URI recomposé pour l'affichage garantit un redirect_uri_mismatch.
+
+    Le message affichait « ${BACKEND_URL}/auth/callback » alors que le service part
+    avec « ${PUBLIC_BASE}/auth/callback » dès qu'un domaine est configuré. L'opérateur
+    enregistrait donc l'URI `*.run.app` sur le client OAuth, l'application en
+    annonçait un autre, et TOUTE connexion échouait.
+    """
+    # Les commentaires du script CITENT l'ancienne valeur pour expliquer le piège :
+    # ne regarder que le code exécuté.
+    code = "\n".join(
+        l for l in script.splitlines() if not l.lstrip().startswith("#")
+    )
+    assert '${BACKEND_URL}/auth/callback' not in code, (
+        "l'URI de redirection ne doit jamais être recomposé pour l'affichage : "
+        "afficher $R_REDIRECT_URI, la valeur réellement déployée"
+    )
+    assert 'echo "     URI de redirection : $R_REDIRECT_URI"' in script
+
+
+def test_le_domaine_public_est_valide_avant_tout_deploiement(script: str):
+    """Un domaine collé avec son schéma finissait IMPRIMÉ sur les véhicules.
+
+    `PUBLIC_BASE="https://${PUBLIC_DOMAIN}"` utilisait la valeur brute : la forme
+    « https://dev.clef.paquerette.com », celle qu'affiche la documentation, donnait
+    « https://https://dev.clef… » dans FRONTEND_URL, GOOGLE_REDIRECT_URI et DOMAIN —
+    l'hôte encodé dans les QR codes des véhicules, donc irréversible.
+
+    La règle vit dans `deploy/env-commun.sh` et non ici : la même valeur alimente le
+    certificat managé (via 00-infra.sh) et les URL de l'application. Deux validations
+    auraient fini par diverger — voir `test_deploy_env_example.py`, qui tient le
+    partage. Ce test-ci vérifie seulement que ce script s'en sert et refuse.
+    """
+    assert 'valider_domaine_public "${PUBLIC_DOMAIN:-}"' in script, (
+        "le script doit valider PUBLIC_DOMAIN avec la règle partagée"
+    )
+    assert "exit 2" in script.split('valider_domaine_public "${PUBLIC_DOMAIN:-}"')[1][:200], (
+        "une valeur invalide doit ARRÊTER le déploiement, pas l'avertir"
+    )
+
+
+@pytest.mark.parametrize(
+    "sonde,raison",
+    [
+        ("${PUBLIC_BASE}/health", "le service par défaut du LB — le frontend"),
+        ("${PUBLIC_BASE}/api/test", "la règle de chemin /api/* — le NEG de l'API"),
+        ("http://${PUBLIC_DOMAIN}/form/", "la redirection 301 depuis le clair"),
+    ],
+)
+def test_la_verification_eprouve_le_domaine_public(script: str, sonde: str, raison: str):
+    """Sonder l'URL run.app ne dit rien du domaine.
+
+    L'étape de vérification ne sondait que `${BACKEND_URL}/health` — l'URL que
+    personne n'utilise dès qu'il y a un domaine. Un certificat encore en
+    FAILED_NOT_VISIBLE, un enregistrement A absent ou un NEG visant le mauvais service
+    passaient inaperçus, et le script concluait « ✅ Déploiement terminé ».
+    """
+    assert sonde in script, f"la vérification doit éprouver {sonde} : {raison}"
+
+
+def test_la_sonde_de_redirection_tolere_le_port_explicite(script: str):
+    """GCP renvoie `https://hote:443/chemin`, pas `https://hote/chemin`.
+
+    Valeur réellement observée au premier déploiement du 2026-08-28 :
+
+        Location: https://clef.paquerette.com:443/form/
+
+    La première version de la sonde comparait à l'URL sans port et affichait
+    « ❌ http:// redirige, mais pas où il faut » sur une redirection parfaitement
+    correcte. Un contrôle qui crie au loup vaut à peine mieux qu'un contrôle absent :
+    on apprend à ignorer sa sortie, et le vrai défaut passe avec.
+    """
+    assert "sed 's|:443/|/|'" in script, (
+        "la cible de la redirection doit être normalisée du port explicite avant "
+        "comparaison, sinon la sonde échoue sur une redirection correcte"
+    )
+    assert '[ "$PUB_CODE" = "301" ]' in script, (
+        "le code 301 doit rester vérifié séparément de la cible"
+    )
+
+
+def test_le_script_ne_conclut_pas_au_succes_si_le_domaine_ne_repond_pas(script: str):
+    """Le message final doit refléter les sondes, sinon elles ne servent à rien."""
+    bloc = script[script.index('R_STEP="terminé"') :]
+    assert 'if [ "$PUB_FAIL" = true ]; then' in bloc, (
+        "le message final doit dépendre du résultat des sondes du domaine public"
+    )

@@ -117,8 +117,29 @@ class AuthSettings(BaseSettings):
     # Backend URL for OAuth callbacks
     backend_url: str = os.getenv("BACKEND_URL", "http://localhost:8000")
 
+    # ⚠️ Le flux DT doit partir de la MÊME ORIGINE que le flux principal.
+    #
+    # Les trois points d'appel de `/auth/authorize-dt` fabriquaient leur URI de
+    # redirection avec `f"{backend_url}/auth/callback-dt"`, donc l'URL *.run.app du
+    # service — alors que le flux principal annonce `GOOGLE_REDIRECT_URI`, soit le
+    # domaine public. Deux origines pour un seul client OAuth : il faut alors DEUX
+    # URI déclarés en console, et celui du DT casse le jour où l'ingress est
+    # verrouillé sur le load balancer (l'URL run.app cesse d'être joignable).
+    #
+    # Le load balancer route `/auth/*` vers l'API : le domaine public convient donc
+    # aux deux. Le défaut reste dérivé de `backend_url` pour le développement local.
+    dt_oauth_redirect_uri: str = os.getenv(
+        "DT_OAUTH_REDIRECT_URI",
+        f"{os.getenv('BACKEND_URL', 'http://localhost:8000')}/auth/callback-dt",
+    )
+
     class Config:
-        env_file = ".env"
+        # ⚠️ `.env.local` — la configuration de CE POSTE, jamais celle d'un
+        # environnement déployé. Renommé depuis `.env` le 2026-08-28 pour lever
+        # l'ambiguïté avec `.env.dev` / `.env.test` / `.env.prod`, qui décrivent les
+        # cibles de déploiement. Sur Cloud Run, aucun de ces fichiers n'est lu : les
+        # variables viennent du gabarit et les secrets de Secret Manager.
+        env_file = ".env.local"
         case_sensitive = False
         extra = "ignore"  # Ignore extra fields from .env
 

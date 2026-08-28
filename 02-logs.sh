@@ -154,11 +154,47 @@ collecter() {
     FICHIERS="${FICHIERS}${fichier}|"
 }
 
+# ⚠️ Pas de `2>/dev/null` ici, et c'est tout l'objet de cette fonction.
+#
+# Elle avalait l'erreur de gcloud : jeton expiré, droit manquant, API désactivée,
+# mauvais projet sortaient TOUS en chaîne vide, et l'appelant concluait « ∅ aucune
+# révision ». Soit le diagnostic exactement inverse — le service est là, c'est la
+# question qui a échoué.
+#
+# Constaté le 2026-08-28 : une collecte `--what=run` a écrit un index à
+# `"fichiers": []` et `"collectesEnEchec": []`, donc « tout va bien, il n'y a rien »,
+# alors que cinq révisions existaient. Rien dans les fichiers ne disait pourquoi.
+#
+# C'est la leçon que le préflight de `01-gcp-deploy.sh` porte déjà en grand :
+# distinguer « la ressource est absente » de « le contrôle n'a pas pu conclure ».
+#
+# ⚠️ Le résultat passe par des VARIABLES GLOBALES, pas par la sortie standard.
+#
+# Écrite `rev=$(derniere_revision "$svc")`, la fonction tourne dans un SOUS-SHELL :
+# son affectation de REVISION_ERREUR est perdue à la sortie, et le fichier d'erreur
+# arrivait vide — la même perte d'information, déplacée d'un cran. Vérifié en
+# exécution avec un faux gcloud avant correction.
+DERNIERE_REVISION=""
+REVISION_ERREUR=""
 derniere_revision() {
-    gcloud run revisions list --service="$1" \
+    local err sortie code
+    DERNIERE_REVISION=""
+    REVISION_ERREUR=""
+    err=$(mktemp)
+    # stderr dans un fichier plutôt que fusionné : un avertissement de gcloud sur une
+    # exécution RÉUSSIE polluerait sinon le nom de la révision.
+    sortie=$(gcloud run revisions list --service="$1" \
         --region="$REGION" --project="$PROJECT_ID" \
         --sort-by=~metadata.creationTimestamp --limit=1 \
-        --format='value(metadata.name)' 2>/dev/null | head -1
+        --format='value(metadata.name)' 2>"$err")
+    code=$?
+    if [ $code -ne 0 ]; then
+        REVISION_ERREUR="$(cat "$err")"
+        rm -f "$err"
+        return 1
+    fi
+    rm -f "$err"
+    DERNIERE_REVISION=$(printf '%s\n' "$sortie" | head -1)
 }
 
 # ---------------------------------------------------------------------------
@@ -192,9 +228,25 @@ traiter_service() {
 
     if [ "$WHAT" = "run" ] || [ "$WHAT" = "all" ]; then
         local rev="$REVISION"
-        [ -n "$rev" ] || rev=$(derniere_revision "$svc")
         if [ -z "$rev" ]; then
-            echo "  ∅  aucune révision pour $svc"
+            if derniere_revision "$svc"; then
+                rev="$DERNIERE_REVISION"
+            else
+                # Échec de la QUESTION, pas absence de réponse : on écrit l'erreur de
+                # gcloud dans un fichier et on la compte comme une collecte en échec,
+                # pour que l'index le dise au lieu de paraître vide.
+                local fichier="${OUT}/${ENVIRONMENT}-${court}-revision-introuvable.txt"
+                printf '### ÉCHEC : impossible de lister les révisions de %s\n\n%s\n' \
+                    "$svc" "$REVISION_ERREUR" | masquer > "$fichier"
+                echo "  ⚠️  $court : gcloud n'a pas pu lister les révisions"
+                echo "      (détail dans $fichier)"
+                ERREURS="${ERREURS}$court : liste des révisions|"
+                FICHIERS="${FICHIERS}${fichier}|"
+                return
+            fi
+        fi
+        if [ -z "$rev" ]; then
+            echo "  ∅  aucune révision pour $svc — le service n'a jamais été déployé"
             return
         fi
         echo "     révision : $rev"

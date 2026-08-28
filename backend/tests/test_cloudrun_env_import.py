@@ -51,6 +51,9 @@ VALEURS = {
     "FRONTEND_URL": "https://clef-frontend-abc.europe-west1.run.app",
     "DOMAIN": "clef-frontend-abc.europe-west1.run.app",
     "GOOGLE_REDIRECT_URI": "https://clef-frontend-abc.europe-west1.run.app/auth/callback",
+    # Même origine que le flux principal, chemin distinct : c'est ce que le script
+    # produit désormais pour la délégation Calendar/Drive/Gmail d'un gestionnaire DT.
+    "DT_OAUTH_REDIRECT_URI": "https://clef-frontend-abc.europe-west1.run.app/auth/callback-dt",
     "BACKEND_URL": "https://clef-api-abc.europe-west1.run.app",
     "VEHICULES_SPREADSHEET_ID": "",
     "BENEVOLES_SPREADSHEET_ID": "",

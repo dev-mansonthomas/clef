@@ -26,6 +26,7 @@ from app.routers import reservations_store
 from app.routers import carnet_bord
 from app.routers import upload
 from app.routers import alerts
+from app.routers import probe
 from app.routers import sync
 from app.routers import ical
 from app.routers import import_vehicles
@@ -234,6 +235,7 @@ app.include_router(contacts_cc.router)
 app.include_router(approbation.router)
 app.include_router(reminders.router)
 app.include_router(super_admin_router)
+app.include_router(probe.router)
 
 @app.get("/")
 async def root():
@@ -260,15 +262,6 @@ async def health():
         "redis": redis_status
     }
 
-@app.get("/api/test")
-async def test_endpoint():
-    """Test endpoint for development"""
-    return {
-        "message": "Test endpoint working",
-        "environment": os.getenv("ENV", "unknown"),
-        "using_mocks": use_mocks()
-    }
-
 # Les routes /api/benevoles, /api/benevoles/{email} et /api/responsables vivaient ici,
 # déclarées en ligne — donc sans aucun guard, ce fichier n'ayant pas de `Depends`.
 # L'annuaire des bénévoles était public : nom, prénom, email et UL servis à quiconque
@@ -280,3 +273,9 @@ async def test_endpoint():
 #
 # ⚠️ Ne pas déclarer de route ici : sans `Depends`, elle serait publique par
 # construction. Passer par un router avec un guard.
+#
+# `GET /api/test` est partie pour cette raison. Elle divulguait `environment` et
+# `using_mocks` sans authentification, ce que le load balancer publie maintenant sur le
+# domaine public. Elle vit en `routers/probe.py` — toujours publique, parce que c'est
+# une sonde de routage, mais sans rien dire du déploiement ; le diagnostic est passé
+# derrière le guard super-admin (`GET /admin/super/environnement`).

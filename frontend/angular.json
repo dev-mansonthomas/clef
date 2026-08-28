@@ -90,6 +90,10 @@
           "options": {
             "browser": "projects/admin/src/main.ts",
             "tsConfig": "projects/admin/tsconfig.app.json",
+            "allowedCommonJsDependencies": [
+              "papaparse",
+              "qrcode"
+            ],
             "inlineStyleLanguage": "scss",
             "assets": [
               {

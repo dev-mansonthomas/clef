@@ -70,8 +70,11 @@ USE_MOCKS=true REDIS_URL="redis://localhost:6379/0" .venv/bin/python -m pytest t
 ```
 
 ```
-410 passed, 1 skipped in 3.06s
+608 passed, 1 skipped in 12.86s
 ```
+
+(Relevé le 2026-08-28. Ce fichier annonçait `410 passed, 1 skipped` au 2026-08-13 : la
+suite a grossi depuis, elle n'a pas changé de couleur.)
 
 Sans aucun Redis joignable, les tests qui traversent le vrai chemin de données sont
 **ignorés, pas mis en échec** :
@@ -165,9 +168,47 @@ Services compose : `redis`, `backend`, `frontend`, `frontend-form`.
 Vérifié en mode mock : `/health` → `{"status":"healthy","redis":"connected"}`, `4200`
 et `4202` → 200.
 
-`--real` exécute un **préflight** qui échoue avant tout démarrage si le service
-account (`~/.cred/CLEF/…`) ou les trois `*_SPREADSHEET_ID` de `backend/.env` manquent.
-Dans cette VM il échoue donc toujours, et c'est le comportement voulu.
+`--real` exécute un **préflight**. Seule l'absence du service account
+(`GOOGLE_APPLICATION_CREDENTIALS` et le fichier qu'il désigne, `~/.cred/CLEF/…`)
+**bloque** le démarrage — et c'est le comportement voulu dans cette VM, qui n'a aucune
+credential. L'absence des trois `*_SPREADSHEET_ID` n'est qu'un **avertissement**
+(`run_local.sh:80-82`) : la version précédente de ce fichier affirmait qu'elle bloquait
+aussi, c'était faux.
+
+⚠️ **`backend/.env.example` est la référence des variables d'environnement, et elle est
+vérifiée** : `tests/test_env_example.py` compare ses 44 clés à ce que le code lit
+réellement (`os.getenv` + champs `pydantic-settings`), dans les deux sens, et interdit
+toute valeur réelle dans ce fichier versionné. Reconstruite depuis le code le
+2026-08-28 : `backend/.env` — renommé **`backend/.env.local`**, la configuration de
+CE POSTE — portait 18 clés que rien ne lit — dont cinq `VALKEY_*`,
+vestiges du Memorystore détruit — et `.env.example` en annonçait quatre que seul
+`backend/validate_env.py` (périmé) connaît. Ne plus se fier à `.env.local` ni à
+`validate_env.py` pour savoir ce qui est lu.
+
+⚠️ **Les fichiers d'environnement, et qui les lit** — trois familles, trois rôles :
+
+| Fichier | Qui le lit | Rôle |
+|---|---|---|
+| `backend/.env.local` | `pydantic-settings`, `docker compose`, `run_local.sh` | la configuration de **ce poste** |
+| `deploy/deploy.<env>.env` | `00-infra.sh`, `01-gcp-deploy.sh`, `02-logs.sh` | **l'unique source** des variables d'un environnement |
+
+`backend/.env.dev`, `.test` et `.prod` ont été **supprimés** le 2026-08-28 : ils ne
+contenaient que des `XXX` et aucun code ne les lisait.
+
+⚠️ **Terraform n'est pas une source de variables.** `deploy/terraform/environments/*.tfvars`
+est supprimé ; `00-infra.sh` lit `deploy/deploy.<env>.env` et passe les valeurs en
+`-var`. Terraform garde ses **défauts** dans `variables.tf` — un défaut est un repli,
+pas une vérité. `tests/test_deploy_env_example.py` fait échouer la suite si un tfvars
+réapparaît sous `deploy/`, si `-var-file` revient, ou si une variable passée à Terraform
+n'est pas documentée dans `deploy/deploy.env.example` (le seul des deux fichiers qui
+soit versionné — celui d'un environnement réel porte une adresse personnelle).
+La règle de forme du domaine public vit dans **`deploy/env-commun.sh`**, sourcé par les
+deux scripts : la même valeur alimente le certificat et les URL de l'application.
+
+⚠️ **Aucun `.env` n'est lu par Cloud Run** : les variables viennent de
+`deploy/cloudrun-api.yaml.tpl` et les trois secrets de Secret Manager. Un `.env`
+copié dans une image serait le constat N14 rejoué — `.dockerignore` et
+`.gcloudignore` excluent `.env.*` des deux côtés, et `test_gcloudignore.py` l'exige.
 
 ⚠️ Le backend **annonce son mode au démarrage** (`WARNING` en mock). Ne pas diagnostiquer
 un comportement bizarre sans avoir lu cette ligne :
@@ -297,12 +338,24 @@ collée.**
 - **Angular** : composants standalone, nouveau control flow (`@if`/`@for`),
   signals partiellement adoptés. `OnPush` n'est utilisé que dans **un** fichier —
   ne pas en déduire une convention établie.
+- **Identité visuelle : Croix-Rouge, jamais Redis ni Anthropic.** Les skills
+  `redis-brand-ui` et `redis-product-ui` sont installées **globalement** (travail SA
+  Redis) : ne **jamais** les appliquer à `admin` ni `form`. Même règle pour
+  `brand-guidelines` (charte Anthropic). Pour l'UI, s'en tenir à `frontend-design`
+  et à l'identité Croix-Rouge française (voir `logo-CLEF-*.png` et le thème
+  Angular Material existant).
+- **Skills GCP activées par projet** : `.claude/skills/` (gitignoré) porte
+  `cloud-run-basics`, `gcloud`, `cloud-build-basics`,
+  `cloud-logging-query-generation`, `google-cloud-storage-basics`,
+  `google-cloud-storage-fuse` — le périmètre réel du déploiement. Les gérer avec
+  `skill-activate` ; re-lancer `/skills-review` quand le projet évolue.
 
 ## Pièges
 
 1. **Les quatre suites sont vertes depuis le 2026-08-13** — c'est la référence à
-   tenir : backend `410 passed, 1 skipped` (avec `docker compose up -d redis`),
-   `ng test admin` 19, `ng test form` 3, Playwright 30. Un échec est désormais un
+   tenir : backend `608 passed, 1 skipped` (avec `docker compose up -d redis`,
+   relevé le 2026-08-28 ; 410 au 2026-08-13),
+   `ng test admin` 36, `ng test form` 11, Playwright 30. Un échec est désormais un
    **signal**, plus du bruit hérité. Historique : la suite a longtemps été à 8 ou 12
    échecs, et l'e2e n'avait jamais tourné.
 
@@ -317,7 +370,19 @@ collée.**
    bénévoles ont été retirées le 2026-08-20 (C1 clos). Ne **jamais** y déclarer de
    route : passer par un router avec un guard. `tests/test_referentiel_directory.py`
    contient une garde structurelle qui échoue si l'une d'elles réapparaît.
-   ⚠️ `GET /api/alerts/status` reste non authentifié (H4 voisin), toujours ouvert.
+   `GET /api/test` en est partie le 2026-08-28 : elle divulguait `environment` et
+   `using_mocks` sans authentification, ce que le load balancer publie désormais sur
+   le domaine public. Elle vit dans `routers/probe.py`, **toujours publique** — c'est
+   une sonde de routage, utilisée par la spec et par `01-gcp-deploy.sh` — mais muette ;
+   le diagnostic est sous guard en `GET /admin/super/environnement`.
+   `tests/test_probe_publique.py` fait désormais échouer la suite sur **toute**
+   nouvelle route déclarée en ligne dans `main.py`, `/` et `/health` exceptées.
+   `GET /api/alerts/status` a été **supprimée** le 2026-08-28 pour la même raison,
+   plus `service_account_email` : aucun appelant, et son champ `enabled` codé en dur
+   mentait dès que `SCHEDULER_ENABLED=false`. `tests/test_probe_publique.py` vérifie
+   aussi que **toute** route du router des alertes remonte à un `require_*`.
+   ⚠️ Les flux iCal (`/api/calendar/{dt}/*.ics`) restent non authentifiés — H4,
+   toujours ouvert, et `tests/test_ical.py` fige leur 200 anonyme.
 
 4. **La CI garde désormais le déploiement.** `deploy-dev` déclare
    `needs: [backend-test, frontend-build, frontend-test, e2e]`, et les jobs de test
@@ -330,10 +395,13 @@ collée.**
    nom de branche déjà associé à une PR mergée : les outils qui cherchent « la PR
    de cette branche » retombent sur l'ancienne et concluent à tort « déjà mergée ».
 
-6. **Le filet unitaire frontend est mince : 22 tests pour ~100 composants.** Il
+6. **Le filet unitaire frontend est mince : 47 tests pour ~100 composants.** Il
    compile et passe, mais ne couvre que `App`, `LayoutComponent`, le générateur de
    QR codes, `QrCodeService`, `superAdminGuard` et `ConfigurationUlComponent`. Ne
-   pas confondre « vert » et « couvert ».
+   pas confondre « vert » et « couvert ». Ajouté le 2026-08-28 : `LoginComponent`
+   (admin), dont la spec tient le fait que l'écran de connexion ne fait **aucun** appel
+   réseau de son propre chef — le second `GET /auth/me` était un doublon de celui du
+   constructeur d'`AuthService`.
 
 7. **Le champ « Montant de la franchise » de l'écran Configuration est décoratif.**
    L'UI l'envoie, mais `ConfigUpdate` (`app/models/config.py`) ne le déclare pas :

@@ -1,8 +1,11 @@
 """Super admin backend routes."""
+import os
+
 from fastapi import APIRouter, Depends
 
 from app.auth.dependencies import require_authenticated_user, require_super_admin, user_is_super_admin
 from app.auth.models import User
+from app.mocks.service_factory import use_mocks
 from app.services.redis_dependencies import get_redis_service
 from app.services.redis_service import RedisService
 
@@ -29,6 +32,23 @@ def _extract_vehicle_folder_summary(vehicle) -> dict | None:
 async def get_super_admin_status(current_user: User = Depends(require_authenticated_user)):
     """Return whether the authenticated user is the configured super admin."""
     return {"is_super_admin": user_is_super_admin(current_user)}
+
+
+@router.get("/environnement")
+async def get_environnement(current_user: User = Depends(require_super_admin)):
+    """Environnement d'exécution et mode mock — sous guard, et c'est le point.
+
+    Ces deux valeurs étaient servies ANONYMEMENT par `GET /api/test`, que le load
+    balancer publie sur le domaine public : n'importe qui apprenait le nom de
+    l'environnement et si les services Google étaient simulés. Le besoin de
+    diagnostic est réel — savoir qu'une production ne tourne pas en mock en est un —
+    mais il appartient au super admin, pas au public.
+    """
+    _ = current_user
+    return {
+        "environment": os.getenv("ENV", "unknown"),
+        "using_mocks": use_mocks(),
+    }
 
 
 @router.get("/cache/drive-folders")
