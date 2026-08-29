@@ -133,3 +133,66 @@ def test_chaque_variable_du_service_est_traçable_depuis_l_exemple():
         "ici doivent y être nommées, avec leur origine — sinon on les cherche dans le "
         "mauvais fichier, ce qui a déjà coûté trois cycles de déploiement."
     )
+
+
+def _valeur(fichier: Path, cle: str) -> str | None:
+    """Valeur affectée à `cle` dans un fichier d'environnement, sans les commentaires."""
+    for ligne in fichier.read_text(encoding="utf-8").splitlines():
+        ligne = ligne.strip()
+        if ligne.startswith(f"{cle}="):
+            return ligne.split("=", 1)[1].strip()
+    return None
+
+
+def test_min_instances_nest_pas_zero():
+    """`MIN_INSTANCES=0` est la cause d'un 500 observé en production le 2026-08-29.
+
+    Séquence relevée dans Cloud Logging (heures de Paris), sur `GET /api/config` :
+
+        20:11:36.508  ERROR  The request failed because the instance failed the
+                             readiness check.
+        20:11:36.513  WARNING The request was aborted because there was no
+                             available instance.
+        20:11:36.543  INFO   Starting new instance. Reason: AUTOSCALING
+        20:11:37.441  Error: … storageLayout call failed … code = Unimplemented
+        20:11:38.650  WARNING Container called exit(255).
+        20:11:40.575  ERROR  terminated: … volume (type: gcs, name: snapshots):
+                             mount operation failed
+        20:11:40.889  INFO   GetStorageLayout -> (…) 62 msec      ← réussit
+
+    Le montage gcsfuse a échoué **une fois**, puis le même appel a réussi en 62 ms.
+    C'est un échec transitoire, et Cloud Run l'a lui-même rattrapé — mais la requête
+    en vol, elle, était déjà perdue. Aucune ligne `GET /api/config` n'atteint uvicorn :
+    ce n'était pas un bug applicatif.
+
+    `MIN_INSTANCES=0` est ce qui expose l'utilisateur à cette classe de panne : sans
+    instance tiède, **chaque premier clic après une période d'inactivité** déclenche un
+    démarrage à froid, donc une tentative de montage. Cloud Run n'expose aucune option
+    de montage permettant d'activer les réessais (`enable-mount-retries` n'est pas dans
+    la liste supportée), et la configuration imprimée par gcsfuse confirme
+    `EnableMountRetries:false`.
+
+    Le même réglage ferme le constat N11 : à 0, chaque mise en veille repart du dernier
+    instantané RDB, donc perd jusqu'à 10 minutes d'écritures.
+
+    ⚠️ Ce test ne lit que le fichier VERSIONNÉ. Le fichier d'un environnement réel
+    (`deploy/deploy.dev.env`, non versionné) doit être corrigé à la main — c'est lui que
+    `01-gcp-deploy.sh` lit réellement.
+    """
+    for source, nom in (
+        (EXEMPLE, "deploy/deploy.env.example"),
+        (DEPLOIEMENT, "01-gcp-deploy.sh (valeur de repli)"),
+    ):
+        contenu = source.read_text(encoding="utf-8")
+        if source is DEPLOIEMENT:
+            trouve = re.search(r'MIN_INSTANCES="\$\{MIN_INSTANCES:-(\d+)\}"', contenu)
+            assert trouve, "Le repli de MIN_INSTANCES a disparu de 01-gcp-deploy.sh"
+            valeur = trouve.group(1)
+        else:
+            valeur = _valeur(source, "MIN_INSTANCES")
+            assert valeur is not None, f"MIN_INSTANCES absent de {nom}"
+        assert valeur != "0", (
+            f"{nom} porte MIN_INSTANCES=0. Un démarrage à froid dont le montage gcsfuse "
+            "échoue renvoie 500 à la requête en vol (constat du 2026-08-29), et chaque "
+            "mise en veille perd jusqu'à 10 min d'écritures (N11)."
+        )

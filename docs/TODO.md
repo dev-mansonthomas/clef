@@ -1396,5 +1396,73 @@ ressource ajoutée, **y compris celles qu'un outil crée implicitement**. Deux t
 | **N14** | 🔴 **`backend/.env` serait parti en clair dans l'image de conteneur.** `gcloud builds submit backend` ne lit que `backend/.gcloudignore` — ou à défaut `backend/.gitignore`, qui ne contenait que `test_output.txt` — et **jamais** le `.gitignore` ni le `.gcloudignore` de la racine, où `.env` et `.venv/` sont pourtant bien exclus. Le Dockerfile faisant `COPY . .`, `backend/.env` (GOOGLE_CLIENT_SECRET, QR_CODE_SALT, SYNC_API_KEY, chemin d'une clé de service account) et ses variantes `.dev`/`.test`/`.prod` auraient été livrés dans une image poussée sur Artifact Registry — lisible par quiconque a accès au projet **partagé**. Plus 244 Mo de virtualenv et 362 Mo de `node_modules`. Attrapé le 2026-08-27, pendant le premier déploiement, avant qu'aucune image ne soit servie. Corrigé par `backend/.gcloudignore` et `frontend/.gcloudignore` (0,7 Mo et 4,2 Mo envoyés au lieu de 388 et 406). ⚠️ **Et ce n'était que la moitié du problème** : `.gcloudignore` ne concerne que Cloud Build. `docker build` lit `.dockerignore`, absent — donc `run_local.sh --build` copiait bel et bien `/app/.env` dans l'image, ce qu'une construction locale a confirmé (1,59 Go). `backend/.dockerignore` et `frontend/.dockerignore` ajoutés : image backend à 580 Mo, aucun secret, `/health` 200. `backend/tests/test_gcloudignore.py` (17 tests) exige les deux fichiers et vérifie qu'ils restent cohérents. ⚠️ **Si une image a été construite avant ce correctif, la supprimer du registre** — commandes dans la conversation. |
 | **N13** | 🔴 **Trois routes de production lisent Google Sheets avec le service account — impossible dans ce Workspace.** Le domaine `@croix-rouge.fr` interdit le partage d'un document vers une adresse extérieure, et `clef-backend@….gserviceaccount.com` en est une. C'est structurel : il n'existe pas de réglage qui l'autorise, et aucune délégation à l'échelle du domaine n'est configurée dans le dépôt. **C'est toute la raison pour laquelle les données circulent dans l'autre sens** — Apps Script pousse les bénévoles vers l'API, et tire les véhicules depuis l'API. Les trois routes fautives : `routers/upload.py:54` (`get_vehicule_by_nom_synthetique`, à l'envoi de photos), `routers/reservations.py:55` (`get_vehicule_by_indicatif`, à la création d'une réservation) et `services/alert_service.py:100` (`get_vehicles`, pour les alertes CT et pollution du scheduler). Toutes trois doivent lire **Redis** — le référentiel véhicules y est déjà, `redis_service` expose ce qu'il faut. Tant que ce n'est pas fait, le déploiement tourne mais l'envoi de photos, la création de réservations et les alertes échouent en 403. Découvert le 2026-08-27, sur correction de l'utilisateur : la documentation reconstruite décrivait Sheets comme lu par le backend, ce qui n'a jamais pu être vrai en production. |
 | N10 | **`backend/scripts/setup_gcp.sh` est périmé** : il lit des sorties Terraform `valkey_host`/`valkey_port` qui n'existent plus. À retirer ou réécrire. |
-| N11 | **`minInstances = 0` en production reste à trancher** : en dev et test, chaque mise en veille perd jusqu'à 10 min d'écritures. Voir ADR 0008. |
+| ~~N11~~ | ✅ **CLOS le 2026-08-29 — `MIN_INSTANCES = 1`.** Tranché sur un incident, pas en théorie : à 0, un `GET /api/config` a renvoyé 500 parce que le clic est tombé sur un démarrage à froid dont le montage gcsfuse a échoué. La même ligne ferme la perte de 10 min d'écritures à chaque mise en veille. Voir la section datée en fin de document. |
 | N12 | **L'ancienne racine `backend/terraform` et `infra/` subsistent.** Conservées le temps de valider la nouvelle ; à supprimer ensuite, avec leurs `terraform.tfstate` locaux. |
+
+## Le 500 sur `/api/config` — un démarrage à froid, pas un bug applicatif (2026-08-29)
+
+Symptôme : `https://dev.clef.paquerette.com/api/config` → `500 (Internal Server Error)`
+depuis le back-office.
+
+**Ce n'était pas l'application.** Aucune ligne `GET /api/config` n'atteint uvicorn dans
+la fenêtre, et aucune trace Python n'est journalisée. La séquence, relevée dans
+Cloud Logging sur la révision `clef-api-00016-k9p` (heures de **Paris** — les
+horodatages du log sont en `Z`, deux heures de moins, ce qui m'a d'abord égaré) :
+
+| Heure | Événement |
+|---|---|
+| 20:11:36.508 | `ERROR The request failed because the instance failed the readiness check` |
+| 20:11:36.513 | `WARNING The request was aborted because there was no available instance` |
+| 20:11:36.543 | `Starting new instance. Reason: AUTOSCALING` |
+| 20:11:37.441 | `Error: … storageLayout call failed … code = Unimplemented` |
+| 20:11:38.650 | `Container called exit(255)` |
+| 20:11:40.575 | `ERROR terminated: … volume (type: gcs, name: snapshots): mount operation failed` |
+| **20:11:40.889** | **`GetStorageLayout -> (…) 62 msec`** — le même appel, réussi |
+| 20:11:49 | Application démarrée, 9208 clés rechargées depuis le RDB |
+
+Le point décisif est l'avant-dernière ligne : l'appel identique réussit en 62 ms trois
+secondes plus tard. `Unimplemented` n'est donc pas une propriété du bucket — c'est un
+échec **transitoire**, et Cloud Run l'a lui-même rattrapé. Mais la requête en vol, elle,
+était déjà perdue : Cloud Run ne la rejoue pas.
+
+C'est la conjonction de deux constats déjà ouverts. **N9** — « le montage GCS FUSE pour
+les instantanés RDB n'est pas éprouvé, c'est le point à vérifier au premier
+déploiement » : il est éprouvé, et il est bien le maillon fragile, mais pas pour la
+raison prévue (le `rename` non atomique) — c'est le **montage** qui échoue, pas
+l'écriture. **N11** — `MIN_INSTANCES = 0` : sans instance tiède, chaque premier clic
+après une période d'inactivité déclenche un démarrage à froid, donc une tentative de
+montage.
+
+### Ce qui a été corrigé — `MIN_INSTANCES = 1`
+
+Vérifié dans la documentation Cloud Run : les volumes Cloud Storage acceptent bien un
+`mountOptions` dans `volumeAttributes`, mais la liste supportée ne contient **pas** de
+réessai de montage (`implicit-dirs`, `only-dir`, `rename-dir-limit`, les caches, les
+permissions, `client-protocol`, `max-conns-per-host`, les limites de débit — rien de
+plus). La configuration imprimée par gcsfuse confirme `EnableMountRetries:false`, et ce
+n'est pas modifiable ici. La seule parade est donc de **ne pas démarrer à froid sur un
+clic**.
+
+Corrigé dans les trois endroits qui portaient la valeur : `deploy/deploy.env.example`
+(versionné), `deploy/deploy.dev.env` (l'environnement réel, non versionné — c'est LUI
+que `01-gcp-deploy.sh` lit) et le repli du script. `tests/test_deploy_env_example.py`
+fait désormais échouer la suite si la valeur redevient 0, avec la séquence de logs en
+docstring pour que la raison ne se perde pas.
+
+Effet second, non accessoire : **N11 est clos par la même ligne.** À 0, chaque mise en
+veille repartait du dernier instantané RDB, donc perdait jusqu'à 10 minutes d'écritures.
+Coût assumé : une instance facturée en continu (la CPU y était déjà non bridée).
+
+### Ce qui reste ouvert
+
+- **N9 reste ouvert, requalifié.** Le montage peut encore échouer lors d'un
+  *remplacement* d'instance (déploiement, maintenance de la plateforme) — la fenêtre
+  passe de « chaque période d'inactivité » à « rare ». Le repli architectural nommé par
+  N9 (RDB local recopié périodiquement vers GCS, le montage quittant le chemin critique
+  de démarrage) n'est **pas** fait : c'est un amendement à l'ADR 0008, avec une
+  restauration à définir.
+- ⚠️ **`02-logs.sh` tronque à 300 entrées par requête, et le bruit gcsfuse mange le
+  budget.** La configuration complète de gcsfuse est imprimée à chaque montage sur une
+  seule ligne de ~4 ko : deux montages suffisent à noyer la collecte. La première lecture
+  a conclu à tort « aucune donnée » sur la révision courante. En cas d'incident, resserrer :
+  `./02-logs.sh dev --what=run --service=api --freshness=15m --limit=1000`.

@@ -390,12 +390,26 @@ collée.**
    `ci.yml` et fait échouer la suite si ce garde-fou disparaît — ne pas le retirer
    sans retirer aussi ce test, ce qui rendra la régression visible en revue.
 
-5. **Les PR sont squash-mergées.** Une branche vivante affiche « ahead de N
+5. **⚠️ Un 500 en dev n'est pas forcément applicatif.** Relevé le 2026-08-29 sur
+   `GET /api/config` : le clic était tombé sur un démarrage à froid dont le montage
+   gcsfuse a échoué (`storageLayout call failed … code = Unimplemented`, puis
+   `terminated: volume (type: gcs, name: snapshots): mount operation failed`). Le même
+   appel réussit 3 s plus tard : c'est transitoire, Cloud Run le rattrape, mais la
+   requête en vol est perdue et **aucune trace Python n'existe** — la requête n'atteint
+   jamais uvicorn. Corrigé par `MIN_INSTANCES=1`. Signature à reconnaître : un 500 sans
+   ligne `"GET … HTTP/1.1" 500` dans le log du conteneur.
+   ⚠️ **Et `02-logs.sh` tronque à 300 entrées par requête** : gcsfuse imprime sa
+   configuration complète sur une ligne de ~4 ko à chaque montage, deux montages noient
+   la collecte, et l'outil conclut « aucune donnée » à tort. Resserrer :
+   `./02-logs.sh dev --what=run --service=api --freshness=15m --limit=1000`.
+   ⚠️ Les horodatages des logs sont en **`Z` (UTC)**, deux heures de moins que Paris.
+
+6. **Les PR sont squash-mergées.** Une branche vivante affiche « ahead de N
    commits » alors que leur contenu est déjà dans `main`. Ne jamais réutiliser un
    nom de branche déjà associé à une PR mergée : les outils qui cherchent « la PR
    de cette branche » retombent sur l'ancienne et concluent à tort « déjà mergée ».
 
-6. **Le filet unitaire frontend est mince : 47 tests pour ~100 composants.** Il
+7. **Le filet unitaire frontend est mince : 47 tests pour ~100 composants.** Il
    compile et passe, mais ne couvre que `App`, `LayoutComponent`, le générateur de
    QR codes, `QrCodeService`, `superAdminGuard` et `ConfigurationUlComponent`. Ne
    pas confondre « vert » et « couvert ». Ajouté le 2026-08-28 : `LoginComponent`
@@ -403,40 +417,40 @@ collée.**
    réseau de son propre chef — le second `GET /auth/me` était un doublon de celui du
    constructeur d'`AuthService`.
 
-7. **Le champ « Montant de la franchise » de l'écran Configuration est décoratif.**
+8. **Le champ « Montant de la franchise » de l'écran Configuration est décoratif.**
    L'UI l'envoie, mais `ConfigUpdate` (`app/models/config.py`) ne le déclare pas :
    `model_dump(exclude_none=True)` le jette. La valeur reste à 350 €.
 
-8. **4 services admin codent `dt = 'DT75'` en dur** (`api-keys`, `stats`,
+9. **4 services admin codent `dt = 'DT75'` en dur** (`api-keys`, `stats`,
    `unite-locale`, `vehicle-import`). L'application est mono-DT en pratique, malgré
    un backend conçu multi-tenant.
 
-9. **L'app `form` envoie une identité bénévole factice** (`'user@example.com'`,
+10. **L'app `form` envoie une identité bénévole factice** (`'user@example.com'`,
    `'Nom'`, `'Prénom'`) au lieu de l'utilisateur authentifié : les prises et retours
    sont mal attribués. Voir les TODO dans `prise-form.component.ts:178` et
    `retour-form.component.ts:147`.
 
-10. **`*.csv` est gitignoré** (protection des données personnelles des bénévoles).
+11. **`*.csv` est gitignoré** (protection des données personnelles des bénévoles).
     Cette règle a avalé une fixture de test : `backend/tests/fixtures/vehicles_import_sample.csv`
     n'a **jamais** été committée et est perdue — 8 tests d'import échouent de ce fait.
 
-11. **La VM n'a pas de Python 3.14 dans le `PATH`** (`python3 -V` → 3.12.3) alors
+12. **La VM n'a pas de Python 3.14 dans le `PATH`** (`python3 -V` → 3.12.3) alors
     que le projet exige `>=3.14`. Passer par `uv venv --python 3.14`.
     `tests/test_runtime.py` échoue explicitement si le venv est trop ancien. Node,
     lui, est aligné en 24 partout.
 
-12. **Trois motifs de route des mocks e2e ne correspondaient à aucune URL réelle**
+13. **Trois motifs de route des mocks e2e ne correspondaient à aucune URL réelle**
     (`/api/vehicles/import`, `/api/calendar/reservations`, `/api/carnet-bord/*`).
     Corrigés. Symptôme à reconnaître : `ENOTFOUND backend` dans la sortie Playwright
     plus une assertion qui échoue « sans raison » — la requête a fui vers le proxy.
 
-13. **Deux jeux de données mock e2e ne respectaient pas le contrat de l'API** :
+14. **Deux jeux de données mock e2e ne respectaient pas le contrat de l'API** :
     `status_ct` était une chaîne au lieu de `{value, color}`, et les réservations
     portaient l'ancien modèle Google Calendar (`vehicule_id`, `date_debut`) au lieu
     du modèle Redis (`vehicule_immat`, `debut`). Vérifier le modèle avant d'ajouter
     une fixture.
 
-14. **Un flake de timing subsiste** dans
+15. **Un flake de timing subsiste** dans
     `tests/test_carnet_de_bord.py::test_get_historique_carnet` : il trie l'historique
     sur `timestamp.isoformat()` et a échoué une fois sur ~10 exécutions. Observé, non
     corrigé — voir `docs/TODO.md` M27.

@@ -165,7 +165,10 @@ set +a
 
 SERVICE_NAME="${SERVICE_NAME:-clef-api}"
 FRONTEND_SERVICE="${FRONTEND_SERVICE:-clef-frontend}"
-MIN_INSTANCES="${MIN_INSTANCES:-0}"
+# Repli à 1, jamais 0 : un démarrage à froid dont le montage gcsfuse échoue renvoie
+# 500 à la requête en vol (relevé le 2026-08-29), et chaque mise en veille perd
+# jusqu'à 10 min d'écritures. Voir deploy/deploy.env.example.
+MIN_INSTANCES="${MIN_INSTANCES:-1}"
 MAX_INSTANCES="${MAX_INSTANCES:-1}"
 REDIS_MEMORY="${REDIS_MEMORY:-512Mi}"
 # Limite interne de Redis, à tenir SOUS celle du conteneur : un BGSAVE duplique les
