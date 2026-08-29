@@ -243,10 +243,9 @@
     </div>
 
     <!-- API Keys Manager -->
-    <app-api-keys-manager
-      level="dt"
-      [syncUrl]="syncUrl()"
-    ></app-api-keys-manager>
+    <!-- Les valeurs Apps Script sont calculées par le composant : une URL passée
+         d'ici avait fini par en désigner une qui ne servait à rien. -->
+    <app-api-keys-manager level="dt"></app-api-keys-manager>
   </div>
 </div>
 

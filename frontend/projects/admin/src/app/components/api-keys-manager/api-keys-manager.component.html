@@ -1,13 +1,53 @@
 <div class="api-keys-manager">
   <!-- Sync URL Section -->
   <div class="sync-url-section">
-    <h3>🔗 URL de synchronisation (Google Apps Script)</h3>
+    <h3>🔗 Propriétés à renseigner dans Google Apps Script</h3>
+    <p class="sync-hint">
+      Éditeur Apps Script → <em>Paramètres du projet</em> → <em>Propriétés du script</em>.
+      Chaque script construit son chemin lui-même : ces deux valeurs suffisent.
+    </p>
+
     <div class="url-display">
-      <input type="text" [value]="syncUrl" readonly class="url-input" />
-      <button type="button" (click)="copyToClipboard(syncUrl)" class="copy-btn" title="Copier">
+      <label class="url-label">CLEF_API_URL</label>
+      <input type="text" [value]="baseUrl" readonly class="url-input" />
+      <button type="button" (click)="copyToClipboard(baseUrl)" class="copy-btn" title="Copier">
         📋
       </button>
     </div>
+
+    <div class="url-display">
+      <label class="url-label">CLEF_DT</label>
+      <input type="text" [value]="dt" readonly class="url-input" />
+      <button type="button" (click)="copyToClipboard(dt)" class="copy-btn" title="Copier">
+        📋
+      </button>
+    </div>
+
+    <h4>Les trois flux, pour vérification</h4>
+    <p class="sync-hint">
+      À ne pas recopier dans les propriétés — les scripts les fabriquent. Utile pour
+      diagnostiquer, et pour savoir quel script va dans quel classeur.
+    </p>
+    <table class="flux-table">
+      <thead>
+        <tr>
+          <th>Classeur</th>
+          <th>Script</th>
+          <th>Sens</th>
+          <th>Appel</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (f of flux; track f.url) {
+          <tr>
+            <td>{{ f.classeur }}</td>
+            <td><code>{{ f.script }}</code></td>
+            <td>{{ f.sens }}</td>
+            <td class="flux-url"><code>{{ f.methode }} {{ f.url }}</code></td>
+          </tr>
+        }
+      </tbody>
+    </table>
   </div>
 
   <!-- API Keys Section -->
