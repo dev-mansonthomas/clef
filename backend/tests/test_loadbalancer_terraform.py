@@ -426,6 +426,34 @@ def test_la_sonde_de_redirection_tolere_le_port_explicite(script: str):
     )
 
 
+def test_le_deploiement_du_backend_est_reessaye(script: str):
+    """Le montage du volume GCS échoue par intermittence, et il bloque le démarrage.
+
+    `GetStorageLayout … Unimplemented` : gcsfuse interroge un appel de plan de contrôle
+    qui sert à détecter un espace de noms hiérarchique, que ce bucket n'a pas. La
+    documentation gcsfuse dit ce contrôle « integral … cannot be skipped » : il n'y a
+    aucune option de montage à ajouter.
+
+    Trois échecs constatés le 2026-08-28/29 — un réveil, deux déploiements — pour un
+    succès. `minScale = 1` transforme ce défaut en échec de DÉPLOIEMENT : la révision
+    n'est prête qu'après un démarrage réussi. Réessayer est la seule réponse disponible
+    tant que le montage n'est pas sorti du chemin de démarrage.
+    """
+    assert "for essai in 1 2 3; do" in script, (
+        "`gcloud run services replace` doit être réessayé : un montage GCS raté fait "
+        "échouer le déploiement entier, et il échoue une fois sur deux"
+    )
+    bloc = script[script.index("for essai in 1 2 3; do") :]
+    # Jusqu'au comptage des passes : `rm -f` apparaît DANS la branche d'échec, donc
+    # avant le `sleep` — s'y arrêter tronquait la boucle.
+    bloc = bloc[: bloc.index("R_PASSES=$((R_PASSES + 1))")]
+    assert "sleep 20" in bloc, "laisser un délai entre deux tentatives"
+    assert "mount operation failed" in bloc, (
+        "l'échec définitif doit NOMMER la cause probable et où la vérifier — sinon "
+        "trois échecs identiques n'apprennent rien"
+    )
+
+
 def test_le_script_ne_conclut_pas_au_succes_si_le_domaine_ne_repond_pas(script: str):
     """Le message final doit refléter les sondes, sinon elles ne servent à rien."""
     bloc = script[script.index('R_STEP="terminé"') :]

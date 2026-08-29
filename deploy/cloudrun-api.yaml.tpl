@@ -66,10 +66,24 @@ spec:
       # `spec.template.spec.timeoutSeconds` est le délai de requête. Cloud Run
       # n'expose aucun délai de grâce à l'arrêt configurable.
       #
-      # Le RPO réel à l'arrêt est donc la pleine fenêtre d'instantané, soit
-      # 10 minutes. C'est ce que dit l'ADR 0008 ; ce commentaire prétendait le
-      # contraire. 300 s reste utile en soi : un import CSV volumineux dépasse le
-      # défaut de 60 s.
+      # ⚠️ En revanche, la conclusion que ce commentaire en tirait — « le RPO réel à
+      # l'arrêt est donc la pleine fenêtre d'instantané, soit 10 minutes » — est
+      # FAUSSE, et elle l'attribuait à tort à l'ADR 0008, qui dit l'inverse.
+      #
+      # Cloud Run envoie SIGTERM, et Redis sauvegarde de lui-même sur ce signal dès
+      # qu'une directive `save` est configurée — ce que fait ce gabarit. Mesuré dans
+      # les journaux du 2026-08-28, à une mise en veille :
+      #
+      #     Received SIGTERM scheduling shutdown...
+      #     * Saving the final RDB snapshot before exiting.
+      #     * BGSAVE done, 21 keys saved, 4426 bytes written.
+      #     * DB saved on disk
+      #     # Redis is now ready to exit, bye bye...
+      #
+      # 400 ms au total. La perte à l'arrêt PROPRE est donc nulle ; la fenêtre de
+      # 10 minutes ne concerne qu'une mort brutale — OOM-kill, panne d'infrastructure.
+      #
+      # 300 s reste utile en soi : un import CSV volumineux dépasse le défaut de 60 s.
       timeoutSeconds: 300
       containers:
         # ─────────────────────────── Backend ───────────────────────────

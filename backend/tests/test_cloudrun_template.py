@@ -318,6 +318,35 @@ def test_le_volume_est_monte_par_redis(containers: dict):
     )
 
 
+def test_redis_sauvegarde_sur_sigterm(containers: dict):
+    """Les directives `save` ne servent pas qu'à l'instantané périodique.
+
+    C'est leur présence qui fait que Redis écrit un **dernier instantané sur SIGTERM**,
+    donc qu'un arrêt propre — mise en veille, redéploiement — ne perde RIEN. Vérifié
+    dans les journaux du 2026-08-28, 400 ms au total :
+
+        Received SIGTERM scheduling shutdown...
+        * Saving the final RDB snapshot before exiting.
+        * BGSAVE done, 21 keys saved, 4426 bytes written.
+        * DB saved on disk
+
+    Sans aucune directive `save`, Redis s'arrêterait **sans sauvegarder** : la perte
+    serait alors la pleine fenêtre depuis le dernier instantané, à chaque mise en
+    veille. Un commentaire du gabarit affirmait d'ailleurs que c'était le cas — d'où ce
+    test, qui fixe la propriété plutôt que la croyance.
+    """
+    args = containers["redis"]["args"]
+    fenetres = [args[i + 1] for i, a in enumerate(args) if a == "--save"]
+    assert fenetres, (
+        "aucune directive `save` : Redis s'arrêterait sans écrire son instantané "
+        "final, et chaque mise en veille perdrait les écritures depuis le dernier."
+    )
+    # Une fenêtre longue pour le régime normal, une courte pour les rafales.
+    assert any(int(f.split()[0]) <= 600 for f in fenetres), (
+        f"fenêtres déclarées : {fenetres}. Au moins une doit être ≤ 600 s."
+    )
+
+
 def test_redis_ne_fait_pas_d_aof(containers: dict):
     """Pas de journal en append sur un système de fichiers objet."""
     args = " ".join(containers["redis"]["args"])
