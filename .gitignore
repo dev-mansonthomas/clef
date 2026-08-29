@@ -183,5 +183,14 @@ Référentiel*.csv
 # ============================================
 debug/
 
+# Données d'initialisation des structures Croix-Rouge (DT, DD, UL).
+#
+# Le référentiel national des structures : identifiants internes, adresses, téléphones
+# et adresses de courriel des 684 entités. Ce n'est pas un secret, mais ce n'est pas à
+# nous de le republier — et il change, lentement. La règle `*.csv` couvre déjà
+# DTUL.csv ; le dossier est ignoré explicitement pour que rien d'autre n'y entre par
+# inadvertance.
+init_data/
+
 # Configuration de déploiement par environnement (non secrète, mais propre à un site)
 deploy/deploy.*.env

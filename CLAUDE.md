@@ -70,7 +70,7 @@ USE_MOCKS=true REDIS_URL="redis://localhost:6379/0" .venv/bin/python -m pytest t
 ```
 
 ```
-608 passed, 1 skipped in 12.86s
+633 passed, 1 skipped in 12.71s
 ```
 
 (Relevé le 2026-08-28. Ce fichier annonçait `410 passed, 1 skipped` au 2026-08-13 : la
@@ -353,9 +353,9 @@ collée.**
 ## Pièges
 
 1. **Les quatre suites sont vertes depuis le 2026-08-13** — c'est la référence à
-   tenir : backend `608 passed, 1 skipped` (avec `docker compose up -d redis`,
+   tenir : backend `633 passed, 1 skipped` (avec `docker compose up -d redis`,
    relevé le 2026-08-28 ; 410 au 2026-08-13),
-   `ng test admin` 36, `ng test form` 11, Playwright 30. Un échec est désormais un
+   `ng test admin` 39, `ng test form` 11, Playwright 30. Un échec est désormais un
    **signal**, plus du bruit hérité. Historique : la suite a longtemps été à 8 ou 12
    échecs, et l'e2e n'avait jamais tourné.
 
@@ -409,7 +409,7 @@ collée.**
    nom de branche déjà associé à une PR mergée : les outils qui cherchent « la PR
    de cette branche » retombent sur l'ancienne et concluent à tort « déjà mergée ».
 
-7. **Le filet unitaire frontend est mince : 47 tests pour ~100 composants.** Il
+7. **Le filet unitaire frontend est mince : 50 tests pour ~100 composants.** Il
    compile et passe, mais ne couvre que `App`, `LayoutComponent`, le générateur de
    QR codes, `QrCodeService`, `superAdminGuard` et `ConfigurationUlComponent`. Ne
    pas confondre « vert » et « couvert ». Ajouté le 2026-08-28 : `LoginComponent`

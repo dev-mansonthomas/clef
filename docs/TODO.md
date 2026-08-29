@@ -1466,3 +1466,55 @@ Coût assumé : une instance facturée en continu (la CPU y était déjà non br
   seule ligne de ~4 ko : deux montages suffisent à noyer la collecte. La première lecture
   a conclu à tort « aucune donnée » sur la révision courante. En cas d'incident, resserrer :
   `./02-logs.sh dev --what=run --service=api --freshness=15m --limit=1000`.
+## Cas d'usage multi-délégation, à concevoir (2026-08-29)
+
+Issus du `/brainstorm` sur le multi-DT (`docs/product/brief.md`). Ce ne sont pas des
+défauts : ce sont deux besoins métier que le cloisonnement actuel rend impossibles, et
+qui doivent être conçus **avant** que l'architecture ne les interdise pour de bon.
+
+### U1 — Un véhicule vendu à une autre délégation
+
+Un véhicule change de propriétaire entre délégations. Ce n'est pas une correction de
+donnée, c'est un **transfert** : il quitte le périmètre de la DT75 pour celui de la DT92.
+
+Les questions à trancher, aucune n'étant évidente :
+
+- **l'historique suit-il le véhicule ?** Dossiers de réparation, sinistres, factures,
+  carnet de bord, photos — ils portent le nom de bénévoles et de garages de la
+  délégation d'origine. Les transférer, c'est exporter des données personnelles vers un
+  autre périmètre ; ne pas les transférer, c'est livrer un véhicule sans passé, alors
+  que le contrôle technique et l'entretien sont précisément ce qu'on veut connaître ;
+- **le QR code collé sur le véhicule** encode `https://{DOMAIN}/vehicle/{id}`. Après
+  transfert, il pointe la délégation d'origine. Faut-il réimprimer, ou faire rediriger
+  l'ancienne délégation vers la nouvelle — donc conserver une trace du départ ?
+- **les réservations en cours** au moment du transfert.
+- **le sens de l'écriture** : la délégation d'origine peut-elle écrire dans celle
+  d'arrivée, ou l'arrivée doit-elle accepter une proposition ?
+
+⚠️ Toute clé Redis étant préfixée par le code de délégation, un transfert est une
+**réécriture complète** sous un autre préfixe, pas une mise à jour de champ. C'est ce qui
+en fait un chantier et non un correctif.
+
+### U2 — Recherche et réservation inter-délégation (renfort)
+
+Un bénévole cherche par défaut les véhicules **de son UL**, et doit pouvoir élargir : les
+autres UL de sa délégation, les véhicules de la délégation elle-même, puis les mêmes
+recherches **dans une autre délégation** — c'est le cas du **renfort**.
+
+⚠️ **Et cela va jusqu'à l'écriture.** Un bénévole de la DT75 qui réserve un véhicule de
+la DT92 matérialise la réservation **dans la DT92**, à l'initiative de quelqu'un qui n'en
+fait pas partie. Le cloisonnement n'est donc pas « aucune écriture croisée » : c'est
+« aucune écriture croisée **implicite** ». Ce qu'il faut concevoir :
+
+- la réservation écrite dans la DT92 **référence un bénévole de la DT75** — donc une
+  identité hors de son périmètre. Comment l'afficher, la contacter, et que devient-elle
+  si ce bénévole est désactivé chez lui ?
+- **la traçabilité** : qui a initié, depuis quelle délégation, et qui a autorisé. Un
+  renfort n'est pas un libre-service.
+- l'**élargissement est un geste explicite** de l'utilisateur, jamais un défaut : une
+  recherche qui ratisserait toutes les délégations par défaut ferait fuiter la flotte de
+  chacune à tout le monde.
+
+Ces deux cas d'usage partagent une conclusion : le préfixe de délégation restera le
+mécanisme d'isolation, mais il lui faut **des points de passage explicites, nommés et
+tracés** — pas des exceptions ajoutées au coup par coup.
