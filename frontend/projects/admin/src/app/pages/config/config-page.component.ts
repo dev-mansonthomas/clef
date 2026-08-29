@@ -36,7 +36,6 @@ export class ConfigPageComponent implements OnInit, OnDestroy {
   saveSuccess = signal(false);
   saveError = signal<string | null>(null);
   emailGestionnaireDT = signal<string>('');
-  syncUrl = signal<string>('');
   driveSyncStatus = signal<ConfigResponse['drive_sync_status']>('idle');
   driveSyncProcessed = signal(0);
   driveSyncTotal = signal(0);
@@ -64,7 +63,6 @@ export class ConfigPageComponent implements OnInit, OnDestroy {
     this.initForm();
     this.loadConfig();
     this.loadDocumentFolders();
-    this.syncUrl.set(this.apiKeysService.getSyncUrlDT());
   }
 
   ngOnDestroy(): void {

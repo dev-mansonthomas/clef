@@ -11,11 +11,25 @@ import { ApiKey } from '../../models/api-key.model';
   styleUrl: './api-keys-manager.component.scss'
 })
 export class ApiKeysManagerComponent implements OnInit {
-  @Input() level: 'dt' | 'ul' = 'dt';
-  @Input() ulId?: string;
-  @Input() syncUrl: string = '';
 
   private readonly apiKeysService = inject(ApiKeysService);
+  @Input() level: 'dt' | 'ul' = 'dt';
+  @Input() ulId?: string;
+
+  /**
+   * Ce qu'on colle réellement dans les propriétés du script Apps Script.
+   *
+   * ⚠️ L'écran n'affichait qu'une URL complète — `…/api/sync/DT75/vehicules` — sous le
+   * titre « URL de synchronisation ». Elle ne correspond à AUCUNE propriété de script :
+   * `CLEF_API_URL` attend la BASE, chaque script ajoutant son chemin. Collée telle
+   * quelle, elle produisait `…/vehicules/api/sync/DT75/benevoles`.
+   *
+   * Et la synchronisation des bénévoles comme celle des responsables n'y figuraient
+   * pas, faute de place pour une seule URL — alors qu'il y a trois flux.
+   */
+  protected readonly baseUrl = this.apiKeysService.getBaseUrl();
+  protected readonly dt = this.apiKeysService.dt;
+  protected readonly flux = this.apiKeysService.getFluxSynchronisation();
 
   apiKeys = signal<ApiKey[]>([]);
   loading = signal(false);

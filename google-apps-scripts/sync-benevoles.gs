@@ -26,6 +26,23 @@
  */
 
 /**
+ * ⚠️ La ligne d'en-tête n'est PAS réécrite, et c'est une décision.
+ *
+ * Une version l'a fait, brièvement : le script corrigeait « Id Structure » en
+ * « id_structure ». C'était une erreur d'appréciation de ma part sur la nature de ce
+ * classeur.
+ *
+ * Ces libellés ne sont pas un détail local : ils forment un CONTRAT D'INTERFACE entre le
+ * référentiel bénévole — issu de Gaia — et les PLUSIEURS classeurs qui l'importent, dont
+ * CLEF n'est qu'un. Renommer une colonne ici reviendrait à modifier un contrat qu'on ne
+ * possède pas, au détriment des autres consommateurs.
+ *
+ * C'est donc l'API qui s'adapte : `Id Structure` est son libellé attendu, et la
+ * comparaison des en-têtes y est normalisée (sans accent, casse ni séparateur) pour
+ * absorber une dérive d'écriture sans rien exiger de la feuille.
+ */
+
+/**
  * Synchronise les bénévoles vers CLEF.
  * Appelé automatiquement par le trigger horaire.
  */
@@ -57,9 +74,18 @@ function syncBenevoles() {
 
     // La première ligne porte les en-têtes. Ils constituent le contrat d'API : les
     // clés envoyées sont les libellés de colonnes, et le backend les attend
-    // littéralement — « Nivol », « Nom », « Prénom », « UL », « Téléphone », « Email ».
-    // Renommer une colonne casse la synchronisation ; le backend nommera la colonne
-    // manquante dans sa réponse.
+    // littéralement.
+    //
+    //   OBLIGATOIRES  « Nivol », « Nom », « Prénom », « UL », « id_structure »
+    //   FACULTATIVES  « Téléphone », « Email »
+    //   IGNORÉES      toute autre, dont « Prénom Nom »
+    //
+    // ⚠️ « id_structure » est l'identifiant interne Croix-Rouge de l'UNITÉ LOCALE, et il
+    // doit être un entier positif. Il rend stricte la jointure avec le référentiel
+    // national des structures, là où « UL » n'est qu'un libellé libre.
+    //
+    // Renommer une colonne casse la synchronisation ; le backend nomme la colonne
+    // manquante dans sa réponse, et l'onglet ERREURS SYNCHRO la porte en clair.
     const headers = data[0];
 
     const rows = data.slice(1)
@@ -84,6 +110,9 @@ function syncBenevoles() {
       return;
     }
 
+    // Payer le démarrage à froid sur une requête bon marché, pas sur le lot.
+    wakeUpApi();
+
     const endpoint = `/api/sync/${CONFIG.DT}/benevoles`;
     const result = callApi(endpoint, 'POST', rows);
 
@@ -92,23 +121,72 @@ function syncBenevoles() {
     // auparavant pour un succès complet.
     const summary =
       `${result.created} créé(s), ${result.updated} mis à jour, ` +
-      `${result.reactivated} réactivé(s), ${result.deactivated} désactivé(s)`;
+      `${result.reactivated} réactivé(s), ${result.deactivated} désactivé(s)` +
+      (result.rattachements_dt
+        ? `, ${result.rattachements_dt} rattaché(s) à la DT`
+        : '');
+
+    // ⚠️ Le DÉTAIL des erreurs est écrit AVANT tout autre verdict.
+    //
+    // Cet ordre était inversé, et il masquait sa propre cause : un lot dont toutes les
+    // lignes échouent produit 0 identité, donc une « réconciliation abandonnée : lot
+    // vide ». Le script rapportait cette CONSÉQUENCE et sortait — sans écrire les
+    // erreurs, ni l'onglet de détail. Constaté le 2026-08-29 : « RÉCONCILIATION
+    // ABANDONNÉE » sur 4546 lignes toutes en erreur, et rien pour dire pourquoi.
+    //
+    // Une conséquence ne doit jamais court-circuiter la cause.
+    if (result.errors && result.errors.length > 0) {
+      logErrorsDetail('Bénévoles', result.errors);
+    }
 
     if (result.reconciliation_skipped) {
+      const cause = (result.errors && result.errors.length > 0)
+        ? ` ⚠️ CAUSE PROBABLE : ${result.errors.length} ligne(s) en erreur — voir ` +
+          `l'onglet « ${CONFIG.SHEETS.ERREURS} ». ` +
+          `Première : ${result.errors[0].reason} (${result.errors[0].values &&
+            result.errors[0].values['Détail'] || ''})`
+        : '';
       logError('Bénévoles', startTime,
         `RÉCONCILIATION ABANDONNÉE — ${result.reconciliation_skipped_reason} ` +
-        `(${summary})`);
+        `(${summary}).${cause}`);
       return;
     }
 
     if (result.errors && result.errors.length > 0) {
-      const details = result.errors.slice(0, 10).map(function (e) {
-        return `ligne ${e.line} : ${e.reason}`;
-      }).join(' | ');
+      // ⚠️ Un DÉNOMBREMENT PAR NATURE avant le détail.
+      //
+      // Le journal listait les dix premières erreurs et leur nombre total. Sur le
+      // premier import réel — 120 erreurs sur 4546 lignes — c'était insuffisant pour
+      // répondre à la seule question qui compte : « de quoi s'agit-il ? ». Dix lignes
+      // ne disent pas si les 110 autres sont de la même nature.
+      const parNature = {};
+      // Un simple comptage : l'API garantit une `reason` CONSTANTE, les valeurs étant
+      // dans `values`. Cette boucle effaçait auparavant nivols, décomptes et libellés
+      // d'UL à coups d'expressions régulières — donc devinait ce qui variait, et se
+      // serait trompée au premier message de forme nouvelle.
+      result.errors.forEach(function (e) {
+        const nature = String(e.reason);
+        parNature[nature] = (parNature[nature] || 0) + 1;
+      });
+      const resume = Object.keys(parNature)
+        .sort(function (a, b) { return parNature[b] - parNature[a]; })
+        .map(function (nature) { return `${parNature[nature]}× ${nature}`; })
+        .join(' | ');
+
+      const details = result.errors.slice(0, 5).map(function (e) {
+        return `ligne ${e.line}`;
+      }).join(', ');
+
       logError('Bénévoles', startTime,
-        `${result.errors.length} ligne(s) en erreur — ${summary}. ${details}`);
+        `${result.errors.length} ligne(s) en erreur — ${summary}. ` +
+        `NATURES : ${resume}. Premières lignes : ${details}. ` +
+        `Détail complet dans l'onglet « ${CONFIG.SHEETS.ERREURS} ».`);
       return;
     }
+
+    // ⚠️ Vider le détail en cas de succès : laisser les erreurs de la passe
+    // précédente ferait croire à un problème résolu qu'il faut encore corriger.
+    logErrorsDetail('Bénévoles', []);
 
     logSuccess('Bénévoles', startTime, result.created + result.updated);
 

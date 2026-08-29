@@ -1,6 +1,8 @@
 """Sync API endpoints for Google Apps Script integration."""
 import os
 import logging
+import re
+import unicodedata
 from typing import List, Dict, Any, Tuple
 from fastapi import APIRouter, Header, HTTPException, status, Depends
 from pydantic import BaseModel, Field, ValidationError, field_validator
@@ -26,7 +28,91 @@ router = APIRouter(
 #: Déclarées explicitement — et non déduites du modèle — pour que le contrôle
 #: « colonne absente de toutes les lignes » puisse **nommer** la colonne manquante,
 #: plutôt que produire N erreurs de ligne identiques et illisibles.
-MANDATORY_COLUMNS: Tuple[str, ...] = ("Nivol", "Nom", "Prénom", "UL")
+MANDATORY_COLUMNS: Tuple[str, ...] = ("Nivol", "Nom", "Prénom", "UL", "Id Structure")
+
+#: Reconnaît une UL qui désigne la DÉLÉGATION et non une unité locale.
+#
+# Un bénévole porteur d'une fonction à la délégation figure DEUX FOIS au référentiel :
+# une ligne pour son unité locale, une pour la DT. Observé le 2026-08-28 sur 120 des
+# 4546 lignes du référentiel DT75, avec les libellés « DT DE PARIS » et
+# « UNITE LOCALE DE PARIS XII ».
+#
+# ⚠️ La règle porte sur le LIBELLÉ, faute de colonne qui le dise. Une délégation qui
+# nommerait autrement sa ligne — « DÉLÉGATION TERRITORIALE DE … » — est couverte par la
+# seconde alternative ; tout autre libellé retomberait sur le traitement de doublon
+# ordinaire, donc signalé, jamais silencieux.
+UL_DE_DELEGATION = re.compile(r"^\s*(DT|D[ÉE]L[ÉE]GATION\s+TERRITORIALE)\b", re.I)
+
+
+#: Libellés canoniques des colonnes, indexés par leur forme normalisée.
+#
+# ⚠️ Les en-têtes de la feuille sont saisis par des humains, ou produits par un export
+# dont on ne maîtrise pas la casse. Deux pannes réelles l'ont montré, la même semaine :
+#
+#   • `Prénom` écrit avec un accent DÉCOMPOSÉ (NFD) — identique à l'œil, différent en
+#     octets, colonne introuvable ;
+#   • `Id Structure` refusée parce que j'avais inventé le libellé `id_structure` —
+#     4546 lignes rejetées, et le lot devenu vide. Le libellé du référentiel est
+#     `Id Structure` ; c'est lui qui fait foi.
+#
+# La comparaison se fait donc sur une forme normalisée : sans accent, sans casse, sans
+# espace ni séparateur. `Prénom`, `PRENOM` et `Prenom` deviennent le même `prenom` ;
+# `Id Structure`, `id_structure` et `ID-STRUCTURE` le même `idstructure`.
+#
+# ⚠️ Ce qui reste refusé, et doit l'être : renommer une colonne pour de bon
+# (`Nom` → `Patronyme`). L'erreur nomme alors la colonne attendue ET les en-têtes reçus.
+# ⚠️ Ces libellés sont ceux du RÉFÉRENTIEL BÉNÉVOLE, pas les nôtres. Ils forment un
+# contrat d'interface entre ce référentiel — issu de Gaia — et les plusieurs classeurs
+# qui l'importent, dont CLEF n'est qu'un. On s'y adapte ; on ne les renomme pas.
+COLONNES_CANONIQUES: Tuple[str, ...] = (
+    "Nivol", "Nom", "Prénom", "UL", "Téléphone", "Email", "Id Structure",
+)
+
+
+def normaliser_entete(libelle: object) -> str:
+    """Forme comparable d'un libellé de colonne : sans accent, casse ni séparateur."""
+    decompose = unicodedata.normalize("NFD", str(libelle))
+    sans_accent = "".join(c for c in decompose if unicodedata.category(c) != "Mn")
+    return re.sub(r"[^a-z0-9]", "", sans_accent.lower())
+
+
+_PAR_FORME_NORMALISEE = {normaliser_entete(c): c for c in COLONNES_CANONIQUES}
+
+
+def canoniser_ligne(row: Dict[str, Any]) -> Dict[str, Any]:
+    """Remappe les clés d'une ligne sur les libellés canoniques.
+
+    Les colonnes inconnues sont écartées — elles l'étaient déjà, Pydantic ignorant les
+    champs supplémentaires. `Prénom Nom` en fait partie.
+    """
+    canonique: Dict[str, Any] = {}
+    for cle, valeur in row.items():
+        attendu = _PAR_FORME_NORMALISEE.get(normaliser_entete(cle))
+        if attendu is not None:
+            canonique[attendu] = valeur
+    return canonique
+
+
+def est_ul_de_delegation(ul: str) -> bool:
+    """`True` si ce libellé d'UL désigne la délégation elle-même."""
+    return bool(UL_DE_DELEGATION.match(ul or ""))
+
+
+#: Raisons d'erreur de ligne — des CONSTANTES, jamais des phrases interpolées.
+#
+# ⚠️ Elles ne portent AUCUNE donnée. Tout ce qui varie — nivol, nom, prénom, libellés
+# d'UL, nom de champ — passe par `values`, que l'Apps Script écrit dans des colonnes
+# séparées de l'onglet « ERREURS SYNCHRO ».
+#
+# Ce n'est pas de l'esthétique : une raison interpolée n'est ni triable ni
+# dénombrable. Trier par UL pour traiter une unité locale à la fois était impossible,
+# et regrouper par nature exigeait d'effacer les valeurs à coups d'expressions
+# régulières — donc de deviner ce qui variait.
+RAISON_COLONNE_ABSENTE = "Colonne absente"
+RAISON_CHAMP_INVALIDE = "Champ invalide"
+RAISON_UL_DIVERGENTES = "Doublon : unités locales différentes"
+RAISON_UL_DIVERGENTES_MULTIPLES = "Doublon : plus de deux unités locales"
+RAISON_IDENTITE_DIVERGENTE = "Doublon : identité divergente"
 
 
 class BenevoleReferentielRow(BaseModel):
@@ -51,6 +137,21 @@ class BenevoleReferentielRow(BaseModel):
     telephone: str | None = Field(None, alias="Téléphone")
     email: str | None = Field(None, alias="Email")
 
+    #: Identifiant interne Croix-Rouge de l'UNITÉ LOCALE du bénévole. OBLIGATOIRE.
+    #
+    # ⚠️ Pourquoi il est obligatoire : l'UL d'un bénévole est sinon un LIBELLÉ LIBRE
+    # (« UNITE LOCALE DE PARIS XII »), et c'est sur lui que se ferait la jointure avec le
+    # référentiel national des structures. Une variante d'orthographe, un accent
+    # décomposé, et le bénévole se retrouve sans UL connue donc sans périmètre — le mode
+    # de panne déjà rencontré sur les en-têtes de colonnes. Cet identifiant rend la
+    # jointure STRICTE, ce qui n'a de valeur que s'il est toujours là.
+    #
+    # ⚠️ Conservé en `str`, pas en `int` : c'est un identifiant, jamais un nombre sur
+    # lequel on calcule. La validation vérifie qu'il EST un entier positif — une
+    # cellule numérique de Sheets arrive en `int`, une cellule texte avec des espaces
+    # arrive avec ses espaces — et la valeur retenue est sa forme canonique.
+    ul_id_structure: str = Field(..., alias="Id Structure")
+
     model_config = {"populate_by_name": True}
 
     @field_validator("nivol", "nom", "prenom", "ul", mode="before")
@@ -67,6 +168,27 @@ class BenevoleReferentielRow(BaseModel):
         if not v:
             raise ValueError("valeur vide")
         return v
+
+    @field_validator("ul_id_structure", mode="before")
+    @classmethod
+    def _entier_positif(cls, v):
+        """Un identifiant de structure est un entier positif, et rien d'autre.
+
+        Accepter « 0 », « -1 » ou « UL PARIS12 » produirait une jointure qui échoue plus
+        tard, loin d'ici, sur un bénévole précis — alors que le défaut est dans la
+        colonne. Refuser à la ligne le nomme tout de suite.
+        """
+        if v is None:
+            raise ValueError("valeur absente")
+        # Une cellule numérique de Sheets arrive en int ou float (889 ou 889.0).
+        if isinstance(v, float) and v.is_integer():
+            v = int(v)
+        texte = str(v).strip()
+        if not texte:
+            raise ValueError("valeur vide")
+        if not texte.isdigit() or int(texte) <= 0:
+            raise ValueError("doit être un entier positif")
+        return str(int(texte))
 
     @field_validator("telephone", "email", mode="before")
     @classmethod
@@ -93,20 +215,65 @@ def parse_referentiel_rows(
     signalé : deux lignes pour une même personne est une anomalie de la feuille.
 
     Returns:
-        `(identites, errors)` — `errors` porte `line`, `reason` et un extrait
-        `values` volontairement réduit, pour ne pas déverser de données personnelles
-        dans des journaux à audience plus large que la base.
+        `(identites, errors)` — `errors` porte `line`, une `reason` **constante** (voir
+        les `RAISON_*`) et un dictionnaire `values` structuré : `Nivol`, `Nom`,
+        `Prénom`, `UL 1`, `UL 2`, `Détail`, selon la nature.
+
+    ⚠️ `values` portait auparavant le seul nivol, « pour ne pas déverser de données
+    personnelles dans des journaux à audience plus large que la base ». La précaution
+    reste, mais son périmètre était mal posé : ces valeurs sont écrites par l'Apps
+    Script dans un onglet du classeur **qui contient déjà** ces personnes — le public
+    est exactement le même. Ce qui compte est ailleurs, et tient toujours : le SERVEUR
+    ne journalise que des compteurs et des nivols, jamais ces `values`.
     """
-    identites: Dict[str, BenevoleIdentite] = {}
     errors: List[Dict[str, Any]] = []
 
-    for index, row in enumerate(rows, start=2):
+    # Passe 0 — une colonne absente de TOUT le lot est un défaut d'EN-TÊTE, pas 4546
+    # défauts de ligne.
+    #
+    # ⚠️ C'est ce que la déclaration explicite de `MANDATORY_COLUMNS` promettait :
+    # « nommer la colonne manquante plutôt que produire N erreurs de ligne identiques ».
+    # Le contrôle était pourtant fait par ligne, et l'ajout de `id_structure` l'a montré :
+    # 4546 erreurs identiques, aucune plus parlante que la première, et un onglet de
+    # détail inutilisable.
+    #
+    # ⚠️ Les EN-TÊTES REÇUS sont joints au message. Sans eux, « Colonne absente :
+    # id_structure » laisse chercher entre une colonne oubliée, une casse différente et
+    # un accent décomposé — trois causes indiscernables. Avec eux, la comparaison est
+    # immédiate.
+    if rows:
+        entetes_brutes = {str(cle) for row in rows for cle in row}
+        formes = {normaliser_entete(c) for c in entetes_brutes}
+        absentes_partout = [
+            c for c in MANDATORY_COLUMNS if normaliser_entete(c) not in formes
+        ]
+        if absentes_partout:
+            return [], [{
+                "line": None,
+                "reason": RAISON_COLONNE_ABSENTE,
+                "values": {
+                    "Détail": (
+                        f"{', '.join(absentes_partout)} — absente(s) des {len(rows)} "
+                        f"ligne{'s' if len(rows) > 1 else ''} du lot. En-têtes reçus : "
+                        f"{', '.join(sorted(entetes_brutes))}"
+                    ),
+                },
+            }]
+
+    # Passe 1 — valider chaque ligne indépendamment, en gardant son numéro de feuille.
+    parsees: Dict[str, List[Tuple[int, BenevoleReferentielRow]]] = {}
+
+    for index, brute in enumerate(rows, start=2):
+        row = canoniser_ligne(brute)
         missing = [c for c in MANDATORY_COLUMNS if c not in row]
         if missing:
             errors.append({
                 "line": index,
-                "reason": f"Colonne(s) absente(s) : {', '.join(missing)}",
-                "values": {"Nivol": row.get("Nivol", "")},
+                "reason": RAISON_COLONNE_ABSENTE,
+                "values": {
+                    "Nivol": str(row.get("Nivol", "")),
+                    "Détail": ", ".join(missing),
+                },
             })
             continue
 
@@ -118,31 +285,96 @@ def parse_referentiel_rows(
             )
             errors.append({
                 "line": index,
-                "reason": f"Champ(s) invalide(s) : {champs}",
-                "values": {"Nivol": str(row.get("Nivol", ""))},
+                "reason": RAISON_CHAMP_INVALIDE,
+                "values": {
+                    "Nivol": str(row.get("Nivol", "")),
+                    "Nom": str(row.get("Nom", "")),
+                    "Prénom": str(row.get("Prénom", "")),
+                    "Détail": champs,
+                },
             })
             continue
 
-        if parsed.nivol in identites:
+        parsees.setdefault(parsed.nivol, []).append((index, parsed))
+
+    # Passe 2 — fusionner les occurrences d'un même NIVOL.
+    #
+    # ⚠️ « La dernière occurrence gagne » était faux, et pas seulement imprécis.
+    #
+    # Un bénévole porteur d'une fonction à la délégation figure DEUX FOIS au
+    # référentiel : une ligne sous son unité locale, une sous la DT. Conserver la
+    # dernière faisait dépendre son UL de l'ORDRE DES LIGNES de la feuille — et
+    # perdait, une fois sur deux, la seule information utile des deux : l'unité locale
+    # réelle. Observé le 2026-08-28 : 120 « doublons » sur 4546 lignes, tous de cette
+    # nature.
+    #
+    # La fusion conserve l'unité locale réelle et note le rattachement à la DT. Ce
+    # n'est pas une erreur, donc ce n'est pas signalé comme telle. Un doublon qui ne
+    # s'explique PAS par ce partage — deux unités locales différentes, ou une identité
+    # qui diverge — reste signalé : c'est une anomalie de la feuille.
+    identites: List[BenevoleIdentite] = []
+
+    for nivol, occurrences in parsees.items():
+        lignes_dt = [(i, p) for i, p in occurrences if est_ul_de_delegation(p.ul)]
+        lignes_ul = [(i, p) for i, p in occurrences if not est_ul_de_delegation(p.ul)]
+
+        # L'unité locale réelle prime sur le libellé de la délégation.
+        reference = (lignes_ul or lignes_dt)[-1][1]
+
+        uls_distinctes = {p.ul for _, p in lignes_ul}
+        if len(uls_distinctes) > 1:
+            # ⚠️ Le NIVOL n'est PAS répété dans la raison : il est dans `values`, que
+            # l'Apps Script écrit dans sa propre colonne. Le répéter allongeait chaque
+            # message d'une information déjà à l'écran, et rendait le regroupement par
+            # nature dépendant d'un effacement de motif.
+            triees = sorted(uls_distinctes)
             errors.append({
-                "line": index,
+                "line": lignes_ul[-1][0],
                 "reason": (
-                    f"Doublon de NIVOL {parsed.nivol} : la dernière occurrence est "
-                    "conservée"
+                    RAISON_UL_DIVERGENTES if len(triees) == 2
+                    else RAISON_UL_DIVERGENTES_MULTIPLES
                 ),
-                "values": {"Nivol": parsed.nivol},
+                "values": {
+                    "Nivol": nivol,
+                    "Nom": reference.nom,
+                    "Prénom": reference.prenom,
+                    "UL 1": triees[0],
+                    "UL 2": triees[1],
+                    # Au-delà de deux, les colonnes ne suffisent plus : le reste va au
+                    # détail, et la raison le dit — plutôt que de laisser croire que
+                    # deux colonnes décrivent tout.
+                    "Détail": ", ".join(triees[2:]),
+                },
             })
 
-        identites[parsed.nivol] = BenevoleIdentite(
-            nivol=parsed.nivol,
-            nom=parsed.nom,
-            prenom=parsed.prenom,
-            ul=parsed.ul,
-            email=parsed.email,
-            telephone=parsed.telephone,
-        )
+        # Une divergence d'identité entre deux lignes du même NIVOL est une anomalie :
+        # deux personnes sous un même matricule, ou une saisie corrigée d'un seul côté.
+        for champ in ("nom", "prenom", "email", "telephone"):
+            valeurs = {getattr(p, champ) for _, p in occurrences if getattr(p, champ)}
+            if len(valeurs) > 1:
+                errors.append({
+                    "line": occurrences[-1][0],
+                    "reason": RAISON_IDENTITE_DIVERGENTE,
+                    "values": {
+                        "Nivol": nivol,
+                        "Nom": reference.nom,
+                        "Prénom": reference.prenom,
+                        "Détail": f"{champ} : {len(valeurs)} valeurs",
+                    },
+                })
 
-    return list(identites.values()), errors
+        identites.append(BenevoleIdentite(
+            nivol=reference.nivol,
+            nom=reference.nom,
+            prenom=reference.prenom,
+            ul=reference.ul,
+            ul_id_structure=reference.ul_id_structure,
+            email=reference.email,
+            telephone=reference.telephone,
+            rattachement_dt=bool(lignes_dt),
+        ))
+
+    return identites, errors
 
 
 class ResponsableVehiculeSync(BaseModel):
@@ -348,6 +580,8 @@ class BenevoleSyncResult(BaseModel):
     updated: int
     reactivated: int
     deactivated: int
+    #: Bénévoles figurant aussi sous l'UL de la délégation — fusionnés, pas en erreur.
+    rattachements_dt: int = 0
     errors: List[Dict[str, Any]]
     reconciliation_skipped: bool
     reconciliation_skipped_reason: str | None = None
@@ -403,7 +637,10 @@ async def sync_benevoles(
         max_ratio=SYNC_MAX_DEACTIVATION_RATIO,
     )
 
-    logger.info(
+    # ⚠️ WARNING dès qu'il y a une erreur de ligne, INFO sinon. Une synchronisation
+    # partiellement en échec mérite de ressortir d'un journal qu'on filtre, et c'est
+    # exactement la ligne qui manquait le 2026-08-29 pour expliquer un lot vide.
+    (logger.warning if errors else logger.info)(
         "Sync bénévoles %s : %d créés, %d mis à jour, %d réactivés, %d désactivés, "
         "%d erreurs de ligne",
         dt, counts["created"], counts["updated"], counts["reactivated"],
@@ -416,6 +653,7 @@ async def sync_benevoles(
         updated=counts["updated"],
         reactivated=counts["reactivated"],
         deactivated=reconciliation["deactivated"],
+        rattachements_dt=sum(1 for i in identites if i.rattachement_dt),
         errors=errors,
         reconciliation_skipped=reconciliation["skipped"],
         reconciliation_skipped_reason=reconciliation["reason"],

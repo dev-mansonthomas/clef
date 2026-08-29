@@ -77,13 +77,43 @@ Ce qui atténue, sans l'annuler :
 À l'échelle d'une délégation — quelques dizaines de véhicules et de bénévoles — c'est
 un arbitrage défendable. Il ne le resterait pas à une autre échelle.
 
-### En dev et test, scale-to-zero accepté
+### `minInstances = 1` en dev depuis le 2026-08-29 — et pas pour le RPO
 
-`minInstances = 0` : chaque réveil repart du dernier instantané, donc perd jusqu'à
-10 minutes à **chaque mise en veille**, pas seulement en cas de panne. Décision du
-propriétaire, cohérente avec des environnements dont la donnée est reconstructible.
-**La production reste à trancher** : `minInstances = 1` limiterait la fenêtre aux seules
-pannes réelles.
+Ce paragraphe disait : « `minInstances = 0` : chaque réveil repart du dernier
+instantané, donc perd jusqu'à 10 minutes à **chaque mise en veille** ». C'était en
+contradiction avec le paragraphe ci-dessus, et c'est le paragraphe ci-dessus qui a
+raison : Redis écrit son instantané final sur SIGTERM, une mise en veille ne perd
+**rien**. Mesuré le 2026-08-28 — `Saving the final RDB snapshot before exiting`,
+`BGSAVE done, 21 keys saved`, `DB saved on disk` — en 400 ms.
+
+La décision de passer à `minInstances = 1` a donc une **autre** cause, découverte le
+même jour : **le montage du volume GCS est une dépendance dure du démarrage, et il
+peut échouer.**
+
+```
+23:20:30  Starting new instance. Reason: AUTOSCALING
+23:20:30  GetStorageLayout for "…/clef-redis-snapshots/storageLayout" failed:
+          rpc error: code = Unimplemented desc = this function is not implemented
+23:20:32  terminated: Application failed to run:
+          volume (type: gcs, name: snapshots): mount operation failed
+```
+
+L'appelant — la synchronisation Apps Script du référentiel bénévoles — a reçu un 503
+après 9,8 s. La même révision avait monté ce volume sans problème 50 minutes plus tôt,
+et l'a remonté sans problème ensuite : le montage est **intermittent**, et chaque
+réveil rejoue le tirage. Avec une instance permanente, il n'a lieu qu'au déploiement.
+
+Contrepartie assumée : facturation continue d'une instance. À l'échelle d'un dev de
+délégation, c'est quelques euros par mois contre une synchronisation horaire fiable.
+
+Deux mesures complémentaires, côté appelant : l'Apps Script réveille l'API sur
+`/health` avant d'envoyer son lot, et réessaie les 5xx. Un 503 de démarrage à froid est
+un état normal d'un service en scale-to-zero — il doit être réessayé, pas rapporté.
+
+⚠️ Le vrai correctif de fond reste à trouver : le bucket est à espace de noms **plat**
+(`hierarchicalNamespace.enabled` vide), et l'appel qui échoue sert à détecter le
+contraire. Une option de montage devrait pouvoir le court-circuiter — à vérifier dans
+la documentation gcsfuse plutôt qu'à supposer.
 
 ### Ce que la décision a permis de fermer
 

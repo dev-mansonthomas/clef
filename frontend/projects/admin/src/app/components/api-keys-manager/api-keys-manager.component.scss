@@ -229,3 +229,41 @@
   }
 }
 
+// ─── Propriétés Apps Script et flux de synchronisation ────────────────────────
+.sync-hint {
+  margin: 0.25rem 0 0.75rem;
+  font-size: 0.85rem;
+  color: rgba(0, 0, 0, 0.6);
+}
+
+.url-label {
+  display: inline-block;
+  min-width: 9rem;
+  font-family: monospace;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.flux-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+
+  th,
+  td {
+    padding: 0.4rem 0.6rem;
+    text-align: left;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+    vertical-align: top;
+  }
+
+  th {
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  // L'appel est la colonne longue : elle peut se couper, les autres non.
+  .flux-url {
+    word-break: break-all;
+  }
+}

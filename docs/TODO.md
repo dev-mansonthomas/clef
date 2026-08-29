@@ -86,6 +86,87 @@ ou les supprimer si elles ne servaient qu'au débogage.
 > silencieuse — la route à écrire lit l'état RÉEL du scheduler (`job.next_run_time`)
 > sous `require_dt_manager`. C'est une petite fonctionnalité, pas un correctif.
 
+### C4 — 🔴 `/auth/callback-dt` acceptait l'identité d'un paramètre d'URL non signé
+
+> ✅ **Correctif écrit et vérifié** le 2026-08-29 — commit `fix(auth): l'identité du
+> consentement DT vient de Google, plus d'un paramètre d'URL`, branche
+> `hotfix/callback-dt-identite`, à merger **avant** la tranche 3. 14 tests nouveaux, et
+> chaque garde éprouvée par mutation. Ce qui suit décrit l'état d'origine, conservé pour
+> mémoire.
+
+Découvert le 2026-08-29 en écrivant la spec de la tranche 3, sur lecture de
+`app/auth/routes.py:318-380`. **Déployé en dev.**
+
+La route **n'a aucun guard** — `code` et `state` en paramètres de requête, pas de
+`Depends` — et `state`, que `app/auth/google_oauth.py:45` documente pourtant comme
+« State parameter for CSRF protection », est utilisé comme **identité** :
+
+```python
+state: str = Query(..., description="DT manager email from state")
+...
+dt_id = "DT75"  # Default          ← ligne 351, en dur
+success = await dt_token_service.store_tokens(dt_id=dt_id, email=state, ...)
+```
+
+**Enchaînement.** Le `client_id` est public — `01-gcp-deploy.sh` l'imprime, et c'est
+normal — et le `redirect_uri` (`https://dev.clef.paquerette.com/auth/callback-dt`) est
+déclaré en console. Un tiers construit lui-même l'URL de consentement Google, consent
+**avec son propre compte**, et Google le redirige vers
+`…/auth/callback-dt?code=<le sien>&state=<email du gestionnaire>`. Le jeton de
+rafraîchissement stocké comme identité déléguée de la délégation devient le sien, et
+**écrase le légitime**.
+
+**Conséquences.** Les dossiers Drive créés par CLEF et les documents déposés par les
+bénévoles — cartes grises, photos, dossiers de réparation — atterrissent dans **son**
+Drive ; CLEF envoie des courriels sous **son** compte ; et les fonctions Drive de la
+délégation cessent pour tout le monde.
+
+**Deux nuances, par honnêteté :**
+
+- la sévérité dépend du **type d'écran de consentement** OAuth (Interne / Test / Publié),
+  non vérifiable depuis la VM. En « Interne », l'attaquant doit être un compte
+  `@croix-rouge.fr` — c'est-à-dire l'un des 4546 bénévoles synchronisés. Ça reste une
+  prise de contrôle de la délégation Google par n'importe quel bénévole ;
+- `dt_id` étant codé en dur, la cible est toujours DT75.
+
+**Correctif** (branche dédiée, avant la tranche 3 — décision du propriétaire du 2026-08-29) :
+
+1. dériver l'email de l'`id_token` du retour Google, **jamais** de `state` ;
+2. réduire `state` à un **nonce imprévisible** stocké côté serveur
+   (`clef:oauth:nonce:{nonce}`, TTL 600 s) et lié à la session qui a lancé le parcours ;
+3. exiger `require_dt_manager` sur le rappel, et refuser si l'email du jeton diffère de
+   celui de la session ;
+4. contrôler le domaine de l'email — `/auth/callback` le fait, `/auth/callback-dt` non.
+
+Trois tests le fixent : rappel sans session refusé, `state` falsifié refusé, email
+divergent refusé.
+
+⚠️ **À faire en même temps** : `revoke_tokens` ne fait qu'un `DELETE` local — l'autorisation
+reste vivante chez Google, donc « révoqué » est faux. Voir l'AC-21 de
+`docs/specs/administration-globale-delegations.md`.
+
+**Trois défauts trouvés en écrivant le correctif, et corrigés avec lui** — ils touchaient
+le même chemin :
+
+1. **`dt_token_service` ne sondait pas sa connexion Redis.** Il testait `_connected`, un
+   drapeau qui reste vrai quand la boucle d'événements qui a ouvert le client a disparu
+   (bascule Redis, maintenance). Comme ce service **avale ses exceptions**, une connexion
+   périmée se traduisait en « le gestionnaire n'a pas autorisé l'accès » : un faux négatif
+   silencieux sur le chemin des autorisations Google — famille du constat M2 — qui pousse
+   à refaire un consentement, précisément le parcours qu'on venait de durcir. La logique
+   de sonde existait, éprouvée, dans `auth/dependencies.py` et **nulle part ailleurs** :
+   extraite en `cache.client_utilisable()`, désormais partagée.
+2. **`/auth/callback` levait un `UnboundLocalError` au lieu de son 400.** Le chemin super
+   admin faisait `status = await dt_token_service.get_authorization_status(...)`, ce qui
+   rendait `status` local à toute la fonction ; le gestionnaire d'exception, qui lit
+   `status.HTTP_400_BAD_REQUEST`, échouait donc sur un nom non encore assigné.
+   ⚠️ **`tests/test_auth.py::test_invalid_authorization_code` figeait ce bug** : il
+   attendait l'`UnboundLocalError` et le documentait en commentaire. Un test peut donc
+   sanctuariser un défaut au lieu de le révéler — à surveiller ailleurs.
+3. **`/auth/dt-authorization-status` et `/auth/revoke-dt-authorization` ciblaient
+   « DT75 » en dur.** Les laisser aurait rendu le trio incohérent avec le rappel corrigé :
+   révoquer depuis la session d'une autre délégation aurait été une révocation croisée.
+
 ### C2 — La prise de véhicule échoue systématiquement en 422
 
 Écart de contrat entre le formulaire `form` et le backend. `prise-form.component.ts:170-180`
@@ -1391,12 +1472,12 @@ ressource ajoutée, **y compris celles qu'un outil crée implicitement**. Deux t
 |---|---|
 | N7 | **Aucun déploiement n'a encore été exécuté.** Les scripts sont écrits, `shellcheck` est muet et tous les chemins d'argument sont testés — mais **rien n'a tourné contre GCP**. Le premier `00-infra.sh` puis `01-gcp-deploy.sh` sont à faire depuis l'hôte, en relisant les plans. |
 | N8 | **Les deux clés de service account utilisateur restent à révoquer** : `745beb6b…` (celle du `/credentials` local, encore utile à `run_local.sh --real`) et `c0b9e001…` (celle de Terraform, sans usage). ⚠️ Révoquer la première casse le mode réel local jusqu'à `gcloud auth application-default login`. |
-| N9 | **Le montage GCS FUSE pour les instantanés RDB n'est pas éprouvé.** Redis écrit un fichier temporaire puis le renomme ; sur un système de fichiers objet, `rename` est un copier-supprimer, non atomique. Pour quelques mégaoctets ce devrait passer, mais **c'est le point à vérifier au premier déploiement** : `gcloud storage ls -l gs://<bucket>/` après 10 minutes. Si ça échoue, le repli est un RDB local recopié périodiquement vers GCS. |
+| **N9** | 🟠 **REQUALIFIÉ le 2026-08-29, et c'est désormais le défaut le plus gênant du déploiement.** L'inquiétude d'origine — `rename` non atomique sur un stockage objet — ne s'est **jamais** manifestée ; les instantanés s'écrivent (`BGSAVE done, 9208 keys saved`, `DB saved on disk`). C'est le **montage** qui échoue : `GetStorageLayout … rpc error: code = Unimplemented`, sur `Attempt: 1`, gcsfuse ne réessayant pas (`EnableMountRetries:false`). **Mesuré : trois échecs pour un succès en 25 minutes**, et deux occurrences de plus le même soir — un 500 rendu à un utilisateur à 21:11, puis l'échec du déploiement de `clef-api-00017-srg` à 21:06. La sonde en cause détecte l'espace de noms hiérarchique et la documentation gcsfuse la dit « integral … cannot be skipped » : **aucune option de montage ne la court-circuite**, et la liste supportée par Cloud Run n'offre ni réessai ni désactivation. Colmatage en place : trois réessais dans `01-gcp-deploy.sh`, et `MIN_INSTANCES=1` pour que le tirage n'ait lieu qu'au déploiement. **Le correctif réel reste le repli déjà prévu ici** : RDB sur disque local, recopié périodiquement vers GCS, restauré au démarrage — le montage quitte alors le chemin critique. Amendement à l'ADR 0008, à chiffrer. |
 | **N15** | 🔴 **`npm ci --only=production` rendait l'image frontend inconstructible.** Construire une application Angular exige les devDependencies : le builder `@angular/build:application` déclaré dans `angular.json`, `@angular/compiler-cli` et `typescript` y vivent tous les trois. L'installation réussissait, puis `ng build` échouait faute de builder — un échec tardif, au milieu d'un Cloud Build, dont la cause est deux étapes plus haut. Corrigé en `npm ci` complet (ce sont des dépendances de l'étage de construction : rien n'atteint l'image finale, qui ne contient que nginx et des fichiers statiques) et `npx ng` au lieu d'un CLI installé globalement, pour que la version vienne du `package.json`. **Vérifié par construction réelle** : image de 104 Mo, `/`, `/admin/` et `/form/` servis en 200. |
 | **N14** | 🔴 **`backend/.env` serait parti en clair dans l'image de conteneur.** `gcloud builds submit backend` ne lit que `backend/.gcloudignore` — ou à défaut `backend/.gitignore`, qui ne contenait que `test_output.txt` — et **jamais** le `.gitignore` ni le `.gcloudignore` de la racine, où `.env` et `.venv/` sont pourtant bien exclus. Le Dockerfile faisant `COPY . .`, `backend/.env` (GOOGLE_CLIENT_SECRET, QR_CODE_SALT, SYNC_API_KEY, chemin d'une clé de service account) et ses variantes `.dev`/`.test`/`.prod` auraient été livrés dans une image poussée sur Artifact Registry — lisible par quiconque a accès au projet **partagé**. Plus 244 Mo de virtualenv et 362 Mo de `node_modules`. Attrapé le 2026-08-27, pendant le premier déploiement, avant qu'aucune image ne soit servie. Corrigé par `backend/.gcloudignore` et `frontend/.gcloudignore` (0,7 Mo et 4,2 Mo envoyés au lieu de 388 et 406). ⚠️ **Et ce n'était que la moitié du problème** : `.gcloudignore` ne concerne que Cloud Build. `docker build` lit `.dockerignore`, absent — donc `run_local.sh --build` copiait bel et bien `/app/.env` dans l'image, ce qu'une construction locale a confirmé (1,59 Go). `backend/.dockerignore` et `frontend/.dockerignore` ajoutés : image backend à 580 Mo, aucun secret, `/health` 200. `backend/tests/test_gcloudignore.py` (17 tests) exige les deux fichiers et vérifie qu'ils restent cohérents. ⚠️ **Si une image a été construite avant ce correctif, la supprimer du registre** — commandes dans la conversation. |
 | **N13** | 🔴 **Trois routes de production lisent Google Sheets avec le service account — impossible dans ce Workspace.** Le domaine `@croix-rouge.fr` interdit le partage d'un document vers une adresse extérieure, et `clef-backend@….gserviceaccount.com` en est une. C'est structurel : il n'existe pas de réglage qui l'autorise, et aucune délégation à l'échelle du domaine n'est configurée dans le dépôt. **C'est toute la raison pour laquelle les données circulent dans l'autre sens** — Apps Script pousse les bénévoles vers l'API, et tire les véhicules depuis l'API. Les trois routes fautives : `routers/upload.py:54` (`get_vehicule_by_nom_synthetique`, à l'envoi de photos), `routers/reservations.py:55` (`get_vehicule_by_indicatif`, à la création d'une réservation) et `services/alert_service.py:100` (`get_vehicles`, pour les alertes CT et pollution du scheduler). Toutes trois doivent lire **Redis** — le référentiel véhicules y est déjà, `redis_service` expose ce qu'il faut. Tant que ce n'est pas fait, le déploiement tourne mais l'envoi de photos, la création de réservations et les alertes échouent en 403. Découvert le 2026-08-27, sur correction de l'utilisateur : la documentation reconstruite décrivait Sheets comme lu par le backend, ce qui n'a jamais pu être vrai en production. |
 | N10 | **`backend/scripts/setup_gcp.sh` est périmé** : il lit des sorties Terraform `valkey_host`/`valkey_port` qui n'existent plus. À retirer ou réécrire. |
-| ~~N11~~ | ✅ **CLOS le 2026-08-29 — `MIN_INSTANCES = 1`.** Tranché sur un incident, pas en théorie : à 0, un `GET /api/config` a renvoyé 500 parce que le clic est tombé sur un démarrage à froid dont le montage gcsfuse a échoué. La même ligne ferme la perte de 10 min d'écritures à chaque mise en veille. Voir la section datée en fin de document. |
+| ~~N11~~ | ✅ **CLOS le 2026-08-29 — `MIN_INSTANCES = 1`.** Tranché sur un incident, pas en théorie : à 0, un `GET /api/config` a renvoyé 500 parce que le clic est tombé sur un démarrage à froid dont le montage gcsfuse a échoué. ⚠️ La raison n'est **pas** un risque de perte de données — mesuré, Redis écrit son instantané final sur SIGTERM en ~400 ms, donc un arrêt propre ne perd rien : c'est le tirage du montage à chaque réveil. Et ce réglage **déplace** l'échec vers le déploiement plutôt que de le supprimer. Voir les deux sections datées en fin de document. |
 | N12 | **L'ancienne racine `backend/terraform` et `infra/` subsistent.** Conservées le temps de valider la nouvelle ; à supprimer ensuite, avec leurs `terraform.tfstate` locaux. |
 
 ## Le 500 sur `/api/config` — un démarrage à froid, pas un bug applicatif (2026-08-29)
@@ -1422,7 +1503,10 @@ horodatages du log sont en `Z`, deux heures de moins, ce qui m'a d'abord égaré
 
 Le point décisif est l'avant-dernière ligne : l'appel identique réussit en 62 ms trois
 secondes plus tard. `Unimplemented` n'est donc pas une propriété du bucket — c'est un
-échec **transitoire**, et Cloud Run l'a lui-même rattrapé. Mais la requête en vol, elle,
+échec **intermittent** — et non une propriété du bucket. ⚠️ Ma première rédaction le
+qualifiait de « transitoire, rattrapé par Cloud Run » : trop optimiste. Le relevé
+complet est de **trois échecs pour un succès en 25 minutes**. Cloud Run reprend
+l'instance, mais la requête en vol, elle,
 était déjà perdue : Cloud Run ne la rejoue pas.
 
 C'est la conjonction de deux constats déjà ouverts. **N9** — « le montage GCS FUSE pour
@@ -1449,9 +1533,21 @@ que `01-gcp-deploy.sh` lit) et le repli du script. `tests/test_deploy_env_exampl
 fait désormais échouer la suite si la valeur redevient 0, avec la séquence de logs en
 docstring pour que la raison ne se perde pas.
 
-Effet second, non accessoire : **N11 est clos par la même ligne.** À 0, chaque mise en
-veille repartait du dernier instantané RDB, donc perdait jusqu'à 10 minutes d'écritures.
-Coût assumé : une instance facturée en continu (la CPU y était déjà non bridée).
+**N11 est clos par la même ligne** — mais pas pour la raison que j'avais écrite. Je
+l'avais justifiée par la perte de 10 minutes d'écritures à chaque mise en veille : c'est
+**faux**, et mesuré comme tel dans les journaux du 2026-08-28 — Cloud Run envoie SIGTERM,
+Redis écrit son instantané final (`BGSAVE done`, `DB saved on disk`) en ~400 ms. La perte
+à l'arrêt **propre** est nulle ; la fenêtre de 10 minutes ne concerne qu'une mort brutale.
+La vraie raison est le tirage du montage rejoué à chaque réveil. Coût assumé : une
+instance facturée en continu (la CPU y était déjà non bridée).
+
+⚠️ **Et ce réglage déplace l'échec plus qu'il ne le supprime.** Avec une instance
+minimale, la révision n'est prête qu'après un démarrage réussi : un montage raté fait
+donc échouer le **déploiement entier**, ce qui s'est produit sur la révision
+`clef-api-00017-srg` à 21:06. C'est un meilleur endroit pour échouer — un déploiement qui
+refuse vaut mieux qu'un bénévole devant un 500 — mais ce n'est pas une parade. Les trois
+réessais de `01-gcp-deploy.sh` sont ce qui rend le déploiement praticable en attendant
+que le montage sorte du chemin de démarrage (N9).
 
 ### Ce qui reste ouvert
 
@@ -1466,3 +1562,91 @@ Coût assumé : une instance facturée en continu (la CPU y était déjà non br
   seule ligne de ~4 ko : deux montages suffisent à noyer la collecte. La première lecture
   a conclu à tort « aucune donnée » sur la révision courante. En cas d'incident, resserrer :
   `./02-logs.sh dev --what=run --service=api --freshness=15m --limit=1000`.
+## Cas d'usage multi-délégation, à concevoir (2026-08-29)
+
+Issus du `/brainstorm` sur le multi-DT (`docs/product/brief.md`). Ce ne sont pas des
+défauts : ce sont deux besoins métier que le cloisonnement actuel rend impossibles, et
+qui doivent être conçus **avant** que l'architecture ne les interdise pour de bon.
+
+### U1 — Un véhicule vendu à une autre délégation
+
+Un véhicule change de propriétaire entre délégations. Ce n'est pas une correction de
+donnée, c'est un **transfert** : il quitte le périmètre de la DT75 pour celui de la DT92.
+
+Les questions à trancher, aucune n'étant évidente :
+
+- **l'historique suit-il le véhicule ?** Dossiers de réparation, sinistres, factures,
+  carnet de bord, photos — ils portent le nom de bénévoles et de garages de la
+  délégation d'origine. Les transférer, c'est exporter des données personnelles vers un
+  autre périmètre ; ne pas les transférer, c'est livrer un véhicule sans passé, alors
+  que le contrôle technique et l'entretien sont précisément ce qu'on veut connaître ;
+- **le QR code collé sur le véhicule** encode `https://{DOMAIN}/vehicle/{id}`. Après
+  transfert, il pointe la délégation d'origine. Faut-il réimprimer, ou faire rediriger
+  l'ancienne délégation vers la nouvelle — donc conserver une trace du départ ?
+- **les réservations en cours** au moment du transfert.
+- **le sens de l'écriture** : la délégation d'origine peut-elle écrire dans celle
+  d'arrivée, ou l'arrivée doit-elle accepter une proposition ?
+
+⚠️ Toute clé Redis étant préfixée par le code de délégation, un transfert est une
+**réécriture complète** sous un autre préfixe, pas une mise à jour de champ. C'est ce qui
+en fait un chantier et non un correctif.
+
+### U2 — Recherche et réservation inter-délégation (renfort)
+
+Un bénévole cherche par défaut les véhicules **de son UL**, et doit pouvoir élargir : les
+autres UL de sa délégation, les véhicules de la délégation elle-même, puis les mêmes
+recherches **dans une autre délégation** — c'est le cas du **renfort**.
+
+⚠️ **Et cela va jusqu'à l'écriture.** Un bénévole de la DT75 qui réserve un véhicule de
+la DT92 matérialise la réservation **dans la DT92**, à l'initiative de quelqu'un qui n'en
+fait pas partie. Le cloisonnement n'est donc pas « aucune écriture croisée » : c'est
+« aucune écriture croisée **implicite** ». Ce qu'il faut concevoir :
+
+- la réservation écrite dans la DT92 **référence un bénévole de la DT75** — donc une
+  identité hors de son périmètre. Comment l'afficher, la contacter, et que devient-elle
+  si ce bénévole est désactivé chez lui ?
+- **la traçabilité** : qui a initié, depuis quelle délégation, et qui a autorisé. Un
+  renfort n'est pas un libre-service.
+- l'**élargissement est un geste explicite** de l'utilisateur, jamais un défaut : une
+  recherche qui ratisserait toutes les délégations par défaut ferait fuiter la flotte de
+  chacune à tout le monde.
+
+Ces deux cas d'usage partagent une conclusion : le préfixe de délégation restera le
+mécanisme d'isolation, mais il lui faut **des points de passage explicites, nommés et
+tracés** — pas des exceptions ajoutées au coup par coup.
+
+### U3 — Renommer `{dt}:benevoles:*` en `{dt}:ben:*`
+
+Décidé le 2026-08-29 avec la spec `import-referentiel-structures.md` : les clés doivent
+être **courtes et indexées par identifiant**, jamais par libellé. La tranche 2 renomme
+`{dt}:unite_locale:{id}` → `{dt}:ul:{id}`, `{dt}:unite_locales:index` → `{dt}:ul:idx` et
+`{dt}:benevoles:by_ul:{libellé}` → `{dt}:ben:ul:{id}`, mais **s'arrête là**.
+
+Reste donc à renommer les documents et leurs deux index :
+
+```
+{dt}:benevoles:{nivol}     → {dt}:ben:{nivol}          ~4546 documents
+{dt}:benevoles:index       → {dt}:ben:idx
+{dt}:benevoles:by_email    → {dt}:ben:mail
+```
+
+⚠️ **Pourquoi ce n'est pas dans la tranche 2** : `by_email` est sur le chemin
+d'authentification. Une migration à moitié faite ferme l'application à tout le monde. Elle
+mérite sa propre fenêtre, avec un `MULTI`/`EXEC` unique — Redis étant mono-thread sur
+l'exécution d'une transaction, les ~4550 `RENAME` s'appliquent alors tout ou rien — plus
+un mode de vérification et le renommage inverse en repli.
+
+D'ici là le schéma est **mixte** : `{dt}:ben:ul:{id}` voisine `{dt}:benevoles:{nivol}`.
+C'est assumé et écrit, pas un oubli.
+
+### U4 — Obtenir un export exhaustif des unités locales
+
+Mesuré le 2026-08-29 sur `init_data/DTUL.csv` : **36 des 108 délégations n'y ont aucune
+unité locale** — DT93, DT2A, DT2B, Martinique, Réunion, Guyane, Mayotte, DT60, DT61… soit
+576 UL exportées pour un réseau qui en compte davantage.
+
+Conséquence dans le code, déjà traitée : l'import ne réconcilie jamais, et un
+`Id Structure` inconnu ne fait pas rejeter un bénévole
+(`docs/specs/import-referentiel-structures.md`, E4 et AC-18). Conséquence **hors** code :
+la jointure stricte `Id Structure → UL → délégation` ne couvrira ces délégations que
+lorsqu'un export complet sera disponible. Action non technique.

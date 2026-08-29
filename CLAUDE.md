@@ -70,7 +70,7 @@ USE_MOCKS=true REDIS_URL="redis://localhost:6379/0" .venv/bin/python -m pytest t
 ```
 
 ```
-608 passed, 1 skipped in 12.86s
+633 passed, 1 skipped in 12.71s
 ```
 
 (Relevé le 2026-08-28. Ce fichier annonçait `410 passed, 1 skipped` au 2026-08-13 : la
@@ -353,9 +353,9 @@ collée.**
 ## Pièges
 
 1. **Les quatre suites sont vertes depuis le 2026-08-13** — c'est la référence à
-   tenir : backend `608 passed, 1 skipped` (avec `docker compose up -d redis`,
+   tenir : backend `633 passed, 1 skipped` (avec `docker compose up -d redis`,
    relevé le 2026-08-28 ; 410 au 2026-08-13),
-   `ng test admin` 36, `ng test form` 11, Playwright 30. Un échec est désormais un
+   `ng test admin` 39, `ng test form` 11, Playwright 30. Un échec est désormais un
    **signal**, plus du bruit hérité. Historique : la suite a longtemps été à 8 ou 12
    échecs, et l'e2e n'avait jamais tourné.
 
@@ -394,10 +394,17 @@ collée.**
    `GET /api/config` : le clic était tombé sur un démarrage à froid dont le montage
    gcsfuse a échoué (`storageLayout call failed … code = Unimplemented`, puis
    `terminated: volume (type: gcs, name: snapshots): mount operation failed`). Le même
-   appel réussit 3 s plus tard : c'est transitoire, Cloud Run le rattrape, mais la
-   requête en vol est perdue et **aucune trace Python n'existe** — la requête n'atteint
-   jamais uvicorn. Corrigé par `MIN_INSTANCES=1`. Signature à reconnaître : un 500 sans
+   appel réussit 3 s plus tard, mais **ce n'est pas rare** : trois échecs pour un
+   succès en 25 minutes, mesuré. La requête en vol est perdue et **aucune trace Python
+   n'existe** — elle n'atteint jamais uvicorn. Signature à reconnaître : un 500 sans
    ligne `"GET … HTTP/1.1" 500` dans le log du conteneur.
+   ⚠️ **`MIN_INSTANCES=1` ne supprime pas ce défaut, il le déplace** : la révision n'est
+   prête qu'après un démarrage réussi, donc un montage raté fait échouer le
+   **déploiement** au lieu de la requête d'un bénévole. C'est un meilleur endroit pour
+   échouer, pas une parade. D'où les trois réessais de `01-gcp-deploy.sh`. La sonde
+   gcsfuse en cause est « integral … cannot be skipped » : aucune option de montage ne
+   la court-circuite, et le correctif réel serait de sortir le montage du chemin de
+   démarrage (N9).
    ⚠️ **Et `02-logs.sh` tronque à 300 entrées par requête** : gcsfuse imprime sa
    configuration complète sur une ligne de ~4 ko à chaque montage, deux montages noient
    la collecte, et l'outil conclut « aucune donnée » à tort. Resserrer :
@@ -409,7 +416,7 @@ collée.**
    nom de branche déjà associé à une PR mergée : les outils qui cherchent « la PR
    de cette branche » retombent sur l'ancienne et concluent à tort « déjà mergée ».
 
-7. **Le filet unitaire frontend est mince : 47 tests pour ~100 composants.** Il
+7. **Le filet unitaire frontend est mince : 50 tests pour ~100 composants.** Il
    compile et passe, mais ne couvre que `App`, `LayoutComponent`, le générateur de
    QR codes, `QrCodeService`, `superAdminGuard` et `ConfigurationUlComponent`. Ne
    pas confondre « vert » et « couvert ». Ajouté le 2026-08-28 : `LoginComponent`

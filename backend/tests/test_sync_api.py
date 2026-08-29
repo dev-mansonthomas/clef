@@ -244,7 +244,8 @@ class TestSyncBenevoles:
     """
 
     @staticmethod
-    def _row(nivol: str, nom: str, prenom: str, ul: str, email: str, tel: str = ""):
+    def _row(nivol: str, nom: str, prenom: str, ul: str, email: str, tel: str = "",
+             id_structure: str = "889"):
         return {
             "Prénom Nom": f"{prenom} {nom}",
             "Nivol": nivol,
@@ -253,6 +254,8 @@ class TestSyncBenevoles:
             "UL": ul,
             "Téléphone": tel,
             "Email": email,
+            # Obligatoire depuis le 2026-08-29 : l'identifiant de structure de l'UL.
+            "id_structure": id_structure,
         }
 
     @pytest.mark.asyncio

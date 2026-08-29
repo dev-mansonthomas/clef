@@ -43,8 +43,24 @@ class BenevoleIdentite(BaseModel):
     nom: str
     prenom: str
     ul: str
+    #: Identifiant interne Croix-Rouge de l'UL — rend la jointure avec le référentiel
+    #: des structures STRICTE, là où le libellé d'UL est du texte libre.
+    #
+    # Obligatoire ici ET dans `BenevoleData` : la feuille porte la colonne, il n'y aura
+    # donc pas de document durablement dépourvu. Voir l'avertissement sur l'ordre de
+    # déploiement dans `BenevoleData`.
+    ul_id_structure: str
     email: Optional[str] = None
     telephone: Optional[str] = None
+    #: Le bénévole figure aussi au référentiel sous l'UL de la DÉLÉGATION.
+    #
+    # ⚠️ Ce n'est PAS un rôle applicatif : ça ne confère aucun droit dans CLEF, et ça
+    # n'a rien à voir avec `fonctions_dt`, qui appartient à CLEF. C'est un fait
+    # d'appartenance, lu dans la feuille — un bénévole porteur d'une fonction à la
+    # délégation y apparaît DEUX FOIS, une ligne pour son unité locale et une pour la
+    # DT. Le conserver évite de choisir arbitrairement l'une des deux lignes, et sert
+    # à distinguer ces personnes dans un sélecteur.
+    rattachement_dt: bool = False
 
 
 class RedisService:
@@ -502,8 +518,10 @@ class RedisService:
             nom=identite.nom,
             prenom=identite.prenom,
             ul=identite.ul,
+            ul_id_structure=identite.ul_id_structure,
             email=identite.email,
             telephone=identite.telephone,
+            rattachement_dt=identite.rattachement_dt,
             statut=statut,
             responsable_ul=responsable_ul,
             fonctions_dt=fonctions_dt,

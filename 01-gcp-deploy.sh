@@ -165,9 +165,10 @@ set +a
 
 SERVICE_NAME="${SERVICE_NAME:-clef-api}"
 FRONTEND_SERVICE="${FRONTEND_SERVICE:-clef-frontend}"
-# Repli à 1, jamais 0 : un démarrage à froid dont le montage gcsfuse échoue renvoie
-# 500 à la requête en vol (relevé le 2026-08-29), et chaque mise en veille perd
-# jusqu'à 10 min d'écritures. Voir deploy/deploy.env.example.
+# Repli à 1, jamais 0 : chaque démarrage à froid rejoue le tirage du montage gcsfuse,
+# qui échoue par intermittence et rend alors l'instance inutilisable. Ce n'est PAS un
+# enjeu de perte de données — Redis écrit son instantané final sur SIGTERM en ~400 ms.
+# Voir deploy/deploy.env.example.
 MIN_INSTANCES="${MIN_INSTANCES:-1}"
 MAX_INSTANCES="${MAX_INSTANCES:-1}"
 REDIS_MEMORY="${REDIS_MEMORY:-512Mi}"
@@ -642,8 +643,44 @@ if [[ "$COMPONENTS" == *api* ]]; then
         SNAPSHOTS_BUCKET="$SNAPSHOTS_BUCKET" \
             envsubst < "$TEMPLATE" > "$rendered"
 
-        gcloud run services replace "$rendered" \
-            --region="$REGION" --project="$PROJECT_ID"
+        # ⚠️ RÉESSAIS — le montage du volume GCS est une dépendance de démarrage, et
+        # il échoue par intermittence.
+        #
+        # `GetStorageLayout … rpc error: code = Unimplemented` : gcsfuse interroge un
+        # appel de plan de contrôle qui sert à détecter un espace de noms hiérarchique
+        # — que ce bucket n'a pas. La documentation gcsfuse est explicite : ce contrôle
+        # est intégral et NE PEUT PAS être désactivé. Aucune option de montage à
+        # ajouter, donc.
+        #
+        # Trois échecs constatés le 2026-08-28/29 (un réveil, deux déploiements) pour
+        # un succès. Et `minScale = 1` aggrave la visibilité du problème plutôt que le
+        # problème : avec une instance minimale, la révision n'est PRÊTE qu'une fois un
+        # démarrage réussi — donc un montage raté fait échouer le déploiement entier,
+        # là où `minScale = 0` le laissait passer et échouait plus tard, à la première
+        # requête.
+        #
+        # Réessayer est la seule réponse disponible tant que le montage n'est pas sorti
+        # du chemin de démarrage.
+        local essai
+        for essai in 1 2 3; do
+            if gcloud run services replace "$rendered" \
+                --region="$REGION" --project="$PROJECT_ID"; then
+                break
+            fi
+            if [ "$essai" -eq 3 ]; then
+                rm -f "$rendered"
+                echo "❌ Trois tentatives de déploiement en échec."
+                echo "   Cause la plus probable : le montage du volume GCS d'instantanés."
+                echo "   Vérifier avec : ./02-logs.sh $ENVIRONMENT --what=run"
+                echo "   puis chercher « mount operation failed » dans le journal"
+                echo "   d'infrastructure de la dernière révision."
+                exit 1
+            fi
+            echo ""
+            echo "  ↻ tentative $essai en échec — nouvelle tentative dans 20 s."
+            echo "     (montage du volume GCS : échec intermittent connu)"
+            sleep 20
+        done
         rm -f "$rendered"
 
         # Tracé dans le rapport : c'est le nombre de passes et l'URI final qui
@@ -656,6 +693,14 @@ if [[ "$COMPONENTS" == *api* ]]; then
     FRONTEND_URL=$(service_url "$FRONTEND_SERVICE")
     FIRST_CREATION=false
     [ -z "$BACKEND_URL" ] && FIRST_CREATION=true
+
+    # ⚠️ Renseigner l'étape AVANT d'agir, pas après.
+    #
+    # Le rapport du 2026-08-28 annonçait « derniereEtape: construction des images »
+    # alors que l'échec venait de `services replace` — la sonde de démarrage de la
+    # révision. Un rapport qui nomme la mauvaise étape envoie chercher la cause au
+    # mauvais endroit, ce qui est pire que de ne rien nommer.
+    R_STEP="déploiement du backend (services replace)"
 
     deploy_api "$BACKEND_URL" "$FRONTEND_URL"
 
@@ -702,6 +747,7 @@ fi
 
 if [[ "$COMPONENTS" == *frontend* ]]; then
     echo "☁️  Déploiement du frontend..."
+    R_STEP="déploiement du frontend"
     # nginx relaie /api et /auth vers le backend : il lui faut son NOM D'HÔTE, sans
     # schéma (le gabarit fait « proxy_pass https://${BACKEND_HOST} » et s'en sert
     # aussi comme en-tête Host, ce qu'exige le routage de Cloud Run).
