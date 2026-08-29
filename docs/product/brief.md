@@ -65,12 +65,25 @@ est la seule en service et porte 4546 bénévoles réels.
    L'application **terrain** (`form`) est un sujet distinct, traité plus tard : elle
    s'appuie sur le référentiel bénévoles et UL, et sa règle de périmètre est une
    recherche, pas un refus (voir ci-dessous).
-5. **Les ressources Google d'une nouvelle DT sont créées par un Apps Script
-   d'amorçage**, exécuté sous l'identité du gestionnaire, qui crée le dossier Drive et
-   les classeurs puis déclare les URL à l'API. C'est la seule voie disponible : le
-   service account **ne peut pas** créer de document dans ce Workspace (constat N13,
-   structurel — le domaine interdit le partage vers une adresse
-   `.gserviceaccount.com`).
+5. **Les ressources Google d'une nouvelle DT sont créées par le backend sous l'identité
+   du gestionnaire DT**, via la délégation OAuth qui **existe déjà** : scopes `drive`,
+   `calendar` et `gmail.send`, jeton de rafraîchissement chiffré par KMS
+   (`dt_token_service`), client Drive délégué (`services/drive_service.py`) offrant
+   `create_folder`, `get_or_create_folder`, `upload_file`.
+
+   ⚠️ **Révisé le 2026-08-29.** J'avais conclu à un Apps Script d'amorçage en invoquant
+   le constat N13 : erreur de portée. N13 ne concerne que le **service account**
+   (`drive_real.py`) ; un jeton délégué par un humain du domaine n'y est pas soumis, et
+   le code qui l'utilise est en place et fonctionnel. Aucun quatrième script à écrire.
+
+   ✅ **Consentement incrémental, pour le seul gestionnaire DT**, déclenché juste après
+   sa connexion si sa délégation manque ou a expiré. Demander ces scopes à tout
+   utilisateur exposerait un bénévole terrain à des droits dont il n'a aucun usage.
+
+   ⚠️ Ce jeton sert aux actions des **autres** : un responsable véhicule qui dépose un
+   document écrit dans le Drive **du gestionnaire**. D'où un rafraîchissement de fond —
+   non pour renouveler (le rafraîchissement à l'usage existe) mais pour **détecter une
+   révocation avant** qu'un tiers ne la découvre au moment de son dépôt.
 
 ## Le registre des structures
 
@@ -168,8 +181,8 @@ pas encore exploité.
   repli silencieux dans un chemin de données.
 - Un super admin peut créer une délégation depuis un menu d'administration globale : code
   DT validé, email du gestionnaire, configuration initiale.
-- Un Apps Script d'amorçage crée les ressources Google d'une nouvelle DT et déclare ses
-  URL.
+- Le backend crée les ressources Google d'une nouvelle DT **sous l'identité de son
+  gestionnaire**, via la délégation OAuth existante, et déclare les URL obtenues.
 - Les délégations et UL portent leur **`id_structure`** et leur rattachement, et une
   option de déploiement les initialise depuis le référentiel national, sans jamais
   écraser une délégation qui utilise CLEF.
@@ -227,9 +240,13 @@ devient l'historique du véhicule, ses dossiers de réparation, ses photos ? À 
 - **Sécurité** : le périmètre se lit dans `current_user.dt`, jamais dans l'URL. Le refus
   d'un utilisateur inconnu ferme une porte aujourd'hui ouverte : à vérifier en exécution
   sur un compte réel avant de déployer.
-- **Google Workspace** : le service account ne peut ni créer ni lire un document du
-  domaine (N13). Toute automatisation passe par un Apps Script exécuté sous l'identité
-  d'un humain.
+- **Google Workspace** : le **service account** ne peut ni créer ni lire un document du
+  domaine (N13). Toute automatisation passe donc par une identité humaine — soit un Apps
+  Script exécuté par un utilisateur (c'est le cas de la synchronisation des bénévoles),
+  soit un **jeton OAuth délégué** par le gestionnaire DT, ce que fait déjà
+  `services/drive_service.py`. ⚠️ Deux services Drive coexistent dans le code :
+  `drive_service.py` (délégué, fonctionne) et `drive_real.py` (service account, tombe
+  sous N13). Les confondre coûterait un 403 incompréhensible.
 - **Compatibilité** : la DT75 est en service avec 4546 bénévoles. Aucune migration de
   données n'est prévue ; les clés existantes restent valides.
 
@@ -248,8 +265,12 @@ Questions encore ouvertes :
 - Le registre global : index inverse ou balayage ? (proposition ci-dessus, à confirmer)
 - La création d'une DT écrit-elle une configuration initiale complète, ou seulement le
   strict nécessaire pour que le gestionnaire se connecte ?
-- L'Apps Script d'amorçage : un quatrième script à installer par le gestionnaire, ou une
-  extension du menu des scripts existants ?
+- **Le moment du consentement OAuth étendu** : à la connexion pour tous (demande du
+  propriétaire) ou incrémental, pour le seul gestionnaire DT dont la délégation manque ?
+- **Le jeton de délégation appartient à une personne**, et sert aux actions de toute la
+  délégation. Que se passe-t-il quand ce gestionnaire part ou révoque l'accès ? Toutes
+  les fonctions Drive, Gmail et Calendar s'arrêtent. Un seul jeton, ou plusieurs avec
+  repli ? **Seule question encore ouverte de la tranche 3.**
 
 ## Première tranche
 
