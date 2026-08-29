@@ -84,6 +84,22 @@ aboutit : c'est le seul ordre de priorité acceptable.
 
 Le journal est plafonné à 1000 lignes ; les plus anciennes sont supprimées.
 
+### Les libellés de colonnes sont un contrat que nous ne possédons pas
+
+L'onglet « Bénévoles » reçoit l'import du **référentiel bénévole**, issu de Gaia. Ses
+libellés de colonnes — dont **`Id Structure`** — forment un contrat d'interface entre ce
+référentiel et les **plusieurs classeurs qui l'importent**, dont CLEF n'est qu'un.
+
+⚠️ **Le script ne les renomme donc pas.** Une version l'a fait brièvement, corrigeant
+`Id Structure` en `id_structure` : c'était modifier un contrat qui ne nous appartient
+pas, au détriment des autres consommateurs. Retiré.
+
+C'est l'API qui s'adapte : `Id Structure` est son libellé attendu, et la comparaison des
+en-têtes y est **normalisée** — sans accent, sans casse, sans séparateur. `Id Structure`,
+`ID STRUCTURE` et `Id_Structure` sont donc reconnus, ce qui absorbe une dérive
+d'écriture sans rien exiger de la feuille. Un vrai renommage — `Nom` → `Patronyme` —
+reste refusé, et le message nomme la colonne attendue **et** les en-têtes reçus.
+
 ### L'onglet « ERREURS SYNCHRO »
 
 Créé de la même façon, et **réécrit** à chaque synchronisation — une ligne par erreur,

@@ -18,6 +18,17 @@ from app.auth.routes import router as auth_router
 from app.cache import get_cache
 from app.services.redis_service import RedisService
 
+# ⚠️ Sans configuration, le logger racine de Python reste à WARNING : TOUS les
+# `logger.info` du backend étaient donc perdus, y compris la ligne de compte rendu de la
+# synchronisation du référentiel — « N créés, N erreurs de ligne ». Constaté le
+# 2026-08-29 : les journaux Cloud Run montraient l'avertissement de réconciliation, mais
+# pas la cause qui le précédait. Les journaux d'accès d'uvicorn passaient, eux, parce
+# qu'uvicorn configure ses propres loggers — ce qui rendait l'absence invisible.
+logging.basicConfig(
+    level=os.getenv("LOG_LEVEL", "INFO").upper(),
+    format="%(levelname)s %(name)s %(message)s",
+)
+
 logger = logging.getLogger(__name__)
 from app.routers import config_router, calendar_router, unites_locales_router
 from app.routers import vehicles

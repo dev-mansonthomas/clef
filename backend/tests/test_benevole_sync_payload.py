@@ -38,7 +38,7 @@ def _row(**overrides) -> dict:
         "Email": "jean.dupont@croix-rouge.fr",
         # Colonne ajoutée à l'export le 2026-08-29, obligatoire : l'identifiant de
         # structure de l'UL du bénévole (889 = UNITE LOCALE DE PARIS 1ER ET 2EME).
-        "id_structure": "889",
+        "Id Structure": "889",
     }
     row.update(overrides)
     return {k: v for k, v in row.items() if v is not ...}
@@ -139,7 +139,7 @@ def test_mandatory_columns_are_declared():
     Elle sert au contrôle « colonne absente de toutes les lignes », qui doit nommer
     la colonne manquante plutôt que rapporter dix erreurs de ligne identiques.
     """
-    assert MANDATORY_COLUMNS == ("Nivol", "Nom", "Prénom", "UL", "id_structure")
+    assert MANDATORY_COLUMNS == ("Nivol", "Nom", "Prénom", "UL", "Id Structure")
 
 
 def test_duplicate_nivol_last_wins():
@@ -317,15 +317,20 @@ def test_une_raison_ne_porte_jamais_de_donnee():
 # de valeur que s'il est TOUJOURS présent, d'où une colonne obligatoire.
 
 def test_l_id_de_structure_est_obligatoire():
-    """Sa colonne manquante est NOMMÉE, comme les quatre autres obligatoires."""
+    """Sa colonne manquante est NOMMÉE, comme les quatre autres obligatoires.
+
+    Sur un lot d'une seule ligne, la colonne est absente de tout le lot : c'est donc
+    l'erreur d'EN-TÊTE qui sort, avec les libellés reçus. Le contrôle par ligne est
+    vérifié séparément — voir `test_une_seule_ligne_fautive_reste_une_erreur_de_ligne`.
+    """
     row = _row()
-    del row["id_structure"]
+    del row["Id Structure"]
 
     identites, errors = parse_referentiel_rows([row])
 
     assert identites == []
     assert errors[0]["reason"] == RAISON_COLONNE_ABSENTE
-    assert errors[0]["values"]["Détail"] == "id_structure"
+    assert errors[0]["values"]["Détail"].startswith("Id Structure")
 
 
 @pytest.mark.parametrize("brut,attendu", [
@@ -336,7 +341,7 @@ def test_l_id_de_structure_est_obligatoire():
     ("00889", "889"),           # forme canonique, sans zéros de tête
 ])
 def test_l_id_de_structure_est_normalise(brut, attendu):
-    identites, errors = parse_referentiel_rows([_row(id_structure=brut)])
+    identites, errors = parse_referentiel_rows([_row(**{"Id Structure": brut})])
     assert errors == []
     assert identites[0].ul_id_structure == attendu
 
@@ -348,11 +353,11 @@ def test_un_id_de_structure_non_entier_positif_est_refuse(invalide):
     Une valeur comme « 0 » ou « UL PARIS12 » produirait une jointure qui échoue loin
     d'ici, sur un bénévole précis — alors que le défaut est dans la colonne.
     """
-    identites, errors = parse_referentiel_rows([_row(id_structure=invalide)])
+    identites, errors = parse_referentiel_rows([_row(**{"Id Structure": invalide})])
 
     assert identites == []
     assert errors[0]["reason"] == RAISON_CHAMP_INVALIDE
-    assert "id_structure" in errors[0]["values"]["Détail"]
+    assert "Id Structure" in errors[0]["values"]["Détail"]
 
 
 def test_l_id_de_structure_reste_optionnel_A_LA_LECTURE():
@@ -369,3 +374,107 @@ def test_l_id_de_structure_reste_optionnel_A_LA_LECTURE():
         nivol="00123456A", dt="DT75", nom="Dupont", prenom="Jean", ul="UL Paris 15"
     )
     assert herite.ul_id_structure is None
+
+
+def test_une_colonne_absente_de_tout_le_lot_est_une_erreur_d_en_tete():
+    """4546 erreurs identiques ne valent pas mieux qu'une, et coûtent un onglet illisible.
+
+    C'est ce que la déclaration explicite de `MANDATORY_COLUMNS` promettait — « nommer la
+    colonne manquante plutôt que produire N erreurs de ligne identiques » — et que le
+    contrôle par ligne ne tenait pas. L'ajout de `id_structure` l'a montré le 2026-08-29.
+
+    ⚠️ Les EN-TÊTES REÇUS sont joints : sans eux, « Colonne absente : Id Structure »
+    laisse chercher entre une colonne oubliée, une casse différente et un accent
+    décomposé — trois causes indiscernables. La vraie panne du jour était de cette
+    famille.
+    """
+    lot = []
+    for i in range(3):
+        row = _row(Nivol=f"NIV{i}")
+        del row["Id Structure"]
+        lot.append(row)
+
+    identites, errors = parse_referentiel_rows(lot)
+
+    assert identites == []
+    assert len(errors) == 1, "une erreur d'en-tête, pas une par ligne"
+    assert errors[0]["line"] is None, "elle ne vise aucune ligne : c'est l'en-tête"
+    assert errors[0]["reason"] == RAISON_COLONNE_ABSENTE
+
+    detail = errors[0]["values"]["Détail"]
+    assert "Id Structure" in detail
+    assert "3 lignes du lot" in detail
+    # Ce qui rend la comparaison immédiate.
+    assert "En-têtes reçus" in detail and "Nivol" in detail
+
+
+@pytest.mark.parametrize("libelle", [
+    "id_structure",
+    "Id Structure",       # le libellé RÉEL de la feuille, constaté le 2026-08-29
+    "ID_STRUCTURE",
+    "Id-Structure",
+    "  Id Structure  ",
+    "IdStructure",
+])
+def test_les_variantes_de_casse_et_de_separateur_sont_acceptees(libelle):
+    """Deux pannes de la même semaine, même cause : un libellé d'en-tête « presque » bon.
+
+    D'abord `Prénom` avec un accent DÉCOMPOSÉ — identique à l'œil, différent en octets.
+    Puis `Id Structure` refusée parce que j'avais inventé le libellé `id_structure` :
+    lot devenu vide, et le vrai message masqué par le garde-fou de réconciliation.
+
+    La comparaison se fait donc sur une forme normalisée — sans accent, sans casse, sans
+    séparateur. Ce n'est pas de la complaisance : ces libellés viennent d'un export dont
+    on ne maîtrise ni la casse ni la ponctuation, et rien dans la donnée ne justifie de
+    distinguer `Id Structure` de `ID STRUCTURE`. Le libellé du référentiel fait foi.
+    """
+    row = _row()
+    row[libelle] = row.pop("Id Structure")
+
+    identites, errors = parse_referentiel_rows([row])
+
+    assert errors == [], f"le libellé {libelle!r} doit être reconnu"
+    assert identites[0].ul_id_structure == "889"
+
+
+def test_un_accent_decompose_est_reconnu():
+    """`Prénom` en NFD s'affiche à l'identique et pesait une colonne introuvable."""
+    import unicodedata
+
+    row = _row()
+    row[unicodedata.normalize("NFD", "Prénom")] = row.pop("Prénom")
+
+    identites, errors = parse_referentiel_rows([row])
+
+    assert errors == []
+    assert identites[0].prenom == "Jean"
+
+
+def test_un_vrai_renommage_reste_refuse():
+    """La tolérance porte sur la FORME du libellé, pas sur son sens.
+
+    `Nom` → `Patronyme` n'est pas une variante d'écriture : c'est une autre colonne.
+    L'erreur nomme l'attendu et liste les en-têtes reçus.
+    """
+    row = _row()
+    row["Patronyme"] = row.pop("Nom")
+
+    identites, errors = parse_referentiel_rows([row])
+
+    assert identites == []
+    detail = errors[0]["values"]["Détail"]
+    assert detail.startswith("Nom")
+    assert "Patronyme" in detail, "les en-têtes reçus doivent être listés"
+
+
+def test_une_seule_ligne_fautive_reste_une_erreur_de_ligne():
+    """La passe d'en-tête ne doit pas avaler le contrôle par ligne."""
+    bonne = _row(Nivol="BON")
+    fautive = _row(Nivol="FAUTIF")
+    del fautive["Id Structure"]
+
+    identites, errors = parse_referentiel_rows([bonne, fautive])
+
+    assert len(identites) == 1
+    assert len(errors) == 1
+    assert errors[0]["line"] == 3, "le numéro de ligne de la feuille, en-tête comprise"

@@ -91,11 +91,11 @@ soit le reste (voir AC-9).
       importe les 8 valides, renvoie `errors` de longueur 2 avec le numéro de ligne et
       le motif, et un code HTTP **200**.
 - [ ] **AC-8 — En-têtes.** Les colonnes sont reconnues par leurs libellés exacts.
-      **Obligatoires** : `Nivol`, `Nom`, `Prénom`, `UL`, `id_structure`.
+      **Obligatoires** : `Nivol`, `Nom`, `Prénom`, `UL`, `Id Structure`.
       **Facultatives** : `Téléphone`, `Email`. Toute autre est **ignorée**, dont
       `Prénom Nom`. Une colonne obligatoire manquante produit une erreur qui **nomme la
       colonne**.
-- [ ] **AC-15 — `id_structure`.** L'identifiant interne Croix-Rouge de l'**unité
+- [ ] **AC-15 — `Id Structure`.** L'identifiant interne Croix-Rouge de l'**unité
       locale** du bénévole est **obligatoire** et doit être un **entier positif** :
       espaces retirés, cellule numérique acceptée, forme canonique conservée
       (`00889` → `889`). `0`, un négatif ou du texte sont refusés **à la ligne**.
@@ -136,12 +136,19 @@ bénévole du département. Le code Apps Script est installé **dans ce classeur
 Ligne d'en-têtes, dans cet ordre :
 
 ```
-Prénom Nom | Nivol | Nom | Prénom | UL | Téléphone | Email | id_structure
+Prénom Nom | Nivol | Nom | Prénom | UL | Téléphone | Email | Id Structure
 ```
 
-`Prénom Nom` est une concaténation de commodité : **ignorée**. `id_structure` a été
-**ajoutée en fin de ligne le 2026-08-29** — l'ordre des colonnes n'a aucune importance,
+`Prénom Nom` est une concaténation de commodité : **ignorée**. `Id Structure` a été
+ajoutée en fin de ligne le 2026-08-29 — l'ordre des colonnes n'a aucune importance,
 l'Apps Script envoyant un objet clé par en-tête.
+
+⚠️ **Ces libellés ne nous appartiennent pas.** Ils forment un contrat d'interface entre le
+référentiel bénévole — issu de Gaia — et les **plusieurs classeurs qui l'importent**, dont
+CLEF n'est qu'un. CLEF s'y adapte : la comparaison des en-têtes est **normalisée** (sans
+accent, casse ni séparateur), et rien n'est réécrit dans la feuille. Une version du script
+corrigeait `Id Structure` en `id_structure` : c'était modifier un contrat qui ne nous
+appartient pas, et c'est retiré.
 
 L'onglet s'appelle **« Bénévoles »** (confirmé par le propriétaire le 2026-08-21).
 Le nom reste surchargeable par la propriété de script `CLEF_SHEET_BENEVOLES`, dont la

@@ -2,6 +2,7 @@
 import os
 import logging
 import re
+import unicodedata
 from typing import List, Dict, Any, Tuple
 from fastapi import APIRouter, Header, HTTPException, status, Depends
 from pydantic import BaseModel, Field, ValidationError, field_validator
@@ -27,7 +28,7 @@ router = APIRouter(
 #: Déclarées explicitement — et non déduites du modèle — pour que le contrôle
 #: « colonne absente de toutes les lignes » puisse **nommer** la colonne manquante,
 #: plutôt que produire N erreurs de ligne identiques et illisibles.
-MANDATORY_COLUMNS: Tuple[str, ...] = ("Nivol", "Nom", "Prénom", "UL", "id_structure")
+MANDATORY_COLUMNS: Tuple[str, ...] = ("Nivol", "Nom", "Prénom", "UL", "Id Structure")
 
 #: Reconnaît une UL qui désigne la DÉLÉGATION et non une unité locale.
 #
@@ -41,6 +42,55 @@ MANDATORY_COLUMNS: Tuple[str, ...] = ("Nivol", "Nom", "Prénom", "UL", "id_struc
 # seconde alternative ; tout autre libellé retomberait sur le traitement de doublon
 # ordinaire, donc signalé, jamais silencieux.
 UL_DE_DELEGATION = re.compile(r"^\s*(DT|D[ÉE]L[ÉE]GATION\s+TERRITORIALE)\b", re.I)
+
+
+#: Libellés canoniques des colonnes, indexés par leur forme normalisée.
+#
+# ⚠️ Les en-têtes de la feuille sont saisis par des humains, ou produits par un export
+# dont on ne maîtrise pas la casse. Deux pannes réelles l'ont montré, la même semaine :
+#
+#   • `Prénom` écrit avec un accent DÉCOMPOSÉ (NFD) — identique à l'œil, différent en
+#     octets, colonne introuvable ;
+#   • `Id Structure` refusée parce que j'avais inventé le libellé `id_structure` —
+#     4546 lignes rejetées, et le lot devenu vide. Le libellé du référentiel est
+#     `Id Structure` ; c'est lui qui fait foi.
+#
+# La comparaison se fait donc sur une forme normalisée : sans accent, sans casse, sans
+# espace ni séparateur. `Prénom`, `PRENOM` et `Prenom` deviennent le même `prenom` ;
+# `Id Structure`, `id_structure` et `ID-STRUCTURE` le même `idstructure`.
+#
+# ⚠️ Ce qui reste refusé, et doit l'être : renommer une colonne pour de bon
+# (`Nom` → `Patronyme`). L'erreur nomme alors la colonne attendue ET les en-têtes reçus.
+# ⚠️ Ces libellés sont ceux du RÉFÉRENTIEL BÉNÉVOLE, pas les nôtres. Ils forment un
+# contrat d'interface entre ce référentiel — issu de Gaia — et les plusieurs classeurs
+# qui l'importent, dont CLEF n'est qu'un. On s'y adapte ; on ne les renomme pas.
+COLONNES_CANONIQUES: Tuple[str, ...] = (
+    "Nivol", "Nom", "Prénom", "UL", "Téléphone", "Email", "Id Structure",
+)
+
+
+def normaliser_entete(libelle: object) -> str:
+    """Forme comparable d'un libellé de colonne : sans accent, casse ni séparateur."""
+    decompose = unicodedata.normalize("NFD", str(libelle))
+    sans_accent = "".join(c for c in decompose if unicodedata.category(c) != "Mn")
+    return re.sub(r"[^a-z0-9]", "", sans_accent.lower())
+
+
+_PAR_FORME_NORMALISEE = {normaliser_entete(c): c for c in COLONNES_CANONIQUES}
+
+
+def canoniser_ligne(row: Dict[str, Any]) -> Dict[str, Any]:
+    """Remappe les clés d'une ligne sur les libellés canoniques.
+
+    Les colonnes inconnues sont écartées — elles l'étaient déjà, Pydantic ignorant les
+    champs supplémentaires. `Prénom Nom` en fait partie.
+    """
+    canonique: Dict[str, Any] = {}
+    for cle, valeur in row.items():
+        attendu = _PAR_FORME_NORMALISEE.get(normaliser_entete(cle))
+        if attendu is not None:
+            canonique[attendu] = valeur
+    return canonique
 
 
 def est_ul_de_delegation(ul: str) -> bool:
@@ -100,7 +150,7 @@ class BenevoleReferentielRow(BaseModel):
     # lequel on calcule. La validation vérifie qu'il EST un entier positif — une
     # cellule numérique de Sheets arrive en `int`, une cellule texte avec des espaces
     # arrive avec ses espaces — et la valeur retenue est sa forme canonique.
-    ul_id_structure: str = Field(..., alias="id_structure")
+    ul_id_structure: str = Field(..., alias="Id Structure")
 
     model_config = {"populate_by_name": True}
 
@@ -178,10 +228,43 @@ def parse_referentiel_rows(
     """
     errors: List[Dict[str, Any]] = []
 
+    # Passe 0 — une colonne absente de TOUT le lot est un défaut d'EN-TÊTE, pas 4546
+    # défauts de ligne.
+    #
+    # ⚠️ C'est ce que la déclaration explicite de `MANDATORY_COLUMNS` promettait :
+    # « nommer la colonne manquante plutôt que produire N erreurs de ligne identiques ».
+    # Le contrôle était pourtant fait par ligne, et l'ajout de `id_structure` l'a montré :
+    # 4546 erreurs identiques, aucune plus parlante que la première, et un onglet de
+    # détail inutilisable.
+    #
+    # ⚠️ Les EN-TÊTES REÇUS sont joints au message. Sans eux, « Colonne absente :
+    # id_structure » laisse chercher entre une colonne oubliée, une casse différente et
+    # un accent décomposé — trois causes indiscernables. Avec eux, la comparaison est
+    # immédiate.
+    if rows:
+        entetes_brutes = {str(cle) for row in rows for cle in row}
+        formes = {normaliser_entete(c) for c in entetes_brutes}
+        absentes_partout = [
+            c for c in MANDATORY_COLUMNS if normaliser_entete(c) not in formes
+        ]
+        if absentes_partout:
+            return [], [{
+                "line": None,
+                "reason": RAISON_COLONNE_ABSENTE,
+                "values": {
+                    "Détail": (
+                        f"{', '.join(absentes_partout)} — absente(s) des {len(rows)} "
+                        f"ligne{'s' if len(rows) > 1 else ''} du lot. En-têtes reçus : "
+                        f"{', '.join(sorted(entetes_brutes))}"
+                    ),
+                },
+            }]
+
     # Passe 1 — valider chaque ligne indépendamment, en gardant son numéro de feuille.
     parsees: Dict[str, List[Tuple[int, BenevoleReferentielRow]]] = {}
 
-    for index, row in enumerate(rows, start=2):
+    for index, brute in enumerate(rows, start=2):
+        row = canoniser_ligne(brute)
         missing = [c for c in MANDATORY_COLUMNS if c not in row]
         if missing:
             errors.append({
@@ -554,7 +637,10 @@ async def sync_benevoles(
         max_ratio=SYNC_MAX_DEACTIVATION_RATIO,
     )
 
-    logger.info(
+    # ⚠️ WARNING dès qu'il y a une erreur de ligne, INFO sinon. Une synchronisation
+    # partiellement en échec mérite de ressortir d'un journal qu'on filtre, et c'est
+    # exactement la ligne qui manquait le 2026-08-29 pour expliquer un lot vide.
+    (logger.warning if errors else logger.info)(
         "Sync bénévoles %s : %d créés, %d mis à jour, %d réactivés, %d désactivés, "
         "%d erreurs de ligne",
         dt, counts["created"], counts["updated"], counts["reactivated"],

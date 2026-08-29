@@ -26,6 +26,23 @@
  */
 
 /**
+ * ⚠️ La ligne d'en-tête n'est PAS réécrite, et c'est une décision.
+ *
+ * Une version l'a fait, brièvement : le script corrigeait « Id Structure » en
+ * « id_structure ». C'était une erreur d'appréciation de ma part sur la nature de ce
+ * classeur.
+ *
+ * Ces libellés ne sont pas un détail local : ils forment un CONTRAT D'INTERFACE entre le
+ * référentiel bénévole — issu de Gaia — et les PLUSIEURS classeurs qui l'importent, dont
+ * CLEF n'est qu'un. Renommer une colonne ici reviendrait à modifier un contrat qu'on ne
+ * possède pas, au détriment des autres consommateurs.
+ *
+ * C'est donc l'API qui s'adapte : `Id Structure` est son libellé attendu, et la
+ * comparaison des en-têtes y est normalisée (sans accent, casse ni séparateur) pour
+ * absorber une dérive d'écriture sans rien exiger de la feuille.
+ */
+
+/**
  * Synchronise les bénévoles vers CLEF.
  * Appelé automatiquement par le trigger horaire.
  */
@@ -109,10 +126,29 @@ function syncBenevoles() {
         ? `, ${result.rattachements_dt} rattaché(s) à la DT`
         : '');
 
+    // ⚠️ Le DÉTAIL des erreurs est écrit AVANT tout autre verdict.
+    //
+    // Cet ordre était inversé, et il masquait sa propre cause : un lot dont toutes les
+    // lignes échouent produit 0 identité, donc une « réconciliation abandonnée : lot
+    // vide ». Le script rapportait cette CONSÉQUENCE et sortait — sans écrire les
+    // erreurs, ni l'onglet de détail. Constaté le 2026-08-29 : « RÉCONCILIATION
+    // ABANDONNÉE » sur 4546 lignes toutes en erreur, et rien pour dire pourquoi.
+    //
+    // Une conséquence ne doit jamais court-circuiter la cause.
+    if (result.errors && result.errors.length > 0) {
+      logErrorsDetail('Bénévoles', result.errors);
+    }
+
     if (result.reconciliation_skipped) {
+      const cause = (result.errors && result.errors.length > 0)
+        ? ` ⚠️ CAUSE PROBABLE : ${result.errors.length} ligne(s) en erreur — voir ` +
+          `l'onglet « ${CONFIG.SHEETS.ERREURS} ». ` +
+          `Première : ${result.errors[0].reason} (${result.errors[0].values &&
+            result.errors[0].values['Détail'] || ''})`
+        : '';
       logError('Bénévoles', startTime,
         `RÉCONCILIATION ABANDONNÉE — ${result.reconciliation_skipped_reason} ` +
-        `(${summary})`);
+        `(${summary}).${cause}`);
       return;
     }
 
@@ -140,9 +176,6 @@ function syncBenevoles() {
       const details = result.errors.slice(0, 5).map(function (e) {
         return `ligne ${e.line}`;
       }).join(', ');
-
-      // Le détail va dans son propre onglet : c'est là qu'on corrige la feuille.
-      logErrorsDetail('Bénévoles', result.errors);
 
       logError('Bénévoles', startTime,
         `${result.errors.length} ligne(s) en erreur — ${summary}. ` +
