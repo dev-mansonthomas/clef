@@ -86,7 +86,13 @@ ou les supprimer si elles ne servaient qu'au débogage.
 > silencieuse — la route à écrire lit l'état RÉEL du scheduler (`job.next_run_time`)
 > sous `require_dt_manager`. C'est une petite fonctionnalité, pas un correctif.
 
-### C4 — 🔴 `/auth/callback-dt` accepte l'identité d'un paramètre d'URL non signé
+### C4 — 🔴 `/auth/callback-dt` acceptait l'identité d'un paramètre d'URL non signé
+
+> ✅ **Correctif écrit et vérifié** le 2026-08-29 — commit `fix(auth): l'identité du
+> consentement DT vient de Google, plus d'un paramètre d'URL`, branche
+> `hotfix/callback-dt-identite`, à merger **avant** la tranche 3. 14 tests nouveaux, et
+> chaque garde éprouvée par mutation. Ce qui suit décrit l'état d'origine, conservé pour
+> mémoire.
 
 Découvert le 2026-08-29 en écrivant la spec de la tranche 3, sur lecture de
 `app/auth/routes.py:318-380`. **Déployé en dev.**
@@ -138,6 +144,28 @@ divergent refusé.
 ⚠️ **À faire en même temps** : `revoke_tokens` ne fait qu'un `DELETE` local — l'autorisation
 reste vivante chez Google, donc « révoqué » est faux. Voir l'AC-21 de
 `docs/specs/administration-globale-delegations.md`.
+
+**Trois défauts trouvés en écrivant le correctif, et corrigés avec lui** — ils touchaient
+le même chemin :
+
+1. **`dt_token_service` ne sondait pas sa connexion Redis.** Il testait `_connected`, un
+   drapeau qui reste vrai quand la boucle d'événements qui a ouvert le client a disparu
+   (bascule Redis, maintenance). Comme ce service **avale ses exceptions**, une connexion
+   périmée se traduisait en « le gestionnaire n'a pas autorisé l'accès » : un faux négatif
+   silencieux sur le chemin des autorisations Google — famille du constat M2 — qui pousse
+   à refaire un consentement, précisément le parcours qu'on venait de durcir. La logique
+   de sonde existait, éprouvée, dans `auth/dependencies.py` et **nulle part ailleurs** :
+   extraite en `cache.client_utilisable()`, désormais partagée.
+2. **`/auth/callback` levait un `UnboundLocalError` au lieu de son 400.** Le chemin super
+   admin faisait `status = await dt_token_service.get_authorization_status(...)`, ce qui
+   rendait `status` local à toute la fonction ; le gestionnaire d'exception, qui lit
+   `status.HTTP_400_BAD_REQUEST`, échouait donc sur un nom non encore assigné.
+   ⚠️ **`tests/test_auth.py::test_invalid_authorization_code` figeait ce bug** : il
+   attendait l'`UnboundLocalError` et le documentait en commentaire. Un test peut donc
+   sanctuariser un défaut au lieu de le révéler — à surveiller ailleurs.
+3. **`/auth/dt-authorization-status` et `/auth/revoke-dt-authorization` ciblaient
+   « DT75 » en dur.** Les laisser aurait rendu le trio incohérent avec le rappel corrigé :
+   révoquer depuis la session d'une autre délégation aurait été une révocation croisée.
 
 ### C2 — La prise de véhicule échoue systématiquement en 422
 
