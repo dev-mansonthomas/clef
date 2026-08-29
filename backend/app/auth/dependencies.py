@@ -153,6 +153,28 @@ async def require_dt_manager(
     return current_user
 
 
+async def require_dt_manager_or_super_admin(
+    current_user: User = Depends(require_authenticated_user)
+) -> User:
+    """Gestionnaire DT **ou** super admin.
+
+    Le parcours de consentement Google étendu est lancé de deux endroits : le bouton du
+    gestionnaire DT (`/auth/authorize-dt`) et, pour le super admin, la fin de sa propre
+    connexion (`/auth/callback`). Son retour — `/auth/callback-dt` — doit donc accepter
+    les deux, et n'avait jusqu'ici aucun guard du tout (constat C4).
+
+    ⚠️ Le super admin n'est **pas** gestionnaire DT : son rôle dérivé est « Bénévole »
+    avec `is_super_admin`. Garder `require_dt_manager` seul l'aurait enfermé dehors à son
+    retour de consentement.
+    """
+    if auth_service.is_dt_manager(current_user) or user_is_super_admin(current_user):
+        return current_user
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="DT manager or super admin access required"
+    )
+
+
 async def require_ul_responsible(
     current_user: User = Depends(require_authenticated_user)
 ) -> User:

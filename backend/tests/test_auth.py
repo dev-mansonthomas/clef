@@ -121,15 +121,23 @@ class TestAuthEndpoints:
         assert user["ul"] == "UL Paris 15"
     
     def test_invalid_authorization_code(self):
-        """Test callback with invalid authorization code raises an error."""
-        # The callback raises ValueError for invalid codes, which the error
-        # handler converts to a 500 due to a variable shadowing issue with
-        # 'status' in the non-mock branch.
-        with pytest.raises(UnboundLocalError):
-            client.get(
-                "/auth/callback?code=invalid-code&state=test-state",
-                follow_redirects=False
-            )
+        """Un code d'autorisation invalide donne un 400 propre.
+
+        ⚠️ Ce test **figeait un bug** : il exigeait un `UnboundLocalError`, en le
+        documentant comme « a variable shadowing issue with 'status' ». Le mécanisme :
+        le chemin super admin de `/auth/callback` faisait
+        `status = await dt_token_service.get_authorization_status(...)`, ce qui rendait
+        `status` local à toute la fonction — et le gestionnaire d'exception, qui lit
+        `status.HTTP_400_BAD_REQUEST`, levait donc `UnboundLocalError` au lieu de son
+        400. Le renommage en `statut_autorisation` (correctif du constat C4) l'a
+        supprimé ; le test dit maintenant ce que le comportement doit être.
+        """
+        reponse = client.get(
+            "/auth/callback?code=invalid-code&state=test-state",
+            follow_redirects=False
+        )
+        assert reponse.status_code == 400
+        assert "Invalid authorization code" in reponse.json()["detail"]
 
 
 class TestAuthDependencies:

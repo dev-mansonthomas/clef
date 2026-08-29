@@ -10,10 +10,18 @@ os.environ["USE_MOCKS"] = "true"
 
 @pytest.fixture
 def mock_cache():
-    """Create a mock cache with mocked Redis operations."""
+    """Create a mock cache with mocked Redis operations.
+
+    ⚠️ Le service ne va plus chercher `get_cache` lui-même : il passe par
+    `client_utilisable`, qui **sonde** la connexion avant de la rendre. Tester
+    `_connected` ne suffisait pas — le drapeau reste vrai quand la boucle d'événements
+    qui a ouvert le client a disparu, et comme ce service avale ses exceptions, une
+    connexion périmée se traduisait en « pas autorisé ». C'est donc `client_utilisable`
+    qu'il faut doubler ici.
+    """
     import app.services.dt_token_service
 
-    with patch("app.services.dt_token_service.get_cache") as mock_get_cache:
+    with patch("app.services.dt_token_service.client_utilisable") as mock_client:
         cache = MagicMock()
         cache._connected = True
 
@@ -47,7 +55,7 @@ def mock_cache():
         redis_client.json = MagicMock(return_value=json_interface)
 
         cache.client = redis_client
-        mock_get_cache.return_value = cache
+        mock_client.return_value = redis_client
 
         yield cache
 

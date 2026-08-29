@@ -157,6 +157,38 @@ class RedisCache:
             return False
 
 
+async def client_utilisable():
+    """Client Redis du cache partagé, **revalidé** puis rouvert si nécessaire.
+
+    Le cache est un singleton de processus, et sa connexion est liée à la boucle
+    d'événements qui l'a ouverte. Si cette boucle disparaît — bascule Redis, maintenance,
+    ou plusieurs `TestClient` dans un même test — le client survit mais toute commande
+    lève « Event loop is closed ». Le drapeau `_connected` reste `True` : le tester ne
+    suffit donc pas, il faut sonder.
+
+    ⚠️ Cette logique existait, éprouvée, dans `auth/dependencies.py::_referentiel_store`,
+    et **nulle part ailleurs**. `dt_token_service` s'en passait, et comme il avale ses
+    exceptions, une connexion périmée y devenait « le gestionnaire n'a pas autorisé
+    l'accès » — un faux négatif silencieux sur le chemin des autorisations Google, de la
+    même famille que le constat M2. D'où l'extraction ici, en un seul endroit.
+
+    Returns:
+        Le client asyncio, prêt à servir.
+    """
+    cache = get_cache()
+    try:
+        if not cache._connected or cache.client is None:
+            await cache.connect()
+        else:
+            await cache.client.ping()
+    except Exception as exc:
+        logger.info("Connexion Redis inutilisable (%s), réouverture", exc)
+        cache.client = None
+        cache._connected = False
+        await cache.connect()
+    return cache.client
+
+
 # Global cache instance
 _cache: Optional[RedisCache] = None
 
