@@ -112,18 +112,28 @@ l'app terrain de lire la valeur.
 
 ### Fichiers et lignes concernés
 
-**Backend (3 littéraux décisionnels + 1 repli)**
+**Backend — 13 littéraux décisionnels** (inventaire corrigé le 2026-08-29 : la première
+version n'en listait que 4, et manquait les quatre du flux OAuth de délégation ainsi que
+quatre des cinq replis de `config.py`)
 
-| Fichier | Ligne | Nature |
+| Fichier | Ligne(s) | Nature |
 |---|---|---|
 | `app/auth/service.py` | 52 | `dt="DT75"` — gestionnaire d'amorçage |
 | `app/auth/service.py` | 116 | `dt="DT75"` — repli inconnu, **supprimé** au profit d'un 401 |
 | `app/main.py` | 147 | `dt="DT75"` — amorçage du référentiel mock |
-| `app/routers/config.py` | 611 | `current_user.dt or "DT75"` — repli |
+| `app/routers/config.py` | 611, 664, 692, 760, 792 | `current_user.dt or "DT75"` — cinq replis identiques |
+| `app/auth/routes.py` | 351, 353, 398, 421 | `dt_id = "DT75"` — les trois routes du flux OAuth de délégation. ⚠️ Deux portent encore un `# TODO: Get from user context` |
+| `app/routers/approbation.py` | 50 | `for dt_prefix in ["DT75"]` — une boucle sur une liste en dur, doublée d'un `SCAN` |
 
-Les occurrences de `app/routers/sync.py` (6) sont des **exemples de docstring**
+Les occurrences de `app/routers/sync.py` (6), `models/*.py` et les exemples de clés de
+`services/redis_service.py` sont des **exemples de docstring**
 (`dt: DT identifier (e.g., "DT75")`) : hors périmètre, et l'exception doit être portée
 par la garde d'AC-1 sans autoriser le code.
+
+⚠️ **Un codage en dur que la garde `DT75` ne voit pas** : `app/auth/service.py` écrit
+`ul="DT Paris"` et `perimetre="DT Paris"` sur deux chemins. C'est le même défaut, sous un
+autre littéral. Traité par la tranche 3 (son AC-5), qui remplace ces valeurs par le libellé
+du référentiel — mais à connaître dès maintenant pour ne pas croire la garde exhaustive.
 
 **Frontend admin (12 occurrences, 8 fichiers)**
 
@@ -186,7 +196,12 @@ et conserver `ul_id_structure` intact à l'écriture comme à la lecture. C'est 
 ## Out of scope
 
 - **L'import du référentiel des structures** et la dérivation effective de la délégation
-  par la chaîne `Id Structure` — tranche 2.
+  par la chaîne `Id Structure` — tranche 2
+  (`docs/specs/import-referentiel-structures.md`).
+- **La résolution de la délégation d'un email quand il en existe plusieurs** : cette
+  tranche laisse `_referentiel_store()` sur `DEFAULT_DT`, ce qui est exact tant qu'une
+  seule délégation est en service. Tranche 3
+  (`docs/specs/administration-globale-delegations.md`, F4).
 - Le **menu d'administration globale**, le registre des délégations et l'Apps Script
   d'amorçage — tranche 3.
 - La restriction de l'application **admin** aux seuls gestionnaires et responsables

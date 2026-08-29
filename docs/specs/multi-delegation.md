@@ -100,95 +100,82 @@ possible.
 
 ### Tranche 2 — Import du référentiel des structures
 
-Option de déploiement initialisant les 108 délégations et 576 unités locales depuis
-`init_data/DTUL.csv` (séparateur `;`), avec un compte rendu d'erreurs de la même forme
-que la synchronisation bénévoles — raison constante, données en colonnes.
+✅ **Spec écrite le 2026-08-29 : `docs/specs/import-referentiel-structures.md`** (21
+critères). Trois décisions y ont été arbitrées par le propriétaire :
 
-Le drapeau « utilise CLEF » décide de l'écrasement (D9). ⚠️ Cette tranche touche des
-données **en service** : elle mérite sa propre spec.
+| # | Arbitrage |
+|---|---|
+| E1 | Le fichier entre **par l'image, pas par git** — `01-gcp-deploy.sh` le recopie avant `gcloud builds submit backend`, qui ne lit que `backend/.gcloudignore`. Aucune exception au `.gitignore`, aucun endpoint d'upload |
+| E2 | **Référentiel global seul** (`clef:st:*`). Aucune projection dans `{dt}:ul:*` pour les 107 délégations dormantes : elle appartient à la création d'une délégation (tranche 3) |
+| E3 | Clés **plus courtes et indexées par `id_structure`**, jamais par libellé — « les labels changent parfois ». `{dt}:unite_locale:{id}` → `{dt}:ul:{id}`, `{dt}:unite_locales:index` → `{dt}:ul:idx`, `{dt}:benevoles:by_ul:{libellé}` → `{dt}:ben:ul:{id}` |
 
-**Ce que le fichier valide déjà**, vérifié par lecture : 0 rattachement mal formé, 0 UL
-orpheline, 108 codes uniques. **Ce qui reste fragile** : la jointure entre une UL du
-référentiel et l'UL nommée dans la feuille des bénévoles se fait sur le `Libelle`
-(`UNITE LOCALE DE PARIS XII`), pas sur le libellé court (`UL PARIS12`) —
-l'`id_structure`, désormais transporté et stocké, est là pour la rendre stricte. **Il
-n'est pas encore exploité.**
+**Deux mesures qui ont façonné la spec :**
 
-### Tranche 3 — Menu d'administration globale et amorçage par délégation OAuth
+- Les 18 UL de DT75 aujourd'hui **en dur** dans `backend/scripts/init_ul_data.py` sont
+  **identiques** au référentiel — mêmes identifiants, mêmes libellés, 0 écart — de même
+  que les 108 délégations. L'import est donc un remplacement à comportement constant, et
+  le rapport d'écarts de DT75 sera vide.
+- ⚠️ **L'export n'est pas exhaustif : 36 des 108 délégations n'y ont aucune UL** (DT93,
+  DT2A, DT2B, Martinique, Réunion…). D'où E4 : l'import ne réconcilie **jamais** —
+  contrairement à la synchronisation bénévoles, dont le lot *est* un instantané complet.
+  Une structure absente du fichier n'est ni supprimée, ni désactivée, et un `Id Structure`
+  inconnu ne fait **jamais** rejeter un bénévole.
 
-Création d'une délégation par le super admin : code validé (D2), email du gestionnaire,
-configuration initiale. Puis **l'amorçage des ressources Google par le backend lui-même**,
-sous l'identité du gestionnaire — pas par un Apps Script.
+Le drapeau « utilise CLEF » décide de l'écrasement (D9) : il devient `utilise_clef` sur le
+document de structure, propriété de CLEF, que l'import n'écrase jamais — le motif de
+l'ADR 0007 appliqué aux structures.
+
+### Tranche 3 — Administration globale des délégations et amorçage Google
+
+✅ **Spec écrite le 2026-08-29 : `docs/specs/administration-globale-delegations.md`** (22
+critères). Le titre historique parlait d'un « Apps Script d'amorçage » : **il n'y en aura
+pas** (D6 révisée). Arbitrages du propriétaire :
+
+| # | Arbitrage |
+|---|---|
+| F1 | **Le dossier racine doit être dans un Drive partagé**, et CLEF le vérifie. Correction du propriétaire : c'est déjà le cas, et c'est structurel — un Drive personnel plafonne à **5 Go, courriels inclus**. Conséquence : les fichiers n'appartiennent pas au gestionnaire, son départ ne déplace rien, et le jeton n'est qu'un laissez-passer interchangeable. Vérifié : `drive_service.py` passe **déjà** `supportsAllDrives` sur ses 8 appels |
+| F2 | **Création minimale** — code + email du gestionnaire, puis le gestionnaire complète. Une création complète dépendrait du consentement d'un tiers absent : elle échouerait à moitié par construction |
+| F4 | La délégation d'un email est résolue par **balayage pipeliné** des délégations en service — un `MGET`, un aller-retour — et **non** par un index global : ce serait une seconde source de vérité à maintenir, et 4546 adresses sorties du cloisonnement par préfixe |
+| F6 | **Aucune clé globale nouvelle** : le registre s'appuie sur `clef:st:*` et son drapeau `utilise_clef` (tranche 2). D7 prévoyait un registre séparé ; la tranche 2 l'a rendu inutile |
+
+⚠️ **Préalable bloquant, décidé le 2026-08-29 : le correctif de `docs/TODO.md` C4**, à
+livrer sur sa propre branche **avant** cette tranche. `/auth/callback-dt` n'a aucun guard
+et prend l'identité du gestionnaire dans le paramètre `state`, non signé : n'importe quel
+compte pouvant consentir peut faire de son propre compte Google l'identité déléguée de la
+délégation. Découvert en écrivant cette spec ; déployé en dev.
 
 #### Ce qui existe déjà, et qu'il ne faut pas réécrire
 
 | Élément | Où | État |
 |---|---|---|
-| Parcours de consentement étendu | `GET /auth/authorize-dt` → `GET /auth/callback-dt` | fonctionnel |
-| Scopes demandés | `auth/config.py` : `calendar`, `drive`, `gmail.send` | suffisants pour créer dossiers, classeurs, envoyer des courriels et écrire au calendrier |
-| Stockage du jeton | `dt_token_service` — jeton de rafraîchissement **chiffré par KMS**, rafraîchi automatiquement | fonctionnel |
-| Client Drive délégué | `services/drive_service.py` : `create_folder`, `get_or_create_folder`, `upload_file`, `rename_file`, `list_revisions`… | fonctionnel |
-| Écran de déclenchement | composant `dt-admin` : bouton d'autorisation + `GET /auth/dt-authorization-status` | fonctionnel |
+| Parcours de consentement étendu | `GET /auth/authorize-dt` → `GET /auth/callback-dt` | fonctionnel, mais **vulnérable** — voir C4 |
+| Scopes demandés | `auth/config.py` : `calendar`, `drive`, `gmail.send` | suffisants |
+| Stockage du jeton | `dt_token_service` — rafraîchissement chiffré par KMS, renouvelé **à l'usage** | fonctionnel ; il manque le rafraîchissement de fond, dont l'apport est la **détection précoce d'une révocation** |
+| Client Drive délégué | `services/drive_service.py` — `supportsAllDrives` déjà posé partout | fonctionnel |
+| Création de l'arborescence | `PATCH /api/config` → `_run_drive_sync` → `vehicle_document_service.ensure_vehicle_trees_for_all_vehicles`, avec suivi de progression et annulation | **fonctionnel** : la tranche 3 y ajoute le contrôle de Drive partagé et les messages d'absence de jeton, elle ne le réécrit pas |
+| Écran de déclenchement | composant `dt-admin` | fonctionnel, mais **enfoui** : d'où le consentement incrémental après connexion |
+| Écran global | `pages/super-admin/super-admin.component.ts` | **gabarit de 11 lignes** — « Page en construction ». Le lien de navigation existe déjà, gardé par `isSuperAdmin` |
 
-⚠️ **Deux services Drive coexistent, et la confusion coûterait cher** :
-`drive_service.py` agit **sous l'identité du gestionnaire** (jeton délégué) et fonctionne
-dans ce Workspace ; `drive_real.py` agit sous le **service account** et tombe sous le
-constat N13. Toute création de ressource doit passer par le premier.
-
-#### Ce qu'il reste à faire
-
-1. **Provoquer le consentement au bon moment.** Aujourd'hui il est enfoui dans l'écran
-   d'administration DT : un gestionnaire qui ne l'ouvre jamais n'accorde jamais rien, et
-   les fonctions Drive/Gmail/Calendar échouent sans qu'il sache pourquoi.
-
-   ✅ **Tranché (2026-08-29) : autorisation incrémentale, pour le seul gestionnaire DT**,
-   déclenchée juste après sa connexion quand sa délégation manque ou a expiré — par une
-   invitation qu'on ne peut pas manquer, pas par un bouton enfoui dans un écran. C'était
-   l'intention implicite du propriétaire.
-
-   Demander `drive` et `gmail.send` à **tout** utilisateur serait disproportionné — un
-   bénévole terrain n'en a aucun usage — et un scope Drive large sur tout le domaine
-   attire la procédure de vérification Google. Le parcours technique existe déjà ; seul
-   le moment du déclenchement change.
-
-   ⚠️ **Le jeton du gestionnaire sert aux actions des AUTRES.** Quand un responsable
-   véhicule crée un véhicule ou dépose un document, l'écriture Drive se fait sous le
-   compte du **gestionnaire DT** — c'est lui qui possède l'arborescence. Deux
-   conséquences :
-
-   - **le jeton doit rester valide sans que le gestionnaire soit présent.**
-     `dt_token_service.get_access_token` rafraîchit déjà **à l'usage**, ce qui suffit
-     techniquement. Ce qui manque est un **rafraîchissement de fond** — le scheduler
-     APScheduler existe — dont le vrai apport n'est pas le renouvellement mais la
-     **détection précoce d'une révocation** : sans lui, on l'apprend au moment du dépôt
-     d'un document par un tiers, c'est-à-dire au pire moment et pour la mauvaise
-     personne. L'état doit être lisible dans l'écran d'administration DT ;
-   - **la traçabilité** : le propriétaire du fichier Drive n'est pas son auteur. À
-     conserver côté CLEF (qui a déposé quoi), le Drive ne le dira pas.
-
-2. **Créer l'arborescence** à la première autorisation : dossier racine de la délégation,
-   sous-dossiers par UL, puis par véhicule — `get_or_create_folder` est idempotent, donc
-   rejouable sans risque.
-3. **Déclarer les URL obtenues** dans la configuration de la délégation
-   (`drive_folder_url` existe déjà et déclenche la synchronisation des dossiers).
-4. **Rendre l'absence d'autorisation lisible** : une fonction qui dépend du jeton et n'en
-   trouve pas doit dire « le gestionnaire n'a pas encore accordé l'accès Drive », pas
-   échouer en 403 Google.
-
-⚠️ Le jeton appartient à **une personne**. Si ce gestionnaire quitte la délégation ou
-révoque l'accès, toutes les fonctions Drive, Gmail et Calendar de sa délégation
-s'arrêtent. C'est la question de conception la plus lourde de cette tranche, et elle n'est
-pas tranchée : jeton d'un seul gestionnaire, ou de plusieurs avec repli ?
+⚠️ **Deux classes portent le même nom `DriveService`** : `services/drive.py` (abstraite,
+service account, implémentée par `drive_real.py`) et `services/drive_service.py`
+(déléguée). Trois modules utilisent la déléguée, **trois la famille service account**
+(`routers/upload.py`, `upload_service.py`, `carnet_bord_service.py`) — laquelle tombe sous
+la même cause structurelle que N13. À vérifier par exécution ; chantier propre.
 
 ## Questions encore ouvertes
 
-- La création d'une DT écrit-elle une configuration initiale complète, ou le strict
-  nécessaire pour que le gestionnaire se connecte ?
+- ~~La création d'une DT écrit-elle une configuration complète ?~~ tranché (F2) : le
+  strict nécessaire, puis le gestionnaire complète.
 - ~~L'Apps Script d'amorçage~~ : sans objet, la délégation OAuth existante s'en charge.
-- **Le jeton de délégation appartient à une personne** : que se passe-t-il quand ce
-  gestionnaire part ? Un seul jeton, ou plusieurs avec repli ?
+- **Le jeton de délégation appartient à une personne** — mais **les fichiers, non** :
+  l'arborescence est dans un **Drive partagé** (F1), donc un départ ne déplace rien et le
+  jeton se remplace à chaud. Reste ouvert : un seul jeton remplaçable, ou plusieurs avec
+  ordre de repli ?
 - ~~Le moment du consentement~~ : tranché — incrémental, gestionnaire DT seulement.
 - `MIN_INSTANCES` : 0 ou 1 ? Voir l'arbitrage montage GCS ci-dessus.
-- Le libellé retenu pour la colonne d'identifiant de structure est `id_structure` ; le
-  référentiel des structures la nomme `N_structure`. Un seul libellé est accepté
-  aujourd'hui côté bénévoles.
+- Trois libellés pour le même identifiant : `N_structure` (référentiel des structures),
+  `Id Structure` (feuille des bénévoles), `ul_id_structure` (notre modèle). Deux sont des
+  contrats d'interface qu'on ne maîtrise pas.
+- `{dt}:benevoles:*` → `{dt}:ben:*` : la tranche 2 renomme l'index par UL mais **pas** les
+  documents ni `by_email`, qui est sur le chemin d'authentification. Le schéma reste mixte
+  jusqu'à cette fenêtre.

@@ -86,6 +86,59 @@ ou les supprimer si elles ne servaient qu'au débogage.
 > silencieuse — la route à écrire lit l'état RÉEL du scheduler (`job.next_run_time`)
 > sous `require_dt_manager`. C'est une petite fonctionnalité, pas un correctif.
 
+### C4 — 🔴 `/auth/callback-dt` accepte l'identité d'un paramètre d'URL non signé
+
+Découvert le 2026-08-29 en écrivant la spec de la tranche 3, sur lecture de
+`app/auth/routes.py:318-380`. **Déployé en dev.**
+
+La route **n'a aucun guard** — `code` et `state` en paramètres de requête, pas de
+`Depends` — et `state`, que `app/auth/google_oauth.py:45` documente pourtant comme
+« State parameter for CSRF protection », est utilisé comme **identité** :
+
+```python
+state: str = Query(..., description="DT manager email from state")
+...
+dt_id = "DT75"  # Default          ← ligne 351, en dur
+success = await dt_token_service.store_tokens(dt_id=dt_id, email=state, ...)
+```
+
+**Enchaînement.** Le `client_id` est public — `01-gcp-deploy.sh` l'imprime, et c'est
+normal — et le `redirect_uri` (`https://dev.clef.paquerette.com/auth/callback-dt`) est
+déclaré en console. Un tiers construit lui-même l'URL de consentement Google, consent
+**avec son propre compte**, et Google le redirige vers
+`…/auth/callback-dt?code=<le sien>&state=<email du gestionnaire>`. Le jeton de
+rafraîchissement stocké comme identité déléguée de la délégation devient le sien, et
+**écrase le légitime**.
+
+**Conséquences.** Les dossiers Drive créés par CLEF et les documents déposés par les
+bénévoles — cartes grises, photos, dossiers de réparation — atterrissent dans **son**
+Drive ; CLEF envoie des courriels sous **son** compte ; et les fonctions Drive de la
+délégation cessent pour tout le monde.
+
+**Deux nuances, par honnêteté :**
+
+- la sévérité dépend du **type d'écran de consentement** OAuth (Interne / Test / Publié),
+  non vérifiable depuis la VM. En « Interne », l'attaquant doit être un compte
+  `@croix-rouge.fr` — c'est-à-dire l'un des 4546 bénévoles synchronisés. Ça reste une
+  prise de contrôle de la délégation Google par n'importe quel bénévole ;
+- `dt_id` étant codé en dur, la cible est toujours DT75.
+
+**Correctif** (branche dédiée, avant la tranche 3 — décision du propriétaire du 2026-08-29) :
+
+1. dériver l'email de l'`id_token` du retour Google, **jamais** de `state` ;
+2. réduire `state` à un **nonce imprévisible** stocké côté serveur
+   (`clef:oauth:nonce:{nonce}`, TTL 600 s) et lié à la session qui a lancé le parcours ;
+3. exiger `require_dt_manager` sur le rappel, et refuser si l'email du jeton diffère de
+   celui de la session ;
+4. contrôler le domaine de l'email — `/auth/callback` le fait, `/auth/callback-dt` non.
+
+Trois tests le fixent : rappel sans session refusé, `state` falsifié refusé, email
+divergent refusé.
+
+⚠️ **À faire en même temps** : `revoke_tokens` ne fait qu'un `DELETE` local — l'autorisation
+reste vivante chez Google, donc « révoqué » est faux. Voir l'AC-21 de
+`docs/specs/administration-globale-delegations.md`.
+
 ### C2 — La prise de véhicule échoue systématiquement en 422
 
 Écart de contrat entre le formulaire `form` et le backend. `prise-form.component.ts:170-180`
@@ -1518,3 +1571,39 @@ fait pas partie. Le cloisonnement n'est donc pas « aucune écriture croisée »
 Ces deux cas d'usage partagent une conclusion : le préfixe de délégation restera le
 mécanisme d'isolation, mais il lui faut **des points de passage explicites, nommés et
 tracés** — pas des exceptions ajoutées au coup par coup.
+
+### U3 — Renommer `{dt}:benevoles:*` en `{dt}:ben:*`
+
+Décidé le 2026-08-29 avec la spec `import-referentiel-structures.md` : les clés doivent
+être **courtes et indexées par identifiant**, jamais par libellé. La tranche 2 renomme
+`{dt}:unite_locale:{id}` → `{dt}:ul:{id}`, `{dt}:unite_locales:index` → `{dt}:ul:idx` et
+`{dt}:benevoles:by_ul:{libellé}` → `{dt}:ben:ul:{id}`, mais **s'arrête là**.
+
+Reste donc à renommer les documents et leurs deux index :
+
+```
+{dt}:benevoles:{nivol}     → {dt}:ben:{nivol}          ~4546 documents
+{dt}:benevoles:index       → {dt}:ben:idx
+{dt}:benevoles:by_email    → {dt}:ben:mail
+```
+
+⚠️ **Pourquoi ce n'est pas dans la tranche 2** : `by_email` est sur le chemin
+d'authentification. Une migration à moitié faite ferme l'application à tout le monde. Elle
+mérite sa propre fenêtre, avec un `MULTI`/`EXEC` unique — Redis étant mono-thread sur
+l'exécution d'une transaction, les ~4550 `RENAME` s'appliquent alors tout ou rien — plus
+un mode de vérification et le renommage inverse en repli.
+
+D'ici là le schéma est **mixte** : `{dt}:ben:ul:{id}` voisine `{dt}:benevoles:{nivol}`.
+C'est assumé et écrit, pas un oubli.
+
+### U4 — Obtenir un export exhaustif des unités locales
+
+Mesuré le 2026-08-29 sur `init_data/DTUL.csv` : **36 des 108 délégations n'y ont aucune
+unité locale** — DT93, DT2A, DT2B, Martinique, Réunion, Guyane, Mayotte, DT60, DT61… soit
+576 UL exportées pour un réseau qui en compte davantage.
+
+Conséquence dans le code, déjà traitée : l'import ne réconcilie jamais, et un
+`Id Structure` inconnu ne fait pas rejeter un bénévole
+(`docs/specs/import-referentiel-structures.md`, E4 et AC-18). Conséquence **hors** code :
+la jointure stricte `Id Structure → UL → délégation` ne couvrira ces délégations que
+lorsqu'un export complet sera disponible. Action non technique.
