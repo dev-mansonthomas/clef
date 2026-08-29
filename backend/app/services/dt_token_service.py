@@ -6,7 +6,7 @@ import logging
 from typing import Optional, Dict, Any
 from datetime import datetime, timedelta
 from app.services.kms_service import kms_service
-from app.cache import get_cache
+from app.cache import client_utilisable
 
 logger = logging.getLogger(__name__)
 
@@ -43,14 +43,13 @@ class DTTokenService:
             True if stored successfully, False otherwise
         """
         try:
-            cache = get_cache()
-            if not cache._connected:
-                await cache.connect()
-            
-            if not cache.client:
-                logger.error("Redis client not available")
-                return False
-            
+            # ⚠️ `client_utilisable` SONDE la connexion : tester `_connected` ne
+            # suffit pas, le drapeau restant vrai quand la boucle d'événements qui a
+            # ouvert le client a disparu. Ce service avalant ses exceptions, une
+            # connexion périmée se traduisait en « pas autorisé » — un faux négatif
+            # silencieux sur le chemin des autorisations Google.
+            client = await client_utilisable()
+
             # Encrypt tokens
             encrypted_access = self.kms.encrypt(access_token)
             encrypted_refresh = self.kms.encrypt(refresh_token)
@@ -69,7 +68,7 @@ class DTTokenService:
             
             key = self._get_token_key(dt_id)
             # Use regular set with JSON serialization for compatibility with fakeredis
-            await cache.client.set(key, json.dumps(token_data))
+            await client.set(key, json.dumps(token_data))
             
             logger.info(f"Stored OAuth tokens for DT {dt_id}")
             return True
@@ -90,15 +89,10 @@ class DTTokenService:
             Decrypted access token or None if not found/expired
         """
         try:
-            cache = get_cache()
-            if not cache._connected:
-                await cache.connect()
-            
-            if not cache.client:
-                return None
-            
+            client = await client_utilisable()
+
             key = self._get_token_key(dt_id)
-            token_data_str = await cache.client.get(key)
+            token_data_str = await client.get(key)
             
             if not token_data_str:
                 return None
@@ -114,7 +108,7 @@ class DTTokenService:
                 if not refreshed:
                     return None
                 # Get updated token data
-                token_data_str = await cache.client.get(key)
+                token_data_str = await client.get(key)
                 if not token_data_str:
                     return None
                 token_data = json.loads(token_data_str)
@@ -175,15 +169,10 @@ class DTTokenService:
             Dictionary with authorization status
         """
         try:
-            cache = get_cache()
-            if not cache._connected:
-                await cache.connect()
-
-            if not cache.client:
-                return {"authorized": False}
+            client = await client_utilisable()
 
             key = self._get_token_key(dt_id)
-            token_data_str = await cache.client.get(key)
+            token_data_str = await client.get(key)
 
             if not token_data_str:
                 return {"authorized": False}
@@ -211,15 +200,10 @@ class DTTokenService:
             True if revoked successfully
         """
         try:
-            cache = get_cache()
-            if not cache._connected:
-                await cache.connect()
-
-            if not cache.client:
-                return False
+            client = await client_utilisable()
 
             key = self._get_token_key(dt_id)
-            await cache.client.delete(key)
+            await client.delete(key)
 
             logger.info(f"Revoked OAuth tokens for DT {dt_id}")
             return True
