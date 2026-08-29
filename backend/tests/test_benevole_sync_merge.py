@@ -42,6 +42,9 @@ def _identite(nivol="00123456A", **overrides) -> BenevoleIdentite:
         "nom": "Dupont",
         "prenom": "Jean",
         "ul": "UL Paris 15",
+        # Identifiant de structure de l'UL : obligatoire depuis le 2026-08-29, c'est lui
+        # qui rend stricte la jointure avec le référentiel national des structures.
+        "ul_id_structure": "889",
         "email": f"{nivol.lower()}@croix-rouge.fr",
         "telephone": "+33 6 12 34 56 78",
     }
@@ -245,3 +248,35 @@ async def test_two_consecutive_runs_are_idempotent(dt75):
     assert result["deactivated"] == 0
     for identite in identites:
         assert (await dt75.get_benevole(identite.nivol)).statut == "actif"
+
+
+# ---------------------------------------------------------------------------
+# La garantie que le champ obligatoire à l'ÉCRITURE l'est réellement
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_aucun_benevole_ne_peut_etre_ecrit_sans_id_de_structure(dt75):
+    """`ul_id_structure` est obligatoire à l'écriture, optionnel à la lecture.
+
+    L'asymétrie est voulue (voir `BenevoleData`) : `get_benevole` est sur le chemin
+    d'authentification, et un document écrit avant l'ajout de la colonne doit se lire
+    — sinon un problème de donnée devient un refus de connexion sans diagnostic.
+
+    Mais l'optionnalité en lecture ne doit pas devenir une porte d'entrée : ce test
+    vérifie que le SEUL chemin d'écriture du référentiel, `upsert_benevole_identite`,
+    ne peut structurellement pas produire un bénévole sans identifiant de structure.
+    """
+    from pydantic import ValidationError
+
+    # Le modèle d'écriture refuse l'absence…
+    with pytest.raises(ValidationError):
+        BenevoleIdentite(
+            nivol="00123456A", nom="Dupont", prenom="Jean", ul="UL Paris 15"
+        )
+
+    # …et ce qui est écrit porte toujours la valeur.
+    await dt75.upsert_benevole_identite(_identite("00999999Z"))
+    ecrit = await dt75.get_benevole("00999999Z")
+    assert ecrit.ul_id_structure == "889", (
+        "l'identifiant de structure doit traverser l'écriture jusqu'au document stocké"
+    )

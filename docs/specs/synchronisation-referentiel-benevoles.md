@@ -90,10 +90,27 @@ soit le reste (voir AC-9).
 - [ ] **AC-7 — Validation ligne à ligne.** Un lot de 10 lignes dont 2 sont invalides
       importe les 8 valides, renvoie `errors` de longueur 2 avec le numéro de ligne et
       le motif, et un code HTTP **200**.
-- [ ] **AC-8 — En-têtes.** Les colonnes sont reconnues par leurs libellés français
-      exacts (`Nivol`, `Nom`, `Prénom`, `UL`, `Téléphone`, `Email`). La colonne
-      `Prénom Nom` est **ignorée**. Une colonne obligatoire manquante produit une erreur
-      qui **nomme la colonne**.
+- [ ] **AC-8 — En-têtes.** Les colonnes sont reconnues par leurs libellés exacts.
+      **Obligatoires** : `Nivol`, `Nom`, `Prénom`, `UL`, `id_structure`.
+      **Facultatives** : `Téléphone`, `Email`. Toute autre est **ignorée**, dont
+      `Prénom Nom`. Une colonne obligatoire manquante produit une erreur qui **nomme la
+      colonne**.
+- [ ] **AC-15 — `id_structure`.** L'identifiant interne Croix-Rouge de l'**unité
+      locale** du bénévole est **obligatoire** et doit être un **entier positif** :
+      espaces retirés, cellule numérique acceptée, forme canonique conservée
+      (`00889` → `889`). `0`, un négatif ou du texte sont refusés **à la ligne**.
+
+      Il est obligatoire parce que `UL` est un **libellé libre**
+      (« UNITE LOCALE DE PARIS XII ») : la jointure avec le référentiel national des
+      structures se ferait sinon sur du texte, et une variante d'orthographe suffirait à
+      laisser un bénévole sans UL connue, donc sans périmètre. Un identifiant qui manque
+      une fois sur dix ne rend rien strict.
+
+      ⚠️ **Asymétrie voulue** : obligatoire à l'**écriture** (`BenevoleIdentite`),
+      optionnel à la **lecture** (`BenevoleData`). Les bénévoles écrits avant l'ajout de
+      la colonne doivent pouvoir se lire — cette lecture est sur le chemin
+      d'authentification, et l'exiger transformerait un problème de donnée en refus de
+      connexion sans diagnostic. Même raisonnement que pour `ul`.
 - [ ] **AC-9 — Révocation.** Un bénévole `inactif` qui présente un cookie de session
       valide reçoit **401**, et le refus est journalisé avec son email.
 - [ ] **AC-10 — Clé par délégation.** `POST /api/sync/{dt}/benevoles` n'accepte qu'une
@@ -119,10 +136,12 @@ bénévole du département. Le code Apps Script est installé **dans ce classeur
 Ligne d'en-têtes, dans cet ordre :
 
 ```
-Prénom Nom | Nivol | Nom | Prénom | UL | Téléphone | Email
+Prénom Nom | Nivol | Nom | Prénom | UL | Téléphone | Email | id_structure
 ```
 
-`Prénom Nom` est une concaténation de commodité : **ignorée**.
+`Prénom Nom` est une concaténation de commodité : **ignorée**. `id_structure` a été
+**ajoutée en fin de ligne le 2026-08-29** — l'ordre des colonnes n'a aucune importance,
+l'Apps Script envoyant un objet clé par en-tête.
 
 L'onglet s'appelle **« Bénévoles »** (confirmé par le propriétaire le 2026-08-21).
 Le nom reste surchargeable par la propriété de script `CLEF_SHEET_BENEVOLES`, dont la
@@ -249,10 +268,53 @@ async def set_benevole_organisation(
 | Situation | Comportement attendu |
 |---|---|
 | `Nivol` vide ou absent | erreur de ligne, ligne ignorée (AC-14) |
-| `Nivol` en doublon dans le lot | la **dernière** occurrence gagne ; un `WARNING` nomme le nivol |
+| `Nivol` en doublon, **une ligne UL + une ligne DT** | **fusion** : l'unité locale réelle est conservée, `rattachement_dt` passe à `true`. Aucune erreur — c'est la forme normale du référentiel |
+| `Nivol` en doublon, **deux unités locales différentes** | la dernière listée gagne ; erreur de ligne portant les deux UL dans `values["UL 1"]` et `values["UL 2"]` |
+| `Nivol` en doublon, **identité divergente** (nom, prénom, email, téléphone) | la ligne retenue gagne ; erreur de ligne portant le champ dans `values["Détail"]` |
+
+**La `reason` d'une erreur est une CONSTANTE** (`RAISON_*` dans `routers/sync.py`), et
+`values` porte les données : `Nivol`, `Nom`, `Prénom`, `UL 1`, `UL 2`, `Détail`. Une
+raison interpolée n'est ni triable ni dénombrable — impossible de traiter une unité
+locale à la fois, et le regroupement par nature devait effacer les valeurs par
+expressions régulières, donc deviner ce qui variait. `test_benevole_sync_payload.py`
+vérifie l'invariant sur la liste exhaustive des constantes.
+
+⚠️ `values` ne portait que le nivol, « pour ne pas déverser de données personnelles dans
+des journaux à audience plus large que la base ». La précaution reste, son périmètre
+était mal posé : ces valeurs sont écrites dans un onglet du classeur qui contient déjà
+ces personnes — même public. Ce qui tient toujours : le **serveur** ne journalise que
+des compteurs et des nivols, jamais ces `values`.
 | `UL` vide | erreur de ligne : un bénévole a toujours une UL |
 | `Email` vide | accepté. Le bénévole existe mais **ne pourra pas s'authentifier** (l'auth passe par l'index email). Journalisé en `INFO`, compté dans la réponse |
 | `Email` en doublon dans le lot | la dernière occurrence gagne l'entrée d'index ; `WARNING`, car deux bénévoles se disputent une identité de connexion |
+
+### Le référentiel liste deux fois les bénévoles de la délégation
+
+Découvert au premier import réel, le 2026-08-28 : **120 « doublons » sur 4546 lignes**,
+tous de la même nature. Un bénévole porteur d'une fonction à la délégation figure deux
+fois, une ligne sous son unité locale et une sous la DT :
+
+```
+MASSY BOUKHOUF  01100078356D  BOUKHOUF  MASSY  UNITE LOCALE DE PARIS XII  06…  massy.boukhouf@croix-rouge.fr
+MASSY BOUKHOUF  01100078356D  BOUKHOUF  MASSY  DT DE PARIS                06…  massy.boukhouf@croix-rouge.fr
+```
+
+La règle « la dernière occurrence gagne » faisait donc dépendre l'UL enregistrée de
+**l'ordre des lignes de la feuille**, et perdait une fois sur deux la seule information
+utile des deux : l'unité locale réelle.
+
+Les deux lignes sont désormais **fusionnées** : `ul` reçoit l'unité locale réelle, et
+`rattachement_dt` passe à `true`.
+
+⚠️ **`rattachement_dt` n'est pas un rôle.** Il ne confère aucun droit dans CLEF et n'a
+aucun rapport avec `fonctions_dt`, qui appartient à CLEF et que la synchronisation ne
+touche jamais. C'est un fait d'appartenance lu dans la feuille, exposé par l'annuaire
+pour distinguer ces personnes dans un sélecteur.
+
+⚠️ La reconnaissance porte sur le **libellé** de l'UL, faute de colonne qui le dise :
+`^DT\b` ou `^DÉLÉGATION TERRITORIALE\b`, insensible à la casse. Un libellé non reconnu
+retombe sur le traitement de doublon ordinaire — donc signalé, jamais fusionné à tort en
+silence.
 | Changement d'`UL` | `by_ul` mis à jour des deux côtés. ⚠️ Si `responsable_ul` était vrai, il est **conservé** — la personne devient responsable de sa nouvelle UL. `WARNING` pour que ce soit revu |
 | Changement d'`Email` | l'ancienne entrée `by_email` est **supprimée** (sinon l'ancienne adresse continuerait d'ouvrir une session) |
 | Lot vide | aucune désactivation (AC-6), `reconciliation_skipped: true` |

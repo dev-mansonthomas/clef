@@ -46,6 +46,12 @@ class BenevoleResponse(BaseModel):
     ul: Optional[str] = None
     telephone: Optional[str] = None
     nivol: Optional[str] = None
+    #: Le bénévole figure aussi au référentiel sous l'UL de la délégation.
+    #
+    # ⚠️ Aucun droit dans CLEF, et sans rapport avec `fonctions_dt` : c'est un fait
+    # d'appartenance lu dans la feuille. Exposé ici pour distinguer ces personnes dans
+    # un sélecteur — un bénévole rattaché à la DT est souvent celui qu'on cherche.
+    rattachement_dt: bool = False
     responsable_ul: bool = False
     fonctions_dt: List[str] = Field(default_factory=list)
 
@@ -259,6 +265,7 @@ async def list_benevoles_directory(
                 ul=data.ul,
                 telephone=data.telephone,
                 nivol=data.nivol,
+                rattachement_dt=data.rattachement_dt,
                 responsable_ul=data.responsable_ul,
                 fonctions_dt=data.fonctions_dt,
             ))

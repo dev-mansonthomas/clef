@@ -110,6 +110,7 @@ class GoogleSheetsMock(SheetsService):
                 "nom": "Dupont",
                 "prenom": "Jean",
                 "ul": "UL Paris 15",
+                "ul_id_structure": "889",  # id de structure de l'UL — obligatoire
                 "dt": "DT75",
                 "statut": "Actif",
                 "role": None  # Regular benevole
@@ -119,6 +120,7 @@ class GoogleSheetsMock(SheetsService):
                 "nom": "Martin",
                 "prenom": "Marie",
                 "ul": "UL Paris 15",
+                "ul_id_structure": "889",  # id de structure de l'UL — obligatoire
                 "dt": "DT75",
                 "statut": "Actif",
                 "role": None  # Regular benevole
@@ -128,6 +130,7 @@ class GoogleSheetsMock(SheetsService):
                 "nom": "Bernard",
                 "prenom": "Pierre",
                 "ul": "UL Paris 16",
+                "ul_id_structure": "889",  # id de structure de l'UL — obligatoire
                 "dt": "DT75",
                 "statut": "Actif",
                 "role": None  # Regular benevole
@@ -137,6 +140,7 @@ class GoogleSheetsMock(SheetsService):
                 "nom": "Dubois",
                 "prenom": "Sophie",
                 "ul": "UL Paris 16",
+                "ul_id_structure": "889",  # id de structure de l'UL — obligatoire
                 "dt": "DT75",
                 "statut": "Actif",
                 "role": None  # Regular benevole
@@ -146,6 +150,7 @@ class GoogleSheetsMock(SheetsService):
                 "nom": "Manson",
                 "prenom": "Thomas",
                 "ul": "DT Paris",
+                "ul_id_structure": "80",  # id de structure — obligatoire
                 "dt": "DT75",
                 "role": "responsable_dt",  # DT manager
                 "statut": "Actif"
@@ -155,6 +160,7 @@ class GoogleSheetsMock(SheetsService):
                 "nom": "Rousseau",
                 "prenom": "Claire",
                 "ul": "UL Paris 15",
+                "ul_id_structure": "889",  # id de structure — obligatoire
                 "dt": "DT75",
                 "role": "responsable_ul",  # UL responsible
                 "statut": "Actif"

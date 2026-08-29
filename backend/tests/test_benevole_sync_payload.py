@@ -16,7 +16,13 @@ import pytest
 
 from app.routers.sync import (
     MANDATORY_COLUMNS,
+    RAISON_CHAMP_INVALIDE,
+    RAISON_COLONNE_ABSENTE,
+    RAISON_IDENTITE_DIVERGENTE,
+    RAISON_UL_DIVERGENTES,
+    RAISON_UL_DIVERGENTES_MULTIPLES,
     BenevoleReferentielRow,
+    est_ul_de_delegation,
     parse_referentiel_rows,
 )
 
@@ -30,6 +36,9 @@ def _row(**overrides) -> dict:
         "UL": "UL Paris 15",
         "Téléphone": "+33 6 12 34 56 78",
         "Email": "jean.dupont@croix-rouge.fr",
+        # Colonne ajoutée à l'export le 2026-08-29, obligatoire : l'identifiant de
+        # structure de l'UL du bénévole (889 = UNITE LOCALE DE PARIS 1ER ET 2EME).
+        "id_structure": "889",
     }
     row.update(overrides)
     return {k: v for k, v in row.items() if v is not ...}
@@ -85,14 +94,16 @@ def test_missing_nivol_is_a_row_error():
     identites, errors = parse_referentiel_rows([_row(Nivol=""), _row(Nivol="NIV1")])
 
     assert len(identites) == 1
-    assert "Nivol" in errors[0]["reason"]
+    assert errors[0]["reason"] == RAISON_CHAMP_INVALIDE
+    assert "Nivol" in errors[0]["values"]["Détail"]
 
 
 def test_missing_ul_is_a_row_error():
     identites, errors = parse_referentiel_rows([_row(UL="")])
 
     assert identites == []
-    assert "UL" in errors[0]["reason"]
+    assert errors[0]["reason"] == RAISON_CHAMP_INVALIDE
+    assert "ul" in errors[0]["values"]["Détail"].lower()
 
 
 def test_absent_email_is_accepted():
@@ -115,7 +126,11 @@ def test_missing_mandatory_column_names_it():
     identites, errors = parse_referentiel_rows([row])
 
     assert identites == []
-    assert "Nivol" in errors[0]["reason"]
+    assert errors[0]["reason"] == RAISON_COLONNE_ABSENTE
+    assert "Nivol" in errors[0]["values"]["Détail"], (
+        "un onglet renommé doit produire un message actionnable : la colonne manquante "
+        "est NOMMÉE, dans sa propre colonne de l'onglet ERREURS SYNCHRO"
+    )
 
 
 def test_mandatory_columns_are_declared():
@@ -124,7 +139,7 @@ def test_mandatory_columns_are_declared():
     Elle sert au contrôle « colonne absente de toutes les lignes », qui doit nommer
     la colonne manquante plutôt que rapporter dix erreurs de ligne identiques.
     """
-    assert MANDATORY_COLUMNS == ("Nivol", "Nom", "Prénom", "UL")
+    assert MANDATORY_COLUMNS == ("Nivol", "Nom", "Prénom", "UL", "id_structure")
 
 
 def test_duplicate_nivol_last_wins():
@@ -151,3 +166,206 @@ def test_row_errors_carry_a_safe_excerpt():
 
     assert "values" in errors[0]
     assert "Téléphone" not in errors[0]["values"]
+
+
+# ─── Le partage UL / DT, tel que le référentiel réel le pratique ─────────────
+#
+# Découvert au premier import réel, le 2026-08-28 : 120 « doublons » sur 4546 lignes,
+# tous de la même nature. Un bénévole porteur d'une fonction à la délégation figure
+# DEUX FOIS au référentiel — une ligne sous son unité locale, une sous la DT :
+#
+#   MASSY BOUKHOUF  01100078356D  BOUKHOUF  MASSY  UNITE LOCALE DE PARIS XII  …
+#   MASSY BOUKHOUF  01100078356D  BOUKHOUF  MASSY  DT DE PARIS                …
+
+UL_REELLE = "UNITE LOCALE DE PARIS XII"
+UL_DELEGATION = "DT DE PARIS"
+
+
+@pytest.mark.parametrize("ordre", [
+    (UL_REELLE, UL_DELEGATION),
+    (UL_DELEGATION, UL_REELLE),
+])
+def test_le_benevole_de_la_dt_conserve_son_unite_locale(ordre):
+    """L'unité locale réelle gagne, QUEL QUE SOIT l'ordre des lignes.
+
+    « La dernière occurrence gagne » faisait dépendre l'UL de l'ordre de la feuille, et
+    perdait donc une fois sur deux la seule information utile des deux lignes.
+    """
+    identites, errors = parse_referentiel_rows(
+        [_row(Nivol="01100078356D", UL=ul) for ul in ordre]
+    )
+
+    assert len(identites) == 1
+    assert identites[0].ul == UL_REELLE
+    assert identites[0].rattachement_dt is True
+    assert errors == [], (
+        "ce doublon est structurel : le signaler comme une erreur noierait les vraies "
+        "anomalies — 120 lignes sur 4546 au premier import réel"
+    )
+
+
+def test_un_benevole_seulement_a_la_dt_garde_ce_libelle():
+    """Sans ligne d'unité locale, il n'y a rien d'autre à conserver."""
+    identites, errors = parse_referentiel_rows([_row(UL=UL_DELEGATION)])
+    assert identites[0].ul == UL_DELEGATION
+    assert identites[0].rattachement_dt is True
+    assert errors == []
+
+
+def test_le_rattachement_dt_n_est_pas_une_fonction_dt():
+    """Un bénévole sans ligne DT n'est pas rattaché — le défaut est faux, pas vrai."""
+    identites, _ = parse_referentiel_rows([_row(UL=UL_REELLE)])
+    assert identites[0].rattachement_dt is False
+
+
+def test_deux_unites_locales_differentes_restent_une_anomalie():
+    """Aucune des deux n'est la délégation : c'est la feuille qui est fausse."""
+    identites, errors = parse_referentiel_rows([
+        _row(Nivol="01100078356D", UL=UL_REELLE),
+        _row(Nivol="01100078356D", UL="UNITE LOCALE DE PARIS V"),
+    ])
+    assert len(identites) == 1
+    assert identites[0].rattachement_dt is False
+    assert len(errors) == 1
+    assert errors[0]["reason"] == RAISON_UL_DIVERGENTES
+    assert errors[0]["values"]["UL 1"] == "UNITE LOCALE DE PARIS V"
+    assert errors[0]["values"]["UL 2"] == UL_REELLE
+
+
+def test_une_identite_divergente_est_signalee():
+    """Deux personnes sous un même matricule, ou une correction faite d'un seul côté."""
+    _, errors = parse_referentiel_rows([
+        _row(Nivol="01100078356D", UL=UL_REELLE),
+        _row(Nivol="01100078356D", UL=UL_DELEGATION, Email="autre@croix-rouge.fr"),
+    ])
+    assert len(errors) == 1
+    assert errors[0]["reason"] == RAISON_IDENTITE_DIVERGENTE
+    assert errors[0]["values"]["Détail"].startswith("email")
+    # Nom et prénom accompagnent l'erreur : on corrige dans la feuille, à l'œil.
+    assert errors[0]["values"]["Nom"] == "Dupont"
+
+
+@pytest.mark.parametrize("ul,attendu", [
+    ("DT DE PARIS", True),
+    ("Délégation Territoriale de Paris", True),
+    ("DÉLÉGATION TERRITORIALE DE PARIS", True),
+    ("UNITE LOCALE DE PARIS XII", False),
+    ("UL Paris 15", False),
+    ("DTP", False),          # frontière de mot : « DTP » n'est pas « DT »
+    ("", False),
+])
+def test_la_reconnaissance_de_l_ul_de_delegation(ul, attendu):
+    """La règle porte sur le LIBELLÉ, faute de colonne qui le dise.
+
+    Un libellé non reconnu retombe sur le traitement de doublon ordinaire : signalé,
+    donc visible — jamais fusionné à tort en silence.
+    """
+    assert est_ul_de_delegation(ul) is attendu
+
+
+def test_une_raison_ne_porte_jamais_de_donnee():
+    """L'invariant qui rend l'onglet ERREURS SYNCHRO triable et dénombrable.
+
+    Une raison interpolée — « Doublon de NIVOL 011… : 2 unités locales différentes
+    (UL A, UL B) » — n'est ni triable par UL, ni dénombrable par nature : le résumé
+    devait effacer les valeurs à coups d'expressions régulières, donc DEVINER ce qui
+    variait. Chaque donnée a désormais sa colonne, et la raison est une constante.
+
+    Ce test compare à la liste exhaustive : une nouvelle nature d'erreur doit être
+    déclarée en constante, sinon la suite échoue.
+    """
+    constantes = {
+        RAISON_COLONNE_ABSENTE,
+        RAISON_CHAMP_INVALIDE,
+        RAISON_UL_DIVERGENTES,
+        RAISON_UL_DIVERGENTES_MULTIPLES,
+        RAISON_IDENTITE_DIVERGENTE,
+    }
+
+    lot = [
+        _row(Nivol="", UL=UL_REELLE),                                  # champ invalide
+        {k: v for k, v in _row().items() if k != "Nivol"},              # colonne absente
+        _row(Nivol="DOUBLE", UL=UL_REELLE),
+        _row(Nivol="DOUBLE", UL="UNITE LOCALE DE PARIS V"),             # 2 UL
+        _row(Nivol="TRIPLE", UL=UL_REELLE),
+        _row(Nivol="TRIPLE", UL="UNITE LOCALE DE PARIS V"),
+        _row(Nivol="TRIPLE", UL="UNITE LOCALE DE PARIS IX"),            # 3 UL
+        _row(Nivol="MAIL", UL=UL_REELLE),
+        _row(Nivol="MAIL", UL=UL_DELEGATION, Email="autre@croix-rouge.fr"),
+    ]
+
+    _, errors = parse_referentiel_rows(lot)
+    assert errors, "le lot doit produire des erreurs, sinon le test ne vérifie rien"
+
+    for e in errors:
+        assert e["reason"] in constantes, (
+            f"raison non constante : {e['reason']!r}. Toute donnée doit passer par "
+            "`values`, qui alimente une colonne dédiée."
+        )
+        for interdit in ("(", "«", ":"):
+            assert interdit not in e["reason"] or e["reason"].count(":") == 1, (
+                f"la raison {e['reason']!r} ressemble à une phrase interpolée"
+            )
+
+
+# ─── L'identifiant de structure de l'UL ──────────────────────────────────────
+#
+# L'UL d'un bénévole est un LIBELLÉ LIBRE dans la feuille (« UNITE LOCALE DE PARIS XII »).
+# La jointure avec le référentiel national des structures se ferait donc sur du texte :
+# une variante d'orthographe ou un accent décomposé, et le bénévole se retrouve sans UL
+# connue, donc sans périmètre. L'`id_structure` rend cette jointure stricte — ce qui n'a
+# de valeur que s'il est TOUJOURS présent, d'où une colonne obligatoire.
+
+def test_l_id_de_structure_est_obligatoire():
+    """Sa colonne manquante est NOMMÉE, comme les quatre autres obligatoires."""
+    row = _row()
+    del row["id_structure"]
+
+    identites, errors = parse_referentiel_rows([row])
+
+    assert identites == []
+    assert errors[0]["reason"] == RAISON_COLONNE_ABSENTE
+    assert errors[0]["values"]["Détail"] == "id_structure"
+
+
+@pytest.mark.parametrize("brut,attendu", [
+    ("889", "889"),
+    ("  889 ", "889"),          # cellule texte copiée avec des espaces
+    (889, "889"),               # cellule numérique de Sheets
+    (889.0, "889"),             # …et sa variante flottante
+    ("00889", "889"),           # forme canonique, sans zéros de tête
+])
+def test_l_id_de_structure_est_normalise(brut, attendu):
+    identites, errors = parse_referentiel_rows([_row(id_structure=brut)])
+    assert errors == []
+    assert identites[0].ul_id_structure == attendu
+
+
+@pytest.mark.parametrize("invalide", ["", "0", "-1", "UL PARIS12", "889 bis", None])
+def test_un_id_de_structure_non_entier_positif_est_refuse(invalide):
+    """Refuser à la ligne, plutôt que laisser échouer la jointure plus tard.
+
+    Une valeur comme « 0 » ou « UL PARIS12 » produirait une jointure qui échoue loin
+    d'ici, sur un bénévole précis — alors que le défaut est dans la colonne.
+    """
+    identites, errors = parse_referentiel_rows([_row(id_structure=invalide)])
+
+    assert identites == []
+    assert errors[0]["reason"] == RAISON_CHAMP_INVALIDE
+    assert "id_structure" in errors[0]["values"]["Détail"]
+
+
+def test_l_id_de_structure_reste_optionnel_A_LA_LECTURE():
+    """Asymétrie voulue : obligatoire à l'écriture, tolérée à la lecture.
+
+    Les 4546 bénévoles déjà en base ont été écrits avant l'ajout de la colonne. Si
+    `BenevoleData` l'exigeait, leur simple lecture échouerait — et comme cette lecture
+    est sur le chemin d'authentification, un problème de donnée deviendrait un refus de
+    connexion sans diagnostic. C'est le raisonnement déjà tenu pour `ul`.
+    """
+    from app.models.redis_models import BenevoleData
+
+    herite = BenevoleData(
+        nivol="00123456A", dt="DT75", nom="Dupont", prenom="Jean", ul="UL Paris 15"
+    )
+    assert herite.ul_id_structure is None

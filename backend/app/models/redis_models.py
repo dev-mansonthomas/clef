@@ -152,6 +152,25 @@ class BenevoleData(BaseModel):
     prenom: str = Field(..., description="First name")
     email: Optional[str] = Field(None, description="Email address")
     telephone: Optional[str] = Field(None, description="Phone number")
+    ul_id_structure: Optional[str] = Field(
+        None,
+        description=(
+            "Identifiant interne Croix-Rouge de l'unité locale. Rend stricte la jointure "
+            "avec le référentiel des structures, là où `ul` est un libellé libre."
+        )
+    )
+    # ⚠️ Obligatoire à l'ÉCRITURE (`BenevoleIdentite`, `MANDATORY_COLUMNS`), optionnel
+    # ici — le passage en obligatoire à la lecture est en arbitrage, voir la réponse du
+    # 2026-08-29 : il fait échouer la lecture de tout document écrit avant la colonne,
+    # donc l'authentification, et impose de renseigner le champ dans 85 fixtures de test.
+    rattachement_dt: bool = Field(
+        False,
+        description=(
+            "Le bénévole figure aussi au référentiel sous l'UL de la délégation. "
+            "Fait d'appartenance lu dans la feuille — AUCUN droit dans CLEF, et sans "
+            "rapport avec `fonctions_dt`, qui appartient à CLEF."
+        )
+    )
 
     # --- Organisation : propriété de CLEF ---------------------------------------
     statut: Literal["actif", "inactif"] = Field(
