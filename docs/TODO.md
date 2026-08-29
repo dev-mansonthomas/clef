@@ -1472,12 +1472,12 @@ ressource ajoutée, **y compris celles qu'un outil crée implicitement**. Deux t
 |---|---|
 | N7 | **Aucun déploiement n'a encore été exécuté.** Les scripts sont écrits, `shellcheck` est muet et tous les chemins d'argument sont testés — mais **rien n'a tourné contre GCP**. Le premier `00-infra.sh` puis `01-gcp-deploy.sh` sont à faire depuis l'hôte, en relisant les plans. |
 | N8 | **Les deux clés de service account utilisateur restent à révoquer** : `745beb6b…` (celle du `/credentials` local, encore utile à `run_local.sh --real`) et `c0b9e001…` (celle de Terraform, sans usage). ⚠️ Révoquer la première casse le mode réel local jusqu'à `gcloud auth application-default login`. |
-| N9 | **Le montage GCS FUSE pour les instantanés RDB n'est pas éprouvé.** Redis écrit un fichier temporaire puis le renomme ; sur un système de fichiers objet, `rename` est un copier-supprimer, non atomique. Pour quelques mégaoctets ce devrait passer, mais **c'est le point à vérifier au premier déploiement** : `gcloud storage ls -l gs://<bucket>/` après 10 minutes. Si ça échoue, le repli est un RDB local recopié périodiquement vers GCS. |
+| **N9** | 🟠 **REQUALIFIÉ le 2026-08-29, et c'est désormais le défaut le plus gênant du déploiement.** L'inquiétude d'origine — `rename` non atomique sur un stockage objet — ne s'est **jamais** manifestée ; les instantanés s'écrivent (`BGSAVE done, 9208 keys saved`, `DB saved on disk`). C'est le **montage** qui échoue : `GetStorageLayout … rpc error: code = Unimplemented`, sur `Attempt: 1`, gcsfuse ne réessayant pas (`EnableMountRetries:false`). **Mesuré : trois échecs pour un succès en 25 minutes**, et deux occurrences de plus le même soir — un 500 rendu à un utilisateur à 21:11, puis l'échec du déploiement de `clef-api-00017-srg` à 21:06. La sonde en cause détecte l'espace de noms hiérarchique et la documentation gcsfuse la dit « integral … cannot be skipped » : **aucune option de montage ne la court-circuite**, et la liste supportée par Cloud Run n'offre ni réessai ni désactivation. Colmatage en place : trois réessais dans `01-gcp-deploy.sh`, et `MIN_INSTANCES=1` pour que le tirage n'ait lieu qu'au déploiement. **Le correctif réel reste le repli déjà prévu ici** : RDB sur disque local, recopié périodiquement vers GCS, restauré au démarrage — le montage quitte alors le chemin critique. Amendement à l'ADR 0008, à chiffrer. |
 | **N15** | 🔴 **`npm ci --only=production` rendait l'image frontend inconstructible.** Construire une application Angular exige les devDependencies : le builder `@angular/build:application` déclaré dans `angular.json`, `@angular/compiler-cli` et `typescript` y vivent tous les trois. L'installation réussissait, puis `ng build` échouait faute de builder — un échec tardif, au milieu d'un Cloud Build, dont la cause est deux étapes plus haut. Corrigé en `npm ci` complet (ce sont des dépendances de l'étage de construction : rien n'atteint l'image finale, qui ne contient que nginx et des fichiers statiques) et `npx ng` au lieu d'un CLI installé globalement, pour que la version vienne du `package.json`. **Vérifié par construction réelle** : image de 104 Mo, `/`, `/admin/` et `/form/` servis en 200. |
 | **N14** | 🔴 **`backend/.env` serait parti en clair dans l'image de conteneur.** `gcloud builds submit backend` ne lit que `backend/.gcloudignore` — ou à défaut `backend/.gitignore`, qui ne contenait que `test_output.txt` — et **jamais** le `.gitignore` ni le `.gcloudignore` de la racine, où `.env` et `.venv/` sont pourtant bien exclus. Le Dockerfile faisant `COPY . .`, `backend/.env` (GOOGLE_CLIENT_SECRET, QR_CODE_SALT, SYNC_API_KEY, chemin d'une clé de service account) et ses variantes `.dev`/`.test`/`.prod` auraient été livrés dans une image poussée sur Artifact Registry — lisible par quiconque a accès au projet **partagé**. Plus 244 Mo de virtualenv et 362 Mo de `node_modules`. Attrapé le 2026-08-27, pendant le premier déploiement, avant qu'aucune image ne soit servie. Corrigé par `backend/.gcloudignore` et `frontend/.gcloudignore` (0,7 Mo et 4,2 Mo envoyés au lieu de 388 et 406). ⚠️ **Et ce n'était que la moitié du problème** : `.gcloudignore` ne concerne que Cloud Build. `docker build` lit `.dockerignore`, absent — donc `run_local.sh --build` copiait bel et bien `/app/.env` dans l'image, ce qu'une construction locale a confirmé (1,59 Go). `backend/.dockerignore` et `frontend/.dockerignore` ajoutés : image backend à 580 Mo, aucun secret, `/health` 200. `backend/tests/test_gcloudignore.py` (17 tests) exige les deux fichiers et vérifie qu'ils restent cohérents. ⚠️ **Si une image a été construite avant ce correctif, la supprimer du registre** — commandes dans la conversation. |
 | **N13** | 🔴 **Trois routes de production lisent Google Sheets avec le service account — impossible dans ce Workspace.** Le domaine `@croix-rouge.fr` interdit le partage d'un document vers une adresse extérieure, et `clef-backend@….gserviceaccount.com` en est une. C'est structurel : il n'existe pas de réglage qui l'autorise, et aucune délégation à l'échelle du domaine n'est configurée dans le dépôt. **C'est toute la raison pour laquelle les données circulent dans l'autre sens** — Apps Script pousse les bénévoles vers l'API, et tire les véhicules depuis l'API. Les trois routes fautives : `routers/upload.py:54` (`get_vehicule_by_nom_synthetique`, à l'envoi de photos), `routers/reservations.py:55` (`get_vehicule_by_indicatif`, à la création d'une réservation) et `services/alert_service.py:100` (`get_vehicles`, pour les alertes CT et pollution du scheduler). Toutes trois doivent lire **Redis** — le référentiel véhicules y est déjà, `redis_service` expose ce qu'il faut. Tant que ce n'est pas fait, le déploiement tourne mais l'envoi de photos, la création de réservations et les alertes échouent en 403. Découvert le 2026-08-27, sur correction de l'utilisateur : la documentation reconstruite décrivait Sheets comme lu par le backend, ce qui n'a jamais pu être vrai en production. |
 | N10 | **`backend/scripts/setup_gcp.sh` est périmé** : il lit des sorties Terraform `valkey_host`/`valkey_port` qui n'existent plus. À retirer ou réécrire. |
-| ~~N11~~ | ✅ **CLOS le 2026-08-29 — `MIN_INSTANCES = 1`.** Tranché sur un incident, pas en théorie : à 0, un `GET /api/config` a renvoyé 500 parce que le clic est tombé sur un démarrage à froid dont le montage gcsfuse a échoué. La même ligne ferme la perte de 10 min d'écritures à chaque mise en veille. Voir la section datée en fin de document. |
+| ~~N11~~ | ✅ **CLOS le 2026-08-29 — `MIN_INSTANCES = 1`.** Tranché sur un incident, pas en théorie : à 0, un `GET /api/config` a renvoyé 500 parce que le clic est tombé sur un démarrage à froid dont le montage gcsfuse a échoué. ⚠️ La raison n'est **pas** un risque de perte de données — mesuré, Redis écrit son instantané final sur SIGTERM en ~400 ms, donc un arrêt propre ne perd rien : c'est le tirage du montage à chaque réveil. Et ce réglage **déplace** l'échec vers le déploiement plutôt que de le supprimer. Voir les deux sections datées en fin de document. |
 | N12 | **L'ancienne racine `backend/terraform` et `infra/` subsistent.** Conservées le temps de valider la nouvelle ; à supprimer ensuite, avec leurs `terraform.tfstate` locaux. |
 
 ## Le 500 sur `/api/config` — un démarrage à froid, pas un bug applicatif (2026-08-29)
@@ -1503,7 +1503,10 @@ horodatages du log sont en `Z`, deux heures de moins, ce qui m'a d'abord égaré
 
 Le point décisif est l'avant-dernière ligne : l'appel identique réussit en 62 ms trois
 secondes plus tard. `Unimplemented` n'est donc pas une propriété du bucket — c'est un
-échec **transitoire**, et Cloud Run l'a lui-même rattrapé. Mais la requête en vol, elle,
+échec **intermittent** — et non une propriété du bucket. ⚠️ Ma première rédaction le
+qualifiait de « transitoire, rattrapé par Cloud Run » : trop optimiste. Le relevé
+complet est de **trois échecs pour un succès en 25 minutes**. Cloud Run reprend
+l'instance, mais la requête en vol, elle,
 était déjà perdue : Cloud Run ne la rejoue pas.
 
 C'est la conjonction de deux constats déjà ouverts. **N9** — « le montage GCS FUSE pour
@@ -1530,9 +1533,21 @@ que `01-gcp-deploy.sh` lit) et le repli du script. `tests/test_deploy_env_exampl
 fait désormais échouer la suite si la valeur redevient 0, avec la séquence de logs en
 docstring pour que la raison ne se perde pas.
 
-Effet second, non accessoire : **N11 est clos par la même ligne.** À 0, chaque mise en
-veille repartait du dernier instantané RDB, donc perdait jusqu'à 10 minutes d'écritures.
-Coût assumé : une instance facturée en continu (la CPU y était déjà non bridée).
+**N11 est clos par la même ligne** — mais pas pour la raison que j'avais écrite. Je
+l'avais justifiée par la perte de 10 minutes d'écritures à chaque mise en veille : c'est
+**faux**, et mesuré comme tel dans les journaux du 2026-08-28 — Cloud Run envoie SIGTERM,
+Redis écrit son instantané final (`BGSAVE done`, `DB saved on disk`) en ~400 ms. La perte
+à l'arrêt **propre** est nulle ; la fenêtre de 10 minutes ne concerne qu'une mort brutale.
+La vraie raison est le tirage du montage rejoué à chaque réveil. Coût assumé : une
+instance facturée en continu (la CPU y était déjà non bridée).
+
+⚠️ **Et ce réglage déplace l'échec plus qu'il ne le supprime.** Avec une instance
+minimale, la révision n'est prête qu'après un démarrage réussi : un montage raté fait
+donc échouer le **déploiement entier**, ce qui s'est produit sur la révision
+`clef-api-00017-srg` à 21:06. C'est un meilleur endroit pour échouer — un déploiement qui
+refuse vaut mieux qu'un bénévole devant un 500 — mais ce n'est pas une parade. Les trois
+réessais de `01-gcp-deploy.sh` sont ce qui rend le déploiement praticable en attendant
+que le montage sorte du chemin de démarrage (N9).
 
 ### Ce qui reste ouvert
 
